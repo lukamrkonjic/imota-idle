@@ -16,6 +16,7 @@ var cx: int = 0
 var cy: int = 0
 var tiles := PackedByteArray()    # tile byte ids, CHUNK_TILES^2, row-major
 var biomes_t := PackedByteArray() # biome index per tile (255 in caves)
+var elev_t := PackedByteArray()   # elevation level 0..7 per tile (0 in caves)
 var zone: Dictionary = {}
 var safe := false                 # campsite/village chunk: no monster spawns
 var sites: Array = []
@@ -30,6 +31,7 @@ func setup(p_layer: int, p_cx: int, p_cy: int) -> void:
 	tiles.resize(WG.CHUNK_TILES * WG.CHUNK_TILES)
 	biomes_t.resize(WG.CHUNK_TILES * WG.CHUNK_TILES)
 	biomes_t.fill(255)
+	elev_t.resize(WG.CHUNK_TILES * WG.CHUNK_TILES)
 
 
 func key() -> String:
@@ -51,6 +53,10 @@ func tile_id(tx: int, ty: int) -> int:
 
 func biome_at(tx: int, ty: int) -> int:
 	return biomes_t[idx(tx, ty)]
+
+
+func elev_at(tx: int, ty: int) -> int:
+	return elev_t[idx(tx, ty)]
 
 
 ## Global tile coords of a local tile.

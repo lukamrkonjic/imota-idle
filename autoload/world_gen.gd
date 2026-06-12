@@ -92,6 +92,12 @@ func player_entry_level() -> int:
 	return generator.zone_map.player_entry_level()
 
 
+## Discrete elevation level (0..7) at a world position (surface layer).
+func elevation_at(world_pos: Vector2) -> int:
+	var t := WG.world_to_tile(world_pos)
+	return int(generator.elevation.level_at(float(t.x), float(t.y)))
+
+
 func _tile_def_at_world(pos: Vector2, layer: int = 0) -> Dictionary:
 	var t := WG.world_to_tile(pos)
 	var c := WG.tile_to_chunk(t)

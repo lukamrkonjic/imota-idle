@@ -8,7 +8,9 @@ extends RefCounted
 const WG := preload("res://scripts/worldgen/wg.gd")
 const Chunk := preload("res://scripts/worldgen/chunk.gd")
 const BiomeClassifier := preload("res://scripts/worldgen/biome_classifier.gd")
+const ElevationMap := preload("res://scripts/worldgen/elevation_map.gd")
 const ZoneMap := preload("res://scripts/worldgen/zone_map.gd")
+const AnchorPlanner := preload("res://scripts/worldgen/anchor_planner.gd")
 const PoiPlacement := preload("res://scripts/worldgen/poi_placement.gd")
 const SkillSiteSpawner := preload("res://scripts/worldgen/skill_site_spawner.gd")
 const MonsterSpawner := preload("res://scripts/worldgen/monster_spawner.gd")
@@ -18,7 +20,9 @@ var reg: RefCounted
 var world_seed: int = 0
 
 var classifier: RefCounted = BiomeClassifier.new()
+var elevation: RefCounted = ElevationMap.new()
 var zone_map: RefCounted = ZoneMap.new()
+var anchors: RefCounted = AnchorPlanner.new()
 var poi_placer: RefCounted = PoiPlacement.new()
 var site_spawner: RefCounted = SkillSiteSpawner.new()
 var monster_spawner: RefCounted = MonsterSpawner.new()
@@ -29,9 +33,11 @@ func setup(p_reg: RefCounted, p_seed: int) -> void:
 	reg = p_reg
 	world_seed = p_seed
 	classifier.setup(reg, p_seed)
+	elevation.setup(reg, classifier, p_seed)
 	zone_map.setup(reg, classifier, p_seed)
-	poi_placer.setup(reg, classifier, zone_map, p_seed)
-	site_spawner.setup(reg, p_seed)
+	anchors.setup(reg, zone_map, p_seed)
+	poi_placer.setup(reg, classifier, zone_map, p_seed, anchors)
+	site_spawner.setup(reg, p_seed, elevation)
 	monster_spawner.setup(reg, p_seed)
 	cave_gen.setup(reg, zone_map, site_spawner, monster_spawner, p_seed)
 
@@ -53,7 +59,14 @@ func generate(layer: int, cx: int, cy: int, above_chunk: RefCounted = null) -> R
 			var b: int = classifier.classify(f)
 			var i := Chunk.idx(tx, ty)
 			chunk.biomes_t[i] = b
+			chunk.elev_t[i] = elevation.level_from_height(f.x, gx, gy)
 			chunk.tiles[i] = classifier.tile_at(gx, gy, f, b)
+			# Road corridors overwrite walkable land only — never bridge water.
+			var road: int = anchors.road_byte_at(gx, gy)
+			if road >= 0:
+				var td: Dictionary = reg.tile_def(chunk.tiles[i])
+				if td["walkable"] and not td["water"] and not td["hazard"]:
+					chunk.tiles[i] = road
 	var occupied: Dictionary = {}
 	poi_placer.place(chunk, occupied)
 	site_spawner.populate(chunk, occupied)

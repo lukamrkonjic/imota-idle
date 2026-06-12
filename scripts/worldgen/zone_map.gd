@@ -28,6 +28,15 @@ func setup(p_reg: RefCounted, p_classifier: RefCounted, p_seed: int) -> void:
 	_home_cell = _nearest_cell(Vector2(0.5, 0.5))
 
 
+func home_cell() -> Vector2i:
+	return _home_cell
+
+
+## Zone dict for an explicit cell (anchor planner / debug tools).
+func zone_cell(zx: int, zy: int) -> Dictionary:
+	return _zone(zx, zy)
+
+
 ## Jittered site position (in chunk space) for a zone cell.
 func cell_site(zx: int, zy: int) -> Vector2:
 	var jx := 0.15 + 0.7 * WG.r01(world_seed, zx, zy, 21)

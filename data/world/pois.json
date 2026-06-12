@@ -5,7 +5,9 @@
     "  'cell'   one POI per cellChunks x cellChunks region of chunks, at a",
     "           seed-jittered chunk (optionally gated by 'chance' 0..1);",
     "  'zone'   one per Voronoi level zone, in the zone's center chunk;",
-    "  'chance' independent per-chunk roll.",
+    "  'chance' independent per-chunk roll;",
+    "  'anchor' never rolls randomly — placed only when anchor_planner.gd",
+    "           assigns this POI to a chunk (see data/world/anchors.json).",
     "biomes: optional whitelist (omit = any land biome). minTier: minimum zone",
     "level requirement for the POI to appear.",
     "parts: entities placed around the anchor tile. dx/dy are tile offsets.",
@@ -102,6 +104,50 @@
       "biomes": ["plains", "forest", "tundra", "desert"],
       "minimapColor": "c89058",
       "parts": [ { "kind": "stall", "hook": "tracking", "label": "Animal Burrow", "hookMessage": "Tracking and trapping are coming soon.", "dx": 0, "dy": 0 } ]
+    },
+    "hub_forest_camp": {
+      "placement": { "mode": "anchor" },
+      "label": "Logger's Camp", "safe": true,
+      "minimapColor": "6fae4a",
+      "parts": [
+        { "kind": "sign", "label": "Logger's Camp", "dx": 0, "dy": 0 },
+        { "kind": "tent", "label": "Logger Tent", "dx": -2, "dy": 1, "color": "5A7A3A" },
+        { "kind": "campfire", "station": "campfire", "label": "Campfire", "dx": 2, "dy": 1 },
+        { "kind": "chest", "station": "bank", "label": "Bank Chest", "dx": 0, "dy": 2 }
+      ]
+    },
+    "hub_mining_camp": {
+      "placement": { "mode": "anchor" },
+      "label": "Prospector's Rest", "safe": true,
+      "minimapColor": "b0a890",
+      "parts": [
+        { "kind": "sign", "label": "Prospector's Rest", "dx": 0, "dy": 0 },
+        { "kind": "tent", "label": "Prospector Tent", "dx": -2, "dy": 1, "color": "8A7848" },
+        { "kind": "anvil", "station": "anvil", "label": "Anvil", "dx": 2, "dy": 1 },
+        { "kind": "chest", "station": "bank", "label": "Bank Chest", "dx": 0, "dy": 2 }
+      ]
+    },
+    "hub_fishing_camp": {
+      "placement": { "mode": "anchor" },
+      "label": "Netter's Dock", "safe": true,
+      "minimapColor": "5ab4f0",
+      "parts": [
+        { "kind": "sign", "label": "Netter's Dock", "dx": 0, "dy": 0 },
+        { "kind": "tent", "label": "Netter Tent", "dx": -2, "dy": 1, "color": "486898" },
+        { "kind": "campfire", "station": "range", "label": "Cooking Range", "dx": 2, "dy": 1 },
+        { "kind": "chest", "station": "bank", "label": "Bank Chest", "dx": 0, "dy": 2 }
+      ]
+    },
+    "hub_outpost": {
+      "placement": { "mode": "anchor" },
+      "label": "Frontier Outpost", "safe": true,
+      "minimapColor": "e0c060",
+      "parts": [
+        { "kind": "sign", "label": "Frontier Outpost", "dx": 0, "dy": 0 },
+        { "kind": "tent", "label": "Outpost Tent", "dx": -2, "dy": 1, "color": "705858" },
+        { "kind": "lantern", "label": "Lantern", "dx": 2, "dy": 0 },
+        { "kind": "chest", "station": "bank", "label": "Bank Chest", "dx": 0, "dy": 2 }
+      ]
     },
     "landmark": {
       "placement": { "mode": "cell", "cellChunks": 7, "chance": 0.5 },

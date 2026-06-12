@@ -15,6 +15,7 @@ const WorldAutoTaskController := preload("res://scripts/world/world_auto_task_co
 const WorldLayerController := preload("res://scripts/world/world_layer_controller.gd")
 const WorldVisualController := preload("res://scripts/world/world_visual_controller.gd")
 const ClickMarkerNode := preload("res://scripts/ui/click_marker_node.gd")
+const WorldgenDebugOverlay := preload("res://scripts/world/worldgen_debug_overlay.gd")
 
 # --- public state (tests, HUD) ---
 var entities: Array = []
@@ -116,6 +117,11 @@ func _build_scene() -> void:
 	_camera.position_smoothing_speed = 8.0
 	player.add_child(_camera)
 	unexplored_backdrop.set("camera", _camera)
+
+	var debug_overlay: Node2D = WorldgenDebugOverlay.new()
+	debug_overlay.name = "WorldgenDebug"
+	debug_overlay.set("world", self)
+	add_child(debug_overlay)
 
 	_visual_ctrl.build_darkness()
 	hud.call("bind_world", self)

@@ -14,7 +14,7 @@ Risks and concrete files. Ordered by impact on long-term playability.
 | Risk | Files | Notes |
 |------|-------|-------|
 | ~~God object world controller~~ | `scripts/world/world.gd` (~160 lines) + 7 controllers | **Split done (Phase 6).** HUD still calls `open_bank` etc. directly — migrate to EventBus when convenient. |
-| World-gen rule pile | `scripts/worldgen/skill_site_spawner.gd` (~441 lines) | Tree/water/biome special cases accumulate. Needs pass pipeline + `data/world/generation_rules.json` (Phase 8). |
+| World-gen rule pile | `scripts/worldgen/skill_site_spawner.gd` (~410 lines) | Partially addressed: `generation_rules.json`, elevation + anchor layout passes exist. Tree/water special cases still in code (Phase 8 remainder). |
 | Biome classifier owns too much | `scripts/worldgen/biome_classifier.gd` | Classification + rivers + lakes + shore decoration intertwined. |
 | Chunk renderer + biome shading tangled | `scripts/worldgen/chunk_renderer.gd` | Visual baking mixed with biome-specific logic. |
 | HUD coupled to world internals | `scripts/ui/osrs_hud.gd` (~950 lines) | Four remaining `world.call()` sites (auto_bank, auto_gather, auto_station, teleport_to); migrate to EventBus. |

@@ -86,18 +86,20 @@ func _load(coords: Vector2i) -> void:
 	_renderers[key] = renderer
 	var reg: RefCounted = WorldGen.reg
 	var classifier: RefCounted = WorldGen.generator.classifier
+	var elevation: RefCounted = WorldGen.generator.elevation
+	var roads: RefCounted = WorldGen.generator.anchors
 	var seed_v: int = WorldGen.store.world_seed
 	if use_threads:
 		var mutex := _results_mutex
 		var results := _results
 		var task := WorkerThreadPool.add_task(func() -> void:
-			var img := ChunkRenderer.bake(chunk, reg, classifier, seed_v)
+			var img := ChunkRenderer.bake(chunk, reg, classifier, seed_v, elevation, roads)
 			mutex.lock()
 			results[key] = img
 			mutex.unlock())
 		_tasks[task] = key
 	else:
-		renderer.apply_image(ChunkRenderer.bake(chunk, reg, classifier, seed_v))
+		renderer.apply_image(ChunkRenderer.bake(chunk, reg, classifier, seed_v, elevation, roads))
 	chunk_loaded.emit(chunk)
 
 

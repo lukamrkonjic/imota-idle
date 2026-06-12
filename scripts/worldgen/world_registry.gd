@@ -32,6 +32,10 @@ var pois: Dictionary = {}               # poi type -> def
 var cave_layers: Dictionary = {}        # int layer -> def
 var zone_words: Dictionary = {}
 
+# --- worldgen tuning / anchors ---
+var gen_rules: Dictionary = {}          # generation_rules.json (elevation, resources, roads)
+var anchor_types: Array = []            # anchors.json types
+
 
 func load_all() -> void:
 	var biome_doc := _read("biomes.json")
@@ -54,6 +58,9 @@ func load_all() -> void:
 		cave_layers[int(k)] = cave_doc[k]
 	zone_words = _read("zone_names.json")
 	zone_words.erase("_doc")
+
+	gen_rules = _read("generation_rules.json")
+	anchor_types = _read("anchors.json").get("types", [])
 
 
 func _read(name: String) -> Dictionary:

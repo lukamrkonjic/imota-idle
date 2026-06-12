@@ -15,12 +15,24 @@ const WATER_TREE_BIOMES := ["plains", "forest", "dense_forest", "swamp", "beach"
 const COMMON_TREE_SPACING := 3.15
 const SOLITARY_TREE_SPACING := 5.0
 var reg: RefCounted
+var elevation: RefCounted
 var world_seed: int = 0
+var _elev_density: Dictionary = {}  # skill -> [factor per elevation level 0..7]
 
 
-func setup(p_reg: RefCounted, p_seed: int) -> void:
+func setup(p_reg: RefCounted, p_seed: int, p_elevation: RefCounted = null) -> void:
 	reg = p_reg
 	world_seed = p_seed
+	elevation = p_elevation
+	_elev_density = p_reg.gen_rules.get("resources", {}).get("elevationDensity", {})
+
+
+## Density multiplier for a skill at an elevation level (1.0 = neutral).
+func elev_factor(skill: String, level: int) -> float:
+	var bands: Array = _elev_density.get(skill, [])
+	if bands.is_empty() or level < 0 or level >= bands.size():
+		return 1.0
+	return float(bands[level])
 
 
 func populate(chunk: RefCounted, occupied: Dictionary) -> void:
@@ -46,10 +58,19 @@ func populate(chunk: RefCounted, occupied: Dictionary) -> void:
 		_place_forest_patches(chunk, occupied, req, str(center_biome.get("id", "")))
 		_place_waterline_trees(chunk, occupied, req, str(center_biome.get("id", "")))
 
-	# Drop skills that can't spawn here (e.g. fishing in a dry chunk).
+	# Drop skills that can't spawn here (e.g. fishing in a dry chunk), and
+	# re-weigh the rest by the chunk's elevation: peaks favor mining, lowlands
+	# favor trees (rules in generation_rules.json resources.elevationDensity).
 	weights = weights.duplicate()
 	if not _has_water(chunk):
 		weights.erase("fishing")
+	if chunk.layer == 0:
+		var c := WG.CHUNK_TILES / 2
+		var center_lvl: int = chunk.elev_at(c, c)
+		for skill_key: String in weights.keys():
+			weights[skill_key] = float(weights[skill_key]) * elev_factor(skill_key, center_lvl)
+			if float(weights[skill_key]) <= 0.0:
+				weights.erase(skill_key)
 	if weights.is_empty():
 		return
 
@@ -70,6 +91,12 @@ func populate(chunk: RefCounted, occupied: Dictionary) -> void:
 			tile = _pick_tile(chunk, occupied, i, water_edge)
 		if tile.x < 0:
 			continue
+		# Per-tile elevation gate: a mostly-lowland chunk can still contain a
+		# peak corner where trees shouldn't crowd.
+		if chunk.layer == 0:
+			var f := elev_factor(skill, chunk.elev_at(tile.x, tile.y))
+			if f < 1.0 and WG.r01(world_seed, chunk.cx * 53 + tile.x, chunk.cy * 59 + tile.y, 63) >= f:
+				continue
 		var entry := _pick_node(chunk, skill, tile, req, i)
 		if entry.is_empty():
 			continue

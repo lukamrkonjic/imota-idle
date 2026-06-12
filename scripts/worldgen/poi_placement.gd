@@ -13,14 +13,16 @@ const Chunk := preload("res://scripts/worldgen/chunk.gd")
 var reg: RefCounted
 var classifier: RefCounted
 var zone_map: RefCounted
+var anchors: RefCounted
 var world_seed: int = 0
 
 
-func setup(p_reg: RefCounted, p_classifier: RefCounted, p_zone_map: RefCounted, p_seed: int) -> void:
+func setup(p_reg: RefCounted, p_classifier: RefCounted, p_zone_map: RefCounted, p_seed: int, p_anchors: RefCounted = null) -> void:
 	reg = p_reg
 	classifier = p_classifier
 	zone_map = p_zone_map
 	world_seed = p_seed
+	anchors = p_anchors
 
 
 func place(chunk: RefCounted, occupied: Dictionary) -> void:
@@ -30,6 +32,15 @@ func place(chunk: RefCounted, occupied: Dictionary) -> void:
 	var minors := 0
 	if chunk.cx == 0 and chunk.cy == 0:
 		if _try_place(chunk, "campsite", reg.pois.get("campsite", {}), occupied):
+			majors += 1
+	# Planned hub anchors claim the chunk's major-POI slot first.
+	var hub := _hub_poi_for_chunk(chunk.cx, chunk.cy)
+	if not hub.is_empty():
+		var hub_type := str(hub["poi"])
+		var hub_def: Dictionary = reg.pois.get(hub_type, {}).duplicate(true)
+		hub_def["label"] = str(hub.get("label", hub_def.get("label", hub_type)))
+		hub_def.erase("biomes")  # the planner already picked this cell's biome
+		if majors < 1 and _try_place(chunk, hub_type, hub_def, occupied):
 			majors += 1
 	for type: String in reg.pois:
 		var def: Dictionary = reg.pois[type]
@@ -57,6 +68,9 @@ func wants_chunk(cx: int, cy: int, zone: Dictionary, type: String) -> bool:
 	var placement: Dictionary = reg.pois.get(type, {}).get("placement", {})
 	var salt: int = type.hash() & 0xFFFFFF
 	match str(placement.get("mode", "chance")):
+		"anchor":
+			var hub := _hub_poi_for_chunk(cx, cy)
+			return not hub.is_empty() and str(hub["poi"]) == type
 		"cell":
 			var cell := int(placement.get("cellChunks", 5))
 			var zx := floori(float(cx) / cell)
@@ -85,6 +99,16 @@ func candidate_types(cx: int, cy: int, zone: Dictionary) -> Array:
 		if wants_chunk(cx, cy, zone, type) and not out.has(type):
 			out.append(type)
 	return out
+
+
+## Anchor with a placeholder POI assigned to this chunk, or {}.
+func _hub_poi_for_chunk(cx: int, cy: int) -> Dictionary:
+	if anchors == null:
+		return {}
+	var a: Dictionary = anchors.anchor_for_chunk(cx, cy)
+	if a.is_empty() or str(a.get("poi", "")).is_empty():
+		return {}
+	return a if reg.pois.has(str(a["poi"])) else {}
 
 
 func _try_place(chunk: RefCounted, type: String, def: Dictionary, occupied: Dictionary) -> bool:

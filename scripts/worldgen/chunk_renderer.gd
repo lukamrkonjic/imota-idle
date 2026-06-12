@@ -101,12 +101,29 @@ static func _tree_shade_strength(tree_shades: Array, gx: float, gy: float) -> fl
 
 ## Thread-safe ground bake. Surface chunks resample the classifier per subtile
 ## (with jitter) so biome transitions blend; cave chunks pattern their stored
-## tiles directly.
-static func bake(p_chunk: RefCounted, reg: RefCounted, classifier: RefCounted, p_seed: int) -> Image:
+## tiles directly. When elevation/roads modules are provided, surface bakes
+## add terraced cliff shading, highland tinting, and road corridors.
+static func bake(p_chunk: RefCounted, reg: RefCounted, classifier: RefCounted, p_seed: int,
+		elevation: RefCounted = null, roads: RefCounted = null) -> Image:
 	var n := WG.CHUNK_TILES * SUB
 	var img := Image.create_empty(n, n, false, Image.FORMAT_RGB8)
 	var base_tx: int = p_chunk.cx * WG.CHUNK_TILES
 	var base_ty: int = p_chunk.cy * WG.CHUNK_TILES
+	# Subtile elevation grid with a 1-subtile margin so cliff edges can look
+	# at neighbours across the chunk border without a second classifier pass.
+	var elev_rules: Dictionary = reg.gen_rules.get("elevation", {})
+	var cliff_shade := float(elev_rules.get("cliffShade", 0.16))
+	var cliff_highlight := float(elev_rules.get("cliffHighlight", 0.09))
+	var tint_per_level := float(elev_rules.get("highlandTintPerLevel", 0.020))
+	var has_elev: bool = p_chunk.layer == 0 and elevation != null
+	var levels := PackedByteArray()
+	if has_elev:
+		levels.resize((n + 2) * (n + 2))
+		for ly: int in n + 2:
+			var ey := float(base_ty) + (float(ly - 1) + 0.5) / float(SUB)
+			for lx: int in n + 2:
+				var ex := float(base_tx) + (float(lx - 1) + 0.5) / float(SUB)
+				levels[ly * (n + 2) + lx] = elevation.level_at(ex, ey)
 	var grass_id := int(reg.tile_index.get("grass", -1))
 	var grass_dark_id := int(reg.tile_index.get("grass_dark", -1))
 	var grass_cols: Array = reg.tile_def(grass_id)["colors"] if grass_id >= 0 else []
@@ -145,6 +162,12 @@ static func bake(p_chunk: RefCounted, reg: RefCounted, classifier: RefCounted, p
 				biome_index = classifier.classify(f)
 				biome_id = str(reg.biomes[biome_index]["id"])
 				byte_id = classifier.tile_at(gx, gy, f, biome_index)
+				if roads != null:
+					var rb: int = roads.road_byte_at(gx, gy)
+					if rb >= 0:
+						var td: Dictionary = reg.tile_def(byte_id)
+						if td["walkable"] and not td["water"] and not td["hazard"]:
+							byte_id = rb
 			else:
 				byte_id = p_chunk.tile_id(
 					clampi(sx / SUB, 0, WG.CHUNK_TILES - 1),
@@ -177,5 +200,18 @@ static func bake(p_chunk: RefCounted, reg: RefCounted, classifier: RefCounted, p
 			var speck := WG.r01(p_seed, gsx, gsy, 8)
 			if not bool(tile.get("water", false)) and speck > 0.996:
 				col = col.lightened(0.025)
+			# Terraced relief: shadow under a rise to the north, a thin
+			# highlight along a drop to the south, rockier-pale ground up high.
+			if has_elev:
+				var lvl := int(levels[(sy + 1) * (n + 2) + (sx + 1)])
+				if lvl >= 2 and not bool(tile.get("water", false)):
+					var north := int(levels[sy * (n + 2) + (sx + 1)])
+					var south := int(levels[(sy + 2) * (n + 2) + (sx + 1)])
+					if north > lvl:
+						col = col.darkened(cliff_shade * minf(float(north - lvl), 2.0))
+					elif south < lvl and lvl >= 4:
+						col = col.lightened(cliff_highlight)
+					if lvl >= 4:
+						col = col.lightened(float(lvl - 3) * tint_per_level)
 			img.set_pixel(sx, sy, col)
 	return img
