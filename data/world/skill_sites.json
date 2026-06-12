@@ -1,0 +1,87 @@
+{
+  "_doc": [
+    "Skill harvesting site rules consumed by scripts/worldgen/skill_site_spawner.gd.",
+    "Gather nodes themselves come from res://data/gather_nodes.json (the Bloobs",
+    "export); this file decides WHERE each node may spawn.",
+    "skills.<skill>: kind = WorldEntity sprite kind; waterEdge = sites sit on",
+    "land tiles adjacent to water; includeMatch = only node names matching this",
+    "regex spawn for the skill (used to split the mixed fishing list);",
+    "defaultBiomes = fallback affinity; rules = first regex match on the node",
+    "name wins and overrides the biome affinity (and may pin cave layers).",
+    "resources/respawnSec: depletion model (gathers until depleted, seconds to",
+    "respawn) -- per-skill overrides of 'defaults'.",
+    "stations: production/utility skill -> POI part station ids that serve it",
+    "(used by the HUD skill guide to auto-path to the nearest matching station).",
+    "To add a new gather skill: add gather_nodes.json entries, one skills entry",
+    "here, and optionally biome skillWeights. No generator changes needed."
+  ],
+  "defaults": { "resources": 8, "respawnSec": 25.0 },
+  "skills": {
+    "woodcutting": {
+      "kind": "tree",
+      "defaultBiomes": ["plains", "forest"],
+      "rules": [
+        { "match": "(?i)bitterpine|frost|snow", "biomes": ["tundra"] },
+        { "match": "(?i)dune|suncoil|banana", "biomes": ["desert", "beach"] },
+        { "match": "(?i)willow", "biomes": ["swamp", "forest"] },
+        { "match": "(?i)magic|lunarwood|aether|imbued|spicebough", "biomes": ["dense_forest"] },
+        { "match": "(?i)teak|eucalyptus|acadia|rubra|yew|maple", "biomes": ["forest", "dense_forest"] },
+        { "match": "(?i)oak", "biomes": ["plains", "forest"] }
+      ],
+      "resources": 8, "respawnSec": 22.0
+    },
+    "mining": {
+      "kind": "rock",
+      "defaultBiomes": ["rocky_hills", "plains", "volcanic"],
+      "caveLayers": [-1, -2],
+      "caveWeight": 3.0,
+      "rules": [
+        { "match": "(?i)snow|rime|taigite|cryxcite", "biomes": ["tundra"] },
+        { "match": "(?i)sandstone|sunbaked|aurite|sunwrought", "biomes": ["desert"] },
+        { "match": "(?i)phantom|necrosis|karinite", "biomes": ["volcanic", "rocky_hills"], "caveLayers": [-2] },
+        { "match": "(?i)clay", "biomes": ["plains", "swamp", "beach"] },
+        { "match": "(?i)cake", "biomes": ["plains"] }
+      ],
+      "resources": 6, "respawnSec": 30.0
+    },
+    "fishing": {
+      "kind": "fish",
+      "waterEdge": true,
+      "includeMatch": "(?i)crayfish|shrimp|herring|mackerel|trout|salmon|clownfish|banana fish|lobster|catfish|stingray|sunfish|shark|marlin|pufferfish|bass|tuna|oyster|skimmer|minnow|carp|starfish|worms",
+      "defaultBiomes": ["plains", "forest", "beach", "swamp", "ocean"],
+      "rules": [
+        { "match": "(?i)frost|arctic|winter|spectral", "biomes": ["tundra"] },
+        { "match": "(?i)sand|oasis|mirage|sun carp", "biomes": ["desert"] },
+        { "match": "(?i)shark|marlin|stingray|lobster|tuna|oyster|starfish", "biomes": ["beach", "ocean"] }
+      ],
+      "resources": 10, "respawnSec": 18.0
+    },
+    "foraging": {
+      "kind": "bush",
+      "defaultBiomes": ["plains", "forest", "swamp"],
+      "caveLayers": [-1],
+      "caveWeight": 1.0,
+      "caveMatch": "(?i)shroom|spore|fungus|sporecap|glowstalk|moss",
+      "rules": [
+        { "match": "(?i)frost|hoarfrost|coldsnap|winter|frosted", "biomes": ["tundra"] },
+        { "match": "(?i)sand|prickle|palmshade|sunleaf|dewglow|amberleaf|papyrus", "biomes": ["desert", "beach"] },
+        { "match": "(?i)redmire|bloodmoss|witch|void|leafshade", "biomes": ["swamp", "dense_forest"] },
+        { "match": "(?i)emberplume", "biomes": ["volcanic"] }
+      ],
+      "resources": 8, "respawnSec": 20.0
+    }
+  },
+  "stations": {
+    "cooking":    ["campfire", "range"],
+    "firemaking": ["campfire"],
+    "smithing":   ["anvil"],
+    "crafting":   ["crafting"],
+    "fletching":  ["fletching"],
+    "herbology":  ["herbology"],
+    "imbuing":    ["imbuing"],
+    "devotion":   ["altar", "devotion"],
+    "soulbinding": ["soul_altar"],
+    "bank":       ["bank"],
+    "shop":       ["shop"]
+  }
+}

@@ -1,0 +1,117 @@
+{
+  "_doc": [
+    "Point-of-interest registry consumed by scripts/worldgen/poi_placement.gd.",
+    "placement.mode:",
+    "  'cell'   one POI per cellChunks x cellChunks region of chunks, at a",
+    "           seed-jittered chunk (optionally gated by 'chance' 0..1);",
+    "  'zone'   one per Voronoi level zone, in the zone's center chunk;",
+    "  'chance' independent per-chunk roll.",
+    "biomes: optional whitelist (omit = any land biome). minTier: minimum zone",
+    "level requirement for the POI to appear.",
+    "parts: entities placed around the anchor tile. dx/dy are tile offsets.",
+    "  kind     sprite kind drawn by WorldEntity (see world_entity.gd);",
+    "  station  opens that station on click (bank/shop/recipes -- ids must match",
+    "           skill_sites.json 'stations');",
+    "  hook     placeholder feature: click prints the hook message (used for",
+    "           skills with no sim yet, e.g. thieving/tracking);",
+    "  boss     part is the zone-tier boss enemy anchor.",
+    "safe: no monsters spawn in this chunk; respawn: player respawns here on",
+    "death. clusterSites: N same-node gather sites ring the anchor (depots).",
+    "To add a POI type: append an entry here and reuse existing part kinds (or",
+    "add a draw kind in world_entity.gd/iso_sprites.gd for new art)."
+  ],
+  "pois": {
+    "campsite": {
+      "placement": { "mode": "cell", "cellChunks": 5 },
+      "label": "Campsite", "safe": true, "respawn": true,
+      "minimapColor": "ffd84a",
+      "parts": [
+        { "kind": "campfire", "station": "campfire", "label": "Campfire", "dx": 0, "dy": 0 },
+        { "kind": "chest", "station": "bank", "label": "Bank Chest", "dx": -2, "dy": 1 },
+        { "kind": "tent", "station": "crafting", "label": "Crafting Tent", "dx": 2, "dy": -1, "color": "6A4A8A" },
+        { "kind": "tent", "station": "fletching", "label": "Fletching Tent", "dx": 2, "dy": 1, "color": "3A6A4A" },
+        { "kind": "sign", "station": "shop", "label": "Camp Shop", "dx": -2, "dy": -1 }
+      ]
+    },
+    "village": {
+      "placement": { "mode": "zone" },
+      "label": "Village", "safe": true,
+      "biomes": ["plains", "forest", "desert", "tundra", "beach"],
+      "minimapColor": "ff9a3a",
+      "parts": [
+        { "kind": "chest", "station": "bank", "label": "Bank Chest", "dx": -3, "dy": 0 },
+        { "kind": "sign", "station": "shop", "label": "Tool Shop", "dx": 3, "dy": 0 },
+        { "kind": "anvil", "station": "anvil", "label": "Anvil", "dx": 0, "dy": -2 },
+        { "kind": "campfire", "station": "range", "label": "Cooking Range", "dx": 0, "dy": 2 },
+        { "kind": "tent", "station": "herbology", "label": "Herbalist Tent", "dx": -2, "dy": -2, "color": "4A7A3A" },
+        { "kind": "tent", "station": "imbuing", "label": "Imbuing Tent", "dx": 2, "dy": -2, "color": "4A4A9A" },
+        { "kind": "tent", "station": "devotion", "label": "Devotion Tent", "dx": -2, "dy": 2, "color": "B8B0A0" },
+        { "kind": "stall", "hook": "thieving", "label": "Market Stall", "hookMessage": "Thieving from stalls is coming soon.", "dx": 2, "dy": 2 },
+        { "kind": "tent", "label": "Villager Tent", "dx": 4, "dy": -1, "color": "8A6848" },
+        { "kind": "tent", "label": "Villager Tent", "dx": -4, "dy": 1, "color": "486898" }
+      ]
+    },
+    "cave_entrance": {
+      "placement": { "mode": "chance", "chance": 0.08 },
+      "label": "Cave Entrance",
+      "biomes": ["rocky_hills", "volcanic", "tundra", "forest", "plains", "desert"],
+      "minimapColor": "707078",
+      "parts": [ { "kind": "cave", "label": "Cave Entrance", "dx": 0, "dy": 0 } ]
+    },
+    "altar": {
+      "placement": { "mode": "chance", "chance": 0.045 },
+      "label": "Ancient Altar",
+      "minimapColor": "b08ae0",
+      "parts": [ { "kind": "altar", "station": "altar", "label": "Ancient Altar", "dx": 0, "dy": 0 } ]
+    },
+    "soul_shrine": {
+      "placement": { "mode": "cell", "cellChunks": 9, "chance": 0.8 },
+      "label": "Soul Shrine", "minTier": 20,
+      "minimapColor": "8ae0d8",
+      "parts": [ { "kind": "altar", "station": "soul_altar", "label": "Soul Shrine", "dx": 0, "dy": 0, "color": "40C0B0" } ]
+    },
+    "resource_depot": {
+      "placement": { "mode": "chance", "chance": 0.05 },
+      "label": "Resource Depot",
+      "clusterSites": 5,
+      "minimapColor": "c0e040",
+      "parts": []
+    },
+    "fishing_hotspot": {
+      "placement": { "mode": "chance", "chance": 0.06 },
+      "label": "Fishing Hotspot",
+      "clusterSites": 4, "clusterSkill": "fishing", "needsWater": true,
+      "minimapColor": "5ab4f0",
+      "parts": []
+    },
+    "obelisk": {
+      "placement": { "mode": "cell", "cellChunks": 8 },
+      "label": "Teleport Obelisk",
+      "minimapColor": "e060e0",
+      "parts": [ { "kind": "obelisk", "label": "Teleport Obelisk", "dx": 0, "dy": 0 } ]
+    },
+    "boss_lair": {
+      "placement": { "mode": "cell", "cellChunks": 6, "chance": 0.7 },
+      "label": "Boss Lair", "minTier": 5,
+      "minimapColor": "ff4040",
+      "parts": [ { "kind": "enemy", "boss": true, "dx": 0, "dy": 0 } ]
+    },
+    "trap_site": {
+      "placement": { "mode": "chance", "chance": 0.04 },
+      "label": "Burrow",
+      "biomes": ["plains", "forest", "tundra", "desert"],
+      "minimapColor": "c89058",
+      "parts": [ { "kind": "stall", "hook": "tracking", "label": "Animal Burrow", "hookMessage": "Tracking and trapping are coming soon.", "dx": 0, "dy": 0 } ]
+    },
+    "landmark": {
+      "placement": { "mode": "cell", "cellChunks": 7, "chance": 0.5 },
+      "label": "Landmark",
+      "minimapColor": "ffffff",
+      "variants": [
+        { "id": "ancient_tree", "label": "Giant Ancient Tree", "kind": "landmark_tree", "biomes": ["forest", "dense_forest", "plains"] },
+        { "id": "meteor", "label": "Crashed Meteor", "kind": "meteor", "biomes": ["plains", "desert", "volcanic", "rocky_hills"] },
+        { "id": "frozen_mammoth", "label": "Frozen Mammoth", "kind": "mammoth", "biomes": ["tundra"] }
+      ]
+    }
+  }
+}

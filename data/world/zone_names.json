@@ -1,0 +1,52 @@
+{
+  "_doc": [
+    "Procedural zone naming word lists, consumed by scripts/worldgen/zone_map.gd.",
+    "A zone's name is '<adjective> <noun>' picked deterministically from the",
+    "lists of its dominant biome (falling back to 'generic'). Add lists keyed by",
+    "biome id when you add a biome."
+  ],
+  "generic": {
+    "adjectives": ["Forgotten", "Old", "Wild", "Lost", "Quiet", "Broken", "Hidden", "Far", "Elder", "Shrouded"],
+    "nouns": ["Reaches", "Lands", "Expanse", "Wilds", "Crossing", "Hollow", "March", "Verge"]
+  },
+  "plains": {
+    "adjectives": ["Golden", "Windswept", "Sunny", "Verdant", "Rolling", "Wandering", "Open", "Bright"],
+    "nouns": ["Meadows", "Fields", "Steppe", "Downs", "Flats", "Prairie", "Pastures", "Plains"]
+  },
+  "forest": {
+    "adjectives": ["Whispering", "Mossy", "Green", "Shaded", "Autumn", "Singing", "Dappled", "Owlish"],
+    "nouns": ["Woods", "Grove", "Thicket", "Glade", "Forest", "Copse", "Timberland", "Greenwood"]
+  },
+  "dense_forest": {
+    "adjectives": ["Tangled", "Ancient", "Gloomy", "Verdant", "Silent", "Feral", "Bramble", "Veiled"],
+    "nouns": ["Deepwood", "Wildwood", "Tanglewood", "Heartwood", "Mirkwood", "Understory", "Bracken", "Canopy"]
+  },
+  "swamp": {
+    "adjectives": ["Sodden", "Murky", "Croaking", "Sunken", "Misty", "Festering", "Drowned", "Reedy"],
+    "nouns": ["Mire", "Fen", "Bog", "Marsh", "Sloughs", "Wetlands", "Quagmire", "Backwater"]
+  },
+  "desert": {
+    "adjectives": ["Scorched", "Endless", "Shimmering", "Burnt", "Sun-Bleached", "Dusty", "Mirage", "Amber"],
+    "nouns": ["Dunes", "Wastes", "Expanse", "Sands", "Badlands", "Scablands", "Barrens", "Pans"]
+  },
+  "tundra": {
+    "adjectives": ["Frozen", "Howling", "Pale", "Glacial", "Bitter", "Snowbound", "White", "Rimebound"],
+    "nouns": ["Tundra", "Reach", "Snowfields", "Floes", "Wastes", "Frostlands", "Drifts", "Icefields"]
+  },
+  "volcanic": {
+    "adjectives": ["Smoldering", "Charred", "Blasted", "Ashen", "Burning", "Molten", "Sooty", "Ember"],
+    "nouns": ["Ashlands", "Caldera", "Scorch", "Cinderfields", "Slagheaps", "Furnace", "Wastes", "Vents"]
+  },
+  "rocky_hills": {
+    "adjectives": ["Craggy", "Stony", "High", "Windbitten", "Granite", "Towering", "Bleak", "Echoing"],
+    "nouns": ["Crags", "Highlands", "Tor", "Bluffs", "Ridges", "Scarps", "Foothills", "Spires"]
+  },
+  "beach": {
+    "adjectives": ["Salty", "Sunlit", "Driftwood", "Pearl", "Gull", "Tidal", "Sandy", "Shipwreck"],
+    "nouns": ["Coast", "Shore", "Strand", "Cove", "Sands", "Bay", "Headland", "Shallows"]
+  },
+  "ocean": {
+    "adjectives": ["Boundless", "Deep", "Stormy", "Azure", "Restless", "Glassy"],
+    "nouns": ["Sea", "Deep", "Waters", "Expanse", "Swell", "Main"]
+  }
+}

@@ -1,0 +1,35 @@
+; Engine configuration file.
+; Imota — OSRS-inspired semi-idle incremental RPG.
+; Data and formulas recreated from the Bloobs Adventure Idle export.
+
+config_version=5
+
+[application]
+
+config/name="Imota"
+run/main_scene="res://scenes/world.tscn"
+config/features=PackedStringArray("4.6")
+
+[autoload]
+
+EventBus="*res://autoload/event_bus.gd"
+DataRegistry="*res://autoload/data_registry.gd"
+GameState="*res://autoload/game_state.gd"
+TickSim="*res://autoload/tick_sim.gd"
+CombatSim="*res://autoload/combat_sim.gd"
+RecipeSim="*res://autoload/recipe_sim.gd"
+WorldGen="*res://autoload/world_gen.gd"
+SaveManager="*res://autoload/save_manager.gd"
+GameSettings="*res://autoload/game_settings.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="disabled"
+
+[rendering]
+
+renderer/rendering_method="forward_plus"
+environment/defaults/default_clear_color=Color(0.133333, 0.133333, 0.156863, 1)
+anti_aliasing/quality/msaa_3d=2

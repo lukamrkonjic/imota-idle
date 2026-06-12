@@ -1,0 +1,120 @@
+{
+  "_doc": [
+    "Biome + tile registry consumed by scripts/worldgen/biome_classifier.gd and chunk_renderer.gd.",
+    "TILES: id -> { colors: [hexA, hexB] (dither pair), walkable, water, hazard }.",
+    "BIOMES: classifier picks the highest-priority biome whose 'when' ranges all",
+    "match the tile's height/moisture/temp (each 0..1; absent bound = unbounded).",
+    "Always keep one biome with priority 0 and empty 'when' as the fallback.",
+    "tiles: weighted ground palette. tint: ambient CanvasModulate hex. music: tag",
+    "emitted on EventBus.biome_changed. skillWeights: relative chance per gather",
+    "skill when populating sites. siteDensity/monsterDensity: spawns per chunk",
+    "scale. To add a biome: append an entry here, add zone words in",
+    "zone_names.json, and (optionally) reference it from skill_sites.json /",
+    "monsters.json / pois.json. No generator code changes needed."
+  ],
+  "tiles": {
+    "deep_water":   { "colors": ["444a65", "222228"], "walkable": false, "water": true },
+    "water":        { "colors": ["7687ab", "444a65"], "walkable": false, "water": true },
+    "shallow":      { "colors": ["a9bbcc", "7687ab"], "walkable": true,  "water": true },
+    "sand":         { "colors": ["d9c277", "c17b5c"], "walkable": true,  "water": false },
+    "grass":        { "colors": ["596e47", "647551"], "walkable": true,  "water": false },
+    "grass_dark":   { "colors": ["4e6044", "596e47"], "walkable": true,  "water": false },
+    "dirt":         { "colors": ["c17b5c", "85444a"], "walkable": true,  "water": false },
+    "mud":          { "colors": ["4a363c", "38453a"], "walkable": true,  "water": false },
+    "marsh":        { "colors": ["596e47", "38453a"], "walkable": true,  "water": false },
+    "snow":         { "colors": ["dfe6e0", "a9bbcc"], "walkable": true,  "water": false },
+    "frozen_grass": { "colors": ["9ba15f", "7687ab"], "walkable": true,  "water": false },
+    "ash":          { "colors": ["4a363c", "222228"], "walkable": true,  "water": false },
+    "lava_rock":    { "colors": ["4a363c", "222228"], "walkable": true,  "water": false },
+    "lava":         { "colors": ["c17b5c", "85444a"], "walkable": false, "water": false, "hazard": true },
+    "rock":         { "colors": ["a9bbcc", "7687ab"], "walkable": true,  "water": false },
+    "cobble":       { "colors": ["dfe6e0", "a9bbcc"], "walkable": true,  "water": false },
+    "cave_floor":   { "colors": ["4a363c", "222228"], "walkable": true,  "water": false },
+    "cave_wall":    { "colors": ["222228", "111116"], "walkable": false, "water": false },
+    "fungal_floor": { "colors": ["444a65", "4a363c"], "walkable": true,  "water": false },
+    "deep_floor":   { "colors": ["38453a", "222228"], "walkable": true,  "water": false },
+    "deep_wall":    { "colors": ["222228", "0b0b10"], "walkable": false, "water": false }
+  },
+  "biomes": [
+    {
+      "id": "ocean", "name": "Ocean", "priority": 100,
+      "when": { "heightMax": 0.30 },
+      "tiles": { "water": 1.0 },
+      "tint": "a9bbcc", "music": "ocean",
+      "skillWeights": { "fishing": 1.0 },
+      "siteDensity": 0.0, "monsterDensity": 0.0
+    },
+    {
+      "id": "beach", "name": "Coast", "priority": 90,
+      "when": { "heightMax": 0.345 },
+      "tiles": { "sand": 1.0 },
+      "tint": "d9c277", "music": "coast",
+      "skillWeights": { "fishing": 3.0, "foraging": 0.6 },
+      "siteDensity": 0.7, "monsterDensity": 0.25
+    },
+    {
+      "id": "volcanic", "name": "Ash Wastes", "priority": 80,
+      "when": { "tempMin": 0.82, "heightMin": 0.60 },
+      "tiles": { "ash": 0.78, "lava_rock": 0.18, "lava": 0.04 },
+      "tint": "85444a", "music": "volcanic",
+      "skillWeights": { "mining": 3.0, "woodcutting": 0.1 },
+      "siteDensity": 0.8, "monsterDensity": 0.8
+    },
+    {
+      "id": "rocky_hills", "name": "Highlands", "priority": 70,
+      "when": { "heightMin": 0.78 },
+      "tiles": { "rock": 0.74, "dirt": 0.16, "grass_dark": 0.10 },
+      "tint": "a9bbcc", "music": "hills",
+      "skillWeights": { "mining": 4.0, "woodcutting": 0.3, "foraging": 0.4 },
+      "siteDensity": 1.1, "monsterDensity": 0.5
+    },
+    {
+      "id": "tundra", "name": "Tundra", "priority": 60,
+      "when": { "tempMax": 0.25 },
+      "tiles": { "snow": 0.74, "frozen_grass": 0.23, "rock": 0.03 },
+      "tint": "dfe6e0", "music": "tundra",
+      "skillWeights": { "woodcutting": 1.2, "mining": 1.5, "foraging": 1.0, "fishing": 0.8 },
+      "siteDensity": 0.9, "monsterDensity": 0.6
+    },
+    {
+      "id": "desert", "name": "Desert", "priority": 55,
+      "when": { "tempMin": 0.72, "moistureMax": 0.35 },
+      "tiles": { "sand": 0.985, "rock": 0.015 },
+      "tint": "d9c277", "music": "desert",
+      "skillWeights": { "mining": 1.6, "woodcutting": 0.5, "foraging": 0.8 },
+      "siteDensity": 0.7, "monsterDensity": 0.6
+    },
+    {
+      "id": "swamp", "name": "Swamp", "priority": 50,
+      "when": { "moistureMin": 0.74, "tempMin": 0.28, "tempMax": 0.72, "heightMax": 0.52 },
+      "tiles": { "marsh": 0.76, "mud": 0.16, "shallow": 0.08 },
+      "tint": "9ba15f", "music": "swamp",
+      "skillWeights": { "foraging": 2.5, "fishing": 1.4, "woodcutting": 1.0 },
+      "siteDensity": 1.0, "monsterDensity": 0.8
+    },
+    {
+      "id": "dense_forest", "name": "Deepwood", "priority": 40,
+      "when": { "moistureMin": 0.66, "tempMin": 0.25, "tempMax": 0.82 },
+      "tiles": { "grass_dark": 0.70, "grass": 0.30 },
+      "tint": "596e47", "music": "deep_forest",
+      "skillWeights": { "woodcutting": 4.0, "foraging": 1.6, "mining": 0.2 },
+      "siteDensity": 1.3, "monsterDensity": 0.7
+    },
+    {
+      "id": "forest", "name": "Forest", "priority": 30,
+      "when": { "moistureMin": 0.52, "tempMin": 0.25, "tempMax": 0.82 },
+      "tiles": { "grass": 0.92, "grass_dark": 0.08 },
+      "tint": "9ba15f", "music": "forest",
+      "skillWeights": { "woodcutting": 3.0, "foraging": 1.4, "mining": 0.4, "fishing": 0.4 },
+      "siteDensity": 1.2, "monsterDensity": 0.55
+    },
+    {
+      "id": "plains", "name": "Plains", "priority": 0,
+      "when": {},
+      "tiles": { "grass": 0.99, "grass_dark": 0.01 },
+      "tint": "ffffff", "music": "plains",
+      "skillWeights": { "woodcutting": 1.2, "mining": 0.8, "foraging": 1.4, "fishing": 0.5 },
+      "siteDensity": 1.0, "monsterDensity": 0.5
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "_doc": [
+    "World spawn rules for the bestiary (res://data/enemies.json), consumed by",
+    "scripts/worldgen/monster_spawner.gd. Enemies keep their combat stats from",
+    "the export; this file only decides where they roam.",
+    "rules: first regex match on the enemy name wins -> biome affinity and",
+    "optional cave layers. Unmatched enemies use defaultBiomes. Bosses never",
+    "spawn as regular roamers; they anchor boss_lair POIs (see pois.json).",
+    "Zone tier filtering is automatic: an enemy spawns only in zones whose",
+    "level requirement is within [level*levelBandLow, level*levelBandHigh].",
+    "aggressive: regex list -- matching enemies auto-attack a player below",
+    "aggroLevelFactor * enemyLevel who comes within aggroRadiusTiles.",
+    "passive: regex -- never auto-attacks regardless of level.",
+    "To add a monster: add it to enemies.json and (optionally) a rule here."
+  ],
+  "densityPerChunk": 2.2,
+  "levelBandLow": 0.45,
+  "levelBandHigh": 2.6,
+  "aggroRadiusTiles": 3.2,
+  "aggroLevelFactor": 2.0,
+  "defaultBiomes": ["plains", "forest"],
+  "passive": "(?i)chicken|cow|sheep|pig|goat|rabbit|bunny|crab",
+  "aggressive": "(?i)goblin|gnoll|wolf|wolves|skelet|zombie|undead|bone|bony|toxic|giant|wight|ghost|ghast|revenant|crawler|cadaver|shambler|walker|feeder|hound|viper|scarab|guardian|sentinel|ritualist|acolyte|yeti|golem|drake|dragon|wyvern|oni|cyclops|devourer|elemental|widow|maw|slayer|archer|mage|fighter|soldier|banana",
+  "rules": [
+    { "match": "(?i)frost|ice|snow|yeti|brumal|palescale|glacier", "biomes": ["tundra"] },
+    { "match": "(?i)sand|dune|mummif|mummy|scarab|tomb|pharaoh|royal|oasis|sunbound|sunfang|buried|brightscale", "biomes": ["desert"] },
+    { "match": "(?i)toxic|poison|bog|blight|pestilence|virulent|bloat|rot|carrion|carcass|oozing|leech|emerald viper|bloodmoss", "biomes": ["swamp"] },
+    { "match": "(?i)fire giant|magma|ash|ember|demon|imp", "biomes": ["volcanic"] },
+    { "match": "(?i)hill giant|fog giant|cyclops|golem|ancient fighter|veinwatcher", "biomes": ["rocky_hills"] },
+    { "match": "(?i)bat|spider|skitter|widow|crawler|shrieker|devourer|eye", "biomes": ["forest", "rocky_hills"], "caveLayers": [-1] },
+    { "match": "(?i)skelet|zombie|undead|bone|bony|cadaver|shambler|walker|corpse|grave|ossified|revenant|wight|ghost|ghast|dusty", "biomes": ["swamp", "plains"], "caveLayers": [-2] },
+    { "match": "(?i)dragon|wyvern|drake|maw|vermithrax|vaerthrax", "biomes": ["volcanic", "rocky_hills", "dense_forest"] },
+    { "match": "(?i)goblin|gnoll|hobgoblin|boar|brawler", "biomes": ["plains", "forest"] },
+    { "match": "(?i)wolf|wolves|bear|shadowfang", "biomes": ["forest", "dense_forest", "tundra"] },
+    { "match": "(?i)crab|aqua|water elemental|nessy", "biomes": ["beach", "ocean"] },
+    { "match": "(?i)banana", "biomes": ["beach", "dense_forest"] },
+    { "match": "(?i)chicken|cow|sheep|pig|goat", "biomes": ["plains"] }
+  ]
+}

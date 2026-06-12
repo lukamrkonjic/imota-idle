@@ -1,0 +1,9 @@
+# Godot editor cache / imported assets
+.godot/
+
+# Reference game sources (local research material, ~600 MB)
+games-with-worldgen/
+
+# Local export builds
+export/
+*.tmp

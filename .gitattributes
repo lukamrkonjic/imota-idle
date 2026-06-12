@@ -1,0 +1,7 @@
+# Godot uses LF; keep text files LF in working trees on all platforms.
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.ttf binary
+*.wav binary
+*.ogg binary
