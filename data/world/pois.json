@@ -149,6 +149,53 @@
         { "kind": "chest", "station": "bank", "label": "Bank Chest", "dx": 0, "dy": 2 }
       ]
     },
+    "ruined_tower": {
+      "placement": { "mode": "chance", "chance": 0.05 },
+      "label": "Crumbled Tower",
+      "biomes": ["plains", "forest", "rocky_hills", "desert"],
+      "minimapColor": "c8c8d0",
+      "clusterSites": 3, "clusterSkill": "foraging",
+      "parts": [
+        { "kind": "ruin_tower", "label": "Crumbled Tower", "dx": 0, "dy": 0 },
+        { "kind": "ruin_wall", "label": "Broken Wall", "dx": 3, "dy": 1 },
+        { "kind": "ruin_pillar", "label": "Toppled Pillar", "dx": -3, "dy": 2 }
+      ]
+    },
+    "standing_stones": {
+      "placement": { "mode": "chance", "chance": 0.04 },
+      "label": "Standing Stones",
+      "biomes": ["plains", "forest", "tundra"],
+      "minimapColor": "b8c0c8",
+      "parts": [
+        { "kind": "ruin_stone", "label": "Standing Stone", "dx": 0, "dy": -2 },
+        { "kind": "ruin_stone", "label": "Standing Stone", "dx": -2, "dy": 1 },
+        { "kind": "ruin_stone", "label": "Standing Stone", "dx": 2, "dy": 1 },
+        { "kind": "ruin_pillar", "label": "Fallen Altar Stone", "dx": 0, "dy": 0 }
+      ]
+    },
+    "sunken_ruin": {
+      "placement": { "mode": "chance", "chance": 0.06 },
+      "label": "Sunken Ruin",
+      "biomes": ["swamp"],
+      "minimapColor": "8a9a88",
+      "clusterSites": 3, "clusterSkill": "fishing",
+      "parts": [
+        { "kind": "ruin_pillar", "label": "Sunken Pillar", "dx": 0, "dy": 0 },
+        { "kind": "ruin_wall", "label": "Drowned Wall", "dx": 2, "dy": 1 },
+        { "kind": "ruin_stone", "label": "Mossy Stone", "dx": -2, "dy": 0 }
+      ]
+    },
+    "abandoned_camp": {
+      "placement": { "mode": "chance", "chance": 0.04 },
+      "label": "Abandoned Camp",
+      "biomes": ["forest", "dense_forest", "tundra"],
+      "minimapColor": "8a8478",
+      "parts": [
+        { "kind": "tent", "label": "Torn Tent", "dx": 0, "dy": 0, "color": "5A564E" },
+        { "kind": "chest", "hook": "ruins", "label": "Looted Chest", "hookMessage": "The chest has already been picked clean.", "dx": 2, "dy": 1 },
+        { "kind": "sign", "label": "Abandoned Camp", "dx": -2, "dy": 0 }
+      ]
+    },
     "landmark": {
       "placement": { "mode": "cell", "cellChunks": 7, "chance": 0.5 },
       "label": "Landmark",

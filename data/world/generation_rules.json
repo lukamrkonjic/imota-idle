@@ -1,33 +1,43 @@
 {
   "_doc": [
     "Worldgen tuning consumed by elevation_map.gd, anchor_planner.gd,",
-    "skill_site_spawner.gd and chunk_renderer.gd. All values are data-only:",
-    "tweak here, no generator code changes needed.",
+    "biome_classifier.gd, skill_site_spawner.gd and chunk_renderer.gd.",
+    "All values are data-only: tweak here, no generator code changes needed.",
     "",
     "elevation.bounds: upper height-field bound for levels 0..6 (level 7 is",
     "everything above the last bound). Levels: 0 deep water, 1 shallow water,",
     "2 lowland, 3 normal land, 4 hill, 5 high hill, 6 mountain, 7 peak.",
-    "ruggedFreq/ruggedAmp: small jitter noise added to height before banding so",
-    "terrace contours break up instead of tracing smooth noise isolines.",
-    "cliffShade/cliffHighlight: render-time darkening below an elevation step",
-    "and lightening on its top edge. highlandTintPerLevel: ground lightening",
-    "per level above 3, suggesting thin rocky soil at altitude.",
+    "ruggedFreq/ruggedAmp: jitter added to height before banding (gameplay",
+    "levels only — rendering uses the smooth field).",
+    "slopeShade: rolling-hill shading strength — NW-lit smooth gradient, no",
+    "contour lines. slopeShadeMax clamps it. highlandTint: gradual ground",
+    "lightening above lowland height, suggesting thin rocky soil.",
+    "",
+    "water.riverWidthBase/Extra: river half-width in noise space (extra widens",
+    "toward lowlands). lakeFreq: lake noise frequency (lower = bigger blobs).",
+    "lakeWater/lakeShore: noise thresholds — lower = larger lakes.",
     "",
     "resources.elevationDensity: per-skill multiplier indexed by elevation",
-    "level 0..7. 0 disables the skill at that level; >1 boosts it (Luanti-style",
-    "ore y-range scarcity, flattened to our 8 levels).",
+    "level 0..7. 0 disables the skill at that level; >1 boosts it.",
     "",
-    "roads.tile: byte tile painted along corridors between the home camp and",
-    "nearby anchors. halfWidth in tiles; wobble makes paths meander instead of",
-    "ruler lines; connectHubs: how many nearest anchors get a road from home."
+    "roads.halfWidth: rendered path half-width in tiles (gradient edge);",
+    "the walkable painted core is narrower. wobble makes paths meander.",
+    "connectHubs: how many nearest anchors get a road from home."
   ],
   "elevation": {
     "bounds": [0.24, 0.345, 0.46, 0.62, 0.72, 0.80, 0.88],
     "ruggedFreq": 0.045,
     "ruggedAmp": 0.030,
-    "cliffShade": 0.16,
-    "cliffHighlight": 0.09,
-    "highlandTintPerLevel": 0.020
+    "slopeShade": 42.0,
+    "slopeShadeMax": 0.085,
+    "highlandTint": 0.30
+  },
+  "water": {
+    "riverWidthBase": 0.042,
+    "riverWidthExtra": 0.070,
+    "lakeFreq": 0.012,
+    "lakeWater": 0.735,
+    "lakeShore": 0.695
   },
   "resources": {
     "elevationDensity": {
@@ -39,9 +49,9 @@
   },
   "roads": {
     "tile": "dirt",
-    "halfWidth": 0.85,
-    "wobbleAmp": 2.2,
-    "wobbleFreq": 0.055,
+    "halfWidth": 1.6,
+    "wobbleAmp": 1.6,
+    "wobbleFreq": 0.035,
     "connectHubs": 2
   }
 }

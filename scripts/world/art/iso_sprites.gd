@@ -19,6 +19,7 @@ const LadderArt := preload("res://scripts/world/art/structures/ladder_art.gd")
 const StallArt := preload("res://scripts/world/art/structures/stall_art.gd")
 const MeteorArt := preload("res://scripts/world/art/structures/meteor_art.gd")
 const MammothArt := preload("res://scripts/world/art/structures/mammoth_art.gd")
+const RuinArt := preload("res://scripts/world/art/structures/ruin_art.gd")
 
 
 static func node_size(kind: String) -> float:
@@ -104,3 +105,7 @@ static func draw_meteor(canvas: CanvasItem, t: float) -> void:
 
 static func draw_mammoth(canvas: CanvasItem) -> void:
 	MammothArt.draw(canvas)
+
+
+static func draw_ruin(canvas: CanvasItem, kind: String, size: float, variant: int) -> void:
+	RuinArt.draw(canvas, kind, size, variant)

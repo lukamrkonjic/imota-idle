@@ -10,10 +10,14 @@ const StickDecorArt := preload("res://scripts/world/art/ground_decor/stick_decor
 const PebbleDecorArt := preload("res://scripts/world/art/ground_decor/pebble_decor.gd")
 const ReedDecorArt := preload("res://scripts/world/art/ground_decor/reed_decor.gd")
 const MushroomDecorArt := preload("res://scripts/world/art/ground_decor/mushroom_decor.gd")
+const BoulderDecorArt := preload("res://scripts/world/art/ground_decor/boulder_decor.gd")
+const LogDecorArt := preload("res://scripts/world/art/ground_decor/log_decor.gd")
 
 
 static func draw(canvas: CanvasItem, kind: String, variant: int, tint: Color) -> void:
 	match kind:
+		"boulder": BoulderDecorArt.draw(canvas, variant, tint)
+		"log": LogDecorArt.draw(canvas, variant, tint)
 		"fern": FernDecorArt.draw(canvas, variant, tint)
 		"flower": FlowerDecorArt.draw(canvas, variant, tint)
 		"shrub": ShrubDecorArt.draw(canvas, variant, tint)

@@ -116,52 +116,62 @@ func _tile_near_water(chunk: RefCounted, tx: int, ty: int) -> bool:
 
 func _decor_chance(biome_id: String, near_water: bool) -> float:
 	if near_water:
-		return 0.16
+		return 0.25
 	match biome_id:
-		"dense_forest": return 0.14
-		"forest": return 0.105
-		"swamp": return 0.13
-		"rocky_hills": return 0.055
-		"plains": return 0.045
-		"beach", "desert": return 0.035
-		_: return 0.035
+		"dense_forest": return 0.24
+		"forest": return 0.18
+		"swamp": return 0.22
+		"rocky_hills": return 0.10
+		"plains": return 0.085
+		"beach", "desert": return 0.06
+		_: return 0.06
 
 
 func _pick_decor_kind(biome_id: String, near_water: bool, roll: float) -> String:
 	if near_water:
-		if roll < 0.45: return "reed"
-		if roll < 0.66: return "stick"
-		if roll < 0.82: return "grass"
-		return "pebble"
+		if roll < 0.42: return "reed"
+		if roll < 0.62: return "stick"
+		if roll < 0.78: return "grass"
+		if roll < 0.92: return "pebble"
+		return "boulder"
 	match biome_id:
 		"dense_forest":
-			if roll < 0.28: return "shrub"
-			if roll < 0.50: return "fern"
-			if roll < 0.70: return "stick"
-			if roll < 0.84: return "mushroom"
+			if roll < 0.26: return "shrub"
+			if roll < 0.46: return "fern"
+			if roll < 0.62: return "stick"
+			if roll < 0.74: return "mushroom"
+			if roll < 0.86: return "log"
 			return "grass"
 		"forest":
-			if roll < 0.26: return "shrub"
-			if roll < 0.48: return "fern"
-			if roll < 0.66: return "stick"
-			if roll < 0.76: return "mushroom"
-			if roll < 0.88: return "flower"
+			if roll < 0.24: return "shrub"
+			if roll < 0.44: return "fern"
+			if roll < 0.58: return "stick"
+			if roll < 0.68: return "mushroom"
+			if roll < 0.78: return "flower"
+			if roll < 0.88: return "log"
 			return "grass"
 		"swamp":
-			if roll < 0.34: return "reed"
-			if roll < 0.58: return "fern"
-			if roll < 0.74: return "mushroom"
-			if roll < 0.88: return "stick"
+			if roll < 0.32: return "reed"
+			if roll < 0.54: return "fern"
+			if roll < 0.70: return "mushroom"
+			if roll < 0.82: return "stick"
+			if roll < 0.92: return "log"
 			return "shrub"
 		"rocky_hills":
-			return "pebble" if roll < 0.72 else "grass"
+			if roll < 0.50: return "pebble"
+			if roll < 0.78: return "boulder"
+			return "grass"
 		"beach", "desert":
-			return "pebble" if roll < 0.62 else "stick"
+			if roll < 0.55: return "pebble"
+			if roll < 0.75: return "stick"
+			return "boulder"
 		_:
-			if roll < 0.34: return "grass"
-			if roll < 0.54: return "flower"
-			if roll < 0.72: return "stick"
-			return "shrub"
+			if roll < 0.30: return "grass"
+			if roll < 0.48: return "flower"
+			if roll < 0.62: return "stick"
+			if roll < 0.76: return "shrub"
+			if roll < 0.88: return "pebble"
+			return "boulder"
 
 
 func _spawn_site(chunk: RefCounted, i: int, container: Node2D) -> void:
@@ -173,8 +183,10 @@ func _spawn_site(chunk: RefCounted, i: int, container: Node2D) -> void:
 	e.tier_color = tier_color(int(s["level"]))
 	e.variant = absi(hash(str(s["node"]) + chunk.key())) % 1000
 	if e.kind == "tree":
-		e.display_size = TreeArt.tree_size(int(s["level"]), e.label)
-		e.click_radius = maxf(e.display_size * 0.5, 30.0)
+		# Trees draw 3x their node size: canopies should dwarf the player and
+		# read at world scale (reference: ruins/pine mockups in docs).
+		e.display_size = TreeArt.tree_size(int(s["level"]), e.label) * 3.0
+		e.click_radius = clampf(e.display_size * 0.30, 30.0, 84.0)
 	else:
 		e.display_size = IsoSprites.node_size(e.kind)
 		e.click_radius = maxf(e.display_size * 0.8, 26.0)
@@ -224,8 +236,13 @@ func _spawn_poi_part(chunk: RefCounted, poi: Dictionary, part: Dictionary, conta
 			e.attuned = WorldGen.store.obelisks.has(chunk.key())
 			e.action = {"type": "obelisk", "chunk_key": chunk.key()}
 		"landmark_tree", "meteor", "mammoth":
-			e.display_size = 110.0 if kind == "landmark_tree" else 60.0
+			e.display_size = 330.0 if kind == "landmark_tree" else 60.0
 			e.click_radius = 48.0
+			e.action = {"type": "landmark", "label": e.label}
+		"ruin_tower", "ruin_wall", "ruin_pillar", "ruin_stone":
+			e.display_size = 92.0 if kind == "ruin_tower" else 58.0
+			e.click_radius = 42.0
+			e.variant = absi(hash(chunk.key() + str(part["tx"]) + ":" + str(part["ty"]))) % 1000
 			e.action = {"type": "landmark", "label": e.label}
 		_:
 			if part.has("station"):

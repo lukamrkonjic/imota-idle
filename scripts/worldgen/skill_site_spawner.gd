@@ -12,8 +12,8 @@ const BASE_SITES_PER_CHUNK := 3.2
 const PLACE_ATTEMPTS := 28
 const FOREST_BIOMES := ["forest", "dense_forest", "swamp"]
 const WATER_TREE_BIOMES := ["plains", "forest", "dense_forest", "swamp", "beach"]
-const COMMON_TREE_SPACING := 3.15
-const SOLITARY_TREE_SPACING := 5.0
+const COMMON_TREE_SPACING := 4.4   # tiles; trees render ~3x node size now
+const SOLITARY_TREE_SPACING := 6.5
 var reg: RefCounted
 var elevation: RefCounted
 var world_seed: int = 0

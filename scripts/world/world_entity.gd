@@ -107,6 +107,14 @@ func icon_height() -> float:
 			return 16.0
 		"mammoth":
 			return 40.0
+		"ruin_tower":
+			return display_size * 1.05
+		"ruin_wall":
+			return display_size * 0.30
+		"ruin_pillar":
+			return display_size * 0.8
+		"ruin_stone":
+			return display_size * 0.7
 	return display_size * 0.5
 
 
@@ -149,6 +157,8 @@ func _draw() -> void:
 			IsoSprites.draw_meteor(self, _t)
 		"mammoth":
 			IsoSprites.draw_mammoth(self)
+		"ruin_tower", "ruin_wall", "ruin_pillar", "ruin_stone":
+			IsoSprites.draw_ruin(self, kind, display_size, variant)
 	if show_labels:
 		_draw_labels()
 	if hp_fraction >= 0.0:

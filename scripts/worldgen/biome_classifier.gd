@@ -18,28 +18,39 @@ var _temp: FastNoiseLite
 var _river: FastNoiseLite
 var _river_mask: FastNoiseLite
 var _lake: FastNoiseLite
+var _palette: FastNoiseLite  # clustered ground-variant patches, not per-tile salt
+
+# Water sizing from generation_rules.json (rivers widen toward lowlands).
+var _river_w_base := 0.042
+var _river_w_extra := 0.070
+var _lake_water := 0.735
+var _lake_shore := 0.695
 
 # Cached tile byte ids for the carving hot path.
 var _t_deep: int
 var _t_water: int
 var _t_shallow: int
-var _t_rock: int
 var _t_cobble: int
 
 
 func setup(p_reg: RefCounted, p_seed: int) -> void:
 	reg = p_reg
 	world_seed = p_seed
+	var wr: Dictionary = reg.gen_rules.get("water", {})
+	_river_w_base = float(wr.get("riverWidthBase", 0.042))
+	_river_w_extra = float(wr.get("riverWidthExtra", 0.070))
+	_lake_water = float(wr.get("lakeWater", 0.735))
+	_lake_shore = float(wr.get("lakeShore", 0.695))
 	_height = _noise(p_seed, 0.011, 4)
 	_moist = _noise(p_seed + 101, 0.016, 3)
 	_temp = _noise(p_seed + 202, 0.006, 2)
 	_river = _noise(p_seed + 303, 0.0050, 1)
 	_river_mask = _noise(p_seed + 304, 0.0028, 2)
-	_lake = _noise(p_seed + 404, 0.021, 2)
+	_lake = _noise(p_seed + 404, float(wr.get("lakeFreq", 0.012)), 2)
+	_palette = _noise(p_seed + 606, 0.050, 2)
 	_t_deep = int(reg.tile_index["deep_water"])
 	_t_water = int(reg.tile_index["water"])
 	_t_shallow = int(reg.tile_index["shallow"])
-	_t_rock = int(reg.tile_index["rock"])
 	_t_cobble = int(reg.tile_index["cobble"])
 
 
@@ -87,6 +98,14 @@ func classify(f: Vector3) -> int:
 	return reg.biomes.size() - 1  # priority-0 fallback always matches
 
 
+## Lakes and rivers fade to nothing right at the origin so the home camp
+## footprint can never flood, whatever the water tuning says.
+## 1.0 at the campfire -> 0.0 beyond ~1.8 chunks.
+func _home_water_suppress(tx: float, ty: float) -> float:
+	var dist_chunks := Vector2(tx, ty).length() / float(WG.CHUNK_TILES)
+	return 1.0 - smoothstep(0.8, 1.8, dist_chunks)
+
+
 ## River channel test: ridged band of the river noise, tapering with height
 ## so streams widen toward the lowlands. Returns 0 none, 1 shallow, 2 deep.
 func river_at(tx: float, ty: float, h: float) -> int:
@@ -96,8 +115,11 @@ func river_at(tx: float, ty: float, h: float) -> int:
 	if mask < 0.46:
 		return 0
 	var rv: float = absf(_river.get_noise_2d(tx, ty))
-	var w := 0.018 + 0.030 * (1.0 - smoothstep(0.34, 0.74, h))
-	if rv < w * 0.58:
+	var w := _river_w_base + _river_w_extra * (1.0 - smoothstep(0.34, 0.74, h))
+	w *= 1.0 - _home_water_suppress(tx, ty)
+	if w <= 0.001:
+		return 0
+	if rv < w * 0.62:
 		return 2
 	if rv < w:
 		return 1
@@ -109,9 +131,10 @@ func lake_at(tx: float, ty: float, h: float) -> int:
 	if h < 0.345 or h > 0.62:
 		return 0
 	var lv := _lake.get_noise_2d(tx, ty) * 0.5 + 0.5
-	if lv > 0.80:
+	var bump := _home_water_suppress(tx, ty) * 0.4
+	if lv > _lake_water + bump:
 		return 2
-	if lv > 0.765:
+	if lv > _lake_shore + bump:
 		return 1
 	return 0
 
@@ -137,11 +160,16 @@ func tile_at(tx: float, ty: float, f: Vector3, b_idx: int) -> int:
 				near_river = true
 				break
 		if near_river:
-			var bank_roll := WG.r01(world_seed, floori(tx), floori(ty), 17)
-			if bank_roll < 0.34:
-				return _t_rock if bank_roll < 0.20 else _t_cobble
+			# Clustered pebbly banks (noise patches), never lone bright tiles.
+			var bank := _palette.get_noise_2d(tx * 1.7 + 50.0, ty * 1.7 - 50.0) * 0.5 + 0.5
+			if bank > 0.64:
+				return _t_cobble
+	# Ground variants come in coherent patches: a low-frequency noise picks the
+	# palette entry, with a whisper of per-tile dither so patch edges stay soft.
+	# (Pure per-tile randomness made tundra/forest floors look like checkers.)
 	var weights: Array = reg.biomes[b_idx]["_tile_weights"]
-	var roll := WG.r01(world_seed, floori(tx), floori(ty), 7)
+	var patch := _palette.get_noise_2d(tx, ty) * 0.5 + 0.5
+	var roll := clampf(patch * 0.90 + WG.r01(world_seed, floori(tx), floori(ty), 7) * 0.10, 0.0, 0.999)
 	var total := 0.0
 	for entry: Array in weights:
 		total += float(entry[1])

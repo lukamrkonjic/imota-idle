@@ -157,16 +157,18 @@ func road_segments() -> Array:
 	return _road_segments
 
 
-## Byte tile id to paint at global tile (gx, gy), or -1 when no road runs
-## here. The corridor centerline is displaced by a sine wobble so paths
-## meander; callers must still refuse to paint over water/hazard tiles.
-func road_byte_at(gx: float, gy: float) -> int:
+## Normalized road presence at a global tile position: 1.0 on the wobbled
+## centerline fading to 0.0 at halfWidth. The renderer blends ground colors
+## toward the path palette by this, so trails get soft worn edges instead of
+## a hard one-tile stripe.
+func road_strength_at(gx: float, gy: float) -> float:
 	if _road_byte < 0:
-		return -1
+		return 0.0
 	var p := Vector2(gx, gy)
-	var cfg_half := float(_road_cfg.get("halfWidth", 0.85))
-	var amp := float(_road_cfg.get("wobbleAmp", 2.2))
-	var freq := float(_road_cfg.get("wobbleFreq", 0.055))
+	var cfg_half := float(_road_cfg.get("halfWidth", 1.6))
+	var amp := float(_road_cfg.get("wobbleAmp", 1.6))
+	var freq := float(_road_cfg.get("wobbleFreq", 0.035))
+	var best := INF
 	for seg: Dictionary in road_segments():
 		var from: Vector2 = seg["from"]
 		var to: Vector2 = seg["to"]
@@ -184,6 +186,13 @@ func road_byte_at(gx: float, gy: float) -> int:
 		var signed := (p - closest).dot(n)
 		var along := t * ab.length()
 		var offset := sin(along * freq * TAU + float(seg["phase"])) * amp
-		if absf(signed - offset) <= cfg_half:
-			return _road_byte
-	return -1
+		best = minf(best, absf(signed - offset))
+	if best >= cfg_half:
+		return 0.0
+	return 1.0 - best / cfg_half
+
+
+## Byte tile id for the walkable painted road core (inner ~55% of the band),
+## or -1. Callers must still refuse to paint over water/hazard tiles.
+func road_byte_at(gx: float, gy: float) -> int:
+	return _road_byte if road_strength_at(gx, gy) > 0.45 else -1

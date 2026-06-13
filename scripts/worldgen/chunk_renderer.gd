@@ -99,31 +99,53 @@ static func _tree_shade_strength(tree_shades: Array, gx: float, gy: float) -> fl
 	return shade
 
 
-## Thread-safe ground bake. Surface chunks resample the classifier per subtile
-## (with jitter) so biome transitions blend; cave chunks pattern their stored
-## tiles directly. When elevation/roads modules are provided, surface bakes
-## add terraced cliff shading, highland tinting, and road corridors.
+## Thread-safe ground bake. Pass 1 samples the classifier once per subtile
+## (with a margin) into height/biome/tile grids; pass 2 colors pixels using
+## only grid lookups, so neighbour-aware effects come for free:
+##   - rolling-hill shading: smooth NW-lit gradient from the height field
+##     (no terraces, no contour lines)
+##   - biome-edge blending: ground colors fade across seams instead of
+##     foreign tiles popping in as lone squares
+##   - worn paths: ground blends toward the dirt palette by road strength
+## Cave chunks pattern their stored tiles directly, as before.
 static func bake(p_chunk: RefCounted, reg: RefCounted, classifier: RefCounted, p_seed: int,
-		elevation: RefCounted = null, roads: RefCounted = null) -> Image:
+		_elevation: RefCounted = null, roads: RefCounted = null) -> Image:
 	var n := WG.CHUNK_TILES * SUB
 	var img := Image.create_empty(n, n, false, Image.FORMAT_RGB8)
 	var base_tx: int = p_chunk.cx * WG.CHUNK_TILES
 	var base_ty: int = p_chunk.cy * WG.CHUNK_TILES
-	# Subtile elevation grid with a 1-subtile margin so cliff edges can look
-	# at neighbours across the chunk border without a second classifier pass.
+	var surface: bool = p_chunk.layer == 0
+
 	var elev_rules: Dictionary = reg.gen_rules.get("elevation", {})
-	var cliff_shade := float(elev_rules.get("cliffShade", 0.16))
-	var cliff_highlight := float(elev_rules.get("cliffHighlight", 0.09))
-	var tint_per_level := float(elev_rules.get("highlandTintPerLevel", 0.020))
-	var has_elev: bool = p_chunk.layer == 0 and elevation != null
-	var levels := PackedByteArray()
-	if has_elev:
-		levels.resize((n + 2) * (n + 2))
-		for ly: int in n + 2:
-			var ey := float(base_ty) + (float(ly - 1) + 0.5) / float(SUB)
-			for lx: int in n + 2:
-				var ex := float(base_tx) + (float(lx - 1) + 0.5) / float(SUB)
-				levels[ly * (n + 2) + lx] = elevation.level_at(ex, ey)
+	var slope_shade := float(elev_rules.get("slopeShade", 4.0))
+	var slope_max := float(elev_rules.get("slopeShadeMax", 0.085))
+	var highland_tint := float(elev_rules.get("highlandTint", 0.30))
+	var road_cols: Array = []
+	if surface and roads != null:
+		var road_tile := str(reg.gen_rules.get("roads", {}).get("tile", "dirt"))
+		if reg.tile_index.has(road_tile):
+			road_cols = reg.tile_def(int(reg.tile_index[road_tile]))["colors"]
+
+	# Pass 1: field grids with margin M so pass 2 can look sideways freely.
+	var M := 3
+	var gw := n + M * 2
+	var hgrid := PackedFloat32Array()
+	var bgrid := PackedByteArray()
+	var tgrid := PackedByteArray()
+	if surface:
+		hgrid.resize(gw * gw)
+		bgrid.resize(gw * gw)
+		tgrid.resize(gw * gw)
+		for ly: int in gw:
+			var ey := float(base_ty) + (float(ly - M) + 0.5) / float(SUB)
+			for lx: int in gw:
+				var ex := float(base_tx) + (float(lx - M) + 0.5) / float(SUB)
+				var f: Vector3 = classifier.fields(ex, ey)
+				var gi := ly * gw + lx
+				hgrid[gi] = f.x
+				bgrid[gi] = classifier.classify(f)
+				tgrid[gi] = classifier.tile_at(ex, ey, f, int(bgrid[gi]))
+
 	var grass_id := int(reg.tile_index.get("grass", -1))
 	var grass_dark_id := int(reg.tile_index.get("grass_dark", -1))
 	var grass_cols: Array = reg.tile_def(grass_id)["colors"] if grass_id >= 0 else []
@@ -131,14 +153,14 @@ static func bake(p_chunk: RefCounted, reg: RefCounted, classifier: RefCounted, p
 	var patch_noise := _noise(p_seed + 808, 0.022, 3)
 	var detail_noise := _noise(p_seed + 809, 0.066, 2)
 	var tree_shades: Array = []
-	if p_chunk.layer == 0:
+	if surface:
 		for s: Dictionary in p_chunk.sites:
 			if str(s.get("kind", "")) != "tree":
 				continue
 			var tx := float(base_tx + int(s["tx"])) + 0.5
 			var ty := float(base_ty + int(s["ty"])) + 0.5
 			var roll := WG.r01(p_seed, int(tx * 17.0), int(ty * 19.0), 812)
-			var radius := lerpf(3.1, 6.2, roll)
+			var radius := lerpf(4.0, 7.6, roll)
 			var strength := 0.22
 			var b_idx: int = p_chunk.biome_at(int(s["tx"]), int(s["ty"]))
 			if b_idx != 255:
@@ -150,37 +172,33 @@ static func bake(p_chunk: RefCounted, reg: RefCounted, classifier: RefCounted, p
 					"swamp":
 						strength = 0.32
 			tree_shades.append([tx, ty, radius, strength])
+
 	for sy: int in n:
 		var gy := float(base_ty) + (float(sy) + 0.5) / float(SUB)
 		for sx: int in n:
 			var gx := float(base_tx) + (float(sx) + 0.5) / float(SUB)
+			var gi := (sy + M) * gw + (sx + M)
 			var byte_id: int
 			var biome_id := ""
 			var biome_index := 0
-			if p_chunk.layer == 0:
-				var f: Vector3 = classifier.fields(gx, gy)
-				biome_index = classifier.classify(f)
+			if surface:
+				biome_index = bgrid[gi]
 				biome_id = str(reg.biomes[biome_index]["id"])
-				byte_id = classifier.tile_at(gx, gy, f, biome_index)
-				if roads != null:
-					var rb: int = roads.road_byte_at(gx, gy)
-					if rb >= 0:
-						var td: Dictionary = reg.tile_def(byte_id)
-						if td["walkable"] and not td["water"] and not td["hazard"]:
-							byte_id = rb
+				byte_id = tgrid[gi]
 			else:
 				byte_id = p_chunk.tile_id(
 					clampi(sx / SUB, 0, WG.CHUNK_TILES - 1),
 					clampi(sy / SUB, 0, WG.CHUNK_TILES - 1))
 			var tile: Dictionary = reg.tile_def(byte_id)
 			var cols: Array = tile["colors"]
+			var is_water := bool(tile.get("water", false))
 			var gsx: int = base_tx * SUB + sx
 			var gsy: int = base_ty * SUB + sy
 			var soft_noise := WG.r01(p_seed, floori(gx / 3.0), floori(gy / 3.0), 5)
 			var bayer := (float(BAYER4[(gsy % 4) * 4 + (gsx % 4)]) / 16.0 - 0.5) * 0.06
 			var blend := clampf(0.24 + soft_noise * 0.16 + bayer, 0.0, 1.0)
 			var col: Color
-			if p_chunk.layer == 0 and (byte_id == grass_id or byte_id == grass_dark_id) and not grass_cols.is_empty() and not grass_dark_cols.is_empty():
+			if surface and (byte_id == grass_id or byte_id == grass_dark_id) and not grass_cols.is_empty() and not grass_dark_cols.is_empty():
 				var mass := patch_noise.get_noise_2d(gx, gy) * 0.5 + 0.5
 				var detail := detail_noise.get_noise_2d(gx, gy) * 0.5 + 0.5
 				var patch_strength := _grass_patch_strength(biome_id, mass, detail)
@@ -193,25 +211,46 @@ static func bake(p_chunk: RefCounted, reg: RefCounted, classifier: RefCounted, p
 			# Very subtle local variation: enough to avoid flat wallpaper,
 			# not enough to create harsh dark blocks in forests.
 			var patch := WG.r01(p_seed, floori(gx / 5.0), floori(gy / 5.0), 6)
-			if bool(tile.get("water", false)):
+			if is_water:
 				col = col.lightened((patch - 0.5) * 0.045)
 			else:
 				col = col.lightened((patch - 0.5) * 0.018)
 			var speck := WG.r01(p_seed, gsx, gsy, 8)
-			if not bool(tile.get("water", false)) and speck > 0.996:
+			if not is_water and speck > 0.996:
 				col = col.lightened(0.025)
-			# Terraced relief: shadow under a rise to the north, a thin
-			# highlight along a drop to the south, rockier-pale ground up high.
-			if has_elev:
-				var lvl := int(levels[(sy + 1) * (n + 2) + (sx + 1)])
-				if lvl >= 2 and not bool(tile.get("water", false)):
-					var north := int(levels[sy * (n + 2) + (sx + 1)])
-					var south := int(levels[(sy + 2) * (n + 2) + (sx + 1)])
-					if north > lvl:
-						col = col.darkened(cliff_shade * minf(float(north - lvl), 2.0))
-					elif south < lvl and lvl >= 4:
-						col = col.lightened(cliff_highlight)
-					if lvl >= 4:
-						col = col.lightened(float(lvl - 3) * tint_per_level)
+			if surface:
+				# Biome-edge gradient: fade toward differing neighbours' ground
+				# colors so seams melt together (never bleed water onto land).
+				if not is_water:
+					var mix := Color(0, 0, 0)
+					var diff := 0
+					for off: Vector2i in [Vector2i(M, 0), Vector2i(-M, 0), Vector2i(0, M), Vector2i(0, -M)]:
+						var ni := (sy + M + off.y) * gw + (sx + M + off.x)
+						if int(bgrid[ni]) == biome_index:
+							continue
+						var ntile: Dictionary = reg.tile_def(tgrid[ni])
+						if bool(ntile.get("water", false)):
+							continue
+						var ncols: Array = ntile["colors"]
+						mix += Color(ncols[0]).lerp(Color(ncols[1]), blend * 0.6)
+						diff += 1
+					if diff > 0:
+						col = col.lerp(mix / float(diff), float(diff) / 4.0 * 0.5)
+				# Worn path: soft-edged blend toward the dirt palette.
+				if not road_cols.is_empty() and not is_water and not bool(tile.get("hazard", false)):
+					var rs: float = roads.road_strength_at(gx, gy)
+					if rs > 0.0:
+						var road_col: Color = Color(road_cols[0]).lerp(Color(road_cols[1]), blend * 0.7)
+						col = col.lerp(road_col, smoothstep(0.0, 1.0, rs) * 0.85)
+				# Rolling hills: smooth NW-lit slope shading + gentle pale
+				# tint at altitude. Gradients over +-M subtiles stay soft.
+				if not is_water:
+					var dhdx: float = hgrid[gi + M] - hgrid[gi - M]
+					var dhdy: float = hgrid[gi + M * gw] - hgrid[gi - M * gw]
+					var lum := clampf((dhdx + dhdy) * slope_shade, -slope_max, slope_max)
+					col = col.lightened(lum) if lum > 0.0 else col.darkened(-lum)
+					var h0: float = hgrid[gi]
+					if h0 > 0.62:
+						col = col.lightened((h0 - 0.62) * highland_tint)
 			img.set_pixel(sx, sy, col)
 	return img
