@@ -7,7 +7,9 @@ const PixelDraw := preload("res://scripts/world/art/core/pixel_draw.gd")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 const WorldLighting := preload("res://scripts/world/art/core/world_lighting.gd")
 
-const TILE_OVERLAP := 0.65
+# Tiles are drawn slightly larger than their cell so neighbours overlap and hide
+# the hairline between diamonds.
+const TILE_OVERLAP := 4.0
 const CARDINAL: Array = [
 	[Vector2i(0, -1), 1],
 	[Vector2i(1, 0), 2],
@@ -114,6 +116,10 @@ func _start_bake() -> void:
 	vp.size = Vector2i(ceili(bounds.size.x), ceili(bounds.size.y))
 	vp.transparent_bg = true
 	vp.disable_3d = true
+	# No anti-aliasing: AA'd diamond edges become semi-transparent and, at the
+	# chunk border, blend into the dark backdrop as a gray hairline seam (worst on
+	# bright snow). Hard edges abut cleanly between adjacent chunk textures.
+	vp.msaa_2d = Viewport.MSAA_DISABLED
 	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	var baker := _ChunkBaker.new()
 	baker.position = -bounds.position
@@ -151,7 +157,13 @@ func _world_bounds() -> Rect2:
 			maxp.x = maxf(maxp.x, center.x + hw)
 			minp.y = minf(minp.y, center.y + oy - hh)  # top surface (lifted up)
 			maxp.y = maxf(maxp.y, center.y + hh)        # base/riser foot
-	return Rect2(minp, maxp - minp).grow(4.0)
+	# Snap to the integer pixel grid so EVERY chunk texture shares one global
+	# grid. Otherwise each chunk rasterises on its own sub-pixel offset and the
+	# tile overlap that hides seams within a chunk no longer lines up across
+	# chunk borders, leaving 1px gaps that show the dark backdrop (the seam lines).
+	minp = Vector2(floorf(minp.x) - 4.0, floorf(minp.y) - 4.0)
+	maxp = Vector2(ceilf(maxp.x) + 4.0, ceilf(maxp.y) + 4.0)
+	return Rect2(minp, maxp - minp)
 
 
 ## The full chunk paint, used by the bake viewport (and reusable anywhere a
