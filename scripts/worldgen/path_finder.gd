@@ -1,88 +1,102 @@
 extends RefCounted
-## Tile pathfinding over the currently loaded chunks via AStarGrid2D.
-## Water, cave walls, and hazards are solid; whole chunks in zones above the
-## player's entry level are solid too, so locked zones act as hard barriers
-## the pathfinder simply routes around (or refuses to enter).
+## Tile pathfinding over the currently loaded chunks via AStar2D.
+##
+## A general graph (not AStarGrid2D) is used so movement obeys a per-EDGE climb
+## limit: two adjacent walkable tiles are only linked when their elevation differs
+## by at most WG.MAX_CLIMB_STEP. The player therefore cannot step straight off a
+## tall peak onto low ground — he must descend the terraced slope or walk around,
+## like hills in a proper isometric game. Water, cave walls, hazards, blocked
+## structure footprints and tiles above WG.MAX_REACHABLE_ELEV carry no node at
+## all; whole chunks in zones above the player's entry level are skipped so locked
+## zones act as hard barriers.
 
 const WG := preload("res://scripts/worldgen/wg.gd")
+const Chunk := preload("res://scripts/worldgen/chunk.gd")
 
-var grid: AStarGrid2D = null
+const ORTHO: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
+const DIAG: Array[Vector2i] = [Vector2i(1, 1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(-1, -1)]
+
+var astar := AStar2D.new()
 var region := Rect2i()  # in tile coords
 var locked_chunks: Dictionary = {}  # "cx:cy" -> level requirement
+
+var _ids: Dictionary = {}   # Vector2i tile -> AStar point id
+var _elev: Dictionary = {}  # Vector2i tile -> elevation step
+var _next_id := 0
 
 
 ## chunks: Array of Chunk (one layer). entry_level: zone_map.player_entry_level().
 func rebuild(chunks: Array, reg: RefCounted, entry_level: int) -> void:
+	astar.clear()
+	_ids.clear()
+	_elev.clear()
 	locked_chunks.clear()
+	_next_id = 0
 	if chunks.is_empty():
-		grid = null
+		region = Rect2i()
 		return
 	var mn := Vector2i(99999, 99999)
 	var mx := Vector2i(-99999, -99999)
+	var present: Dictionary = {}
 	for c: RefCounted in chunks:
 		mn = Vector2i(mini(mn.x, c.cx), mini(mn.y, c.cy))
 		mx = Vector2i(maxi(mx.x, c.cx), maxi(mx.y, c.cy))
-	region = Rect2i(mn * WG.CHUNK_TILES, (mx - mn + Vector2i.ONE) * WG.CHUNK_TILES)
-	grid = AStarGrid2D.new()
-	grid.region = region
-	grid.cell_size = Vector2(WG.TILE, WG.TILE)
-	grid.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES
-	grid.update()
-	# Everything defaults open; close missing chunks, locked zones, bad tiles.
-	var present: Dictionary = {}
-	for c: RefCounted in chunks:
 		present["%d:%d" % [c.cx, c.cy]] = c
-	for cy: int in range(mn.y, mx.y + 1):
-		for cx: int in range(mn.x, mx.x + 1):
-			var key := "%d:%d" % [cx, cy]
-			var base := Vector2i(cx, cy) * WG.CHUNK_TILES
-			if not present.has(key):
-				_fill_solid(base)
+	region = Rect2i(mn * WG.CHUNK_TILES, (mx - mn + Vector2i.ONE) * WG.CHUNK_TILES)
+
+	# 1) Create a node for every reachable walkable tile.
+	for key: String in present:
+		var c: RefCounted = present[key]
+		var req := int(c.zone.get("req", 1))
+		if req > entry_level:
+			locked_chunks[key] = req
+			continue
+		var base := Vector2i(c.cx, c.cy) * WG.CHUNK_TILES
+		var has_elev: bool = c.elev.size() > 0
+		for ty: int in WG.CHUNK_TILES:
+			for tx: int in WG.CHUNK_TILES:
+				var td: Dictionary = reg.tile_def(c.tile_id(tx, ty))
+				if not td["walkable"] or td["hazard"] or c.is_blocked(tx, ty):
+					continue
+				var e: int = c.elev[ty * WG.CHUNK_TILES + tx] if has_elev else 0
+				if e > WG.MAX_REACHABLE_ELEV:
+					continue
+				var gt := base + Vector2i(tx, ty)
+				_ids[gt] = _next_id
+				_elev[gt] = e
+				astar.add_point(_next_id, Vector2(gt))
+				_next_id += 1
+
+	# 2) Link neighbours only where the elevation step is climbable. Diagonals also
+	#    require both orthogonal corners open and climbable (no cutting cliff corners).
+	for gt: Vector2i in _ids:
+		var id: int = _ids[gt]
+		var e: int = _elev[gt]
+		for off: Vector2i in ORTHO:
+			_try_link(id, e, gt + off)
+		for d: Vector2i in DIAG:
+			var n := gt + d
+			if not _ids.has(n) or absi(_elev[n] - e) > WG.MAX_CLIMB_STEP:
 				continue
-			var c: RefCounted = present[key]
-			var req := int(c.zone.get("req", 1))
-			if req > entry_level:
-				locked_chunks[key] = req
-				_fill_solid(base)
+			var a := gt + Vector2i(d.x, 0)
+			var b := gt + Vector2i(0, d.y)
+			if not (_ids.has(a) and _ids.has(b)):
 				continue
-			var has_elev: bool = c.elev.size() > 0
-			for ty: int in WG.CHUNK_TILES:
-				for tx: int in WG.CHUNK_TILES:
-					var td: Dictionary = reg.tile_def(c.tile_id(tx, ty))
-					var solid: bool = not td["walkable"] or td["hazard"] or c.is_blocked(tx, ty)
-					if not solid and has_elev:
-						var e: int = c.elev[ty * WG.CHUNK_TILES + tx]
-						# Too high to climb, or an isolated sheer spike with no
-						# gentle neighbour to step from -> unreachable.
-						if e > WG.MAX_REACHABLE_ELEV or (e > 0 and _is_sheer(c, tx, ty, e)):
-							solid = true
-					if solid:
-						grid.set_point_solid(base + Vector2i(tx, ty), true)
+			if absi(_elev[a] - e) > WG.MAX_CLIMB_STEP or absi(_elev[b] - e) > WG.MAX_CLIMB_STEP:
+				continue
+			if not astar.are_points_connected(id, _ids[n]):
+				astar.connect_points(id, _ids[n])
 
 
-## True when no in-chunk orthogonal neighbour is within one climbable step of
-## this tile's elevation — i.e. a sheer pinnacle/pit the player can't step onto.
-## (Edge tiles whose neighbours fall outside the chunk are treated as reachable
-## to avoid false sheer faces at chunk seams.)
-func _is_sheer(c: RefCounted, tx: int, ty: int, e: int) -> bool:
-	for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-		var nx: int = tx + d.x
-		var ny: int = ty + d.y
-		if nx < 0 or ny < 0 or nx >= WG.CHUNK_TILES or ny >= WG.CHUNK_TILES:
-			return false
-		if absi(int(c.elev[ny * WG.CHUNK_TILES + nx]) - e) <= WG.MAX_CLIMB_STEP:
-			return false
-	return true
-
-
-func _fill_solid(base: Vector2i) -> void:
-	for ty: int in WG.CHUNK_TILES:
-		for tx: int in WG.CHUNK_TILES:
-			grid.set_point_solid(base + Vector2i(tx, ty), true)
+func _try_link(id: int, e: int, n: Vector2i) -> void:
+	if not _ids.has(n) or absi(_elev[n] - e) > WG.MAX_CLIMB_STEP:
+		return
+	if not astar.are_points_connected(id, _ids[n]):
+		astar.connect_points(id, _ids[n])
 
 
 func in_region(tile: Vector2i) -> bool:
-	return grid != null and region.has_point(tile)
+	return not _ids.is_empty() and region.has_point(tile)
 
 
 ## Why is this tile unreachable? Returns the lock level req, or 0.
@@ -91,34 +105,32 @@ func lock_req_at(tile: Vector2i) -> int:
 	return int(locked_chunks.get("%d:%d" % [c.x, c.y], 0))
 
 
-## Path between world positions; both ends snap to the nearest open tile.
+## Path between world positions; both ends snap to the nearest reachable tile.
 ## Returns world-space waypoints (tile centers), empty if unreachable.
 func find_path(from_world: Vector2, to_world: Vector2) -> PackedVector2Array:
 	var out := PackedVector2Array()
-	if grid == null:
+	if _ids.is_empty():
 		return out
-	var from_t := _nearest_open(WG.world_to_tile(from_world))
-	var to_t := _nearest_open(WG.world_to_tile(to_world))
-	if from_t.x == -99999 or to_t.x == -99999:
+	var from_id := _nearest_id(WG.world_to_tile(from_world))
+	var to_id := _nearest_id(WG.world_to_tile(to_world))
+	if from_id < 0 or to_id < 0:
 		return out
-	var cells := grid.get_id_path(from_t, to_t)
-	for cell: Vector2i in cells:
-		out.append(WG.tile_to_world(cell.x, cell.y))
+	for id: int in astar.get_id_path(from_id, to_id):
+		var t := astar.get_point_position(id)
+		out.append(WG.tile_to_world(int(t.x), int(t.y)))
 	return out
 
 
-func _nearest_open(tile: Vector2i) -> Vector2i:
-	var t := Vector2i(
-		clampi(tile.x, region.position.x, region.end.x - 1),
-		clampi(tile.y, region.position.y, region.end.y - 1))
-	if not grid.is_point_solid(t):
-		return t
-	for ring: int in range(1, 6):
+## Nearest tile that has a node, spiralling out from the target. -1 if none close.
+func _nearest_id(tile: Vector2i) -> int:
+	if _ids.has(tile):
+		return _ids[tile]
+	for ring: int in range(1, 7):
 		for dy: int in range(-ring, ring + 1):
 			for dx: int in range(-ring, ring + 1):
 				if maxi(absi(dx), absi(dy)) != ring:
 					continue
-				var n := t + Vector2i(dx, dy)
-				if region.has_point(n) and not grid.is_point_solid(n):
-					return n
-	return Vector2i(-99999, -99999)
+				var n := tile + Vector2i(dx, dy)
+				if _ids.has(n):
+					return _ids[n]
+	return -1

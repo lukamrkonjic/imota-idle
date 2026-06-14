@@ -5,6 +5,7 @@ const WG := preload("res://scripts/worldgen/wg.gd")
 const Chunk := preload("res://scripts/worldgen/chunk.gd")
 const PixelDraw := preload("res://scripts/world/art/core/pixel_draw.gd")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
+const WorldLighting := preload("res://scripts/world/art/core/world_lighting.gd")
 
 const TILE_OVERLAP := 0.65
 const CARDINAL: Array = [
@@ -44,6 +45,25 @@ static func _elev_at(p_chunk: RefCounted, lx: int, ly: int) -> int:
 	if c.elev.size() == 0:
 		return 0
 	return c.elev[Chunk.idx(n[1], n[2])]
+
+
+## How deeply this tile is shaded (0..~0.5) by taller terrain standing between it
+## and the sun — a stepped cliff casts a shadow onto the lower ground toward the
+## shadow side, roughly one tile of shadow per elevation step. Tile space equals
+## world-ground space, so the sun bearing maps straight onto tile offsets.
+static func _terrain_shadow(p_chunk: RefCounted, lx: int, ly: int, e: int) -> float:
+	var a := deg_to_rad(WorldLighting.sun_azimuth_deg)
+	var dir := Vector2(cos(a), sin(a))      # toward the sun, in tile space
+	var sh := 0.0
+	for d: int in range(1, 7):
+		var ox: int = int(round(dir.x * float(d)))
+		var oy: int = int(round(dir.y * float(d)))
+		if ox == 0 and oy == 0:
+			continue
+		var cast := float(_elev_at(p_chunk, lx + ox, ly + oy) - e) - float(d)
+		if cast > sh:
+			sh = cast
+	return clampf(sh / 8.0, 0.0, 0.5)
 
 
 func _ready() -> void:
@@ -122,6 +142,13 @@ static func _draw_chunk(canvas: CanvasItem, p_chunk: RefCounted, reg: RefCounted
 			accent = PixelPalette.hex(0x8A9478)
 		var elev := _elev_at(p_chunk, lx, ly)
 		var oy := -float(elev) * WG.ELEV_STEP_PX
+		# Cast shadow: darken ground that taller terrain toward the sun shades. This
+		# is the key depth cue — a peak throws a visible shadow onto the land below.
+		if not water:
+			var sh := _terrain_shadow(p_chunk, lx, ly, elev)
+			if sh > 0.0:
+				top = PixelPalette.shade(top, 1.0 - sh)
+				accent = PixelPalette.shade(accent, 1.0 - sh)
 		# Beveled risers down to the lower neighbours toward the camera first, then
 		# the raised top so the top edge sits cleanly on the wall.
 		if elev > 0:
