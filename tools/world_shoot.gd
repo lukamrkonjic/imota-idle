@@ -44,6 +44,8 @@ func _run() -> void:
 	var shots: Array = [
 		{"name": "overview", "chunk": Vector2i(0, 0), "zoom": 0.32},
 		{"name": "eastvale_spawn", "chunk": Vector2i(0, 0), "zoom": 0.95},
+		{"name": "north_peaks", "chunk": Vector2i(-3, -24), "zoom": 0.85},
+		{"name": "north_peaks2", "chunk": Vector2i(6, -22), "zoom": 0.85},
 	]
 	if spec != null and spec.active:
 		for a: Dictionary in spec.anchors:

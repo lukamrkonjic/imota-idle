@@ -59,6 +59,7 @@ func generate(layer: int, cx: int, cy: int, above_chunk: RefCounted = null) -> R
 			var f: Vector3 = classifier.fields(gx, gy)
 			var i := Chunk.idx(tx, ty)
 			chunk.tiles[i] = classifier.tile_at(gx, gy, f, chunk.biomes_t[i], chunk, tx, ty)
+	_place_mountains(chunk)
 	var occupied: Dictionary = {}
 	poi_placer.place(chunk, occupied, placement_grid)
 	structure_planner.stamp(chunk, occupied)
@@ -84,7 +85,46 @@ func generate_natural(cx: int, cy: int) -> RefCounted:
 			var f: Vector3 = classifier.fields(gx, gy)
 			var i := Chunk.idx(tx, ty)
 			chunk.tiles[i] = classifier.tile_at(gx, gy, f, chunk.biomes_t[i], chunk, tx, ty)
+	_place_mountains(chunk)
 	var occupied: Dictionary = {}
 	site_spawner.populate(chunk, occupied, placement_grid)   # natural gather resources
 	monster_spawner.populate(chunk, occupied)                # natural wildlife
 	return chunk
+
+
+## Carve mountain ranges into a chunk: foothills become walkable rock, peaks
+## become IMPASSABLE peak tiles (the pathfinder routes around non-walkable
+## tiles), snow caps the tallest/coldest. A detailed mountain art entity is
+## dropped on a coarse grid of peaks so a range reads as a 3D massif with passes.
+func _place_mountains(chunk: RefCounted) -> void:
+	var t_rock := int(reg.tile_index.get("rock", -1))
+	var t_peak := int(reg.tile_index.get("peak_rock", -1))
+	var t_snow := int(reg.tile_index.get("peak_snow", -1))
+	if t_peak < 0 or t_rock < 0:
+		return
+	var b_rh := int(reg.biome_index.get("rocky_hills", 0))
+	var b_alp := int(reg.biome_index.get("alpine", b_rh))
+	var n := WG.CHUNK_TILES
+	for ty: int in n:
+		for tx: int in n:
+			var gtx: int = chunk.cx * n + tx
+			var gty: int = chunk.cy * n + ty
+			var ml: int = classifier.mountain_level(float(gtx), float(gty))
+			if ml == 0:
+				continue
+			var i := Chunk.idx(tx, ty)
+			if bool(reg.tile_def(chunk.tiles[i]).get("water", false)):
+				continue
+			if ml == 1:
+				chunk.tiles[i] = t_rock
+				chunk.biomes_t[i] = b_rh
+				chunk.parent_biomes_t[i] = b_rh
+			else:
+				chunk.tiles[i] = t_snow if (ml == 3 and t_snow >= 0) else t_peak
+				chunk.biomes_t[i] = b_alp if ml == 3 else b_rh
+				chunk.parent_biomes_t[i] = chunk.biomes_t[i]
+				if gtx % 4 == 0 and gty % 4 == 0:
+					var foot: int = 3 + int(WG.hash_i(world_seed, gtx, gty, 71) % 3)
+					chunk.structures.append({
+						"kind": "mountain", "tx": tx, "ty": ty, "foot": foot,
+						"snow": 1.0 if ml == 3 else 0.0})

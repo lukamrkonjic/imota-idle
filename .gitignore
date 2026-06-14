@@ -7,3 +7,8 @@ games-with-worldgen/
 # Local export builds
 export/
 *.tmp
+
+# Local eval screenshots
+_shots/
+*.log
+_boot*

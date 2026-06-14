@@ -34,6 +34,7 @@ var glow_color := Color(0.7, 0.55, 0.95)  # altars/shrines
 var attuned := false                       # obelisks
 var roof_color := Color(0.5, 0.3, 0.3)     # houses
 var prop_kind := ""                         # city_prop subtype
+var mountain_snow := 0.0                     # mountains: 0..1 snow cap coverage
 var roof_alpha := 1.0:                      # houses — fades as the player nears
 	set(v):
 		if is_equal_approx(roof_alpha, v):
@@ -143,6 +144,8 @@ func icon_height() -> float:
 			return IsoSprites.house_height(variant)
 		"building":
 			return IsoSprites.building_height(display_size, variant)
+		"mountain":
+			return IsoSprites.mountain_height(display_size, variant)
 		"fountain":
 			return 40.0
 		"city_wall":
@@ -227,6 +230,8 @@ func _draw_sprite() -> void:
 		"building":
 			IsoSprites.draw_building_body(self, display_size, variant, roof_color)
 			IsoSprites.draw_building_roof(self, display_size, variant, roof_color, roof_alpha)
+		"mountain":
+			IsoSprites.draw_mountain(self, display_size, variant, mountain_snow)
 		"fountain":
 			IsoSprites.draw_fountain(self, _t)
 		"city_wall":

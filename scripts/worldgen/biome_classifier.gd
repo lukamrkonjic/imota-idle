@@ -27,6 +27,8 @@ var _domain_warp: FastNoiseLite
 var _surface_detail: FastNoiseLite
 var _coast: FastNoiseLite        # low-freq mask that wobbles the coastline (bays/capes)
 var _region: FastNoiseLite       # blends geographic biome-region boundaries
+var _mtn_range: FastNoiseLite    # where mountain RANGES sit (large blobs)
+var _mtn_ridge: FastNoiseLite    # the ridgelines within a range (ridged)
 
 var _t_deep: int
 var _t_water: int
@@ -55,6 +57,8 @@ func setup(p_reg: RefCounted, p_seed: int) -> void:
 		_radius = float(mini(b.size.x, b.size.y)) * WG.CHUNK_TILES * 0.5
 	_coast = _noise(p_seed + 1303, 0.0042, 3)
 	_region = _noise(p_seed + 1407, 0.0030, 2)
+	_mtn_range = _noise(p_seed + 1511, 0.0050, 2)
+	_mtn_ridge = _noise(p_seed + 1607, 0.0190, 3)
 	_height = _noise(p_seed, 0.011, 4)
 	_height_macro = _noise(p_seed + 11, 0.0026, 3)
 	_moist = _noise(p_seed + 101, 0.016, 3)
@@ -156,6 +160,34 @@ func geo(tx: float, ty: float) -> Dictionary:
 		"d": norm_dist(tx, ty),
 		"region": _region.get_noise_2d(tx, ty) * 0.5 + 0.5,
 	}
+
+
+## Mountain elevation at a tile: 0 none, 1 foothill (walkable rock), 2 rock peak
+## (impassable), 3 snow peak (impassable). Ranges sit in a northern highland belt
+## plus occasional spines; ridged noise carves ridgelines with gaps (passes), so
+## a cluster reads as a range with valleys and walkable passes between peaks.
+func mountain_level(tx: float, ty: float) -> int:
+	if not _finite:
+		return 0
+	var g: Dictionary = geo(tx, ty)
+	var nn: float = g["n"]
+	var dd: float = g["d"]
+	var range_mask := _mtn_range.get_noise_2d(tx, ty) * 0.5 + 0.5     # 0..1
+	# Mountains belong to the northern highlands, or wherever a strong range
+	# spine pushes through; never in the safe central hub or out at sea.
+	var north_belt := nn > 0.22 and dd > 0.32 and dd < 0.88
+	var spine := range_mask > 0.74
+	if not (north_belt or spine) or dd < 0.26:
+		return 0
+	var ridged := 1.0 - absf(_mtn_ridge.get_noise_2d(tx, ty))          # ~0..1, peaks ~1
+	var v := ridged * (0.62 + range_mask * 0.6)
+	if v < 0.70:
+		return 0
+	if v > 0.90 and (nn > 0.42 or dd > 0.62):
+		return 3                                                       # snow cap
+	if v > 0.80:
+		return 2                                                       # rock peak (impassable)
+	return 1                                                           # foothill
 
 
 func classify_fields(tx: float, ty: float) -> Vector3:

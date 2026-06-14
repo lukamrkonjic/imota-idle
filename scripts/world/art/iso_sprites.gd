@@ -30,6 +30,7 @@ const FountainArt := preload("res://scripts/world/art/structures/fountain_art.gd
 const CityWallArt := preload("res://scripts/world/art/structures/city_wall_art.gd")
 const BridgeArt := preload("res://scripts/world/art/structures/bridge_art.gd")
 const CityPropArt := preload("res://scripts/world/art/structures/city_prop_art.gd")
+const MountainArt := preload("res://scripts/world/art/structures/mountain_art.gd")
 
 
 static func node_size(kind: String) -> float:
@@ -171,6 +172,14 @@ static func draw_building_roof(canvas: CanvasItem, foot: float, variant: int, ro
 
 static func building_height(foot: float, variant: int) -> float:
 	return BuildingArt.total_height(foot, variant)
+
+
+static func draw_mountain(canvas: CanvasItem, foot: float, variant: int, snow: float) -> void:
+	MountainArt.draw(canvas, foot, variant, snow)
+
+
+static func mountain_height(foot: float, variant: int) -> float:
+	return MountainArt.height_for(foot, variant)
 
 
 static func draw_city_prop(canvas: CanvasItem, prop: String, variant: int, t: float) -> void:

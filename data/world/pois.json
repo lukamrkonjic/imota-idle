@@ -352,8 +352,8 @@
       "minimapColor": "ffd24a",
       "mega": {
         "kind": "city",
-        "radius": 52,
-        "maxBuildings": 40,
+        "radius": 40,
+        "maxBuildings": 32,
         "services": [
           {
             "station": "bank",

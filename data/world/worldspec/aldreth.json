@@ -16,12 +16,12 @@
   "generatorVersion": 11,
   "bounds": {
     "min": [
-      -32,
-      -32
+      -40,
+      -40
     ],
     "max": [
-      31,
-      31
+      39,
+      39
     ]
   },
   "oceanBeyondBounds": true,

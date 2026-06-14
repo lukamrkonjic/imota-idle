@@ -53,5 +53,5 @@ Formula provenance and the few unrecoverable values are documented in
   the fishing sector), and OSRS-style HUD. Same sims as the Melvor UI —
   `scenes/main.tscn` remains for headless UI smoke tests.
 
-Run the game: Godot...win64.exe --path C:\Dev\imota-idle
-Run the editor: Godot...win64.exe --path C:\Dev\imota-idle res://tools/world_editor.tscn
+Run the game: "C:\Dev\Godot\Godot_v4.6.3-stable_win64.exe" --path C:\Dev\imota-idle
+Run the editor: "C:\Dev\Godot\Godot_v4.6.3-stable_win64.exe" --path C:\Dev\imota-idle res://tools/world_editor.tscn

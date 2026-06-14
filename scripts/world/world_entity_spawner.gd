@@ -309,6 +309,12 @@ func _spawn_poi_part(chunk: RefCounted, poi: Dictionary, part: Dictionary, conta
 			e.variant = absi(hash("bld" + chunk.key() + str(part["tx"]) + ":" + str(part["ty"]))) % 1000
 			if part.has("color"):
 				e.roof_color = Color.from_string("#" + str(part["color"]), e.roof_color)
+		"mountain":
+			# display_size carries the footprint in tiles; impassable (handled by
+			# the chunk collision layer) and non-interactable (empty action).
+			e.display_size = float(part.get("foot", 2))
+			e.mountain_snow = float(part.get("snow", 0.0))
+			e.variant = absi(hash("mtn" + chunk.key() + str(part["tx"]) + ":" + str(part["ty"]))) % 1000
 		"city_wall":
 			e.variant = int(part.get("piece", 0))
 		"city_prop":
