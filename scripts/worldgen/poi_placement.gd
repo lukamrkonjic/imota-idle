@@ -203,6 +203,8 @@ func _footprint_ok(chunk: RefCounted, ax: int, ay: int, parts: Array, occupied: 
 			return false
 		if occupied.has(Chunk.idx(tx, ty)):
 			return false
+		if chunk.elev.size() > 0 and chunk.elev[Chunk.idx(tx, ty)] > 0:
+			return false   # never anchor a settlement on raised (unreachable) rock
 		var t: Dictionary = reg.tile_def(chunk.tile_id(tx, ty))
 		if not t["walkable"] or t["water"] or t["hazard"]:
 			return false
