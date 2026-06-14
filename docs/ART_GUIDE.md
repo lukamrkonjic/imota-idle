@@ -201,9 +201,11 @@ Conventions:
    `draw_<name>(...)` (and `<name>_height(...)`) wrapper to
    `scripts/world/art/iso_sprites.gd`. All art is reached through this facade.
 3. **Entity dispatch:** add a `kind` case in `scripts/world/world_entity.gd`
-   `_draw_sprite()` (call your `IsoSprites.draw_<name>`) **and** in
-   `icon_height()` (return its height so labels/HP bars and the previewer frame
-   it).
+   `_draw_sprite_to(canvas)` — draw onto `canvas`, NOT `self`, so the static
+   sprite cache can bake it (call your `IsoSprites.draw_<name>(canvas, …)`) — and
+   in `icon_height()` (return its height so labels/HP bars, the bake bounds and
+   the previewer frame it). A new static (non-animated) kind is baked to a texture
+   automatically; add it to `LIVE_KINDS` only if it must animate every frame.
 4. **Spawning:** if it's placed by generation, map its `part` dict → entity
    properties in `scripts/world/world_entity_spawner.gd` `_spawn_poi_part()`
    (variant, colours, `display_size`, etc.).

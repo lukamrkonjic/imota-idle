@@ -151,7 +151,10 @@ func _update_visibility_budget(delta: float) -> void:
 			container.visible = chunk_rect.intersects(rect)
 		else:
 			container.visible = true
+	# Zoom LOD: tiny clutter is invisible (and very expensive) when zoomed out, so
+	# stop drawing ground/water decor past these thresholds.
 	var show_decor: bool = zoom >= 0.84
+	var show_water: bool = zoom >= 0.7
 	for d: Node2D in world._decor_nodes:
 		if not is_instance_valid(d):
 			continue
@@ -159,7 +162,7 @@ func _update_visibility_budget(delta: float) -> void:
 	for d: Node2D in world._water_decor_nodes:
 		if not is_instance_valid(d):
 			continue
-		d.visible = rect.has_point(d.global_position)
+		d.visible = show_water and rect.has_point(d.global_position)
 
 
 ## Fade a house's roof out as the player steps inside, so city interiors and

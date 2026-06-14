@@ -9,6 +9,13 @@ const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 const SilhouetteDraw := preload("res://scripts/world/art/core/silhouette_draw.gd")
 const PixelDraw := preload("res://scripts/world/art/core/pixel_draw.gd")
 const ANIMATED_KINDS := ["fish", "enemy", "campfire", "anvil", "altar", "obelisk", "meteor", "fountain"]
+# Kinds drawn live every redraw. Everything else is a static look that we bake to
+# a shared texture (1 draw call) via sprite_cache. Houses/buildings animate their
+# roof fade; landmark trees animate wind; the rest of ANIMATED_KINDS animate too.
+const LIVE_KINDS := ["fish", "enemy", "campfire", "anvil", "altar", "obelisk",
+	"meteor", "fountain", "house", "building", "landmark_tree"]
+## Shared bake cache, set by World. Null in tests/previewer -> fall back to live.
+static var sprite_cache: Node = null
 const GATHER_VERB := {"woodcutting": "Chop", "mining": "Mine", "fishing": "Fish", "foraging": "Pick"}
 const STATION_LABELS := {
 	"bank": "Bank chest",
@@ -186,10 +193,13 @@ func _draw() -> void:
 		SilhouetteDraw.active = true
 		for off: Vector2 in OUTLINE_OFFSETS:
 			draw_set_transform(off, 0.0, Vector2.ONE)
-			_draw_sprite()
+			_draw_sprite_to(self)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		SilhouetteDraw.active = false
-	_draw_sprite()
+	if _is_baked_kind():
+		_draw_cached()
+	else:
+		_draw_sprite_to(self)
 	if show_labels:
 		_draw_labels()
 	if hp_fraction >= 0.0:
@@ -199,73 +209,111 @@ func _draw() -> void:
 		draw_rect(Rect2(top, Vector2(bar_w * clampf(hp_fraction, 0.0, 1.0), 6)), Color(0.15, 0.7, 0.15))
 
 
-func _draw_sprite() -> void:
+## A static-look entity whose art we bake once and blit, instead of redrawing its
+## polygons every frame. Animated/house/landmark kinds stay live.
+func _is_baked_kind() -> bool:
+	return is_instance_valid(sprite_cache) and not (kind in LIVE_KINDS)
+
+
+func _draw_cached() -> void:
+	var key := _sprite_key()
+	var e: Dictionary = sprite_cache.entry(key)
+	if e.is_empty():
+		# Not baked yet: kick off the bake and redraw when it lands. (Shared, so a
+		# look bakes once no matter how many entities use it.)
+		sprite_cache.request(key, _sprite_bounds(), _paint_into, Callable(self, "queue_redraw"))
+		return
+	draw_texture(e["tex"], e["offset"])
+
+
+func _paint_into(canvas: CanvasItem) -> void:
+	_draw_sprite_to(canvas)
+
+
+## A string capturing everything that affects this entity's static look, so
+## identical-looking entities share one baked texture.
+func _sprite_key() -> String:
+	return "%s|%d|%.1f|%s|%s|%d|%s|%.2f|%s" % [
+		kind, variant, display_size, tier_color.to_html(false), tent_color.to_html(false),
+		int(dimmed), label, mountain_snow, prop_kind]
+
+
+## Generous art-space bounding box (origin at the foot, art rising into -Y, the
+## sun-shadow casting down-left) for sizing the bake texture.
+func _sprite_bounds() -> Rect2:
+	var h := icon_height()
+	var w := maxf(display_size, 40.0)
+	var reach := h * 0.8
+	return Rect2(-w - reach - 12.0, -h - 16.0, (w + reach) + w + 24.0, h + 48.0)
+
+
+func _draw_sprite_to(canvas: CanvasItem) -> void:
 	match kind:
 		"tree", "rock", "bush", "fish":
-			IsoSprites.draw_prop(self, kind, display_size, tier_color, variant, dimmed, _t, label)
+			IsoSprites.draw_prop(canvas, kind, display_size, tier_color, variant, dimmed, _t, label)
 		"enemy":
 			if dimmed:
 				PixelDraw.draw_tight_character_shadow(
-					self, EnemyArt._shadow_half_width(enemy_shape, display_size, is_boss), 4.0, 0.28)
+					canvas, EnemyArt._shadow_half_width(enemy_shape, display_size, is_boss), 4.0, 0.28)
 			else:
 				var enemy_name := label if not label.is_empty() else str(action.get("name", ""))
-				IsoSprites.draw_enemy(self, enemy_name, enemy_shape, display_size, tier_color, is_boss, _t)
+				IsoSprites.draw_enemy(canvas, enemy_name, enemy_shape, display_size, tier_color, is_boss, _t)
 		"tent":
-			IsoSprites.draw_tent(self, display_size, tent_color)
+			IsoSprites.draw_tent(canvas, display_size, tent_color)
 		"campfire":
-			IsoSprites.draw_campfire(self, _t)
+			IsoSprites.draw_campfire(canvas, _t)
 		"chest":
-			IsoSprites.draw_chest(self, display_size, PixelPalette.hex(0x8A6848), dimmed)
+			IsoSprites.draw_chest(canvas, display_size, PixelPalette.hex(0x8A6848), dimmed)
 		"sign":
-			IsoSprites.draw_sign(self)
+			IsoSprites.draw_sign(canvas)
 		"anvil":
-			IsoSprites.draw_anvil(self, _t)
+			IsoSprites.draw_anvil(canvas, _t)
 		"altar":
-			IsoSprites.draw_altar(self, _t, glow_color)
+			IsoSprites.draw_altar(canvas, _t, glow_color)
 		"obelisk":
-			IsoSprites.draw_obelisk(self, _t, attuned)
+			IsoSprites.draw_obelisk(canvas, _t, attuned)
 		"cave":
-			IsoSprites.draw_cave_mouth(self)
+			IsoSprites.draw_cave_mouth(canvas)
 		"burrow":
-			IsoSprites.draw_burrow(self)
+			IsoSprites.draw_burrow(canvas)
 		"ladder_up":
-			IsoSprites.draw_ladder(self, true)
+			IsoSprites.draw_ladder(canvas, true)
 		"ladder_down":
-			IsoSprites.draw_ladder(self, false)
+			IsoSprites.draw_ladder(canvas, false)
 		"stall":
-			IsoSprites.draw_stall(self)
+			IsoSprites.draw_stall(canvas)
 		"landmark_tree":
-			TreeArt.draw(self, "Magic Tree", display_size, tier_color, false, _t)
+			TreeArt.draw(canvas, "Magic Tree", display_size, tier_color, false, _t)
 		"meteor":
-			IsoSprites.draw_meteor(self, _t)
+			IsoSprites.draw_meteor(canvas, _t)
 		"mammoth":
-			IsoSprites.draw_mammoth(self)
+			IsoSprites.draw_mammoth(canvas)
 		"ruin_arch":
-			IsoSprites.draw_ruin_arch(self, variant)
+			IsoSprites.draw_ruin_arch(canvas, variant)
 		"ruin_pillar":
-			IsoSprites.draw_ruin_pillar(self, variant)
+			IsoSprites.draw_ruin_pillar(canvas, variant)
 		"broken_wall":
-			IsoSprites.draw_broken_wall(self, variant)
+			IsoSprites.draw_broken_wall(canvas, variant)
 		"rubble_pile":
-			IsoSprites.draw_rubble_pile(self, variant)
+			IsoSprites.draw_rubble_pile(canvas, variant)
 		"broken_statue":
-			IsoSprites.draw_broken_statue(self, variant)
+			IsoSprites.draw_broken_statue(canvas, variant)
 		"house":
-			IsoSprites.draw_house_body(self, variant, roof_color)
-			IsoSprites.draw_house_roof(self, variant, roof_color, roof_alpha)
+			IsoSprites.draw_house_body(canvas, variant, roof_color)
+			IsoSprites.draw_house_roof(canvas, variant, roof_color, roof_alpha)
 		"building":
-			IsoSprites.draw_building_body(self, display_size, variant, roof_color)
-			IsoSprites.draw_building_roof(self, display_size, variant, roof_color, roof_alpha)
+			IsoSprites.draw_building_body(canvas, display_size, variant, roof_color)
+			IsoSprites.draw_building_roof(canvas, display_size, variant, roof_color, roof_alpha)
 		"mountain":
-			IsoSprites.draw_mountain(self, display_size, variant, mountain_snow)
+			IsoSprites.draw_mountain(canvas, display_size, variant, mountain_snow)
 		"fountain":
-			IsoSprites.draw_fountain(self, _t)
+			IsoSprites.draw_fountain(canvas, _t)
 		"city_wall":
-			IsoSprites.draw_city_wall(self, variant)
+			IsoSprites.draw_city_wall(canvas, variant)
 		"bridge":
-			IsoSprites.draw_bridge(self)
+			IsoSprites.draw_bridge(canvas)
 		"city_prop":
-			IsoSprites.draw_city_prop(self, prop_kind, variant, _t)
+			IsoSprites.draw_city_prop(canvas, prop_kind, variant, _t)
 
 
 func _draw_labels() -> void:

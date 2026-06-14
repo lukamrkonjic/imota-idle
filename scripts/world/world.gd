@@ -18,6 +18,8 @@ const WorldAmbience := preload("res://scripts/world/world_ambience.gd")
 const BiomeDebugOverlay := preload("res://scripts/world/biome_debug_overlay.gd")
 const ClickMarkerNode := preload("res://scripts/ui/click_marker_node.gd")
 const PerfLogger := preload("res://scripts/world/perf_logger.gd")
+const EntitySpriteCache := preload("res://scripts/world/entity_sprite_cache.gd")
+const WorldEntity := preload("res://scripts/world/world_entity.gd")
 
 # --- public state (tests, HUD) ---
 var entities: Array = []
@@ -101,6 +103,11 @@ func _build_scene() -> void:
 	add_child(chunk_manager)
 	chunk_manager.chunk_loaded.connect(_entity_spawner.on_chunk_loaded)
 	chunk_manager.chunk_unloaded.connect(_entity_spawner.on_chunk_unloaded)
+
+	var sprite_cache := EntitySpriteCache.new()
+	sprite_cache.name = "EntitySpriteCache"
+	add_child(sprite_cache)
+	WorldEntity.sprite_cache = sprite_cache
 
 	_perf_logger = PerfLogger.new()
 	_perf_logger.name = "PerfLogger"
