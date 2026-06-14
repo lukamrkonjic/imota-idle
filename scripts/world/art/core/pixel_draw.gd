@@ -40,6 +40,33 @@ static func px_diamond(canvas: CanvasItem, cx: float, cy: float, hw: float, hh: 
 	canvas.draw_colored_polygon(pts, c)
 
 
+# --- Isometric solids ------------------------------------------------------
+# A rectangular block drawn in true 2:1 isometric projection: a diamond top
+# plus the two camera-facing vertical faces (lit south-east, shadowed
+# south-west). Base centre is (cx, cy) on the ground; the block rises `h` px.
+# `hw`/`hh` are the half-width/half-height of the diamond footprint (use
+# hh ~= hw*0.5 for a square tile-aligned base). Props built from these read as
+# solid 3D pieces that sit in the isometric world instead of flat billboards.
+static func iso_box(canvas: CanvasItem, cx: float, cy: float, hw: float, hh: float, h: float, top: Color, lit: Color, shadow: Color) -> void:
+	var e := Vector2(cx + hw, cy)
+	var s := Vector2(cx, cy + hh)
+	var w := Vector2(cx - hw, cy)
+	var up := Vector2(0.0, -h)
+	# south-west face (away from the sun -> shaded)
+	canvas.draw_colored_polygon(PackedVector2Array([s, w, w + up, s + up]), SilhouetteDraw.ink(shadow))
+	# south-east face (toward the upper-right sun -> lit)
+	canvas.draw_colored_polygon(PackedVector2Array([e, s, s + up, e + up]), SilhouetteDraw.ink(lit))
+	# top diamond
+	px_diamond(canvas, cx, cy - h, hw, hh, top)
+
+
+## Convenience: an iso block from a single base colour, auto-shading the faces
+## (top brightest, SE lit, SW shadowed). `light`/`shade` tune the contrast.
+static func iso_block(canvas: CanvasItem, cx: float, cy: float, hw: float, hh: float, h: float, base: Color, light: float = 1.18, shade: float = 0.62) -> void:
+	iso_box(canvas, cx, cy, hw, hh, h,
+		PixelPalette.shade(base, light + 0.12), PixelPalette.shade(base, light), PixelPalette.shade(base, shade))
+
+
 # --- Directional ground shadows -------------------------------------------
 # These three helpers are the whole game's shadow API: every prop, character,
 # tree and structure casts through one of them, so routing them through the

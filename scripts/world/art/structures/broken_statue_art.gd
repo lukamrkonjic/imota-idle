@@ -1,29 +1,33 @@
 extends RefCounted
 class_name BrokenStatueArt
-## A headless robed statue on a plinth — a fallen city monument. Variant drives
-## height and whether one arm stub remains, with moss creeping up the stone.
+## A headless robed statue on a plinth — a fallen city monument — built from
+## isometric blocks: a stepped plinth, a robed torso prism snapped at the neck,
+## and an optional arm stub, with moss creeping up the stone. Variant drives the
+## height and whether the arm remains.
 
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 const PixelDraw := preload("res://scripts/world/art/core/pixel_draw.gd")
 
 
 static func draw(canvas: CanvasItem, variant: int = 0) -> void:
-	PixelDraw.draw_foot_shadow(canvas, 17.0, 5.0, 0.3, 56.0)
+	PixelDraw.draw_foot_shadow(canvas, 16.0, 6.0, 0.3, 56.0)
 	var stone := PixelPalette.pal("stone_b")
-	var stone_hi := PixelPalette.pal("stone_a")
 	var moss := PixelPalette.pal("grass_a").lerp(stone, 0.32)
 	var h := 48.0 + float(variant % 3) * 12.0
-	# plinth
-	PixelDraw.px_rect(canvas, -14.0, -12.0, 28.0, 12.0, PixelPalette.shade(stone, 0.74))
-	PixelDraw.px_rect(canvas, -16.0, -15.0, 32.0, 4.0, stone_hi)
-	# robed torso (broken at the neck)
-	PixelDraw.px_rect(canvas, -9.0, -h, 18.0, h - 12.0, stone)
-	PixelDraw.px_rect(canvas, -9.0, -h, 5.0, h - 12.0, stone_hi)
-	PixelDraw.px_rect(canvas, -12.0, -h, 24.0, 7.0, stone)              # shoulders
-	PixelDraw.px_rect(canvas, -4.0, -h - 3.0, 8.0, 4.0, PixelPalette.shade(stone, 0.7))  # snapped neck
-	# robe folds
-	PixelDraw.px_rect(canvas, -2.0, -h + 10.0, 2.0, h - 24.0, PixelPalette.shade(stone, 0.86), 0.55)
+	# stepped plinth (two blocks)
+	PixelDraw.iso_block(canvas, 0.0, 0.0, 13.0, 6.5, 8.0, PixelPalette.shade(stone, 0.86))
+	PixelDraw.iso_block(canvas, 0.0, -8.0, 10.0, 5.0, 5.0, PixelPalette.shade(stone, 0.96))
+	# robed torso prism, broken at the neck
+	var th := h - 13.0
+	PixelDraw.iso_block(canvas, 0.0, -13.0, 8.0, 4.0, th, stone)
+	# shoulders — a slightly wider block near the top
+	PixelDraw.iso_block(canvas, 0.0, -13.0 - (th - 7.0), 9.5, 4.75, 7.0, PixelPalette.shade(stone, 1.04))
+	# snapped neck stub
+	PixelDraw.iso_block(canvas, 0.0, -h, 3.5, 1.8, 4.0, PixelPalette.shade(stone, 0.72))
+	# robe fold seam down the lit face
+	PixelDraw.px_rect(canvas, 1.0, -h + 12.0, 1.5, th - 16.0, PixelPalette.shade(stone, 0.84), 0.5)
 	if variant % 2 == 0:
-		PixelDraw.px_rect(canvas, 9.0, -h + 9.0, 5.0, 13.0, PixelPalette.shade(stone, 0.86))  # arm stub
-	# moss creep
-	PixelDraw.px_rect(canvas, -9.0, -18.0, 6.0, 12.0, moss, 0.5)
+		# arm stub jutting from the lit (SE) side
+		PixelDraw.iso_block(canvas, 9.0, -13.0 - (th - 20.0), 3.0, 1.8, 12.0, PixelPalette.shade(stone, 0.92))
+	# moss creep up the base of the torso
+	PixelDraw.px_rect(canvas, -7.0, -22.0, 6.0, 11.0, moss, 0.45)
