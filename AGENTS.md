@@ -24,3 +24,11 @@ Skip verify/play only for documentation-only edits or when the user asks not to.
 - Tests: `res://tools/validate.tscn`
 
 See `README.md` for architecture and data import commands.
+
+## Authoring world art
+
+Before drawing or adding any prop / house / structure / decor, read
+`docs/ART_GUIDE.md` — the procedural isometric pixel-art conventions (origin at
+the foot, 2:1 `iso_block` solids, upper-right sun, shared palette, shadow
+helpers) and the end-to-end steps to register a new placeable. The ruin pillar
+(`scripts/world/art/structures/ruin_pillar_art.gd`) is the reference example.

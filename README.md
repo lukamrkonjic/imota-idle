@@ -39,8 +39,11 @@ playable 2D front-end in the **Aldenfall pixel-art style** (ported from
 `scenes/main.tscn` + `scripts/ui/main_ui.gd` keep the Melvor-style screen for
 comparison and headless UI tests.
 
-Formula provenance and the few unrecoverable values are documented in
-[docs/DATA_GAPS.md](docs/DATA_GAPS.md).
+The procedural isometric pixel-art conventions (how to draw/add props, houses,
+structures and decor) are documented in [docs/ART_GUIDE.md](docs/ART_GUIDE.md);
+world generation in [docs/WORLDGEN_GUIDE.md](docs/WORLDGEN_GUIDE.md); the global
+shadow sun in [docs/SHADOWS.md](docs/SHADOWS.md). Formula provenance and the few
+unrecoverable values are documented in [docs/DATA_GAPS.md](docs/DATA_GAPS.md).
 
 ## Status
 
