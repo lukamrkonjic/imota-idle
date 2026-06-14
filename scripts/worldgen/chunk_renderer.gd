@@ -146,9 +146,11 @@ static func _draw_risers(canvas: CanvasItem, p_chunk: RefCounted, lx: int, ly: i
 	var e := Vector2(cx + hw, cy)
 	var s := Vector2(cx, cy + hh)
 	var w := Vector2(cx - hw, cy)
-	# SE wall faces down-right (toward the upper-right sun -> lit); SW is shadowed.
-	_draw_one_riser(canvas, e, s, elev - _elev_at(p_chunk, lx + 1, ly), PixelPalette.shade(top, 0.82))
-	_draw_one_riser(canvas, s, w, elev - _elev_at(p_chunk, lx, ly + 1), PixelPalette.shade(top, 0.58))
+	# Strong value separation makes the drop read as a wall, not texture: the top
+	# surface stays full-bright, the SE cliff face is much darker, the SW face
+	# (away from the sun) darker still.
+	_draw_one_riser(canvas, e, s, elev - _elev_at(p_chunk, lx + 1, ly), PixelPalette.shade(top, 0.62))
+	_draw_one_riser(canvas, s, w, elev - _elev_at(p_chunk, lx, ly + 1), PixelPalette.shade(top, 0.42))
 
 
 static func _draw_one_riser(canvas: CanvasItem, a: Vector2, b: Vector2, drop_steps: int, face: Color) -> void:
@@ -156,17 +158,18 @@ static func _draw_one_riser(canvas: CanvasItem, a: Vector2, b: Vector2, drop_ste
 		return
 	var h := float(drop_steps) * WG.ELEV_STEP_PX
 	var down := Vector2(0.0, h)
+	# Solid cliff face (no per-step strata — those just read as noise).
 	canvas.draw_colored_polygon(PackedVector2Array([a, b, b + down, a + down]), face)
-	# Strata lines every step give the cliff its terraced read.
-	var line := PixelPalette.shade(face, 0.7)
-	line.a = 0.5
-	for s: int in range(1, drop_steps):
-		var dy := Vector2(0.0, float(s) * WG.ELEV_STEP_PX)
-		canvas.draw_line(a + dy, b + dy, line, 1.0)
-	# Contact highlight along the top lip — the bevel signature.
-	var lip := PixelPalette.shade(face, 1.4)
-	lip.a = 0.6
-	canvas.draw_line(a, b, lip, 1.0)
+	# Dark contour + ambient occlusion right under the plateau lip — this is the
+	# single strongest cue separating "walkable top" from "vertical cliff".
+	var lip := minf(h, 4.0)
+	canvas.draw_colored_polygon(PackedVector2Array([
+		a, b, b + Vector2(0.0, lip), a + Vector2(0.0, lip)]), PixelPalette.shade(face, 0.4))
+	# Contact shadow grounding the foot of the cliff into the lower surface.
+	var foot := minf(h * 0.5, 4.0)
+	canvas.draw_colored_polygon(PackedVector2Array([
+		a + down - Vector2(0.0, foot), b + down - Vector2(0.0, foot), b + down, a + down]),
+		PixelPalette.shade(face, 0.66))
 
 
 static func _draw_flat_tile(canvas: CanvasItem, gtx: int, gty: int, top: Color, water: bool, soft: bool, oy: float = 0.0) -> void:

@@ -7,8 +7,8 @@ const TILE := 32.0                       # px per isometric block (32x32 pixel a
 const ISO_HW := TILE * 0.5                 # half-width of top diamond face
 const ISO_HH := TILE * 0.25                # half-height (2:1 isometric ratio)
 const BLOCK_RISE := 6.0                    # vertical extrusion for solid blocks
-const ELEV_STEP_PX := 6.0                  # screen px a terrain raises per elevation step
-const MAX_REACHABLE_ELEV := 14             # player can climb up to this elevation; higher
+const ELEV_STEP_PX := 8.0                  # screen px a terrain raises per elevation step
+const MAX_REACHABLE_ELEV := 15             # player can climb up to this elevation; higher
                                            # rock/snow is unreachable (routed around)
 const MAX_CLIMB_STEP := 3                  # biggest single-step elevation change the player
                                            # can hop up; isolated spikes beyond it are sheer
