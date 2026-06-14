@@ -137,6 +137,34 @@ static func iso_tri_dither(canvas: CanvasItem, ba: Vector2, bb: Vector2, apex: V
 					SilhouetteDraw.ink(hi, 0.34))
 
 
+## Solid pixel-grid fill for a TRIANGULAR face — every PX cell is drawn and
+## Bayer-varied between lo/mid/hi tones. Use this (instead of a smooth polygon +
+## iso_tri_dither) when you want the face to read as pure chunky pixel art, the
+## same way iso_block_tex makes solid blocks look hand-drawn. `alpha` lets the
+## whole face fade (for roof-fade on buildings/tents).
+static func iso_tri_solid(canvas: CanvasItem, ba: Vector2, bb: Vector2, apex: Vector2, base: Color, salt: int = 0, alpha: float = 1.0) -> void:
+	var px := float(PixelPalette.PX)
+	var rows := maxi(3, int(ba.lerp(bb, 0.5).distance_to(apex) / px))
+	var lo := PixelPalette.shade(base, 0.80)
+	var hi := PixelPalette.shade(base, 1.18)
+	for r: int in rows:
+		var t0 := float(r) / float(rows)
+		var t1 := float(r + 1) / float(rows)
+		var a0 := ba.lerp(apex, t0)
+		var b0 := bb.lerp(apex, t0)
+		var a1 := ba.lerp(apex, t1)
+		var b1 := bb.lerp(apex, t1)
+		var cols := maxi(1, int(a0.distance_to(b0) / px))
+		for c: int in cols:
+			var b4: int = _BAYER[(r % 4) * 4 + ((c + salt) % 4)]
+			var u0 := float(c) / float(cols)
+			var u1 := float(c + 1) / float(cols)
+			var col := lo if b4 < 6 else (hi if b4 > 10 else base)
+			canvas.draw_colored_polygon(PackedVector2Array([
+				a0.lerp(b0, u0), a0.lerp(b0, u1), a1.lerp(b1, u1), a1.lerp(b1, u0)
+			]), SilhouetteDraw.ink(col, alpha))
+
+
 ## The three silhouette base points of an iso block (right, front, left).
 static func iso_corners(cx: float, cy: float, hw: float, hh: float) -> Array:
 	return [Vector2(cx + hw, cy), Vector2(cx, cy + hh), Vector2(cx - hw, cy)]
@@ -208,6 +236,32 @@ static func draw_foliage_clump(canvas: CanvasItem, cx: float, cy: float, rx: flo
 
 static func draw_cloud_clump(canvas: CanvasItem, cx: float, cy: float, rx: float, ry: float, color: Color) -> void:
 	draw_foliage_clump(canvas, cx, cy, rx, ry, color)
+
+
+## A "planted" ground collar at an object's foot: a soft dirt contact scuff plus
+## (optionally) a sparse ring of grass tufts. This is the tree-art trick that
+## makes a thing read as nestled INTO the world rather than pasted flat on the
+## tile — share it across structures/props so the whole world sits the same way.
+## `radius` is the footprint half-width in px; `grass` off (e.g. on city paving)
+## leaves just the dirt scuff. Call it AFTER the shadow, BEFORE the body.
+static func draw_ground_collar(canvas: CanvasItem, radius: float, grass: bool = true, tufts: int = 5, alpha: float = 1.0) -> void:
+	if SilhouetteDraw.skip_shadows():
+		return
+	var px := float(PixelPalette.PX)
+	var dirt := PixelPalette.pal("dirt_a")
+	px_blob(canvas, 0.0, px * 0.8, radius * 0.82, radius * 0.28, dirt, 0.55 * alpha)
+	px_blob(canvas, 0.0, px * 0.4, radius * 0.56, radius * 0.18, PixelPalette.shade(dirt, 0.88), 0.45 * alpha)
+	if not grass or tufts <= 1:
+		return
+	var grass_a := PixelPalette.pal("grass_a")
+	var grass_c := PixelPalette.pal("grass_c")
+	for i: int in range(tufts):
+		var t := float(i) / float(tufts - 1)
+		var tx := lerpf(-radius, radius, t)
+		var col := grass_a if i % 2 == 0 else grass_c
+		px_rect(canvas, tx - px, -px * 0.5, px, px * 1.5, col, 0.85 * alpha)
+		if i % 3 == 0:
+			px_rect(canvas, tx, -px * 1.2, px, px, PixelPalette.shade(col, 1.1), 0.7 * alpha)
 
 
 static func draw_trunk_base(canvas: CanvasItem, half_w: float, height: float, color: Color = PixelPalette.pal("trunk_a"), shadow: Color = PixelPalette.pal("trunk_b")) -> void:

@@ -7,6 +7,7 @@ const PixelDraw := preload("res://scripts/world/art/core/pixel_draw.gd")
 
 static func draw(canvas: CanvasItem, t: float) -> void:
 	PixelDraw.draw_foot_shadow(canvas, 22.0, 3.0, 0.3, 8.0)
+	PixelDraw.draw_ground_collar(canvas, 20.0, false)
 	for i: int in 7:
 		var a := float(i) / 7.0 * TAU
 		# ring stones as little iso blocks around the fire pit

@@ -89,7 +89,7 @@ static func footprint_radius(part: Dictionary) -> int:
 			return -1 if int(part.get("piece", 0)) == 1 else 0
 		"city_prop":
 			return -1 if _PASSABLE_PROPS.has(str(part.get("prop", ""))) else 0
-		"fountain", "well", "broken_statue", "obelisk", "altar", "anvil", \
+		"fountain", "well", "burrow", "broken_statue", "obelisk", "altar", "anvil", \
 		"chest", "ruin_arch", "ruin_pillar", "rubble_pile", "broken_wall", "cart", "meteor":
 			return 0    # solid free-standing object — block its own tile
 		_:

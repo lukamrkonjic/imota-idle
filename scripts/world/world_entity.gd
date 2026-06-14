@@ -29,7 +29,7 @@ var sub_label := ""
 var click_radius := 30.0
 var enemy_shape := "humanoid"
 var is_boss := false
-var tent_color := Color(0.42, 0.33, 0.55)
+var tent_color := Color(0.64, 0.47, 0.31)
 var glow_color := Color(0.7, 0.55, 0.95)  # altars/shrines
 var attuned := false                       # obelisks
 var roof_color := Color(0.5, 0.3, 0.3)     # houses
@@ -118,6 +118,8 @@ func icon_height() -> float:
 			return 60.0
 		"cave":
 			return 32.0
+		"burrow":
+			return 32.0
 		"ladder_up":
 			return 34.0
 		"ladder_down":
@@ -149,7 +151,7 @@ func icon_height() -> float:
 		"fountain":
 			return 40.0
 		"city_wall":
-			return 56.0
+			return 82.0
 		"bridge":
 			return 10.0
 		"city_prop":
@@ -202,6 +204,8 @@ func _draw_sprite() -> void:
 			IsoSprites.draw_obelisk(self, _t, attuned)
 		"cave":
 			IsoSprites.draw_cave_mouth(self)
+		"burrow":
+			IsoSprites.draw_burrow(self)
 		"ladder_up":
 			IsoSprites.draw_ladder(self, true)
 		"ladder_down":

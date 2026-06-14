@@ -13,6 +13,7 @@ const HEIGHTS := [42.0, 60.0, 78.0, 30.0]
 
 static func draw(canvas: CanvasItem, variant: int = 0) -> void:
 	PixelDraw.draw_foot_shadow(canvas, 15.0, 5.0, 0.3, 60.0)
+	PixelDraw.draw_ground_collar(canvas, 11.0, true)
 	var stone := PixelPalette.pal("stone_b")
 	var moss := PixelPalette.pal("grass_a").lerp(stone, 0.35)
 	var vine := PixelPalette.pal("grass_c")

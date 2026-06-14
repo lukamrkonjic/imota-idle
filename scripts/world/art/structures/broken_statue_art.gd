@@ -11,6 +11,7 @@ const PixelDraw := preload("res://scripts/world/art/core/pixel_draw.gd")
 
 static func draw(canvas: CanvasItem, variant: int = 0) -> void:
 	PixelDraw.draw_foot_shadow(canvas, 16.0, 6.0, 0.3, 56.0)
+	PixelDraw.draw_ground_collar(canvas, 13.0, true)
 	var stone := PixelPalette.pal("stone_b")
 	var moss := PixelPalette.pal("grass_a").lerp(stone, 0.32)
 	var h := 48.0 + float(variant % 3) * 12.0

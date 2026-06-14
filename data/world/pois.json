@@ -293,7 +293,7 @@
       "minimapColor": "c89058",
       "parts": [
         {
-          "kind": "stall",
+          "kind": "burrow",
           "hook": "tracking",
           "label": "Animal Burrow",
           "hookMessage": "Tracking and trapping are coming soon.",

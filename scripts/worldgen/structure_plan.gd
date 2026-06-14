@@ -22,8 +22,8 @@ const WALL_SEGMENT := 0
 const WALL_GATE := 1
 const WALL_TOWER := 2
 
-const ROOF_COLORS := ["7a3030", "50555f", "305a7a", "7a5a30", "6a4a8a",
-	"30702a", "3a6a4a", "4a4a9a", "8a6848", "6a4030", "486878", "705038"]
+const ROOF_COLORS := ["7a4630", "8a6848", "705038", "6a4030", "5f5142",
+	"7a5a30", "8a7558", "5a4840", "6a5846", "7a6040", "5a4a3c", "8a6848"]
 const PROPS := ["lamp", "crate", "barrel", "well", "flowerbox", "hay", "cart", "lamp", "crate"]
 
 var kind := "city"
@@ -233,10 +233,12 @@ func _stamp_building(bx: int, by: int, foot: int) -> void:
 		for tx: int in range(bx - half, bx + half + 1):
 			var edge := tx == bx - half or tx == bx + half or ty == by - half or ty == by + half
 			_put(tx, ty, K_BWALL if edge else K_BFLOOR)
-	# doorway at the south (front) corner — a walkable gap through the wall
-	_put(bx + half, by + half, K_BFLOOR)
-	_put(bx + half - 1, by + half, K_BFLOOR)
-	_put(bx + half, by + half - 1, K_BFLOOR)
+	# side doorway on the long south-west face — visually matches the hall art.
+	var door_x := bx - maxi(1, half / 2)
+	for i: int in range(-1, 2):
+		_put(door_x + i, by + half, K_BFLOOR)
+		_put(door_x + i, by + half - 1, K_BFLOOR)
+	_put(door_x, by + half - 2, K_BFLOOR)
 
 
 func _place_station(bx: int, by: int, foot: int, svc: Dictionary) -> void:

@@ -256,6 +256,8 @@ func _spawn_site(chunk: RefCounted, i: int, container: Node2D) -> void:
 
 func _spawn_poi_part(chunk: RefCounted, poi: Dictionary, part: Dictionary, container: Node2D) -> void:
 	var kind := str(part["kind"])
+	if kind == "stall" and str(part.get("label", "")).to_lower().contains("burrow"):
+		kind = "burrow"
 	var e: Node2D = WorldEntity.new()
 	e.kind = kind
 	e.label = str(part.get("label", ""))

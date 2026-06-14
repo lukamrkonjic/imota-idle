@@ -10,6 +10,7 @@ const PixelDraw := preload("res://scripts/world/art/core/pixel_draw.gd")
 
 static func draw(canvas: CanvasItem, t: float, glow_color: Color) -> void:
 	PixelDraw.draw_foot_shadow(canvas, 22.0, 9.0, 0.3, 30.0)
+	PixelDraw.draw_ground_collar(canvas, 18.0, true)
 	var stone := PixelPalette.pal("stone_b")
 	# stepped base
 	PixelDraw.iso_block_tex(canvas, 0.0, 0.0, 18.0, 9.0, 7.0, PixelPalette.shade(stone, 0.86))

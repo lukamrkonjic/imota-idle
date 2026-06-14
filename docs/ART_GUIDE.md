@@ -128,6 +128,51 @@ Why it's good, and the rules it embodies:
 Keep that silhouette discipline: a clear base, a readable mass, 2–4 accent
 strokes. If a piece needs dozens of rects to read, simplify the shape.
 
+## The chunky low-res target (the house rule)
+
+Every asset must look like it was drawn on a **very small pixel canvas and
+enlarged with nearest-neighbour scaling** — immediately readable, simplified and
+charming. The benchmark set is the **pillar, altar, tree, chest, barrel and
+crate**. If a redesigned piece looks more precise, more linear, or more detailed
+than those, simplify it again.
+
+**Core rules**
+
+- Build form from **2–4 chunky shade bands per major surface**, not smooth
+  rendering. Describe volume with **visible value steps**, not thin line detail.
+- Use **3–5 tones per material maximum**; keep the palette muted and derived from
+  `pal()` + `shade()`/`lerp()` (one base colour, not unrelated hues).
+- **Silhouette first**, internal detail second. Fewer tiny features, more bold
+  geometric masses. Hard pixel edges only — no AA, blur or smooth gradients.
+- **Avoid long uninterrupted straight lines**, especially on roofs, walls,
+  bridges and signs. Break large surfaces into slightly irregular, chunky tonal
+  groups so they feel low-res and hand-placed.
+- **Large objects use larger shapes, not more detail.** A bigger asset gets
+  bigger masses and bigger bands — never finer trim.
+
+**Avoid:** thin linework, long clean diagonals, repeated roof slats, brick-by-brick
+texture, tiny architectural trim, narrow supports, high-frequency detail, noisy
+textures, smooth shading, glossy rendering, or art that feels like a
+higher-resolution piece shrunk down.
+
+**Large surfaces (the missing piece).** Do *not* render big planes (roofs, walls,
+interior floors) as long clean surfaces with a few straight lines. Describe them
+with **chunky stepped shading clusters** so the surface itself reads low-res:
+
+- **Roofs:** a few **broad stepped tonal bands** (eave darkest → ridge lightest)
+  via `_roof_plane`-style band loops, *not* parallel slats or thin course lines.
+  Cap the ridge with one fat band.
+- **Walls:** a big plaster/stone field broken by **two broad light/shadow
+  clusters** and **2–3 fat corner/top beams** — never tidy paneling or repeated
+  framing. Windows and doors are **large, blockier, iconic** shapes.
+- **Floors / flat surfaces:** broad low-res tonal patches (a couple of shaded
+  diamonds), not many even stripes.
+- **Stone (walls, towers, gates):** big iso-block masses with a couple of broad
+  shade courses and a **few fat merlons** — never a per-brick mortar grid.
+
+The redesigned house, hall, tent, sign, bridge, wall, gate, tower, cart and anvil
+(2026-06-14) are the worked examples of this target — copy their massing.
+
 ## Houses & buildings (body + roof split)
 
 `house_art.gd` / `building_art.gd` split into **`draw_body()`** and
@@ -200,6 +245,34 @@ case for your kind in `_spawn_poi_part`.
   ```
   godot --path . res://tools/prop_preview.tscn -- --out=C:/shots/
   ```
+
+## Style Decisions
+
+- **2026-06-14 - camp/city utility structures avoid primitive silhouettes.**
+  Tents use slumped A-frame cloth panels instead of perfect pyramids; chests,
+  burrows and city walls use stacked solids, organic collars, chips, roots,
+  planks and sparse pixel patches. **Why:** smooth primitive shapes read as
+  low-poly models beside the trees, enemies, pillars, altars and gathering
+  nodes. **Consequence:** future tents, walls and utility props should change
+  the silhouette first, then add texture; dithering a cone/cube is not enough.
+- **2026-06-14 - all inconsistent assets redrawn chunky low-res.** The house,
+  hall, tent, sign, bridge, wall/gate/tower, cart and anvil were rebuilt to the
+  pillar/altar/chest/barrel/crate benchmark: 2–4 broad shade bands per surface,
+  large blocky windows/doors, broad stepped roof bands (no slats), big stone
+  masses (no per-brick mortar), and bold readable silhouettes. **Why:** their
+  thin linework, parallel roof lines, half-timber framing and brick texture made
+  them feel like higher-res art shrunk down, clashing with the rest of the set.
+  **Consequence:** this supersedes the earlier "steep gables / half-timber panels
+  / tile rows" guidance — see "The chunky low-res target" above; describe big
+  planes with stepped tonal clusters, not clean lines.
+- **2026-06-14 - medieval buildings must be compressed to the world style.**
+  Houses and halls use the tree/fountain visual language as the primary style
+  reference: broad 4-6 roof bands, chunky block windows, large plaster/stone
+  patches, few colors per material, soft stepped shading and minimal outlines.
+  **Why:** dense shingles, tiny facade marks and noisy wall dithering make a
+  building feel like it came from another asset set. **Consequence:** reduce
+  house visual information by roughly half or more before adding detail; keep
+  the entrance on the readable side wall for halls.
 
 ## Do / Don't checklist
 

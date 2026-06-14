@@ -9,6 +9,7 @@ const PixelDraw := preload("res://scripts/world/art/core/pixel_draw.gd")
 
 static func draw(canvas: CanvasItem) -> void:
 	PixelDraw.draw_foot_shadow(canvas, 6.0, 3.0, 0.3, 16.0)
+	PixelDraw.draw_ground_collar(canvas, 6.0, false)
 	var iron := PixelPalette.pal("trunk_b")
 	var lantern := PixelPalette.hex(0xF0C848)
 	# stone foot

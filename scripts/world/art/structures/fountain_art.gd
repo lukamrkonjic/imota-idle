@@ -11,6 +11,7 @@ const PixelDraw := preload("res://scripts/world/art/core/pixel_draw.gd")
 
 static func draw(canvas: CanvasItem, t: float) -> void:
 	PixelDraw.draw_foot_shadow(canvas, 30.0, 12.0, 0.3, 34.0)
+	PixelDraw.draw_ground_collar(canvas, 30.0, false)
 	var stone := PixelPalette.pal("stone_b")
 	var stone_hi := PixelPalette.pal("stone_a")
 	var water := PixelPalette.pal("water_a")

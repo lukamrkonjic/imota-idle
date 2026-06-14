@@ -537,6 +537,7 @@ func _place_structure(t: Vector2i) -> void:
 	var kind: String = str(part["kind"])
 	if kind in ["building", "house", "city_wall"]:
 		var wall := int(_reg.tile_index.get("building_wall", -1))
+		var floor_tile := int(_reg.tile_index.get("plank_floor", _reg.tile_index.get("cobble", -1)))
 		var r := 1 if kind != "building" else maxi(1, int(part.get("foot", 6)) / 2)
 		for dy: int in range(-r, r + 1):
 			for dx: int in range(-r, r + 1):
@@ -544,8 +545,20 @@ func _place_structure(t: Vector2i) -> void:
 				var gy: int = t.y + dy
 				var ch2: RefCounted = _chunk_at_tile(gx, gy)
 				if ch2 != null and wall >= 0:
+					var tile_id := wall
+					if kind in ["building", "house"]:
+						var edge := dx == -r or dx == r or dy == -r or dy == r
+						var in_door := false
+						var door_x := -maxi(0, r / 2)
+						var door_depth := 3 if kind == "building" else 2
+						for i: int in range(-1, 2):
+							in_door = in_door or (dx == door_x + i and dy == r)
+							in_door = in_door or (dx == door_x + i and dy == r - 1)
+						if kind == "building":
+							in_door = in_door or (dx == door_x and dy == r - door_depth + 1)
+						tile_id = floor_tile if (not edge or in_door) and floor_tile >= 0 else wall
 					var ci2: int = Chunk.idx(gx - ch2.cx * WG.CHUNK_TILES, gy - ch2.cy * WG.CHUNK_TILES)
-					_record_and_set(gx, gy, [wall, ch2.biomes_t[ci2], ch2.parent_biomes_t[ci2], ch2.sub_biomes_t[ci2]])
+					_record_and_set(gx, gy, [tile_id, ch2.biomes_t[ci2], ch2.parent_biomes_t[ci2], ch2.sub_biomes_t[ci2]])
 	FiniteWorldGenerator.apply_structure_collision(chunk)
 	_status.text = "Placed %s at (%d, %d)" % [str(entry[0]), t.x, t.y]
 

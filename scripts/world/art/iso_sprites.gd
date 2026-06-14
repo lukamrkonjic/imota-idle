@@ -102,6 +102,10 @@ static func draw_cave_mouth(canvas: CanvasItem) -> void:
 	CaveMouthArt.draw(canvas)
 
 
+static func draw_burrow(canvas: CanvasItem) -> void:
+	CaveMouthArt.draw(canvas)
+
+
 static func draw_ladder(canvas: CanvasItem, up: bool) -> void:
 	LadderArt.draw(canvas, up)
 

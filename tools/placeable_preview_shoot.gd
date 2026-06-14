@@ -50,6 +50,7 @@ func _ready() -> void:
 		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "chest"}, "Chest"),
 		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "stall"}, "Stall"),
 		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "tent"}, "Tent"),
+		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "burrow", "label": "Animal Burrow"}, "Burrow"),
 		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "sign"}, "Sign"),
 		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "lantern"}, "Lantern"),
 		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "campfire"}, "Campfire"),

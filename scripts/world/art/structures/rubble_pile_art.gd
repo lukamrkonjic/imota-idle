@@ -22,6 +22,7 @@ static func draw(canvas: CanvasItem, variant: int = 0) -> void:
 	var moss := PixelPalette.pal("grass_a").lerp(stone, 0.3)
 	var s := 0.85 + float(variant % 3) * 0.28
 	PixelDraw.draw_foot_shadow(canvas, 15.0 * s, 5.0)
+	PixelDraw.draw_ground_collar(canvas, 13.0 * s, true)
 	# Draw back-to-front (smaller ground-y first) so nearer blocks overlap correctly.
 	var order := BLOCKS.duplicate()
 	order.sort_custom(func(a: Array, b: Array) -> bool: return float(a[1]) < float(b[1]))

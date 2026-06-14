@@ -150,19 +150,8 @@ static func _draw_roundtree(canvas: CanvasItem, s: float, leaf: Color, depleted:
 
 
 static func _draw_ground_collar(canvas: CanvasItem, s: float, wide: float) -> void:
-	var dirt := PixelPalette.pal("dirt_a")
-	var grass := PixelPalette.pal("grass_a")
-	var grass_d := PixelPalette.pal("grass_c")
-	var px := float(PixelPalette.PX)
-	PixelDraw.px_blob(canvas, 0.0, px * 0.8, s * 0.13 * wide, s * 0.045, dirt, 0.62)
-	PixelDraw.px_blob(canvas, 0.0, px * 0.4, s * 0.09 * wide, s * 0.03, PixelPalette.shade(dirt, 0.88), 0.50)
-	for i: int in range(5):
-		var t := float(i) / 4.0
-		var tx := lerpf(-s * 0.16 * wide, s * 0.16 * wide, t)
-		var col := grass if i % 2 == 0 else grass_d
-		PixelDraw.px_rect(canvas, tx - px, -px * 0.5, px, px * 1.5, col, 0.85)
-		if i % 3 == 0:
-			PixelDraw.px_rect(canvas, tx, -px * 1.2, px, px, PixelPalette.shade(col, 1.1), 0.7)
+	# Shared with every structure/prop so the whole world plants the same way.
+	PixelDraw.draw_ground_collar(canvas, s * 0.16 * wide, true, 5)
 
 
 static func _draw_concept_trunk(canvas: CanvasItem, half_w: float, height: float, wide: float) -> void:

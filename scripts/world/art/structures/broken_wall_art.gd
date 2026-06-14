@@ -20,6 +20,7 @@ static func draw(canvas: CanvasItem, variant: int = 0) -> void:
 	var hh := hw * 0.5
 	var step := Vector2(hw, hh)
 	PixelDraw.draw_foot_shadow(canvas, float(n) * hw * 0.6 + 2.0, 6.0)
+	PixelDraw.draw_ground_collar(canvas, float(n) * hw * 0.5, true, n + 2)
 	# Start so the run is roughly centred on the origin.
 	var start := -step * float(n - 1) * 0.5
 	for i: int in n:
