@@ -6,8 +6,9 @@ const IsoSprites := preload("res://scripts/world/art/iso_sprites.gd")
 const TreeArt := preload("res://scripts/world/art/trees/tree_art.gd")
 const EnemyArt := preload("res://scripts/world/art/characters/enemy_art.gd")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
+const SilhouetteDraw := preload("res://scripts/world/art/core/silhouette_draw.gd")
 const PixelDraw := preload("res://scripts/world/art/core/pixel_draw.gd")
-const ANIMATED_KINDS := ["fish", "enemy", "campfire", "anvil", "altar", "obelisk", "meteor"]
+const ANIMATED_KINDS := ["fish", "enemy", "campfire", "anvil", "altar", "obelisk", "meteor", "fountain"]
 const GATHER_VERB := {"woodcutting": "Chop", "mining": "Mine", "fishing": "Fish", "foraging": "Pick"}
 const STATION_LABELS := {
 	"bank": "Bank chest",
@@ -31,6 +32,14 @@ var is_boss := false
 var tent_color := Color(0.42, 0.33, 0.55)
 var glow_color := Color(0.7, 0.55, 0.95)  # altars/shrines
 var attuned := false                       # obelisks
+var roof_color := Color(0.5, 0.3, 0.3)     # houses
+var prop_kind := ""                         # city_prop subtype
+var roof_alpha := 1.0:                      # houses — fades as the player nears
+	set(v):
+		if is_equal_approx(roof_alpha, v):
+			return
+		roof_alpha = v
+		queue_redraw()
 
 var action: Dictionary = {}
 
@@ -43,15 +52,26 @@ var hovered := false:
 	set(v):
 		hovered = v
 		queue_redraw()
-var show_labels := true:
+var show_labels := false:
 	set(v):
 		if show_labels == v:
 			return
 		show_labels = v
 		queue_redraw()
+var highlight_outline := false:
+	set(v):
+		if highlight_outline == v:
+			return
+		highlight_outline = v
+		queue_redraw()
 
 var _t := 0.0
 var _font: Font
+
+const OUTLINE_OFFSETS: Array[Vector2] = [
+	Vector2(-2.0, 0.0), Vector2(2.0, 0.0), Vector2(0.0, -2.0), Vector2(0.0, 2.0),
+	Vector2(-2.0, -2.0), Vector2(2.0, -2.0), Vector2(-2.0, 2.0), Vector2(2.0, 2.0),
+]
 
 
 func _ready() -> void:
@@ -82,7 +102,9 @@ func icon_height() -> float:
 		"fish":
 			return display_size * 0.24
 		"enemy":
-			return display_size * (1.25 if is_boss else 0.8)
+			var sp := EnemyArt.shape_for_name(label if not label.is_empty() else str(action.get("name", "")))
+			var tall := sp in ["cow", "pig", "sheep", "wolf", "goat", "brainbasher", "goblin"]
+			return display_size * (1.35 if is_boss else (0.92 if tall else 0.8))
 		"tent":
 			return display_size * 0.95
 		"chest":
@@ -107,28 +129,60 @@ func icon_height() -> float:
 			return 16.0
 		"mammoth":
 			return 40.0
-		"ruin_tower":
-			return display_size * 1.05
-		"ruin_wall":
-			return display_size * 0.30
+		"ruin_arch":
+			return 104.0
 		"ruin_pillar":
-			return display_size * 0.8
-		"ruin_stone":
-			return display_size * 0.7
+			return 82.0
+		"broken_wall":
+			return 38.0
+		"rubble_pile":
+			return 22.0
+		"broken_statue":
+			return 70.0
+		"house":
+			return IsoSprites.house_height(variant)
+		"building":
+			return IsoSprites.building_height(display_size, variant)
+		"fountain":
+			return 40.0
+		"city_wall":
+			return 56.0
+		"bridge":
+			return 10.0
+		"city_prop":
+			return 30.0
 	return display_size * 0.5
 
 
 func _draw() -> void:
+	if highlight_outline:
+		SilhouetteDraw.active = true
+		for off: Vector2 in OUTLINE_OFFSETS:
+			draw_set_transform(off, 0.0, Vector2.ONE)
+			_draw_sprite()
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		SilhouetteDraw.active = false
+	_draw_sprite()
+	if show_labels:
+		_draw_labels()
+	if hp_fraction >= 0.0:
+		var bar_w := 44.0
+		var top := Vector2(-bar_w / 2.0, -icon_height() - 26.0)
+		draw_rect(Rect2(top, Vector2(bar_w, 6)), Color(0.55, 0.1, 0.1))
+		draw_rect(Rect2(top, Vector2(bar_w * clampf(hp_fraction, 0.0, 1.0), 6)), Color(0.15, 0.7, 0.15))
+
+
+func _draw_sprite() -> void:
 	match kind:
 		"tree", "rock", "bush", "fish":
 			IsoSprites.draw_prop(self, kind, display_size, tier_color, variant, dimmed, _t, label)
 		"enemy":
 			if dimmed:
-				# Respawning: tight ground shadow only.
 				PixelDraw.draw_tight_character_shadow(
 					self, EnemyArt._shadow_half_width(enemy_shape, display_size, is_boss), 4.0, 0.28)
 			else:
-				IsoSprites.draw_enemy(self, enemy_shape, display_size, tier_color, is_boss, _t)
+				var enemy_name := label if not label.is_empty() else str(action.get("name", ""))
+				IsoSprites.draw_enemy(self, enemy_name, enemy_shape, display_size, tier_color, is_boss, _t)
 		"tent":
 			IsoSprites.draw_tent(self, display_size, tent_color)
 		"campfire":
@@ -157,15 +211,30 @@ func _draw() -> void:
 			IsoSprites.draw_meteor(self, _t)
 		"mammoth":
 			IsoSprites.draw_mammoth(self)
-		"ruin_tower", "ruin_wall", "ruin_pillar", "ruin_stone":
-			IsoSprites.draw_ruin(self, kind, display_size, variant)
-	if show_labels:
-		_draw_labels()
-	if hp_fraction >= 0.0:
-		var bar_w := 44.0
-		var top := Vector2(-bar_w / 2.0, -icon_height() - 26.0)
-		draw_rect(Rect2(top, Vector2(bar_w, 6)), Color(0.55, 0.1, 0.1))
-		draw_rect(Rect2(top, Vector2(bar_w * clampf(hp_fraction, 0.0, 1.0), 6)), Color(0.15, 0.7, 0.15))
+		"ruin_arch":
+			IsoSprites.draw_ruin_arch(self, variant)
+		"ruin_pillar":
+			IsoSprites.draw_ruin_pillar(self, variant)
+		"broken_wall":
+			IsoSprites.draw_broken_wall(self, variant)
+		"rubble_pile":
+			IsoSprites.draw_rubble_pile(self, variant)
+		"broken_statue":
+			IsoSprites.draw_broken_statue(self, variant)
+		"house":
+			IsoSprites.draw_house_body(self, variant, roof_color)
+			IsoSprites.draw_house_roof(self, variant, roof_color, roof_alpha)
+		"building":
+			IsoSprites.draw_building_body(self, display_size, variant, roof_color)
+			IsoSprites.draw_building_roof(self, display_size, variant, roof_color, roof_alpha)
+		"fountain":
+			IsoSprites.draw_fountain(self, _t)
+		"city_wall":
+			IsoSprites.draw_city_wall(self, variant)
+		"bridge":
+			IsoSprites.draw_bridge(self)
+		"city_prop":
+			IsoSprites.draw_city_prop(self, prop_kind, variant, _t)
 
 
 func _draw_labels() -> void:
@@ -174,6 +243,11 @@ func _draw_labels() -> void:
 		_plate(label, Vector2(0, -h - 12.0), 11, Color(0.95, 0.92, 0.72))
 	if not sub_label.is_empty():
 		_plate(sub_label, Vector2(0, -h - 2.0), 10, Color(0.78, 0.78, 0.78))
+
+
+func is_interactable() -> bool:
+	return str(action.get("type", "")) in [
+		"gather", "enemy", "station", "descend", "ascend", "obelisk", "landmark"]
 
 
 func _plate(text: String, at: Vector2, size: int, color: Color) -> void:

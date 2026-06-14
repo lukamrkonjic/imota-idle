@@ -87,11 +87,7 @@ func walk_to_pos(target: Vector2) -> bool:
 
 
 func _clamp_to_region(target: Vector2) -> Vector2:
-	var region: Rect2i = path_finder.region
-	var margin := WG.TILE * 2.0
-	var rect := Rect2(
-		Vector2(region.position) * WG.TILE + Vector2(margin, margin),
-		Vector2(region.size) * WG.TILE - Vector2(margin, margin) * 2.0)
+	var rect := WG.tile_region_world_rect(path_finder.region, 2)
 	return target.clamp(rect.position, rect.end)
 
 

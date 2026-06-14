@@ -9,7 +9,7 @@ static func draw(canvas: CanvasItem, up: bool) -> void:
 	var wood := PixelPalette.hex(0x8A6848)
 	var dark := PixelPalette.pal("trunk_b")
 	if up:
-		PixelDraw.draw_foot_shadow(canvas, 12.0, 3.0)
+		PixelDraw.draw_foot_shadow(canvas, 12.0, 3.0, 0.3, 30.0)
 		PixelDraw.px_rect(canvas, -8.0, -34.0, 3.0, 34.0, wood)
 		PixelDraw.px_rect(canvas, 5.0, -34.0, 3.0, 34.0, wood)
 		var y := -30.0

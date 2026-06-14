@@ -14,8 +14,9 @@ const WorldActivityController := preload("res://scripts/world/world_activity_con
 const WorldAutoTaskController := preload("res://scripts/world/world_auto_task_controller.gd")
 const WorldLayerController := preload("res://scripts/world/world_layer_controller.gd")
 const WorldVisualController := preload("res://scripts/world/world_visual_controller.gd")
+const WorldAmbience := preload("res://scripts/world/world_ambience.gd")
+const BiomeDebugOverlay := preload("res://scripts/world/biome_debug_overlay.gd")
 const ClickMarkerNode := preload("res://scripts/ui/click_marker_node.gd")
-const WorldgenDebugOverlay := preload("res://scripts/world/worldgen_debug_overlay.gd")
 
 # --- public state (tests, HUD) ---
 var entities: Array = []
@@ -35,9 +36,12 @@ var _entities_layer: Node2D
 var _chunk_containers: Dictionary = {}
 var _site_entities: Dictionary = {}
 var _decor_nodes: Array = []
+var _water_decor_nodes: Array = []
 var _click_fx_layer: Node2D
 var _camera: Camera2D
 var _ambient: CanvasModulate
+var _ambience: Node2D
+var _biome_debug: Node2D
 
 # --- controllers ---
 var _entity_spawner: RefCounted
@@ -82,7 +86,7 @@ func _init_controllers() -> void:
 
 func _build_scene() -> void:
 	_ambient = CanvasModulate.new()
-	_ambient.color = Color.WHITE
+	_ambient.color = Color(1.04, 1.02, 0.98)
 	add_child(_ambient)
 
 	unexplored_backdrop = UnexploredBackdrop.new()
@@ -112,18 +116,25 @@ func _build_scene() -> void:
 	_entities_layer.add_child(player)
 
 	_camera = Camera2D.new()
-	_camera.zoom = Vector2(1.1, 1.1)
+	_camera.zoom = Vector2(1.65, 1.65)
 	_camera.position_smoothing_enabled = true
 	_camera.position_smoothing_speed = 8.0
 	player.add_child(_camera)
 	unexplored_backdrop.set("camera", _camera)
 
-	var debug_overlay: Node2D = WorldgenDebugOverlay.new()
-	debug_overlay.name = "WorldgenDebug"
-	debug_overlay.set("world", self)
-	add_child(debug_overlay)
-
 	_visual_ctrl.build_darkness()
+
+	_ambience = WorldAmbience.new()
+	_ambience.name = "Ambience"
+	add_child(_ambience)
+	_ambience.setup(self)
+
+	_biome_debug = BiomeDebugOverlay.new()
+	_biome_debug.name = "BiomeDebug"
+	_biome_debug.z_index = 500
+	_biome_debug.visible = false
+	add_child(_biome_debug)
+
 	hud.call("bind_world", self)
 
 

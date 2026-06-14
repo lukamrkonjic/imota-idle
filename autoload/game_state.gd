@@ -329,6 +329,37 @@ func set_hp(value: int) -> void:
 	EventBus.hp_changed.emit(current_hp, max_hp())
 
 
+func admin_max_skill(skill: String) -> void:
+	if not skills.has(skill):
+		return
+	var max_lvl := DataRegistry.max_level
+	skills[skill]["level"] = max_lvl
+	skills[skill]["xp"] = float(DataRegistry.xp_for_level(max_lvl))
+	if skill == "hitpoints":
+		current_hp = max_hp()
+		EventBus.hp_changed.emit(current_hp, max_hp())
+	EventBus.level_up.emit(skill, max_lvl)
+
+
+func admin_max_all_skills() -> void:
+	for s: String in SKILLS:
+		admin_max_skill(s)
+
+
+func admin_give_item(item_name_or_id: String, qty: int) -> int:
+	if qty <= 0:
+		return 0
+	var item_id := DataRegistry.resolve_item_id(item_name_or_id)
+	if item_id.is_empty():
+		return 0
+	var added := add_item(item_name_or_id, qty)
+	var left := qty - added
+	if left > 0:
+		bank[item_id] = int(bank.get(item_id, 0)) + left
+		EventBus.bank_changed.emit()
+	return qty
+
+
 # ------------------------------------------------------------ save state ----
 
 func to_save_dict() -> Dictionary:

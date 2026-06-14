@@ -48,7 +48,7 @@ func rebuild(chunks: Array, reg: RefCounted, entry_level: int) -> void:
 			for ty: int in WG.CHUNK_TILES:
 				for tx: int in WG.CHUNK_TILES:
 					var td: Dictionary = reg.tile_def(c.tile_id(tx, ty))
-					if not td["walkable"] or td["hazard"]:
+					if not td["walkable"] or td["hazard"] or c.is_blocked(tx, ty):
 						grid.set_point_solid(base + Vector2i(tx, ty), true)
 
 

@@ -8,8 +8,9 @@ extends RefCounted
 ##
 ## All authored placement is in CHUNK space (deterministic, seed-independent), so
 ## the same brief always compiles to the same layout. Regions are discs of chunks
-## that force a biome, a zone name and an entry-level requirement; anchors pin a
-## POI (settlement / landmark / dungeon) to an exact chunk and may pin a boss.
+## that force a parent biome, a zone name and an entry-level requirement (your
+## sub-biomes still stamp on top); anchors pin a POI (settlement / landmark /
+## dungeon) to an exact chunk and may pin a boss.
 
 const WG := preload("res://scripts/worldgen/wg.gd")
 
@@ -27,6 +28,15 @@ var regions: Array = []           # region dicts (with computed center/radius)
 var anchors: Array = []           # authored anchor dicts
 var routes: Array = []            # {from, to} anchor-id pairs (or "spawn")
 var relationships: Array = []     # declarative constraints (validated, not solved)
+var settlements: Array = []       # {id, kind, theme, tile:Vector2i, services}
+var roads: Array = []             # {id, kind, width, points:[Vector2i tiles]}
+var features: Array = []          # {kind, ...} rivers/lakes/landmarks/etc.
+
+## Finite-world bounds in CHUNK space. When `finite`, everything outside is open
+## ocean and the generator is only consulted for chunks flagged `fixed:false`.
+var finite := false
+var bounds := Rect2i()            # chunk-space rect [min..max] inclusive-ish
+var ocean_beyond_bounds := true
 
 var _region_for_chunk: Dictionary = {}   # "cx:cy" -> region dict (or {})
 var _anchor_for_chunk: Dictionary = {}    # "cx:cy" -> anchor dict (or {})
@@ -40,6 +50,11 @@ func load_active() -> void:
 	anchors.clear()
 	routes.clear()
 	relationships.clear()
+	settlements.clear()
+	roads.clear()
+	features.clear()
+	finite = false
+	bounds = Rect2i()
 	_region_for_chunk.clear()
 	_anchor_for_chunk.clear()
 	var active_id := _read_active_id()
@@ -90,6 +105,7 @@ func _ingest(doc: Dictionary) -> void:
 			"regen": r.get("regen", []),
 			"cx": int(center[0]), "cy": int(center[1]),
 			"radius": float(shape.get("radius", 1)),
+			"fixed": bool(r.get("fixed", true)),   # false => stays procedural at runtime
 		}
 		regions.append(region)
 	for a: Dictionary in doc.get("anchors", []):
@@ -106,7 +122,54 @@ func _ingest(doc: Dictionary) -> void:
 		})
 	routes = doc.get("routes", [])
 	relationships = doc.get("relationships", [])
+	_ingest_world(doc)
 	active = not regions.is_empty() or not anchors.is_empty()
+
+
+## Finite bounds + the deliberate placement data (settlements, roads, features).
+func _ingest_world(doc: Dictionary) -> void:
+	var b: Dictionary = doc.get("bounds", {})
+	if not b.is_empty():
+		var mn: Array = b.get("min", [0, 0])
+		var mx: Array = b.get("max", [0, 0])
+		bounds = Rect2i(int(mn[0]), int(mn[1]),
+			int(mx[0]) - int(mn[0]) + 1, int(mx[1]) - int(mn[1]) + 1)
+		finite = true
+		ocean_beyond_bounds = bool(doc.get("oceanBeyondBounds", true))
+	for s: Dictionary in doc.get("settlements", []):
+		var st: Array = s.get("tile", [0, 0])
+		settlements.append({
+			"id": str(s.get("id", "")),
+			"kind": str(s.get("kind", "village")),
+			"label": str(s.get("label", s.get("id", ""))),
+			"theme": str(s.get("theme", "")),
+			"tile": Vector2i(int(st[0]), int(st[1])),
+			"services": s.get("services", []),
+		})
+	for r: Dictionary in doc.get("roads", []):
+		var pts: Array = []
+		for p: Array in r.get("points", []):
+			pts.append(Vector2i(int(p[0]), int(p[1])))
+		roads.append({
+			"id": str(r.get("id", "")),
+			"kind": str(r.get("kind", "minor")),
+			"width": int(r.get("width", 1)),
+			"points": pts,
+		})
+	for f: Dictionary in doc.get("features", []):
+		var feat: Dictionary = {"kind": str(f.get("kind", "")), "label": str(f.get("label", ""))}
+		if f.has("points"):
+			var fp: Array = []
+			for p: Array in f["points"]:
+				fp.append(Vector2i(int(p[0]), int(p[1])))
+			feat["points"] = fp
+		if f.has("tile"):
+			feat["tile"] = Vector2i(int(f["tile"][0]), int(f["tile"][1]))
+		if f.has("width"):
+			feat["width"] = int(f["width"])
+		if f.has("radius"):
+			feat["radius"] = int(f["radius"])
+		features.append(feat)
 
 
 # ----------------------------------------------------------------- regions ----
@@ -143,7 +206,7 @@ func region_by_id(region_id: String) -> Dictionary:
 	return {}
 
 
-## Authored biome id forced on chunk (cx, cy), or "" when none.
+## Authored parent-biome id forced on chunk (cx, cy), or "" when none.
 func biome_for_chunk(cx: int, cy: int) -> String:
 	var r := region_for_chunk(cx, cy)
 	return "" if r.is_empty() else str(r.get("biome", ""))
@@ -183,8 +246,8 @@ static func _tier_label(req: int) -> String:
 
 # ----------------------------------------------------------------- anchors ----
 
-## Authored anchor pinned to chunk (cx, cy), or {}. Shaped like anchor_planner's
-## procedural anchors so poi_placement can consume it unchanged (plus a `boss`).
+## Authored anchor pinned to chunk (cx, cy), or {}. Shaped so poi_placement can
+## consume it directly (plus a `boss` to pin a specific bestiary boss).
 func anchor_for_chunk(cx: int, cy: int) -> Dictionary:
 	if not active:
 		return {}
@@ -214,7 +277,7 @@ func anchor_by_id(anchor_id: String) -> Dictionary:
 	return {}
 
 
-## Planned authored anchors as anchor_planner-shaped dicts (debug / roads / tests).
+## Planned authored anchors as poi-placement-shaped dicts (debug / tests).
 func planned_anchors() -> Array:
 	var out: Array = []
 	for a: Dictionary in anchors:
@@ -222,26 +285,53 @@ func planned_anchors() -> Array:
 	return out
 
 
-# ------------------------------------------------------------------- roads ----
+# ------------------------------------------------------------- finite world ----
 
-## Authored road segments in TILE coords ({from, to, phase}), chunk-center to
-## chunk-center, for anchor_planner.road_segments() when the spec is active.
-func road_segments_tiles(world_seed: int) -> Array:
+## True when chunk (cx,cy) lies inside the authored finite continent.
+func in_bounds(cx: int, cy: int) -> bool:
+	if not finite:
+		return true
+	return bounds.has_point(Vector2i(cx, cy))
+
+
+## True when chunk (cx,cy) should still be generated procedurally at runtime
+## (a region flagged fixed:false — caverns, designated wilderness). Baked chunks
+## are everything else inside bounds.
+func is_procedural_zone(cx: int, cy: int) -> bool:
+	var r := region_for_chunk(cx, cy)
+	return not r.is_empty() and not bool(r.get("fixed", true))
+
+
+## Chunks that should be baked: in-bounds and not a procedural zone.
+func should_bake(cx: int, cy: int) -> bool:
+	return in_bounds(cx, cy) and not is_procedural_zone(cx, cy)
+
+
+## Roads whose polyline passes near chunk (cx,cy) (cheap AABB test in tiles).
+func roads_through_chunk(cx: int, cy: int) -> Array:
 	var out: Array = []
-	for link: Dictionary in routes:
-		var a := anchor_by_id(str(link.get("from", "spawn")))
-		var b := anchor_by_id(str(link.get("to", "spawn")))
-		if a.is_empty() or b.is_empty():
-			continue
-		var ca: Vector2i = Vector2i(a.get("chunk", Vector2i.ZERO))
-		var cb: Vector2i = Vector2i(b.get("chunk", Vector2i.ZERO))
-		var center := float(WG.CHUNK_TILES) * 0.5
-		out.append({
-			"from": Vector2(float(ca.x * WG.CHUNK_TILES) + center, float(ca.y * WG.CHUNK_TILES) + center),
-			"to": Vector2(float(cb.x * WG.CHUNK_TILES) + center, float(cb.y * WG.CHUNK_TILES) + center),
-			"phase": WG.r01(world_seed, cb.x, cb.y, 903) * TAU,
-		})
+	for road: Dictionary in roads:
+		if _polyline_touches_chunk(road["points"], cx, cy, int(road.get("width", 1)) + 1):
+			out.append(road)
 	return out
+
+
+func _polyline_touches_chunk(points: Array, cx: int, cy: int, pad: int) -> bool:
+	var x0: int = cx * WG.CHUNK_TILES - pad
+	var y0: int = cy * WG.CHUNK_TILES - pad
+	var x1: int = (cx + 1) * WG.CHUNK_TILES + pad
+	var y1: int = (cy + 1) * WG.CHUNK_TILES + pad
+	for p: Vector2i in points:
+		if p.x >= x0 and p.x <= x1 and p.y >= y0 and p.y <= y1:
+			return true
+	# also catch long segments crossing the chunk without a vertex inside it
+	for i: int in range(points.size() - 1):
+		var a: Vector2i = points[i]
+		var b: Vector2i = points[i + 1]
+		if mini(a.x, b.x) <= x1 and maxi(a.x, b.x) >= x0 \
+				and mini(a.y, b.y) <= y1 and maxi(a.y, b.y) >= y0:
+			return true
+	return false
 
 
 # --------------------------------------------------------------- provenance ----

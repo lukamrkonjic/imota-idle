@@ -15,6 +15,10 @@ var tile_index: Dictionary = {}         # tile id -> byte id
 # --- biomes (sorted by priority desc) ---
 var biomes: Array = []                  # parsed biome dicts
 var biome_index: Dictionary = {}        # biome id -> index in biomes
+var sub_biomes: Array = []              # sub-biome placement rules from biomes.json
+var parent_biome_ids: PackedStringArray = []  # ids that can be macro parent regions
+var biome_neighbors: Dictionary = {}    # parent id -> allowed neighbor ids
+var biome_transitions: Dictionary = {}  # "a:b" -> {width, tiles resolved}
 
 # --- skill sites / stations ---
 var site_defaults: Dictionary = {}
@@ -32,19 +36,17 @@ var pois: Dictionary = {}               # poi type -> def
 var cave_layers: Dictionary = {}        # int layer -> def
 var zone_words: Dictionary = {}
 
-# --- worldgen tuning / anchors ---
-var gen_rules: Dictionary = {}          # generation_rules.json (elevation, resources, roads)
-var anchor_types: Array = []            # anchors.json types
-
-# --- authored layer (AI World Director / WorldSpec) ---
+# --- authored world layer (AI World Director / Compiler) ---
 const WorldSpec := preload("res://scripts/worldgen/world_spec.gd")
-var spec: RefCounted = WorldSpec.new()  # active WorldSpec, or inactive (procedural)
+var spec: RefCounted = WorldSpec.new()  # see docs/AI_WORLD_AUTHORING.md
 
 
 func load_all() -> void:
 	var biome_doc := _read("biomes.json")
 	_parse_tiles(biome_doc.get("tiles", {}))
 	_parse_biomes(biome_doc.get("biomes", []))
+	_parse_sub_biomes(biome_doc.get("subBiomes", []))
+	_parse_transitions(biome_doc.get("transitions", {}))
 
 	var sites_doc := _read("skill_sites.json")
 	site_defaults = sites_doc.get("defaults", {"resources": 8, "respawnSec": 25.0})
@@ -63,12 +65,7 @@ func load_all() -> void:
 	zone_words = _read("zone_names.json")
 	zone_words.erase("_doc")
 
-	gen_rules = _read("generation_rules.json")
-	anchor_types = _read("anchors.json").get("types", [])
-
-	# Authored layer: forces named, biome-separated regions and fixed-placement
-	# settlements/landmarks/dungeons on top of the procedural world. Inactive
-	# (procedural-only) when data/world/worldspec/ is absent or disabled.
+	# Authored layer loads last so it can override procedural defaults.
 	spec.load_active()
 
 
@@ -118,6 +115,61 @@ func _parse_biomes(raw: Array) -> void:
 		for tid: String in tw:
 			resolved.append([int(tile_index[tid]), float(tw[tid])])
 		biomes[i]["_tile_weights"] = resolved
+		if not bool(biomes[i].get("isSubBiome", false)):
+			parent_biome_ids.append(str(biomes[i]["id"]))
+			var nbrs: Array = biomes[i].get("neighbors", [])
+			if nbrs.is_empty():
+				nbrs = parent_biome_ids.duplicate()
+			biome_neighbors[str(biomes[i]["id"])] = nbrs
+
+
+func _parse_transitions(raw: Dictionary) -> void:
+	biome_transitions.clear()
+	for key: String in raw:
+		var def: Dictionary = raw[key]
+		var tw: Dictionary = def.get("tiles", {})
+		var resolved: Array = []
+		for tid: String in tw:
+			if tile_index.has(tid):
+				resolved.append([int(tile_index[tid]), float(tw[tid])])
+		biome_transitions[key] = {
+			"width": int(def.get("width", 3)),
+			"tiles": resolved,
+		}
+
+
+func transition_key(a: String, b: String) -> String:
+	if a == b:
+		return ""
+	return (a + ":" + b) if a < b else (b + ":" + a)
+
+
+func transition_def(a: String, b: String) -> Dictionary:
+	var key := transition_key(a, b)
+	return biome_transitions.get(key, {})
+
+
+func ground_decor(biome_id: String) -> Dictionary:
+	return biome_by_id(biome_id).get("groundDecor", {})
+
+
+func _parse_sub_biomes(raw: Array) -> void:
+	sub_biomes.clear()
+	var salt := 0
+	for entry: Dictionary in raw:
+		var def := entry.duplicate(true)
+		def["_salt"] = salt
+		salt += 1
+		sub_biomes.append(def)
+
+
+func parent_biome_id(idx: int) -> String:
+	if idx < 0 or idx >= biomes.size():
+		return "plains"
+	var b: Dictionary = biomes[idx]
+	if bool(b.get("isSubBiome", false)) and b.has("parentBiome"):
+		return str(b["parentBiome"])
+	return str(b["id"])
 
 
 func biome(idx: int) -> Dictionary:
@@ -200,6 +252,7 @@ func _compile_monster_rules() -> void:
 			"_re": _regex(str(rule.get("match", ""))),
 			"biomes": rule.get("biomes", []),
 			"caveLayers": rule.get("caveLayers", []),
+			"forbiddenBiomes": rule.get("forbiddenBiomes", []),
 		})
 	monster_cfg["_rules"] = compiled
 
@@ -211,16 +264,19 @@ func _build_monster_table() -> void:
 		var e: Dictionary = DataRegistry.enemies[name]
 		var m_biomes: Array = monster_cfg.get("defaultBiomes", [])
 		var m_caves: Array = []
+		var m_forbidden: Array = []
 		for rule: Dictionary in monster_cfg["_rules"]:
 			var re: RegEx = rule["_re"]
 			if re != null and re.search(name) != null:
 				m_biomes = rule["biomes"]
 				m_caves = rule["caveLayers"]
+				m_forbidden = rule.get("forbiddenBiomes", [])
 				break
 		var is_passive := passive_re != null and passive_re.search(name) != null
 		var entry := {
 			"name": name, "level": int(e["level"]), "boss": bool(e["isBoss"]),
 			"biomes": m_biomes, "cave_layers": m_caves,
+			"forbiddenBiomes": m_forbidden,
 			"aggressive": (not is_passive) and aggro_re != null and aggro_re.search(name) != null,
 		}
 		monster_table[name] = entry

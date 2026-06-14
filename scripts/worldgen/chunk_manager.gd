@@ -4,9 +4,8 @@ extends Node2D
 ## bakes ground images on the worker thread pool so loading never blocks a
 ## frame, and tells the world (via signals) when to spawn entities.
 ##
-## Explored chunks stay resident for the current layer. That avoids the ugly
-## visible square of only-current chunks when zoomed out and keeps discovered
-## areas feeling like a continuous map instead of popping away behind you.
+## Chunks within view_radius load eagerly; chunks beyond unload_radius are freed
+## so explored areas do not accumulate forever and tank frame time.
 
 signal chunk_loaded(chunk: RefCounted)
 signal chunk_unloaded(chunk: RefCounted)
@@ -16,6 +15,7 @@ const ChunkRenderer := preload("res://scripts/worldgen/chunk_renderer.gd")
 
 var layer := 0
 var view_radius := WG.VIEW_RADIUS
+var unload_radius := WG.VIEW_RADIUS + 2
 # WorkerThreadPool bakes can leave Godot with a non-zero process exit during
 # headless validation/shutdown even when every assertion passes. The chunk bake
 # is deliberately tiny (64x64 pixels), so synchronous baking is stable enough
@@ -36,11 +36,10 @@ func loaded_chunks() -> Array:
 
 
 func set_visible_rect(world_rect: Rect2) -> void:
-	var chunk_size := Vector2(WG.CHUNK_SIZE, WG.CHUNK_SIZE)
 	for key: String in _renderers.keys():
 		var renderer: Node2D = _renderers[key]
 		var chunk: RefCounted = renderer.get("chunk")
-		renderer.visible = world_rect.intersects(Rect2(chunk.origin(), chunk_size))
+		renderer.visible = world_rect.intersects(WG.chunk_aabb(chunk.cx, chunk.cy))
 
 
 func set_layer(new_layer: int) -> void:
@@ -69,11 +68,22 @@ func update_center(world_pos: Vector2) -> void:
 	for key: String in needed:
 		if not _renderers.has(key):
 			_load(needed[key])
+	for key: String in _renderers.keys():
+		if not needed.has(key):
+			var parts: PackedStringArray = key.split(":")
+			if parts.size() != 2:
+				continue
+			var dx: int = absi(int(parts[0]) - c.x)
+			var dy: int = absi(int(parts[1]) - c.y)
+			if dx > unload_radius or dy > unload_radius:
+				_unload(key)
 
 
 func _load(coords: Vector2i) -> void:
 	var chunk: RefCounted = WorldGen.get_chunk(layer, coords.x, coords.y)
 	WorldGen.snapshot_chunk_if_needed(chunk)
+	if layer == 0:
+		WorldGen.store.mark_explored(coords.x, coords.y)
 	var key := "%d:%d" % [coords.x, coords.y]
 	_chunks[key] = chunk
 	if not _seen.has(layer):
@@ -84,39 +94,11 @@ func _load(coords: Vector2i) -> void:
 	renderer.name = "Chunk_" + key.replace(":", "_").replace("-", "m")
 	add_child(renderer)
 	_renderers[key] = renderer
-	var reg: RefCounted = WorldGen.reg
-	var classifier: RefCounted = WorldGen.generator.classifier
-	var elevation: RefCounted = WorldGen.generator.elevation
-	var roads: RefCounted = WorldGen.generator.anchors
-	var seed_v: int = WorldGen.store.world_seed
-	if use_threads:
-		var mutex := _results_mutex
-		var results := _results
-		var task := WorkerThreadPool.add_task(func() -> void:
-			var img := ChunkRenderer.bake(chunk, reg, classifier, seed_v, elevation, roads)
-			mutex.lock()
-			results[key] = img
-			mutex.unlock())
-		_tasks[task] = key
-	else:
-		renderer.apply_image(ChunkRenderer.bake(chunk, reg, classifier, seed_v, elevation, roads))
 	chunk_loaded.emit(chunk)
 
 
 func _process(_delta: float) -> void:
-	if _tasks.is_empty():
-		return
-	# Collect finished bakes (main thread only touches the scene here).
-	_results_mutex.lock()
-	var ready := _results.keys()
-	for key: String in ready:
-		if _renderers.has(key):
-			_renderers[key].apply_image(_results[key])
-		_results.erase(key)
-	_results_mutex.unlock()
-	for task: int in _tasks.keys():
-		if WorkerThreadPool.is_task_completed(task):
-			_tasks.erase(task)
+	pass
 
 
 func _unload(key: String) -> void:

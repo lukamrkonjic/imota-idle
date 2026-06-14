@@ -1,0 +1,320 @@
+{
+  "_doc": [
+    "Aldreth \u00e2\u20ac\u201d a FINITE, fixed, hand-authored continent (the new primary world).",
+    "Unlike the old infinite spec, this declares world `bounds` (chunk space) with",
+    "open ocean beyond, deliberate `settlements`, `roads` (polylines) and `features`",
+    "(rivers/lakes/landmarks). The offline bake tool (tools/world_bake.gd) compiles",
+    "every in-bounds, fixed region into shipped chunk data; regions flagged",
+    "fixed:false (e.g. the Tanglewild) keep generating procedurally at runtime.",
+    "Coordinates: regions/anchors in CHUNK space (1 chunk = 16 tiles); settlements,",
+    "roads and features in TILE space. Chunk c -> center tile (c*16 + 8)."
+  ],
+  "id": "aldreth",
+  "version": 1,
+  "name": "The Realm of Aldreth",
+  "seed": 7,
+  "generatorVersion": 11,
+  "bounds": {
+    "min": [
+      -32,
+      -32
+    ],
+    "max": [
+      31,
+      31
+    ]
+  },
+  "oceanBeyondBounds": true,
+  "regions": [
+    {
+      "id": "greenhollow",
+      "name": "Greenhollow Vale",
+      "biome": "plains",
+      "req": 1,
+      "danger": "safe",
+      "shape": {
+        "center": [
+          0,
+          0
+        ],
+        "radius": 3
+      },
+      "fixed": true,
+      "motif": "The green heart of the realm and the crossroads of every road \u00e2\u20ac\u201d gentle commons where new arrivals find their feet.",
+      "material": "soft meadow grass",
+      "silhouette": "a lone oak over the home green",
+      "locked": true,
+      "regen": [
+        "vegetation",
+        "decals"
+      ]
+    },
+    {
+      "id": "aldspire",
+      "name": "Aldspire",
+      "biome": "plains",
+      "req": 2,
+      "danger": "safe",
+      "shape": {
+        "center": [
+          -5,
+          -2
+        ],
+        "radius": 3
+      },
+      "fixed": true,
+      "motif": "The capital on the west bank of the Silvercourse \u00e2\u20ac\u201d walls, market, forge, temple and the Spire above every rooftop. The realm's full-service hub.",
+      "material": "flagstone and banners",
+      "silhouette": "the Aldspire keep",
+      "locked": true
+    },
+    {
+      "id": "brindle",
+      "name": "Brindle Farmlands",
+      "biome": "wheatfield",
+      "req": 3,
+      "danger": "safe",
+      "shape": {
+        "center": [
+          3,
+          3
+        ],
+        "radius": 3
+      },
+      "fixed": true,
+      "motif": "Amber wheat and hedgerows southeast of home \u00e2\u20ac\u201d the realm's granary, a windmill turning over the fields.",
+      "material": "ripe golden wheat",
+      "silhouette": "the Brindle windmill",
+      "locked": false,
+      "regen": [
+        "vegetation",
+        "resources"
+      ]
+    },
+    {
+      "id": "oakshade",
+      "name": "Oakshade Forest",
+      "biome": "forest",
+      "req": 6,
+      "danger": "low",
+      "shape": {
+        "center": [
+          -9,
+          4
+        ],
+        "radius": 4
+      },
+      "fixed": true,
+      "motif": "Deep broadleaf woods west of the vale \u00e2\u20ac\u201d clearings, corridors, a giant ancient oak, and a burrow that drops into the Molehollow.",
+      "material": "mossy oak and leaf litter",
+      "silhouette": "the Old Oak crown",
+      "locked": false,
+      "regen": [
+        "vegetation"
+      ]
+    },
+    {
+      "id": "saltport",
+      "name": "Saltport Coomb",
+      "biome": "beach",
+      "req": 5,
+      "danger": "low",
+      "shape": {
+        "center": [
+          4,
+          9
+        ],
+        "radius": 3
+      },
+      "fixed": true,
+      "motif": "A fishing town on the south coast \u00e2\u20ac\u201d docks, gulls, salt air, and a lighthouse that guides ships past the shoals.",
+      "material": "weathered planking and shingle",
+      "silhouette": "the Saltport lighthouse",
+      "locked": false,
+      "regen": [
+        "resources"
+      ]
+    },
+    {
+      "id": "stonewell",
+      "name": "Stonewell & the Northreach",
+      "biome": "rocky_hills",
+      "req": 14,
+      "danger": "medium",
+      "shape": {
+        "center": [
+          -2,
+          -9
+        ],
+        "radius": 4
+      },
+      "fixed": true,
+      "motif": "A mining town built into the grey Northreach foothills \u00e2\u20ac\u201d ore carts, a deep mine, and the mountain pass that gates the dangerous north.",
+      "material": "cracked granite and slate",
+      "silhouette": "the Northreach peaks",
+      "locked": false,
+      "regen": [
+        "resources"
+      ]
+    },
+    {
+      "id": "greywater",
+      "name": "Greywater Mire",
+      "biome": "swamp",
+      "req": 22,
+      "danger": "medium",
+      "shape": {
+        "center": [
+          10,
+          4
+        ],
+        "radius": 4
+      },
+      "fixed": true,
+      "motif": "A drowned fen east of the river \u00e2\u20ac\u201d black water, reeds, a witch's hut, and a flooded temple sunk in the mud.",
+      "material": "black water and reed",
+      "silhouette": "dead trees in standing fog",
+      "locked": false,
+      "regen": [
+        "vegetation",
+        "monsters"
+      ]
+    },
+    {
+      "id": "graymarch",
+      "name": "Graymarch Ruins",
+      "biome": "rocky_hills",
+      "req": 32,
+      "danger": "high",
+      "shape": {
+        "center": [
+          -4,
+          -15
+        ],
+        "radius": 4
+      },
+      "fixed": true,
+      "motif": "A shattered fortress beyond the mountain pass and the Broken Gate \u00e2\u20ac\u201d corrupted ground, toppled towers, and a beastlord stalking the rubble.",
+      "material": "cracked granite and ivy",
+      "silhouette": "the leaning Broken Spire",
+      "locked": true
+    },
+    {
+      "id": "cinderpeak",
+      "name": "Cinderpeak",
+      "biome": "volcanic",
+      "req": 60,
+      "danger": "elite",
+      "shape": {
+        "center": [
+          15,
+          -15
+        ],
+        "radius": 4
+      },
+      "fixed": true,
+      "motif": "A smoking volcano in the far northeast, visible from half the realm \u00e2\u20ac\u201d its crater holds an end-game terror.",
+      "material": "basalt and ember",
+      "silhouette": "the smoking Cinderpeak",
+      "locked": true
+    },
+    {
+      "id": "tanglewild",
+      "name": "The Tanglewild",
+      "biome": "jungle",
+      "req": 45,
+      "danger": "wilderness",
+      "shape": {
+        "center": [
+          14,
+          12
+        ],
+        "radius": 5
+      },
+      "fixed": false,
+      "motif": "The lawless southeastern jungle \u00e2\u20ac\u201d overgrown, ever-shifting, with few memorable ways in. High risk, high reward. (Stays procedural at runtime.)",
+      "material": "wet vine and rot",
+      "silhouette": "a wall of dark canopy",
+      "locked": false,
+      "regen": [
+        "vegetation",
+        "monsters"
+      ]
+    }
+  ],
+  "anchors": [
+    {
+      "id": "aldspire",
+      "poi": "capital_city",
+      "label": "Aldspire",
+      "chunk": [
+        -5,
+        -2
+      ],
+      "region": "aldspire",
+      "teleport": true,
+      "locked": true
+    },
+    {
+      "id": "graymarch_keep",
+      "poi": "great_ruins",
+      "label": "Graymarch Ruins",
+      "chunk": [
+        -4,
+        -15
+      ],
+      "region": "graymarch",
+      "boss": "Amaruq",
+      "locked": true
+    },
+    {
+      "id": "molehollow",
+      "poi": "mole_dungeon",
+      "label": "The Molehollow",
+      "chunk": [
+        -9,
+        4
+      ],
+      "region": "oakshade",
+      "boss": "Giant Mole",
+      "locked": true
+    }
+  ],
+  "settlements": [],
+  "roads": [],
+  "features": [],
+  "routes": [
+    {
+      "from": "spawn",
+      "to": "aldspire"
+    },
+    {
+      "from": "spawn",
+      "to": "graymarch_keep"
+    },
+    {
+      "from": "spawn",
+      "to": "molehollow"
+    }
+  ],
+  "relationships": [
+    {
+      "kind": "service_present",
+      "region": "greenhollow",
+      "service": "bank",
+      "why": "The beginner home must have a bank."
+    },
+    {
+      "kind": "service_present",
+      "region": "aldspire",
+      "service": "anvil",
+      "why": "Smithing belongs in the capital forge."
+    },
+    {
+      "kind": "reachable",
+      "from": "spawn",
+      "to": "aldspire",
+      "why": "Players must be able to walk home to the capital across Kingsbridge."
+    }
+  ]
+}

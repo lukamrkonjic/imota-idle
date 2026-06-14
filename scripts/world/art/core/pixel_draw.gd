@@ -2,11 +2,12 @@ extends RefCounted
 class_name PixelDraw
 
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
+const SilhouetteDraw := preload("res://scripts/world/art/core/silhouette_draw.gd")
+const ShadowProjector := preload("res://scripts/world/art/core/shadow_projector.gd")
 
 
 static func px_rect(canvas: CanvasItem, x: float, y: float, w: float, h: float, color: Color, alpha: float = 1.0) -> void:
-	var c := color
-	c.a *= alpha
+	var c := SilhouetteDraw.ink(color, alpha)
 	canvas.draw_rect(
 		Rect2(PixelPalette.snap(x), PixelPalette.snap(y),
 			maxf(PixelPalette.PX, PixelPalette.snap(w)),
@@ -29,8 +30,7 @@ static func px_blob(canvas: CanvasItem, cx: float, cy: float, rx: float, ry: flo
 
 
 static func px_diamond(canvas: CanvasItem, cx: float, cy: float, hw: float, hh: float, color: Color, alpha: float = 1.0) -> void:
-	var c := color
-	c.a *= alpha
+	var c := SilhouetteDraw.ink(color, alpha)
 	var pts := PackedVector2Array([
 		Vector2(PixelPalette.snap(cx), PixelPalette.snap(cy - hh)),
 		Vector2(PixelPalette.snap(cx + hw), PixelPalette.snap(cy)),
@@ -40,24 +40,38 @@ static func px_diamond(canvas: CanvasItem, cx: float, cy: float, hw: float, hh: 
 	canvas.draw_colored_polygon(pts, c)
 
 
-static func draw_foot_shadow(canvas: CanvasItem, radius_x: float, radius_y: float = 5.0, alpha: float = 0.3) -> void:
-	px_blob(canvas, 0.0, PixelPalette.snap(radius_y * 0.6), radius_x, radius_y, PixelPalette.pal("shadow"), alpha)
+# --- Directional ground shadows -------------------------------------------
+# These three helpers are the whole game's shadow API: every prop, character,
+# tree and structure casts through one of them, so routing them through the
+# shared ShadowProjector/WorldLighting gives the entire world ONE consistent,
+# directional, pixel-snapped, desaturated sun. The per-call `alpha` is now only
+# a RELATIVE weight (vs each helper's baseline); the master strength lives in
+# WorldLighting.shadow_opacity. `height` drives the shadow's length.
+
+## Generic prop/structure shadow — one tapering directional blade + contact.
+static func draw_foot_shadow(canvas: CanvasItem, radius_x: float, radius_y: float = 5.0, alpha: float = 0.3, height: float = -1.0) -> void:
+	if SilhouetteDraw.skip_shadows():
+		return
+	var h := height if height >= 0.0 else radius_x * 1.2
+	var scale := clampf(alpha / 0.3, 0.5, 1.4)
+	ShadowProjector.cast_blade(canvas, radius_x, maxf(radius_x * 0.3, 2.0), h, scale)
 
 
-## Compact ground contact shadow for characters — thin, tight, and darker than
-## draw_foot_shadow so sprites read punchier against terrain.
-static func draw_tight_character_shadow(canvas: CanvasItem, half_width: float, y: float = 4.0, alpha: float = 0.58) -> void:
-	var sh := PixelPalette.pal("shadow")
-	var px := float(PixelPalette.PX)
-	var ox := px * 0.35
-	var hw := maxf(half_width, px * 2.5)
-	px_blob(canvas, ox, y, hw * 0.64, px * 0.9, sh, alpha)
-	px_blob(canvas, ox + px * 0.25, y + px * 0.35, hw * 0.40, px * 0.55, sh, minf(alpha * 1.12, 1.0))
-	px_row(canvas, ox + px * 0.5, y + px * 0.65, hw * 0.52, sh, alpha * 0.72)
+## Character/creature shadow — short subtle blade anchored at the feet.
+static func draw_tight_character_shadow(canvas: CanvasItem, half_width: float, _y: float = 4.0, alpha: float = 0.58, height: float = -1.0) -> void:
+	if SilhouetteDraw.skip_shadows():
+		return
+	var h := height if height >= 0.0 else half_width * 2.0
+	var scale := clampf(alpha / 0.58, 0.5, 1.2)
+	ShadowProjector.cast_blade(canvas, half_width * 0.85, half_width * 0.4, h, scale)
 
 
+## Tree/vegetation shadow — narrow trunk blade + broad canopy disc + contact.
 static func draw_tree_shadow(canvas: CanvasItem, radius_x: float, alpha: float = 0.22) -> void:
-	px_blob(canvas, 0.0, 6.0, radius_x * 0.88, radius_x * 0.26, PixelPalette.pal("shadow"), alpha)
+	if SilhouetteDraw.skip_shadows():
+		return
+	var scale := clampf(alpha / 0.22, 0.5, 1.4)
+	ShadowProjector.cast_tree(canvas, radius_x * 0.45, radius_x * 1.1, radius_x * 3.0, scale)
 
 
 static func draw_ellipse(canvas: CanvasItem, cx: float, cy: float, rx: float, ry: float, color: Color) -> void:
@@ -67,6 +81,9 @@ static func draw_ellipse(canvas: CanvasItem, cx: float, cy: float, rx: float, ry
 
 
 static func draw_foliage_clump(canvas: CanvasItem, cx: float, cy: float, rx: float, ry: float, color: Color) -> void:
+	if SilhouetteDraw.active:
+		px_blob(canvas, cx, cy, rx, ry, color, 0.95)
+		return
 	var hi := PixelPalette.shade(color, 1.28)
 	var lo := PixelPalette.shade(color, 0.68)
 	px_blob(canvas, cx, cy, rx, ry, color)

@@ -1,4 +1,4 @@
-﻿# Imota
+# Imota
 
 OSRS-inspired semi-idle incremental RPG in Godot 4, with systems and numbers
 recreated from the Bloobs Adventure Idle data export.
@@ -7,13 +7,13 @@ recreated from the Bloobs Adventure Idle data export.
 
 ```powershell
 # Play
-C:\Dev\Godot\Godot_v4.6.3-stable_win64.exe --path C:\Dev\imota-idle
+C:\Dev\Godot\Godot_v4.6.3-stable_win64.exe --path C:\Dev\bloobs-godot
 
 # Re-import game data from the export (writes res://data/*.json)
-C:\Dev\Godot\Godot_v4.6.3-stable_win64_console.exe --headless --path C:\Dev\imota-idle --script res://tools/import_bloobs_data.gd
+C:\Dev\Godot\Godot_v4.6.3-stable_win64_console.exe --headless --path C:\Dev\bloobs-godot --script res://tools/import_bloobs_data.gd
 
-# Headless test suite (~130 checks: data, gathering, combat, crafting, save migration, worldgen, scene)
-C:\Dev\Godot\Godot_v4.6.3-stable_win64_console.exe --headless --path C:\Dev\imota-idle res://tools/validate.tscn
+# Headless test suite (49 checks across data, gathering, combat, crafting, save, UI)
+C:\Dev\Godot\Godot_v4.6.3-stable_win64_console.exe --headless --path C:\Dev\bloobs-godot res://tools/validate.tscn
 ```
 
 ## Architecture
@@ -22,12 +22,12 @@ One simulation layer, dumb UI. Autoload singletons:
 
 | Autoload | Role |
 |----------|------|
-| `EventBus` | Signals (XP, loot, combat log, activity) â€” the UI only listens |
+| `EventBus` | Signals (XP, loot, combat log, activity) — the UI only listens |
 | `DataRegistry` | Loads `res://data/*.json`; indexes 1,803 items, 118 enemies, 775 recipes, 167 gather nodes, XP table to level 1000 |
 | `GameState` | Skill XP/levels, inventory (24 slots), bank, equipment, gold, HP |
 | `TickSim` | Gathering loop (deltaTime timer; tool power damages node, award per 100) |
 | `CombatSim` | Continuous combat (3s player attacks, enemy cooldowns from bestiary, drops, respawn) |
-| `RecipeSim` | Production crafting (inputs â†’ timer â†’ output + XP, auto-repeat) |
+| `RecipeSim` | Production crafting (inputs → timer → output + XP, auto-repeat) |
 | `SaveManager` | `user://save.json`, 30s autosave, offline progress (12h cap) |
 
 `scenes/world.tscn` + `scripts/world/world.gd` + `scripts/ui/osrs_hud.gd` are the
@@ -44,11 +44,11 @@ Formula provenance and the few unrecoverable values are documented in
 
 ## Status
 
-- Phases 0â€“3 complete (data import, gathering, combat, crafting, full UI, save/load).
+- Phases 0–3 complete (data import, gathering, combat, crafting, full UI, save/load).
 - Phase 4 mostly complete: all gather nodes / enemies / production recipes wired,
   tool shop, food eating, offline progress. Remaining: challenges, pets, crops,
   thieving, tracking panels.
 - Phase 5 complete: 2D overworld in the Aldenfall art style with click-to-walk,
   sectored entity placement (camp plaza, gather sectors, enemies east, lake in
-  the fishing sector), and OSRS-style HUD. Same sims as the Melvor UI â€”
+  the fishing sector), and OSRS-style HUD. Same sims as the Melvor UI —
   `scenes/main.tscn` remains for headless UI smoke tests.

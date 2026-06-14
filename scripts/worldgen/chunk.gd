@@ -15,13 +15,19 @@ var layer: int = 0
 var cx: int = 0
 var cy: int = 0
 var tiles := PackedByteArray()    # tile byte ids, CHUNK_TILES^2, row-major
-var biomes_t := PackedByteArray() # biome index per tile (255 in caves)
-var elev_t := PackedByteArray()   # elevation level 0..7 per tile (0 in caves)
+var biomes_t := PackedByteArray() # effective biome index per tile (sub or parent)
+var parent_biomes_t := PackedByteArray()
+var sub_biomes_t := PackedByteArray() # 255 = none
+var collision := PackedByteArray() # 1 = blocked by a solid structure (entities don't
+                                   # block tiles by themselves); water/walls already
+                                   # block via tile flags. Derived from `structures`.
 var zone: Dictionary = {}
 var safe := false                 # campsite/village chunk: no monster spawns
 var sites: Array = []
 var pois: Array = []
 var monsters: Array = []
+var structures: Array = []  # loose entity parts from multi-chunk megastructures
+                            # (cities/ruins); same shape as poi parts, abs tx/ty
 
 
 func setup(p_layer: int, p_cx: int, p_cy: int) -> void:
@@ -30,17 +36,22 @@ func setup(p_layer: int, p_cx: int, p_cy: int) -> void:
 	cy = p_cy
 	tiles.resize(WG.CHUNK_TILES * WG.CHUNK_TILES)
 	biomes_t.resize(WG.CHUNK_TILES * WG.CHUNK_TILES)
+	parent_biomes_t.resize(WG.CHUNK_TILES * WG.CHUNK_TILES)
+	sub_biomes_t.resize(WG.CHUNK_TILES * WG.CHUNK_TILES)
+	collision.resize(WG.CHUNK_TILES * WG.CHUNK_TILES)
 	biomes_t.fill(255)
-	elev_t.resize(WG.CHUNK_TILES * WG.CHUNK_TILES)
+	parent_biomes_t.fill(255)
+	sub_biomes_t.fill(255)
+	collision.fill(0)
 
 
 func key() -> String:
 	return WG.key(layer, cx, cy)
 
 
-## World-space pixel position of the chunk's top-left corner.
+## World-space top-left of the chunk's isometric bounding box.
 func origin() -> Vector2:
-	return Vector2(float(cx) * WG.CHUNK_SIZE, float(cy) * WG.CHUNK_SIZE)
+	return WG.chunk_aabb(cx, cy).position
 
 
 static func idx(tx: int, ty: int) -> int:
@@ -55,8 +66,19 @@ func biome_at(tx: int, ty: int) -> int:
 	return biomes_t[idx(tx, ty)]
 
 
-func elev_at(tx: int, ty: int) -> int:
-	return elev_t[idx(tx, ty)]
+func parent_biome_at(tx: int, ty: int) -> int:
+	return parent_biomes_t[idx(tx, ty)]
+
+
+func sub_biome_at(tx: int, ty: int) -> int:
+	return sub_biomes_t[idx(tx, ty)]
+
+
+## True when a solid structure occupies this tile (in addition to tile-based
+## walkability, which already blocks water/walls/hazards).
+func is_blocked(tx: int, ty: int) -> bool:
+	var i := idx(tx, ty)
+	return i < collision.size() and collision[i] != 0
 
 
 ## Global tile coords of a local tile.

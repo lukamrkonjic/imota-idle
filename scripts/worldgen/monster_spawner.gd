@@ -72,10 +72,12 @@ func _pick_monster(chunk: RefCounted, tile: Vector2i, req: int, salt: int) -> Di
 	var lvl_min := maxf(1.0, float(req) * band_low)
 	var lvl_max := maxf(3.0, float(req) * band_high)
 	var biome_id := ""
+	var parent_id := ""
 	if chunk.layer == 0:
 		var b_idx: int = chunk.biome_at(tile.x, tile.y)
 		if b_idx != 255:
 			biome_id = str(reg.biomes[b_idx]["id"])
+			parent_id = reg.parent_biome_id(b_idx)
 	var fitting: Array = []
 	var weights: Array = []
 	var total := 0.0
@@ -86,9 +88,14 @@ func _pick_monster(chunk: RefCounted, tile: Vector2i, req: int, salt: int) -> Di
 		var lvl := float(m["level"])
 		if lvl < lvl_min or lvl > lvl_max:
 			continue
-		var ok := Array(m["biomes"]).has(biome_id) if chunk.layer == 0 \
-			else Array(m["cave_layers"]).has(chunk.layer)
-		if not ok:
+		if chunk.layer == 0:
+			var ok_biome := Array(m["biomes"]).has(biome_id) or Array(m["biomes"]).has(parent_id)
+			if not ok_biome:
+				continue
+			var forbidden: Array = m.get("forbiddenBiomes", [])
+			if forbidden.has(biome_id) or forbidden.has(parent_id):
+				continue
+		elif not Array(m["cave_layers"]).has(chunk.layer):
 			continue
 		var w := 1.0 / (1.0 + absf(float(req) * 0.85 - lvl) * 0.1)
 		fitting.append(m)

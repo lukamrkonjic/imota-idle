@@ -5,9 +5,7 @@
     "  'cell'   one POI per cellChunks x cellChunks region of chunks, at a",
     "           seed-jittered chunk (optionally gated by 'chance' 0..1);",
     "  'zone'   one per Voronoi level zone, in the zone's center chunk;",
-    "  'chance' independent per-chunk roll;",
-    "  'anchor' never rolls randomly — placed only when anchor_planner.gd",
-    "           assigns this POI to a chunk (see data/world/anchors.json).",
+    "  'chance' independent per-chunk roll.",
     "biomes: optional whitelist (omit = any land biome). minTier: minimum zone",
     "level requirement for the POI to appear.",
     "parts: entities placed around the anchor tile. dx/dy are tile offsets.",
@@ -24,233 +22,520 @@
   ],
   "pois": {
     "campsite": {
-      "placement": { "mode": "cell", "cellChunks": 5 },
-      "label": "Campsite", "safe": true, "respawn": true,
+      "placement": {
+        "mode": "cell",
+        "cellChunks": 5
+      },
+      "label": "Campsite",
+      "safe": true,
+      "respawn": true,
       "minimapColor": "ffd84a",
       "parts": [
-        { "kind": "campfire", "station": "campfire", "label": "Campfire", "dx": 0, "dy": 0 },
-        { "kind": "chest", "station": "bank", "label": "Bank Chest", "dx": -2, "dy": 1 },
-        { "kind": "tent", "station": "crafting", "label": "Crafting Tent", "dx": 2, "dy": -1, "color": "6A4A8A" },
-        { "kind": "tent", "station": "fletching", "label": "Fletching Tent", "dx": 2, "dy": 1, "color": "3A6A4A" },
-        { "kind": "sign", "station": "shop", "label": "Camp Shop", "dx": -2, "dy": -1 }
+        {
+          "kind": "campfire",
+          "station": "campfire",
+          "label": "Campfire",
+          "dx": 0,
+          "dy": 0
+        },
+        {
+          "kind": "chest",
+          "station": "bank",
+          "label": "Bank Chest",
+          "dx": -2,
+          "dy": 1
+        },
+        {
+          "kind": "tent",
+          "station": "crafting",
+          "label": "Crafting Tent",
+          "dx": 2,
+          "dy": -1,
+          "color": "6A4A8A"
+        },
+        {
+          "kind": "tent",
+          "station": "fletching",
+          "label": "Fletching Tent",
+          "dx": 2,
+          "dy": 1,
+          "color": "3A6A4A"
+        },
+        {
+          "kind": "sign",
+          "station": "shop",
+          "label": "Camp Shop",
+          "dx": -2,
+          "dy": -1
+        }
       ]
     },
     "village": {
-      "placement": { "mode": "zone" },
-      "label": "Village", "safe": true,
-      "biomes": ["plains", "forest", "desert", "tundra", "beach"],
+      "placement": {
+        "mode": "zone"
+      },
+      "label": "Village",
+      "safe": true,
+      "biomes": [
+        "plains",
+        "forest",
+        "desert",
+        "tundra",
+        "beach"
+      ],
       "minimapColor": "ff9a3a",
       "parts": [
-        { "kind": "chest", "station": "bank", "label": "Bank Chest", "dx": -3, "dy": 0 },
-        { "kind": "sign", "station": "shop", "label": "Tool Shop", "dx": 3, "dy": 0 },
-        { "kind": "anvil", "station": "anvil", "label": "Anvil", "dx": 0, "dy": -2 },
-        { "kind": "campfire", "station": "range", "label": "Cooking Range", "dx": 0, "dy": 2 },
-        { "kind": "tent", "station": "herbology", "label": "Herbalist Tent", "dx": -2, "dy": -2, "color": "4A7A3A" },
-        { "kind": "tent", "station": "imbuing", "label": "Imbuing Tent", "dx": 2, "dy": -2, "color": "4A4A9A" },
-        { "kind": "tent", "station": "devotion", "label": "Devotion Tent", "dx": -2, "dy": 2, "color": "B8B0A0" },
-        { "kind": "stall", "hook": "thieving", "label": "Market Stall", "hookMessage": "Thieving from stalls is coming soon.", "dx": 2, "dy": 2 },
-        { "kind": "tent", "label": "Villager Tent", "dx": 4, "dy": -1, "color": "8A6848" },
-        { "kind": "tent", "label": "Villager Tent", "dx": -4, "dy": 1, "color": "486898" }
+        {
+          "kind": "chest",
+          "station": "bank",
+          "label": "Bank Chest",
+          "dx": -3,
+          "dy": 0
+        },
+        {
+          "kind": "sign",
+          "station": "shop",
+          "label": "Tool Shop",
+          "dx": 3,
+          "dy": 0
+        },
+        {
+          "kind": "anvil",
+          "station": "anvil",
+          "label": "Anvil",
+          "dx": 0,
+          "dy": -2
+        },
+        {
+          "kind": "campfire",
+          "station": "range",
+          "label": "Cooking Range",
+          "dx": 0,
+          "dy": 2
+        },
+        {
+          "kind": "tent",
+          "station": "herbology",
+          "label": "Herbalist Tent",
+          "dx": -2,
+          "dy": -2,
+          "color": "4A7A3A"
+        },
+        {
+          "kind": "tent",
+          "station": "imbuing",
+          "label": "Imbuing Tent",
+          "dx": 2,
+          "dy": -2,
+          "color": "4A4A9A"
+        },
+        {
+          "kind": "tent",
+          "station": "devotion",
+          "label": "Devotion Tent",
+          "dx": -2,
+          "dy": 2,
+          "color": "B8B0A0"
+        },
+        {
+          "kind": "stall",
+          "hook": "thieving",
+          "label": "Market Stall",
+          "hookMessage": "Thieving from stalls is coming soon.",
+          "dx": 2,
+          "dy": 2
+        },
+        {
+          "kind": "tent",
+          "label": "Villager Tent",
+          "dx": 4,
+          "dy": -1,
+          "color": "8A6848"
+        },
+        {
+          "kind": "tent",
+          "label": "Villager Tent",
+          "dx": -4,
+          "dy": 1,
+          "color": "486898"
+        }
       ]
     },
     "cave_entrance": {
-      "placement": { "mode": "chance", "chance": 0.08 },
+      "placement": {
+        "mode": "chance",
+        "chance": 0.08
+      },
       "label": "Cave Entrance",
-      "biomes": ["rocky_hills", "volcanic", "tundra", "forest", "plains", "desert"],
+      "biomes": [
+        "rocky_hills",
+        "volcanic",
+        "tundra",
+        "forest",
+        "plains",
+        "desert"
+      ],
       "minimapColor": "707078",
-      "parts": [ { "kind": "cave", "label": "Cave Entrance", "dx": 0, "dy": 0 } ]
+      "parts": [
+        {
+          "kind": "cave",
+          "label": "Cave Entrance",
+          "dx": 0,
+          "dy": 0
+        }
+      ]
     },
     "altar": {
-      "placement": { "mode": "chance", "chance": 0.045 },
+      "placement": {
+        "mode": "chance",
+        "chance": 0.045
+      },
       "label": "Ancient Altar",
       "minimapColor": "b08ae0",
-      "parts": [ { "kind": "altar", "station": "altar", "label": "Ancient Altar", "dx": 0, "dy": 0 } ]
+      "parts": [
+        {
+          "kind": "altar",
+          "station": "altar",
+          "label": "Ancient Altar",
+          "dx": 0,
+          "dy": 0
+        }
+      ]
     },
     "soul_shrine": {
-      "placement": { "mode": "cell", "cellChunks": 9, "chance": 0.8 },
-      "label": "Soul Shrine", "minTier": 20,
+      "placement": {
+        "mode": "cell",
+        "cellChunks": 9,
+        "chance": 0.8
+      },
+      "label": "Soul Shrine",
+      "minTier": 20,
       "minimapColor": "8ae0d8",
-      "parts": [ { "kind": "altar", "station": "soul_altar", "label": "Soul Shrine", "dx": 0, "dy": 0, "color": "40C0B0" } ]
+      "parts": [
+        {
+          "kind": "altar",
+          "station": "soul_altar",
+          "label": "Soul Shrine",
+          "dx": 0,
+          "dy": 0,
+          "color": "40C0B0"
+        }
+      ]
     },
     "resource_depot": {
-      "placement": { "mode": "chance", "chance": 0.05 },
+      "placement": {
+        "mode": "chance",
+        "chance": 0.05
+      },
       "label": "Resource Depot",
       "clusterSites": 5,
       "minimapColor": "c0e040",
       "parts": []
     },
     "fishing_hotspot": {
-      "placement": { "mode": "chance", "chance": 0.06 },
+      "placement": {
+        "mode": "chance",
+        "chance": 0.06
+      },
       "label": "Fishing Hotspot",
-      "clusterSites": 4, "clusterSkill": "fishing", "needsWater": true,
+      "clusterSites": 4,
+      "clusterSkill": "fishing",
+      "needsWater": true,
       "minimapColor": "5ab4f0",
       "parts": []
     },
     "obelisk": {
-      "placement": { "mode": "cell", "cellChunks": 8 },
+      "placement": {
+        "mode": "cell",
+        "cellChunks": 8
+      },
       "label": "Teleport Obelisk",
       "minimapColor": "e060e0",
-      "parts": [ { "kind": "obelisk", "label": "Teleport Obelisk", "dx": 0, "dy": 0 } ]
+      "parts": [
+        {
+          "kind": "obelisk",
+          "label": "Teleport Obelisk",
+          "dx": 0,
+          "dy": 0
+        }
+      ]
     },
     "boss_lair": {
-      "placement": { "mode": "cell", "cellChunks": 6, "chance": 0.7 },
-      "label": "Boss Lair", "minTier": 5,
+      "placement": {
+        "mode": "cell",
+        "cellChunks": 6,
+        "chance": 0.7
+      },
+      "label": "Boss Lair",
+      "minTier": 5,
       "minimapColor": "ff4040",
-      "parts": [ { "kind": "enemy", "boss": true, "dx": 0, "dy": 0 } ]
+      "parts": [
+        {
+          "kind": "enemy",
+          "boss": true,
+          "dx": 0,
+          "dy": 0
+        }
+      ]
     },
     "trap_site": {
-      "placement": { "mode": "chance", "chance": 0.04 },
+      "placement": {
+        "mode": "chance",
+        "chance": 0.04
+      },
       "label": "Burrow",
-      "biomes": ["plains", "forest", "tundra", "desert"],
+      "biomes": [
+        "plains",
+        "forest",
+        "tundra",
+        "desert"
+      ],
       "minimapColor": "c89058",
-      "parts": [ { "kind": "stall", "hook": "tracking", "label": "Animal Burrow", "hookMessage": "Tracking and trapping are coming soon.", "dx": 0, "dy": 0 } ]
-    },
-    "hub_forest_camp": {
-      "placement": { "mode": "anchor" },
-      "label": "Logger's Camp", "safe": true,
-      "minimapColor": "6fae4a",
       "parts": [
-        { "kind": "sign", "label": "Logger's Camp", "dx": 0, "dy": 0 },
-        { "kind": "tent", "label": "Logger Tent", "dx": -2, "dy": 1, "color": "5A7A3A" },
-        { "kind": "campfire", "station": "campfire", "label": "Campfire", "dx": 2, "dy": 1 },
-        { "kind": "chest", "station": "bank", "label": "Bank Chest", "dx": 0, "dy": 2 }
-      ]
-    },
-    "hub_mining_camp": {
-      "placement": { "mode": "anchor" },
-      "label": "Prospector's Rest", "safe": true,
-      "minimapColor": "b0a890",
-      "parts": [
-        { "kind": "sign", "label": "Prospector's Rest", "dx": 0, "dy": 0 },
-        { "kind": "tent", "label": "Prospector Tent", "dx": -2, "dy": 1, "color": "8A7848" },
-        { "kind": "anvil", "station": "anvil", "label": "Anvil", "dx": 2, "dy": 1 },
-        { "kind": "chest", "station": "bank", "label": "Bank Chest", "dx": 0, "dy": 2 }
-      ]
-    },
-    "hub_fishing_camp": {
-      "placement": { "mode": "anchor" },
-      "label": "Netter's Dock", "safe": true,
-      "minimapColor": "5ab4f0",
-      "parts": [
-        { "kind": "sign", "label": "Netter's Dock", "dx": 0, "dy": 0 },
-        { "kind": "tent", "label": "Netter Tent", "dx": -2, "dy": 1, "color": "486898" },
-        { "kind": "campfire", "station": "range", "label": "Cooking Range", "dx": 2, "dy": 1 },
-        { "kind": "chest", "station": "bank", "label": "Bank Chest", "dx": 0, "dy": 2 }
-      ]
-    },
-    "hub_outpost": {
-      "placement": { "mode": "anchor" },
-      "label": "Frontier Outpost", "safe": true,
-      "minimapColor": "e0c060",
-      "parts": [
-        { "kind": "sign", "label": "Frontier Outpost", "dx": 0, "dy": 0 },
-        { "kind": "tent", "label": "Outpost Tent", "dx": -2, "dy": 1, "color": "705858" },
-        { "kind": "lantern", "label": "Lantern", "dx": 2, "dy": 0 },
-        { "kind": "chest", "station": "bank", "label": "Bank Chest", "dx": 0, "dy": 2 }
-      ]
-    },
-    "ruined_tower": {
-      "placement": { "mode": "chance", "chance": 0.05 },
-      "label": "Crumbled Tower",
-      "biomes": ["plains", "forest", "rocky_hills", "desert"],
-      "minimapColor": "c8c8d0",
-      "clusterSites": 3, "clusterSkill": "foraging",
-      "parts": [
-        { "kind": "ruin_tower", "label": "Crumbled Tower", "dx": 0, "dy": 0 },
-        { "kind": "ruin_wall", "label": "Broken Wall", "dx": 3, "dy": 1 },
-        { "kind": "ruin_pillar", "label": "Toppled Pillar", "dx": -3, "dy": 2 }
-      ]
-    },
-    "standing_stones": {
-      "placement": { "mode": "chance", "chance": 0.04 },
-      "label": "Standing Stones",
-      "biomes": ["plains", "forest", "tundra"],
-      "minimapColor": "b8c0c8",
-      "parts": [
-        { "kind": "ruin_stone", "label": "Standing Stone", "dx": 0, "dy": -2 },
-        { "kind": "ruin_stone", "label": "Standing Stone", "dx": -2, "dy": 1 },
-        { "kind": "ruin_stone", "label": "Standing Stone", "dx": 2, "dy": 1 },
-        { "kind": "ruin_pillar", "label": "Fallen Altar Stone", "dx": 0, "dy": 0 }
-      ]
-    },
-    "sunken_ruin": {
-      "placement": { "mode": "chance", "chance": 0.06 },
-      "label": "Sunken Ruin",
-      "biomes": ["swamp"],
-      "minimapColor": "8a9a88",
-      "clusterSites": 3, "clusterSkill": "fishing",
-      "parts": [
-        { "kind": "ruin_pillar", "label": "Sunken Pillar", "dx": 0, "dy": 0 },
-        { "kind": "ruin_wall", "label": "Drowned Wall", "dx": 2, "dy": 1 },
-        { "kind": "ruin_stone", "label": "Mossy Stone", "dx": -2, "dy": 0 }
-      ]
-    },
-    "abandoned_camp": {
-      "placement": { "mode": "chance", "chance": 0.04 },
-      "label": "Abandoned Camp",
-      "biomes": ["forest", "dense_forest", "tundra"],
-      "minimapColor": "8a8478",
-      "parts": [
-        { "kind": "tent", "label": "Torn Tent", "dx": 0, "dy": 0, "color": "5A564E" },
-        { "kind": "chest", "hook": "ruins", "label": "Looted Chest", "hookMessage": "The chest has already been picked clean.", "dx": 2, "dy": 1 },
-        { "kind": "sign", "label": "Abandoned Camp", "dx": -2, "dy": 0 }
+        {
+          "kind": "stall",
+          "hook": "tracking",
+          "label": "Animal Burrow",
+          "hookMessage": "Tracking and trapping are coming soon.",
+          "dx": 0,
+          "dy": 0
+        }
       ]
     },
     "landmark": {
-      "placement": { "mode": "cell", "cellChunks": 7, "chance": 0.5 },
+      "placement": {
+        "mode": "cell",
+        "cellChunks": 7,
+        "chance": 0.5
+      },
       "label": "Landmark",
       "minimapColor": "ffffff",
       "variants": [
-        { "id": "ancient_tree", "label": "Giant Ancient Tree", "kind": "landmark_tree", "biomes": ["forest", "dense_forest", "plains"] },
-        { "id": "meteor", "label": "Crashed Meteor", "kind": "meteor", "biomes": ["plains", "desert", "volcanic", "rocky_hills"] },
-        { "id": "frozen_mammoth", "label": "Frozen Mammoth", "kind": "mammoth", "biomes": ["tundra"] }
+        {
+          "id": "ancient_tree",
+          "label": "Giant Ancient Tree",
+          "kind": "landmark_tree",
+          "biomes": [
+            "forest",
+            "dense_forest",
+            "plains"
+          ]
+        },
+        {
+          "id": "meteor",
+          "label": "Crashed Meteor",
+          "kind": "meteor",
+          "biomes": [
+            "plains",
+            "desert",
+            "volcanic",
+            "rocky_hills"
+          ]
+        },
+        {
+          "id": "frozen_mammoth",
+          "label": "Frozen Mammoth",
+          "kind": "mammoth",
+          "biomes": [
+            "tundra"
+          ]
+        }
       ]
     },
     "capital_city": {
-      "placement": { "mode": "anchor" },
-      "label": "Capital City", "safe": true,
+      "_note": "Authored anchor for a sprawling, multi-chunk walled city. The 'mega' block drives scripts/worldgen/structure_planner.gd, which lays winding avenues + a ring road, an organic rampart with gates/towers, a plaza fountain, and big halls (6-9 tiles wide) spaced along the streets with their crafting stations out front. The POI itself only pins the Crown Obelisk (teleport) at the centre.",
+      "placement": {
+        "mode": "anchor"
+      },
+      "label": "Kingsreach",
+      "safe": true,
       "minimapColor": "ffd24a",
+      "mega": {
+        "kind": "city",
+        "radius": 52,
+        "maxBuildings": 40,
+        "services": [
+          {
+            "station": "bank",
+            "label": "Royal Bank"
+          },
+          {
+            "station": "anvil",
+            "label": "Royal Forge"
+          },
+          {
+            "station": "shop",
+            "label": "Grand Bazaar"
+          },
+          {
+            "station": "range",
+            "label": "Palace Kitchen"
+          },
+          {
+            "station": "crafting",
+            "label": "Artisan Hall"
+          },
+          {
+            "station": "herbology",
+            "label": "Royal Herbalist"
+          },
+          {
+            "station": "fletching",
+            "label": "Bowyer"
+          },
+          {
+            "station": "imbuing",
+            "label": "Court Enchanter"
+          }
+        ]
+      },
       "parts": [
-        { "kind": "sign", "label": "City Gate", "dx": 0, "dy": 4 },
-        { "kind": "obelisk", "label": "Crown Obelisk", "dx": 0, "dy": -4 },
-        { "kind": "chest", "station": "bank", "label": "Royal Bank", "dx": -3, "dy": 0 },
-        { "kind": "sign", "station": "shop", "label": "Royal Exchange", "dx": 3, "dy": 0 },
-        { "kind": "anvil", "station": "anvil", "label": "Royal Forge", "dx": -1, "dy": -2 },
-        { "kind": "campfire", "station": "range", "label": "Royal Kitchens", "dx": 1, "dy": -2 },
-        { "kind": "tent", "station": "herbology", "label": "Court Apothecary", "dx": -3, "dy": -2, "color": "4A7A3A" },
-        { "kind": "tent", "station": "imbuing", "label": "Enchanter's Hall", "dx": 3, "dy": -2, "color": "4A4A9A" },
-        { "kind": "tent", "station": "crafting", "label": "Artisans' Row", "dx": -3, "dy": 2, "color": "6A4A8A" },
-        { "kind": "tent", "station": "fletching", "label": "Royal Bowyer", "dx": 3, "dy": 2, "color": "3A6A4A" },
-        { "kind": "stall", "hook": "thieving", "label": "Grand Market", "hookMessage": "Thieving from stalls is coming soon.", "dx": 0, "dy": 2 },
-        { "kind": "lantern", "label": "City Lantern", "dx": -1, "dy": 4 },
-        { "kind": "lantern", "label": "City Lantern", "dx": 1, "dy": 4 }
+        {
+          "kind": "obelisk",
+          "label": "Crown Obelisk",
+          "dx": 0,
+          "dy": 0
+        }
       ]
     },
     "great_ruins": {
-      "placement": { "mode": "anchor" },
+      "_note": "Authored-only landmark: a fallen monument guarded by a pinned beastmastery boss (see worldspec anchor 'boss').",
+      "placement": {
+        "mode": "anchor"
+      },
       "label": "Great Ruins",
-      "minimapColor": "c8c2b0",
-      "clusterSites": 3, "clusterSkill": "foraging",
+      "safe": false,
+      "minimapColor": "9a8c78",
       "parts": [
-        { "kind": "ruin_tower", "label": "Ruined Keep", "dx": 0, "dy": 0 },
-        { "kind": "ruin_wall", "label": "Shattered Rampart", "dx": 3, "dy": 1 },
-        { "kind": "ruin_wall", "label": "Shattered Rampart", "dx": -3, "dy": 1 },
-        { "kind": "ruin_pillar", "label": "Toppled Pillar", "dx": 3, "dy": -2 },
-        { "kind": "ruin_stone", "label": "Warden's Stone", "dx": -3, "dy": -2 },
-        { "kind": "sign", "label": "Beware: Beastmaster", "dx": 0, "dy": 4 },
-        { "kind": "enemy", "boss": true, "dx": 0, "dy": -3 }
+        {
+          "kind": "obelisk",
+          "label": "The Broken Spire",
+          "dx": 0,
+          "dy": 0
+        },
+        {
+          "kind": "altar",
+          "station": "altar",
+          "label": "Toppled Shrine",
+          "dx": -3,
+          "dy": 1,
+          "color": "8a8276"
+        },
+        {
+          "kind": "lantern",
+          "label": "Ruined Brazier",
+          "dx": -2,
+          "dy": -2,
+          "color": "c08040"
+        },
+        {
+          "kind": "lantern",
+          "label": "Ruined Brazier",
+          "dx": 2,
+          "dy": -2,
+          "color": "c08040"
+        },
+        {
+          "kind": "sign",
+          "label": "Beware the Beastmaster",
+          "dx": 0,
+          "dy": 3
+        },
+        {
+          "kind": "enemy",
+          "boss": true,
+          "dx": 3,
+          "dy": 0
+        }
       ]
     },
     "mole_dungeon": {
-      "placement": { "mode": "anchor" },
-      "label": "Burrow Dungeon",
-      "minimapColor": "8a6a48",
+      "_note": "Authored-only dungeon: a burrow entrance with a pinned boss roaming the surface mouth.",
+      "placement": {
+        "mode": "anchor"
+      },
+      "label": "Dungeon",
+      "safe": false,
+      "minimapColor": "b07a4a",
       "parts": [
-        { "kind": "cave", "label": "Burrow Entrance", "dx": 0, "dy": 0 },
-        { "kind": "sign", "label": "The Molehollow", "dx": 0, "dy": 3 },
-        { "kind": "ruin_stone", "label": "Spoil Heap", "dx": 3, "dy": 1 },
-        { "kind": "ruin_stone", "label": "Spoil Heap", "dx": -3, "dy": 1 },
-        { "kind": "enemy", "boss": true, "dx": 0, "dy": -3 }
+        {
+          "kind": "cave",
+          "label": "Burrow Entrance",
+          "dx": 0,
+          "dy": 0
+        },
+        {
+          "kind": "sign",
+          "label": "The Molehollow",
+          "dx": 0,
+          "dy": 2
+        },
+        {
+          "kind": "lantern",
+          "label": "Pit Lantern",
+          "dx": -2,
+          "dy": -1,
+          "color": "d0a050"
+        },
+        {
+          "kind": "lantern",
+          "label": "Pit Lantern",
+          "dx": 2,
+          "dy": -1,
+          "color": "d0a050"
+        },
+        {
+          "kind": "enemy",
+          "boss": true,
+          "dx": 3,
+          "dy": 1
+        }
+      ]
+    },
+    "ancient_ruins": {
+      "_note": "Procedural sprawling ruined-city field. The 'mega' block drives scripts/worldgen/structure_planner.gd: ruin centres are picked on a deterministic chunk-cell grid, then a multi-chunk StructurePlan scatters overgrown masonry (arches, toppled pillars/walls, statues, rubble) thickest at a flagstone heart and thinning outward, guarded by a boss. Unsafe \u00e2\u20ac\u201d monsters roam it. The 'parts' list is only used so the Admin menu can list/teleport to it.",
+      "placement": {
+        "mode": "chance",
+        "chance": 0.0
+      },
+      "label": "Ancient Ruins",
+      "safe": false,
+      "minimapColor": "8a8c70",
+      "mega": {
+        "kind": "ruins",
+        "radius": 34,
+        "cellChunks": 7,
+        "chance": 0.6,
+        "minDist": 40,
+        "biomes": [
+          "forest",
+          "dense_forest",
+          "grove",
+          "plains",
+          "flower_meadow",
+          "wheatfield",
+          "jungle",
+          "bamboo_thicket",
+          "savanna",
+          "savanna_scrub",
+          "badlands",
+          "thorn_waste",
+          "rocky_hills",
+          "rocky_clearing",
+          "swamp",
+          "bog",
+          "heather_moor",
+          "boreal_forest",
+          "lichen_field"
+        ]
+      },
+      "parts": [
+        {
+          "kind": "ruin_arch",
+          "label": "Ancient Ruins",
+          "dx": 0,
+          "dy": 0
+        }
       ]
     }
   }

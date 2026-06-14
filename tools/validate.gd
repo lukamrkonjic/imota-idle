@@ -29,7 +29,6 @@ func _ready() -> void:
 	await phase3_ui_smoke()
 	phase6_worldgen()
 	phase6_chunk_snapshots()
-	phase6_layout()
 	await phase5_world()
 	if failures == 0:
 		print("ALL TESTS PASSED")
@@ -322,18 +321,6 @@ func phase5_world() -> void:
 
 	var hud: CanvasLayer = world.get("hud")
 	check(hud != null, "OSRS HUD attached")
-
-	# Worldgen debug overlay: drive every mode's draw path once.
-	var overlay: Node2D = world.get_node_or_null("WorldgenDebug")
-	check(overlay != null, "worldgen debug overlay attached")
-	if overlay != null:
-		var overlay_modes: Array = overlay.get("MODES")
-		for m: int in overlay_modes.size():
-			overlay.set("mode", m)
-			overlay.queue_redraw()
-			await get_tree().process_frame
-		overlay.set("mode", 0)
-		check(true, "debug overlay draws all %d modes without errors" % overlay_modes.size())
 	var hover: Label = hud.get("hover_label")
 	check(hover.text == "Walk here", "default hover text")
 	var chat: RichTextLabel = hud.get("chat")
@@ -578,79 +565,4 @@ func phase6_chunk_snapshots() -> void:
 		"zone site_chunk is Vector2i after disk round-trip")
 	var respawn: Vector2 = WorldGen.spawn_position()
 	check(WorldGen.is_spawn_floor(respawn), "spawn_position works on snapshot-restored home chunk")
-	WorldGen.reset(WorldGen.DEFAULT_SEED)
-
-
-func phase6_layout() -> void:
-	print("== Phase 6c: elevation / anchors / roads ==")
-	var gen: RefCounted = WorldGen.generator
-
-	# Elevation: deterministic, in range, and chunk storage matches the field.
-	check(gen.elevation.level_at(10.0, 10.0) == gen.elevation.level_at(10.0, 10.0),
-		"elevation sampling is deterministic")
-	var home: RefCounted = WorldGen.get_chunk(0, 0, 0)
-	var in_range := true
-	for lvl: int in home.elev_t:
-		if lvl < 0 or lvl > 7:
-			in_range = false
-	check(in_range, "stored elevation levels are 0..7")
-	var c: int = 8
-	var center_lvl: int = home.elev_at(c, c)
-	check(center_lvl >= 2 and center_lvl <= 4, "home camp sits on low ground (got %d)" % center_lvl)
-	var probe: RefCounted = WorldGen.get_chunk(0, 3, 4)
-	var matches := true
-	for ty: int in 16:
-		for tx: int in 16:
-			var g: Vector2i = probe.global_tile(tx, ty)
-			if probe.elev_at(tx, ty) != int(gen.elevation.level_at(float(g.x), float(g.y))):
-				matches = false
-	check(matches, "stored chunk elevation matches the elevation field")
-
-	# Anchors: home cell is the starting town; hubs are planned and placeable.
-	var home_cell: Vector2i = gen.zone_map.home_cell()
-	var home_anchor: Dictionary = gen.anchors.anchor_for_cell(home_cell.x, home_cell.y)
-	check(str(home_anchor.get("id", "")) == "starting_town", "home cell hosts the starting town anchor")
-	var planned: Array = gen.anchors.planned_anchors()
-	check(planned.size() >= 3, "anchors planned near home (got %d)" % planned.size())
-	var hubs_placed := 0
-	var hubs_with_bank := 0
-	for a: Dictionary in planned:
-		var poi_type := str(a.get("poi", ""))
-		if poi_type.is_empty():
-			continue
-		var chunk_pos: Vector2i = a["chunk"]
-		var hub_chunk: RefCounted = WorldGen.get_chunk(0, chunk_pos.x, chunk_pos.y)
-		for poi: Dictionary in hub_chunk.pois:
-			if str(poi["type"]) == poi_type:
-				hubs_placed += 1
-				for part: Dictionary in poi["parts"]:
-					if str(part.get("station", "")) == "bank":
-						hubs_with_bank += 1
-				break
-	check(hubs_placed >= 1, "at least one hub POI placed at its planned chunk (got %d)" % hubs_placed)
-	check(hubs_with_bank >= 1, "a placed hub provides a bank chest for auto-banking")
-
-	# Roads: corridors exist and painted tiles are walkable land.
-	var segments: Array = gen.anchors.road_segments()
-	check(segments.size() >= 1, "road corridors planned from home (got %d)" % segments.size())
-	var road_tiles := 0
-	var road_walkable := true
-	var road_byte := int(WorldGen.reg.tile_index.get(
-		str(WorldGen.reg.gen_rules.get("roads", {}).get("tile", "dirt")), -1))
-	for dy: int in range(-1, 2):
-		for dx: int in range(-1, 2):
-			var rc: RefCounted = WorldGen.get_chunk(0, dx, dy)
-			for ty: int in 16:
-				for tx: int in 16:
-					var g: Vector2i = rc.global_tile(tx, ty)
-					if gen.anchors.road_byte_at(float(g.x), float(g.y)) < 0:
-						continue
-					if rc.tile_id(tx, ty) != road_byte:
-						continue
-					road_tiles += 1
-					var td: Dictionary = WorldGen.reg.tile_def(rc.tile_id(tx, ty))
-					if not td["walkable"] or td["water"]:
-						road_walkable = false
-	check(road_tiles > 4, "road tiles painted near home (got %d)" % road_tiles)
-	check(road_walkable, "road tiles are walkable land")
 	WorldGen.reset(WorldGen.DEFAULT_SEED)

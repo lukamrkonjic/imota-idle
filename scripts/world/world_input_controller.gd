@@ -2,8 +2,8 @@ extends RefCounted
 class_name WorldInputController
 ## Mouse clicks, zoom, and hover targeting.
 
-const ZOOM_MIN := 0.85
-const ZOOM_MAX := 1.8
+const ZOOM_MIN := 1.1
+const ZOOM_MAX := 2.4
 const ZOOM_STEP := 0.1
 
 var world: Node2D
@@ -14,6 +14,11 @@ func setup(w: Node2D) -> void:
 
 
 func handle_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F6:
+		if world.get("_biome_debug") != null:
+			world._biome_debug.call("toggle")
+			world.get_viewport().set_input_as_handled()
+		return
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			_set_zoom(world._camera.zoom.x + ZOOM_STEP)
@@ -55,6 +60,11 @@ func entity_at(world_pos: Vector2) -> Node2D:
 	var best: Node2D = null
 	var best_d := INF
 	for e: Node2D in world.entities:
+		# Only interactable entities are hover/click targets. Decorative props —
+		# walls, houses, ruined masonry, bridges, street clutter — carry an empty
+		# action, so they get no tooltip and clicks pass through to walk-here.
+		if Dictionary(e.get("action")).is_empty():
+			continue
 		var center: Vector2 = e.position - Vector2(0, e.icon_height() * 0.5)
 		var d := center.distance_to(world_pos)
 		if d < e.click_radius and d < best_d:

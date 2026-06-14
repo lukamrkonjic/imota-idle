@@ -10,6 +10,8 @@ const WG := preload("res://scripts/worldgen/wg.gd")
 const WorldRegistry := preload("res://scripts/worldgen/world_registry.gd")
 const WorldGenerator := preload("res://scripts/worldgen/world_generator.gd")
 const WorldStore := preload("res://scripts/worldgen/world_store.gd")
+const BakedWorldStore := preload("res://scripts/worldgen/baked_world_store.gd")
+const FishingHelper := preload("res://scripts/world/fishing_helper.gd")
 
 ## Sample seed: plains at the origin camp ("Green Timberland", level 1),
 ## forest to the north, a river and lake to the east of camp, and level ~6-11
@@ -19,6 +21,7 @@ const DEFAULT_SEED := 7
 var reg: RefCounted = WorldRegistry.new()
 var generator: RefCounted = WorldGenerator.new()
 var store: RefCounted = WorldStore.new()
+var baked: RefCounted = BakedWorldStore.new()
 
 var chunks: Dictionary = {}  # WG.key(layer,cx,cy) -> Chunk
 
@@ -30,6 +33,9 @@ func _ready() -> void:
 	reg.load_all()
 	store.load_file(DEFAULT_SEED)
 	generator.setup(reg, store.world_seed)
+	baked.setup(reg)
+	if reg.spec.active and reg.spec.finite:
+		baked.load_world(reg.spec.id)
 	_index_station_pois()
 
 
@@ -54,19 +60,52 @@ func get_chunk(layer: int, cx: int, cy: int) -> RefCounted:
 	var key := WG.key(layer, cx, cy)
 	if chunks.has(key):
 		return chunks[key]
-	var chunk: RefCounted = store.load_chunk_snapshot(layer, cx, cy)
+	var chunk: RefCounted = null
+	# In a finite authored world the BAKED data is authoritative — never let an
+	# old explored-chunk snapshot from a previous play session shadow it, or
+	# re-baked/editor-saved worlds wouldn't show up. (Player-made changes like
+	# depletions/obelisks are applied separately below.) Snapshots still serve
+	# caves and the non-finite procedural world.
+	var baked_here: bool = layer == 0 and reg.spec.active and reg.spec.finite \
+		and reg.spec.in_bounds(cx, cy) and not reg.spec.is_procedural_zone(cx, cy) and baked.has(cx, cy)
+	if not baked_here:
+		chunk = store.load_chunk_snapshot(layer, cx, cy)
 	if chunk == null:
-		var above: RefCounted = null
-		if layer < 0:
-			above = get_chunk(layer + 1, cx, cy)
-		chunk = generator.generate(layer, cx, cy, above)
+		chunk = _source_chunk(layer, cx, cy)
 	store.apply_to_chunk(chunk)
+	generator.placement_grid.register_chunk_pois(chunk)
 	chunks[key] = chunk
 	return chunk
 
 
+## Where a fresh chunk's data comes from. For the surface of a finite authored
+## world: open ocean beyond bounds, the generator for procedural zones, the
+## pre-baked fixed data otherwise. Caves and non-finite worlds keep generating.
+func _source_chunk(layer: int, cx: int, cy: int) -> RefCounted:
+	if layer == 0 and reg.spec.active and reg.spec.finite:
+		if not reg.spec.in_bounds(cx, cy):
+			return baked.ocean_chunk(cx, cy)
+		if reg.spec.is_procedural_zone(cx, cy):
+			return generator.generate(0, cx, cy)
+		if baked.has(cx, cy):
+			return baked.build_chunk(cx, cy)
+		# In bounds but not yet baked: fall back so the game runs before a bake.
+		return generator.generate(0, cx, cy)
+	var above: RefCounted = null
+	if layer < 0:
+		above = get_chunk(layer + 1, cx, cy)
+	return generator.generate(layer, cx, cy, above)
+
+
 ## Persist explored chunk data so generator changes cannot rewrite visited land.
 func snapshot_chunk_if_needed(chunk: RefCounted) -> void:
+	# Baked finite-world surface chunks are fixed/authored — don't snapshot them
+	# (the snapshot would later shadow a re-bake/editor save). Only procedural
+	# zones, caves and the non-finite world get explored-chunk snapshots.
+	if chunk.layer == 0 and reg.spec.active and reg.spec.finite \
+			and reg.spec.in_bounds(chunk.cx, chunk.cy) \
+			and not reg.spec.is_procedural_zone(chunk.cx, chunk.cy) and baked.has(chunk.cx, chunk.cy):
+		return
 	var key: String = chunk.key()
 	if store.has_chunk_snapshot(key):
 		return
@@ -88,18 +127,49 @@ func biome_id_at(world_pos: Vector2) -> String:
 	return str(reg.biomes[idx]["id"])
 
 
+func tile_debug_at(world_pos: Vector2, layer: int = 0) -> Dictionary:
+	var t: Vector2i = WG.world_to_tile(world_pos)
+	var c: Vector2i = WG.tile_to_chunk(t)
+	var chunk: RefCounted = get_chunk(layer, c.x, c.y)
+	var lx: int = t.x - c.x * WG.CHUNK_TILES
+	var ly: int = t.y - c.y * WG.CHUNK_TILES
+	if lx < 0 or ly < 0 or lx >= WG.CHUNK_TILES or ly >= WG.CHUNK_TILES:
+		return {}
+	var eff_idx: int = chunk.biome_at(lx, ly)
+	var parent_idx: int = chunk.parent_biome_at(lx, ly)
+	var sub_idx: int = chunk.sub_biome_at(lx, ly)
+	var tid: int = chunk.tile_id(lx, ly)
+	var td: Dictionary = reg.tile_def(tid) if tid >= 0 and tid < reg.tile_order.size() else {}
+	var zone: Dictionary = zone_at(world_pos)
+	var eff_id: String = "" if eff_idx == 255 else str(reg.biomes[eff_idx]["id"])
+	var parent_id: String = "" if parent_idx == 255 else str(reg.biomes[parent_idx]["id"])
+	var sub_id: String = ""
+	if sub_idx != 255:
+		sub_id = str(reg.biomes[sub_idx]["id"])
+	return {
+		"tile": t,
+		"tile_name": reg.tile_order[tid] if tid >= 0 and tid < reg.tile_order.size() else "?",
+		"parent_biome": parent_id,
+		"sub_biome": sub_id,
+		"effective_biome": eff_id,
+		"walkable": bool(td.get("walkable", false)),
+		"water": bool(td.get("water", false)),
+		"zone": str(zone.get("name", "")),
+		"zone_lvl": int(zone.get("req", 1)),
+	}
+
+
 func player_entry_level() -> int:
 	return generator.zone_map.player_entry_level()
 
 
-## Discrete elevation level (0..7) at a world position (surface layer).
-func elevation_at(world_pos: Vector2) -> int:
-	var t := WG.world_to_tile(world_pos)
-	return int(generator.elevation.level_at(float(t.x), float(t.y)))
-
-
 func _tile_def_at_world(pos: Vector2, layer: int = 0) -> Dictionary:
 	var t := WG.world_to_tile(pos)
+	# Infinite (non-finite) surface: keep the cheap noise probe (no chunk gen).
+	if layer == 0 and not (reg.spec.active and reg.spec.finite):
+		return surface_tile_def_at(t.x, t.y)
+	# Finite authored world (and all caves): read the ACTUAL chunk tile, so the
+	# baked roads / rivers / coastline drive walkability — not the raw noise.
 	var c := WG.tile_to_chunk(t)
 	var chunk: RefCounted = get_chunk(layer, c.x, c.y)
 	var lx := t.x - c.x * WG.CHUNK_TILES
@@ -109,12 +179,44 @@ func _tile_def_at_world(pos: Vector2, layer: int = 0) -> Dictionary:
 	return reg.tile_def(chunk.tile_id(lx, ly))
 
 
+## Deterministic surface tile without generating a chunk (Minecraft-style probe).
+func surface_tile_id(gtx: int, gty: int) -> int:
+	var f: Vector3 = generator.classifier.fields(float(gtx), float(gty))
+	var b_idx: int = generator.classifier.biome_idx(float(gtx), float(gty))
+	return generator.classifier.tile_at(float(gtx), float(gty), f, b_idx)
+
+
+func surface_tile_def_at(gtx: int, gty: int) -> Dictionary:
+	var tid: int = surface_tile_id(gtx, gty)
+	if tid < 0 or tid >= reg.tile_order.size():
+		return {}
+	return reg.tile_def(tid)
+
+
+func surface_biome_matches(gtx: int, gty: int, biome_id: String) -> bool:
+	var idx: int = generator.classifier.biome_idx(float(gtx), float(gty))
+	if idx < 0 or idx >= reg.biomes.size():
+		return false
+	var eff_id: String = str(reg.biomes[idx]["id"])
+	var par_id: String = reg.parent_biome_id(idx)
+	return eff_id == biome_id or par_id == biome_id
+
+
 ## True when the tile under a world position is land the player can stand on.
 func is_walkable_world(pos: Vector2, layer: int = 0) -> bool:
 	var td: Dictionary = _tile_def_at_world(pos, layer)
 	if td.is_empty():
 		return false
-	return bool(td.get("walkable", false)) and not bool(td.get("water", false)) and not bool(td.get("hazard", false))
+	if not bool(td.get("walkable", false)) or bool(td.get("water", false)) or bool(td.get("hazard", false)):
+		return false
+	# Solid structures block their footprint in the finite authored world.
+	if layer == 0 and reg.spec.active and reg.spec.finite:
+		var t := WG.world_to_tile(pos)
+		var c := WG.tile_to_chunk(t)
+		var chunk: RefCounted = get_chunk(0, c.x, c.y)
+		if chunk.is_blocked(t.x - c.x * WG.CHUNK_TILES, t.y - c.y * WG.CHUNK_TILES):
+			return false
+	return true
 
 
 func is_water_world(pos: Vector2, layer: int = 0) -> bool:
@@ -165,11 +267,18 @@ func _fallback_home_spawn(layer: int = 0) -> Vector2:
 			if is_spawn_floor(pos, layer):
 				return pos
 	push_warning("WorldGen: no spawn floor in home chunk — using chunk centre")
-	return Vector2(WG.CHUNK_SIZE, WG.CHUNK_SIZE) * 0.5
+	return WG.tile_to_world(WG.CHUNK_TILES / 2, WG.CHUNK_TILES / 2)
 
 
-## Where a fresh (or dead) player appears: dry flat ground beside the campfire.
+## Where a fresh (or dead) player appears. An authored spawn from the baked
+## finite world wins (snapped to the nearest walkable tile); otherwise fall back
+## to dry flat ground beside the home camp.
 func spawn_position() -> Vector2:
+	if baked.loaded and baked.has_spawn:
+		var pos: Vector2 = WG.tile_to_world(baked.spawn_tile.x, baked.spawn_tile.y)
+		if is_spawn_floor(pos):
+			return pos
+		return nearest_spawn_floor(pos, 0, 32)
 	var home: RefCounted = get_chunk(0, 0, 0)
 	for poi: Dictionary in home.pois:
 		if not bool(poi.get("respawn", false)):
@@ -252,6 +361,8 @@ func find_nearest_site(layer: int, from_pos: Vector2, skill: String, node_name: 
 				if str(s["skill"]) != skill or str(s["node"]) != node_name or not bool(s["available"]):
 					continue
 				var pos: Vector2 = chunk.tile_world(int(s["tx"]), int(s["ty"]))
+				if skill == "fishing":
+					pos = FishingHelper.best_stand(from_pos, chunk, s)
 				var d := from_pos.distance_to(pos)
 				if d < best_d:
 					best_d = d
@@ -293,6 +404,18 @@ func find_nearest_station(layer: int, from_pos: Vector2, station: String,
 		func(part: Dictionary) -> bool: return str(part.get("station", "")) == station)
 
 
+## Nearest multi-chunk megastructure ("city" or "ruins") centre, resolved from
+## the deterministic planner without generating chunks. Returns {pos,name,distance}.
+func find_nearest_structure(from_pos: Vector2, kind: String) -> Dictionary:
+	var t: Vector2i = WG.world_to_tile(from_pos)
+	var hit: Dictionary = generator.structure_planner.nearest_center(t, kind)
+	if hit.is_empty():
+		return {}
+	var c: Vector2i = hit["center"]
+	var pos: Vector2 = WG.tile_to_world(c.x, c.y)
+	return {"pos": pos, "name": str(hit.get("label", "")), "distance": from_pos.distance_to(pos)}
+
+
 ## Nearest POI of one of the given types (e.g. respawn campsite).
 func find_nearest_poi(layer: int, from_pos: Vector2, types: Array,
 		max_rings: int = WG.SITE_SEARCH_RADIUS) -> Dictionary:
@@ -327,7 +450,11 @@ func _find_part(layer: int, from_pos: Vector2, max_rings: int, poi_types: Array,
 			for poi: Dictionary in chunk.pois:
 				if not poi_types.has(str(poi["type"])):
 					continue
-				for part: Dictionary in poi["parts"]:
+				var hit_parts: Array = poi["parts"]
+				if hit_parts.is_empty():
+					var anc: Vector2i = poi.get("anchor", Vector2i.ZERO)
+					hit_parts = [{"tx": anc.x, "ty": anc.y}]
+				for part: Dictionary in hit_parts:
 					if not part_ok.call(part):
 						continue
 					var pos: Vector2 = chunk.tile_world(int(part["tx"]), int(part["ty"]))
@@ -381,3 +508,93 @@ func unlocked_obelisks() -> Array:
 		var o: Dictionary = store.obelisks[key]
 		out.append({"name": str(o["name"]), "pos": Vector2(float(o["x"]), float(o["y"]))})
 	return out
+
+
+# ----------------------------------------------------------- admin / debug ----
+
+## Every surface biome from data/world/biomes.json (new biomes appear automatically).
+func list_surface_biomes() -> Array:
+	var out: Array = []
+	for b: Dictionary in reg.biomes:
+		if bool(b.get("isSubBiome", false)):
+			continue
+		out.append({
+			"id": str(b["id"]),
+			"name": str(b.get("name", b["id"])),
+			"priority": int(b.get("priority", 0)),
+		})
+	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return int(a["priority"]) > int(b["priority"]))
+	return out
+
+
+## Sub-biome / micro-biome entries from biomes.json.
+func list_sub_biomes() -> Array:
+	var out: Array = []
+	for b: Dictionary in reg.biomes:
+		if not bool(b.get("isSubBiome", false)):
+			continue
+		out.append({
+			"id": str(b["id"]),
+			"name": str(b.get("name", b["id"])),
+			"parent": str(b.get("parentBiome", "")),
+			"priority": int(b.get("priority", 0)),
+		})
+	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return int(a["priority"]) > int(b["priority"]))
+	return out
+
+
+## Nearest walkable (or water for ocean) tile in the given biome. Uses lightweight
+## biome/tile probes — no chunk generation (safe for long-range admin teleports).
+func find_nearest_biome(from_pos: Vector2, biome_id: String, max_chunk_rings: int = 128) -> Dictionary:
+	if biome_id.is_empty():
+		return {}
+	var center := WG.world_to_chunk(from_pos)
+	var best_d := INF
+	var best_pos := Vector2.INF
+	for ring: int in range(0, max_chunk_rings + 1):
+		if best_d < INF and (float(ring) - 1.0) * WG.CHUNK_SIZE > best_d:
+			break
+		for coords: Vector2i in _ring(center, ring):
+			var base_tx: int = coords.x * WG.CHUNK_TILES
+			var base_ty: int = coords.y * WG.CHUNK_TILES
+			var mid_tx: int = base_tx + WG.CHUNK_TILES / 2
+			var mid_ty: int = base_ty + WG.CHUNK_TILES / 2
+			if not surface_biome_matches(mid_tx, mid_ty, biome_id):
+				continue
+			for ty: int in range(WG.CHUNK_TILES):
+				for tx: int in range(WG.CHUNK_TILES):
+					var gtx: int = base_tx + tx
+					var gty: int = base_ty + ty
+					if not surface_biome_matches(gtx, gty, biome_id):
+						continue
+					var pos: Vector2 = WG.tile_to_world(gtx, gty)
+					if not _admin_biome_tile_ok(biome_id, gtx, gty):
+						continue
+					var d := from_pos.distance_to(pos)
+					if d < best_d:
+						best_d = d
+						best_pos = pos
+	if best_pos == Vector2.INF:
+		return {}
+	var b: Dictionary = reg.biome_by_id(biome_id)
+	return {
+		"pos": best_pos,
+		"biome_id": biome_id,
+		"name": str(b.get("name", biome_id)),
+		"distance": best_d,
+	}
+
+
+func _admin_biome_tile_ok(biome_id: String, gtx: int, gty: int) -> bool:
+	var td: Dictionary = surface_tile_def_at(gtx, gty)
+	if td.is_empty():
+		return false
+	if biome_id == "ocean" or biome_id == "swamp":
+		return bool(td.get("water", false)) or (
+			bool(td.get("walkable", false))
+			and not bool(td.get("water", false))
+			and not bool(td.get("hazard", false))
+		)
+	return bool(td.get("walkable", false)) and not bool(td.get("water", false)) and not bool(td.get("hazard", false))

@@ -1,4 +1,4 @@
-extends CanvasLayer
+﻿extends CanvasLayer
 ## OSRS-style interface over the isometric world: hover text top-left,
 ## minimap + HP orb top-right, stone side panel with tabs bottom-right,
 ## parchment chatbox bottom-left. Pure view layer â€” only talks to autoloads.
@@ -12,6 +12,8 @@ const HOVER_YELLOW := Color(1.0, 1.0, 0.4)
 const UiScale := preload("res://scripts/ui/ui_scale.gd")
 const WorldHoverTooltipScript := preload("res://scripts/ui/world_hover_tooltip.gd")
 const ClickMarkerNode := preload("res://scripts/ui/click_marker_node.gd")
+const AdminMenu := preload("res://scripts/ui/admin_menu.gd")
+const WorldMapPanel := preload("res://scripts/ui/world_map_panel.gd")
 
 const SKILL_ABBREV := {
 	"attack": "Atk", "strength": "Str", "defence": "Def", "hitpoints": "HP",
@@ -44,7 +46,11 @@ var zone_label: Label
 var layer_label: Label
 var chat_panel: PanelContainer
 var settings_popup: PopupPanel
+var game_menu_popup: PopupPanel
+var admin_menu: AdminMenu
+var world_map: WorldMapPanel
 var fps_label: Label
+var tile_debug_label: Label
 var _hud_tl: Control
 var _hud_tr: Control
 var _hud_bl: Control
@@ -100,6 +106,22 @@ func _ready() -> void:
 	GameSettings.changed.connect(_apply_hud_from_settings)
 	_apply_hud_from_settings()
 	_build_fps_overlay()
+	world_map = WorldMapPanel.new()
+	world_map.name = "WorldMap"
+	add_child(world_map)
+	world_map.setup(self)
+
+
+## Press M to toggle the full-world map; Esc closes it when open.
+func _unhandled_key_input(event: InputEvent) -> void:
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+	if event.keycode == KEY_M:
+		world_map.toggle()
+		get_viewport().set_input_as_handled()
+	elif event.keycode == KEY_ESCAPE and world_map.visible:
+		world_map.visible = false
+		get_viewport().set_input_as_handled()
 
 
 func bind_world(w: Node2D) -> void:
@@ -127,6 +149,25 @@ func update_world_tooltip(entity: Node2D) -> void:
 		world_tooltip.hide_tooltip()
 		hover_label.text = entity.call("action_text")
 		hover_label.show()
+
+
+func update_tile_debug(world_pos: Vector2) -> void:
+	if tile_debug_label == null or world == null:
+		return
+	var d: Dictionary = WorldGen.tile_debug_at(world_pos, int(world.get("current_layer")))
+	if d.is_empty():
+		tile_debug_label.text = "Tile: (off map)"
+		return
+	var sub_line := "" if str(d["sub_biome"]).is_empty() else "  Sub: %s" % d["sub_biome"]
+	tile_debug_label.text = (
+		"Tile (%d, %d)  %s\nParent: %s%s  ·  Zone: %s (lvl %d)\nWalk: %s  Water: %s"
+		% [
+			int(d["tile"].x), int(d["tile"].y), d["tile_name"],
+			d["parent_biome"], sub_line, d["zone"], int(d["zone_lvl"]),
+			"yes" if d["walkable"] else "no",
+			"yes" if d["water"] else "no",
+		]
+	)
 
 
 func train_style() -> String:
@@ -213,58 +254,9 @@ func _build() -> void:
 	world_tooltip.name = "WorldTooltip"
 	hud_root.add_child(world_tooltip)
 
-	# Minimap + orbs (top-right). Anchored controls must be placed via
-	# offsets â€” `position` is parent-space and would push them off screen.
-	minimap = MinimapControl.new()
-	minimap.set("hud", self)
-	minimap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_anchor(minimap, Control.PRESET_TOP_RIGHT, Vector2(-168, 10), Vector2(150, 150))
-	_hud_tr.add_child(minimap)
-
-	hp_orb = HpOrb.new()
-	hp_orb.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_anchor(hp_orb, Control.PRESET_TOP_RIGHT, Vector2(-228, 18), Vector2(52, 52))
-	_hud_tr.add_child(hp_orb)
-
-	gold_label = Label.new()
-	_anchor(gold_label, Control.PRESET_TOP_RIGHT, Vector2(-276, 76), Vector2(104, 22))
-	gold_label.add_theme_font_size_override("font_size", UiScale.i(12))
-	gold_label.add_theme_color_override("font_color", Color(1, 0.85, 0.3))
-	gold_label.add_theme_color_override("font_shadow_color", Color.BLACK)
-	gold_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	gold_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_hud_tr.add_child(gold_label)
-
-	var save_btn := Button.new()
-	save_btn.text = "Save"
-	_anchor(save_btn, Control.PRESET_TOP_RIGHT, Vector2(-240, 104), Vector2(64, 30))
-	save_btn.pressed.connect(func() -> void:
-		SaveManager.save_game()
-		_push_chat("[color=#444]Game saved.[/color]"))
-	_hud_tr.add_child(save_btn)
-
-	var bank_btn := Button.new()
-	bank_btn.text = "Bank"
-	bank_btn.tooltip_text = "Auto-walk to the nearest bank chest"
-	_anchor(bank_btn, Control.PRESET_TOP_RIGHT, Vector2(-240, 142), Vector2(64, 30))
-	bank_btn.pressed.connect(func() -> void:
-		if world != null:
-			world.call("auto_bank"))
-	_hud_tr.add_child(bank_btn)
-
-	var obelisk_btn := Button.new()
-	obelisk_btn.text = "Tele"
-	obelisk_btn.tooltip_text = "Teleport to an attuned obelisk"
-	_anchor(obelisk_btn, Control.PRESET_TOP_RIGHT, Vector2(-240, 180), Vector2(64, 30))
-	obelisk_btn.pressed.connect(open_obelisks)
-	_hud_tr.add_child(obelisk_btn)
-
-	var settings_btn := Button.new()
-	settings_btn.text = "Set"
-	settings_btn.tooltip_text = "Game settings"
-	_anchor(settings_btn, Control.PRESET_TOP_RIGHT, Vector2(-240, 218), Vector2(64, 30))
-	settings_btn.pressed.connect(open_settings)
-	_hud_tr.add_child(settings_btn)
+	_build_minimap_cluster()
+	admin_menu = AdminMenu.new()
+	admin_menu.setup(self)
 
 	# Zone banner (top-center): procedural area name + level requirement.
 	zone_label = Label.new()
@@ -301,6 +293,7 @@ func _build() -> void:
 	_build_chatbox()
 	_build_popup()
 	_build_settings_popup()
+	_build_game_menu()
 
 
 ## Anchor a control to a corner with an offset rect (offsets are relative to
@@ -509,6 +502,127 @@ func _build_settings_popup() -> void:
 	add_child(settings_popup)
 
 
+func _build_minimap_cluster() -> void:
+	var cluster := Control.new()
+	cluster.name = "MinimapCluster"
+	_anchor(cluster, Control.PRESET_TOP_RIGHT, Vector2(-218, 8), Vector2(218, 162))
+	_hud_tr.add_child(cluster)
+
+	hp_orb = HpOrb.new()
+	hp_orb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hp_orb.position = UiScale.v2(Vector2(0, 6))
+	hp_orb.custom_minimum_size = UiScale.v2(Vector2(52, 52))
+	hp_orb.size = hp_orb.custom_minimum_size
+	cluster.add_child(hp_orb)
+
+	gold_label = Label.new()
+	gold_label.position = UiScale.v2(Vector2(0, 58))
+	gold_label.custom_minimum_size = UiScale.v2(Vector2(56, 22))
+	gold_label.size = gold_label.custom_minimum_size
+	gold_label.add_theme_font_size_override("font_size", UiScale.i(12))
+	gold_label.add_theme_color_override("font_color", Color(1, 0.85, 0.3))
+	gold_label.add_theme_color_override("font_shadow_color", Color.BLACK)
+	gold_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	gold_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cluster.add_child(gold_label)
+
+	var map_panel := MinimapPanel.new()
+	map_panel.setup(self)
+	map_panel.position = UiScale.v2(Vector2(62, 0))
+	cluster.add_child(map_panel)
+	minimap = map_panel.minimap
+
+
+func _build_game_menu() -> void:
+	game_menu_popup = PopupPanel.new()
+	game_menu_popup.add_theme_stylebox_override("panel", _style(STONE, STONE_DARK))
+	var box := VBoxContainer.new()
+	_apply_default_fonts(box)
+	box.custom_minimum_size = UiScale.v2(Vector2(240, 340))
+	box.add_theme_constant_override("separation", UiScale.i(6))
+
+	var title := Label.new()
+	title.text = "Menu"
+	title.add_theme_font_size_override("font_size", UiScale.i(16))
+	title.add_theme_color_override("font_color", Color(0.85, 0.72, 0.3))
+	box.add_child(title)
+
+	var hint := Label.new()
+	hint.text = "Press Esc to close"
+	hint.add_theme_font_size_override("font_size", UiScale.i(11))
+	hint.add_theme_color_override("font_color", Color(0.65, 0.65, 0.65))
+	box.add_child(hint)
+
+	_add_game_menu_button(box, "Save Game", func() -> void:
+		SaveManager.save_game()
+		_push_chat("[color=#444]Game saved.[/color]")
+		game_menu_popup.hide())
+	_add_game_menu_button(box, "Bank", func() -> void:
+		game_menu_popup.hide()
+		if world != null:
+			world.call("auto_bank"))
+	_add_game_menu_button(box, "Teleport", func() -> void:
+		game_menu_popup.hide()
+		open_obelisks())
+	_add_game_menu_button(box, "Settings", func() -> void:
+		game_menu_popup.hide()
+		open_settings())
+	_add_game_menu_button(box, "Admin", func() -> void:
+		game_menu_popup.hide()
+		admin_menu.open())
+
+	var resume := Button.new()
+	resume.text = "Resume"
+	resume.pressed.connect(func() -> void: game_menu_popup.hide())
+	box.add_child(resume)
+
+	game_menu_popup.add_child(box)
+	add_child(game_menu_popup)
+
+
+func _add_game_menu_button(parent: VBoxContainer, label: String, cb: Callable) -> void:
+	var btn := Button.new()
+	btn.text = label
+	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	btn.pressed.connect(cb)
+	parent.add_child(btn)
+
+
+func toggle_game_menu() -> void:
+	if game_menu_popup.visible:
+		game_menu_popup.hide()
+	else:
+		game_menu_popup.popup_centered()
+
+
+func _try_close_front_popup() -> bool:
+	if admin_menu != null and admin_menu.is_open():
+		admin_menu.close()
+		return true
+	if settings_popup != null and settings_popup.visible:
+		settings_popup.hide()
+		return true
+	if popup != null and popup.visible:
+		popup.hide()
+		return true
+	if game_menu_popup != null and game_menu_popup.visible:
+		game_menu_popup.hide()
+		return true
+	return false
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not event is InputEventKey or not event.pressed or event.echo:
+		return
+	if event.keycode != KEY_ESCAPE:
+		return
+	if _try_close_front_popup():
+		get_viewport().set_input_as_handled()
+		return
+	toggle_game_menu()
+	get_viewport().set_input_as_handled()
+
+
 func _add_settings_slider_row(
 	parent: VBoxContainer,
 	label_text: String,
@@ -597,6 +711,14 @@ func _build_fps_overlay() -> void:
 	fps_label.visible = false
 	add_child(fps_label)
 
+	tile_debug_label = Label.new()
+	tile_debug_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_anchor(tile_debug_label, Control.PRESET_TOP_LEFT, Vector2(10, 58), Vector2(360, 52))
+	tile_debug_label.add_theme_font_size_override("font_size", UiScale.i(11))
+	tile_debug_label.add_theme_color_override("font_color", Color(0.82, 0.88, 0.95))
+	tile_debug_label.add_theme_color_override("font_shadow_color", Color.BLACK)
+	add_child(tile_debug_label)
+
 
 func _process(_delta: float) -> void:
 	if fps_label == null:
@@ -604,21 +726,23 @@ func _process(_delta: float) -> void:
 	if not GameSettings.show_fps:
 		fps_label.visible = false
 		_fps_sample_us = 0
-		return
-	var now_us := Time.get_ticks_usec()
-	if _fps_sample_us > 0:
-		var frame_ms := clampf(float(now_us - _fps_sample_us) / 1000.0, 0.1, 5000.0)
-		_frame_ms_smooth = lerpf(_frame_ms_smooth, frame_ms, FPS_SAMPLE_BLEND)
-		var fps := 1000.0 / _frame_ms_smooth
-		fps_label.text = "%d FPS  %.1f ms" % [int(roundf(fps)), _frame_ms_smooth]
-		var col := Color(0.75, 1.0, 0.75)
-		if _frame_ms_smooth > 33.0:
-			col = Color(1.0, 0.45, 0.45)
-		elif _frame_ms_smooth > 20.0:
-			col = Color(1.0, 0.9, 0.4)
-		fps_label.add_theme_color_override("font_color", col)
-	_fps_sample_us = now_us
-	fps_label.visible = true
+	else:
+		var now_us := Time.get_ticks_usec()
+		if _fps_sample_us > 0:
+			var frame_ms := clampf(float(now_us - _fps_sample_us) / 1000.0, 0.1, 5000.0)
+			_frame_ms_smooth = lerpf(_frame_ms_smooth, frame_ms, FPS_SAMPLE_BLEND)
+			var fps := 1000.0 / _frame_ms_smooth
+			fps_label.text = "%d FPS  %.1f ms" % [int(roundf(fps)), _frame_ms_smooth]
+			var col := Color(0.75, 1.0, 0.75)
+			if _frame_ms_smooth > 33.0:
+				col = Color(1.0, 0.45, 0.45)
+			elif _frame_ms_smooth > 20.0:
+				col = Color(1.0, 0.9, 0.4)
+			fps_label.add_theme_color_override("font_color", col)
+		_fps_sample_us = now_us
+		fps_label.visible = true
+	if world != null:
+		update_tile_debug(world.get_global_mouse_position())
 
 
 func open_settings() -> void:
@@ -995,13 +1119,84 @@ func _push_chat(line: String) -> void:
 
 # ------------------------------------------------------------ sub-widgets ----
 
+class MinimapPanel extends Control:
+	## OSRS-style minimap cluster: circular map with small orb zoom buttons on the rim.
+	var hud: CanvasLayer
+	var minimap: MinimapControl
+
+	const MAP_SIZE := Vector2(150, 150)
+	const ORB_SIZE := Vector2(24, 24)
+
+
+	func setup(h: CanvasLayer) -> void:
+		hud = h
+		custom_minimum_size = UiScale.v2(Vector2(160, 162))
+		size = custom_minimum_size
+
+		minimap = MinimapControl.new()
+		minimap.hud = hud
+		minimap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		minimap.position = UiScale.v2(Vector2(0, 0))
+		minimap.custom_minimum_size = UiScale.v2(MAP_SIZE)
+		minimap.size = minimap.custom_minimum_size
+		add_child(minimap)
+
+		var center := UiScale.v2(MAP_SIZE * 0.5)
+		var rim := UiScale.f(MAP_SIZE.x * 0.5 - 4.0)
+
+		var zoom_out := _make_orb_button("−")
+		zoom_out.tooltip_text = "Zoom out (see more)"
+		zoom_out.position = center + Vector2(-rim * 0.72, rim * 0.72) - UiScale.v2(ORB_SIZE * 0.5)
+		zoom_out.pressed.connect(minimap.zoom_out)
+		add_child(zoom_out)
+
+		var zoom_in := _make_orb_button("+")
+		zoom_in.tooltip_text = "Zoom in (see less)"
+		zoom_in.position = center + Vector2(rim * 0.72, rim * 0.72) - UiScale.v2(ORB_SIZE * 0.5)
+		zoom_in.pressed.connect(minimap.zoom_in)
+		add_child(zoom_in)
+
+
+	func _make_orb_button(label: String) -> Button:
+		var btn := Button.new()
+		btn.text = label
+		btn.custom_minimum_size = UiScale.v2(ORB_SIZE)
+		btn.size = btn.custom_minimum_size
+		btn.add_theme_font_size_override("font_size", UiScale.i(14))
+		var normal := StyleBoxFlat.new()
+		normal.bg_color = Color(0.18, 0.16, 0.14)
+		normal.border_color = Color(0.55, 0.5, 0.35)
+		normal.set_border_width_all(UiScale.i(2))
+		normal.set_corner_radius_all(UiScale.i(12))
+		btn.add_theme_stylebox_override("normal", normal)
+		btn.add_theme_stylebox_override("hover", normal)
+		btn.add_theme_stylebox_override("pressed", normal)
+		btn.add_theme_color_override("font_color", Color(0.92, 0.88, 0.72))
+		return btn
+
+
 class MinimapControl extends Control:
 	## Terrain minimap: paints the loaded chunks' ground tiles (so rivers,
 	## biomes, and cave walls show up), then entity and POI dots.
-	const SCALE := 0.052
+	const WG := preload("res://scripts/worldgen/wg.gd")
+	const BASE_SCALE := 0.052
 	const TILE_PX := 3.0
+	const ZOOM_MIN := -2
+	const ZOOM_MAX := 5
 	var hud: CanvasLayer
+	var zoom_level := 0
 	var _t := 0.0
+
+	func zoom_in() -> void:
+		zoom_level = mini(ZOOM_MAX, zoom_level + 1)
+		queue_redraw()
+
+	func zoom_out() -> void:
+		zoom_level = maxi(ZOOM_MIN, zoom_level - 1)
+		queue_redraw()
+
+	func _view_scale() -> float:
+		return BASE_SCALE * pow(1.35, float(zoom_level))
 
 	func _process(delta: float) -> void:
 		_t += delta
@@ -1022,15 +1217,16 @@ class MinimapControl extends Control:
 	func _draw_terrain(c: Vector2, r: float) -> void:
 		var player: Node2D = hud.world.player
 		var reg: RefCounted = WorldGen.reg
-		var tile_world := 48.0  # WG.TILE
-		var px := tile_world * SCALE * TILE_PX / 2.5  # tile footprint on the map
+		var scale := _view_scale()
+		var px := WG.TILE * scale * TILE_PX / 2.5
 		var limit_sq := (r - 2.0) * (r - 2.0)
 		for chunk: RefCounted in hud.world.chunk_manager.loaded_chunks():
-			var origin: Vector2 = chunk.origin()
 			for ty: int in 16:
 				for tx: int in 16:
-					var world_pos := origin + Vector2((tx + 0.5) * tile_world, (ty + 0.5) * tile_world)
-					var rel := (world_pos - player.position) * SCALE * (TILE_PX / 2.5)
+					var gtx: int = chunk.cx * WG.CHUNK_TILES + tx
+					var gty: int = chunk.cy * WG.CHUNK_TILES + ty
+					var world_pos := WG.tile_to_world(gtx, gty)
+					var rel := (world_pos - player.position) * scale * (TILE_PX / 2.5)
 					if rel.length_squared() > limit_sq:
 						continue
 					var cols: Array = reg.tile_def(chunk.tile_id(tx, ty))["colors"]
@@ -1038,8 +1234,9 @@ class MinimapControl extends Control:
 
 	func _draw_dots(c: Vector2, r: float) -> void:
 		var player: Node2D = hud.world.player
+		var scale := _view_scale()
 		for e: Node2D in hud.world.entities:
-			var rel := (e.position - player.position) * SCALE * (TILE_PX / 2.5)
+			var rel := (e.position - player.position) * scale * (TILE_PX / 2.5)
 			if rel.length() > r - 5.0:
 				continue
 			var col := Color(0.9, 0.2, 0.2)

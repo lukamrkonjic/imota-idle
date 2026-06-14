@@ -14,8 +14,8 @@
     "nouns": ["Meadows", "Fields", "Steppe", "Downs", "Flats", "Prairie", "Pastures", "Plains"]
   },
   "wheatfield": {
-    "adjectives": ["Golden", "Ripe", "Harvest", "Sunlit", "Amber", "Tilled", "Bountiful", "Furrowed"],
-    "nouns": ["Fields", "Furrows", "Granary", "Croft", "Acres", "Farmstead", "Harvestlands", "Wolds"]
+    "adjectives": ["Golden", "Ripe", "Sunlit", "Harvest", "Amber", "Bountiful", "Swaying", "Gilded"],
+    "nouns": ["Wheatfields", "Granary", "Furrows", "Croft", "Harvestlands", "Acres", "Threshing", "Grainlands"]
   },
   "forest": {
     "adjectives": ["Whispering", "Mossy", "Green", "Shaded", "Autumn", "Singing", "Dappled", "Owlish"],
@@ -49,8 +49,48 @@
     "adjectives": ["Salty", "Sunlit", "Driftwood", "Pearl", "Gull", "Tidal", "Sandy", "Shipwreck"],
     "nouns": ["Coast", "Shore", "Strand", "Cove", "Sands", "Bay", "Headland", "Shallows"]
   },
+  "oasis": {
+    "adjectives": ["Verdant", "Hidden", "Shaded", "Palm", "Spring", "Emerald"],
+    "nouns": ["Oasis", "Spring", "Pool", "Haven", "Grove", "Refuge"]
+  },
   "ocean": {
     "adjectives": ["Boundless", "Deep", "Stormy", "Azure", "Restless", "Glassy"],
     "nouns": ["Sea", "Deep", "Waters", "Expanse", "Swell", "Main"]
+  },
+  "alpine": {
+    "adjectives": ["Windscoured", "Icy", "Lofty", "Craggy", "Breathless", "Pale"],
+    "nouns": ["Summits", "Peaks", "Spires", "Ridge", "Heights", "Crags"]
+  },
+  "jungle": {
+    "adjectives": ["Steaming", "Lush", "Overgrown", "Humid", "Vine-choked", "Emerald"],
+    "nouns": ["Jungle", "Canopy", "Undergrowth", "Thicket", "Green", "Wilds"]
+  },
+  "boreal_forest": {
+    "adjectives": ["Needled", "Misty", "Quiet", "Pine", "Frosted", "Shadowed"],
+    "nouns": ["Taiga", "Woodland", "Forest", "Timber", "Grove", "Wilds"]
+  },
+  "savanna": {
+    "adjectives": ["Golden", "Sun-baked", "Windswept", "Dry", "Open", "Warm"],
+    "nouns": ["Savanna", "Grasslands", "Plains", "Veldt", "Expanse", "Range"]
+  },
+  "badlands": {
+    "adjectives": ["Eroded", "Bleached", "Cracked", "Barren", "Rust-red", "Parched"],
+    "nouns": ["Badlands", "Scrub", "Wastes", "Breaks", "Gullies", "Barrens"]
+  },
+  "grove": {
+    "adjectives": ["Sun-dappled", "Quiet", "Green", "Shaded", "Peaceful"],
+    "nouns": ["Grove", "Glade", "Copse", "Hollow", "Rest"]
+  },
+  "bamboo_thicket": {
+    "adjectives": ["Rustling", "Dense", "Green", "Tangled"],
+    "nouns": ["Thicket", "Stand", "Grove", "Bamboo"]
+  },
+  "bog": {
+    "adjectives": ["Peaty", "Sodden", "Misty", "Sunken"],
+    "nouns": ["Bog", "Mire", "Fen", "Morass"]
+  },
+  "tide_flats": {
+    "adjectives": ["Tidal", "Muddy", "Salty", "Exposed"],
+    "nouns": ["Flats", "Shallows", "Mudflats", "Estuary"]
   }
 }

@@ -16,7 +16,7 @@ static func draw(canvas: CanvasItem, size: float, ore_color: Color, depleted: bo
 	_draw_pixel_boulder(canvas, PixelPalette.snap(-size * 0.28), 0.0, size * 0.24, size * 0.15, PixelPalette.pal("stone_b"))
 	_draw_pixel_boulder(canvas, 0.0, 0.0, size * 0.46, size * 0.32, PixelPalette.pal("stone_a"))
 	var oy := PixelPalette.snap(-size * 0.2)
-	var ore := ore_color if ore_color.a > 0.01 else PixelPalette.pal("ore")
+	var ore := PixelPalette.enrich_entity(ore_color if ore_color.a > 0.01 else PixelPalette.pal("ore"))
 	PixelDraw.px_rect(canvas, PixelPalette.snap(-size * 0.05), oy, PixelPalette.PX * 2.0, PixelPalette.PX * 2.0, ore)
 	PixelDraw.px_rect(canvas, PixelPalette.snap(size * 0.1), PixelPalette.snap(oy + size * 0.1), PixelPalette.PX * 2.0, PixelPalette.PX * 2.0, PixelPalette.shade(ore, 1.18))
 	PixelDraw.px_rect(canvas, PixelPalette.snap(-size * 0.28), PixelPalette.snap(size * 0.02), PixelPalette.PX * 2.0, PixelPalette.PX, PixelPalette.pal("moss"), 0.65)

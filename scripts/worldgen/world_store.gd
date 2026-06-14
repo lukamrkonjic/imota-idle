@@ -9,14 +9,14 @@ const Chunk := preload("res://scripts/worldgen/chunk.gd")
 const SaveMigration := preload("res://autoload/save_migration.gd")
 
 ## Bump when generation logic changes; stale explored snapshots regenerate.
-## v2: elevation levels, anchor hubs, road corridors.
-const GENERATOR_VERSION := 3
+const GENERATOR_VERSION := 11
 
 var world_seed: int = 0
 var obelisks: Dictionary = {}       # chunk_key -> {name, x, y}
 var depleted: Dictionary = {}        # chunk_key -> {site_index_str: respawn_at_unix}
 var visited_zones: Dictionary = {}   # zone id -> true
 var chunk_snapshots: Dictionary = {} # chunk_key -> snapshot dict
+var explored: Dictionary = {}        # "cx:cy" -> true (surface fog-of-war reveal)
 var suppress := false
 
 
@@ -33,6 +33,7 @@ func load_file(default_seed: int) -> void:
 	obelisks = parsed.get("obelisks", {})
 	visited_zones = parsed.get("visitedZones", {})
 	chunk_snapshots = parsed.get("chunkSnapshots", {})
+	explored = parsed.get("explored", {})
 	depleted = {}
 	var raw: Dictionary = parsed.get("depleted", {})
 	for k: String in raw:
@@ -57,8 +58,18 @@ func save_file() -> void:
 		"visitedZones": visited_zones,
 		"depleted": depleted,
 		"chunkSnapshots": chunk_snapshots,
+		"explored": explored,
 	}))
 	f.close()
+
+
+## Mark a surface chunk as revealed on the world map (fog-of-war).
+func mark_explored(cx: int, cy: int) -> void:
+	explored["%d:%d" % [cx, cy]] = true
+
+
+func is_explored(cx: int, cy: int) -> bool:
+	return explored.has("%d:%d" % [cx, cy])
 
 
 func record_depletion(chunk_key: String, site_index: int, respawn_at: float) -> void:
@@ -131,9 +142,15 @@ func _serialize_chunk(chunk: RefCounted) -> Dictionary:
 	var biomes: Array = []
 	for b: int in chunk.biomes_t:
 		biomes.append(b)
-	var elev: Array = []
-	for b: int in chunk.elev_t:
-		elev.append(b)
+	var parents: Array = []
+	for b: int in chunk.parent_biomes_t:
+		parents.append(b)
+	var subs: Array = []
+	for b: int in chunk.sub_biomes_t:
+		subs.append(b)
+	var coll: Array = []
+	for b: int in chunk.collision:
+		coll.append(b)
 	var zone: Dictionary = chunk.zone.duplicate(true)
 	if zone.get("site_chunk") is Vector2i:
 		zone["site_chunk"] = _vec2i_to_json(zone["site_chunk"])
@@ -148,7 +165,9 @@ func _serialize_chunk(chunk: RefCounted) -> Dictionary:
 		"generatorVersion": GENERATOR_VERSION,
 		"tiles": tiles,
 		"biomes": biomes,
-		"elev": elev,
+		"parentBiomes": parents,
+		"subBiomes": subs,
+		"collision": coll,
 		"zone": zone,
 		"safe": chunk.safe,
 		"sites": _deep_copy_array(chunk.sites),
@@ -164,9 +183,18 @@ func _deserialize_chunk(data: Dictionary) -> RefCounted:
 		chunk.tiles[i] = int(data["tiles"][i])
 	for i: int in data["biomes"].size():
 		chunk.biomes_t[i] = int(data["biomes"][i])
-	var elev: Array = data.get("elev", [])
-	for i: int in elev.size():
-		chunk.elev_t[i] = int(elev[i])
+	if data.has("parentBiomes"):
+		for i: int in data["parentBiomes"].size():
+			chunk.parent_biomes_t[i] = int(data["parentBiomes"][i])
+	else:
+		for i: int in data["biomes"].size():
+			chunk.parent_biomes_t[i] = int(data["biomes"][i])
+	if data.has("subBiomes"):
+		for i: int in data["subBiomes"].size():
+			chunk.sub_biomes_t[i] = int(data["subBiomes"][i])
+	if data.has("collision"):
+		for i: int in data["collision"].size():
+			chunk.collision[i] = int(data["collision"][i])
 	chunk.zone = data.get("zone", {}).duplicate(true)
 	if chunk.zone.has("site_chunk"):
 		chunk.zone["site_chunk"] = _json_to_vec2i(chunk.zone["site_chunk"])

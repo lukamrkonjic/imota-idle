@@ -14,10 +14,13 @@ static func draw(
 	mode: String,
 	t: float,
 	facing: int,
+	cast_local: Vector2 = Vector2.ZERO,
 ) -> void:
 	var f := float(facing)
+	canvas.draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.14, 1.14))
 	var visuals := PlayerEquipmentArt.build_visuals(mode)
-	outfit = PlayerEquipmentArt.outfit_tint(outfit, visuals["body_id"])
+	outfit = PixelPalette.enrich_entity(PlayerEquipmentArt.outfit_tint(outfit, visuals["body_id"]))
+	skin = PixelPalette.enrich_entity(skin)
 	var walk := 0.0
 	var leg_swing := 0.0
 	var arm_swing := 0.25
@@ -91,4 +94,6 @@ static func draw(
 		facing,
 		mode,
 		t,
+		cast_local,
 	)
+	canvas.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

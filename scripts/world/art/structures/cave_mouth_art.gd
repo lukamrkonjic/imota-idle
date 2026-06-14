@@ -6,7 +6,7 @@ const PixelDraw := preload("res://scripts/world/art/core/pixel_draw.gd")
 
 
 static func draw(canvas: CanvasItem) -> void:
-	PixelDraw.draw_foot_shadow(canvas, 26.0, 5.0)
+	PixelDraw.draw_foot_shadow(canvas, 26.0, 5.0, 0.3, 12.0)
 	var rock_a := PixelPalette.pal("stone_a")
 	var rock_b := PixelPalette.pal("stone_b")
 	PixelDraw.px_blob(canvas, 0.0, -14.0, 28.0, 18.0, rock_b)

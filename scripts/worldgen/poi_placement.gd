@@ -13,40 +13,46 @@ const Chunk := preload("res://scripts/worldgen/chunk.gd")
 var reg: RefCounted
 var classifier: RefCounted
 var zone_map: RefCounted
-var anchors: RefCounted
 var world_seed: int = 0
 
 
-func setup(p_reg: RefCounted, p_classifier: RefCounted, p_zone_map: RefCounted, p_seed: int, p_anchors: RefCounted = null) -> void:
+func setup(p_reg: RefCounted, p_classifier: RefCounted, p_zone_map: RefCounted, p_seed: int) -> void:
 	reg = p_reg
 	classifier = p_classifier
 	zone_map = p_zone_map
 	world_seed = p_seed
-	anchors = p_anchors
 
 
-func place(chunk: RefCounted, occupied: Dictionary) -> void:
+func place(chunk: RefCounted, occupied: Dictionary, placement_grid: RefCounted) -> void:
 	if chunk.layer != 0:
 		return  # cave POIs (ladders) are produced by cave_generator.gd
 	var majors := 0
 	var minors := 0
 	if chunk.cx == 0 and chunk.cy == 0:
-		if _try_place(chunk, "campsite", reg.pois.get("campsite", {}), occupied):
+		if _try_place(chunk, "campsite", reg.pois.get("campsite", {}), occupied, placement_grid):
 			majors += 1
-	# Planned hub anchors claim the chunk's major-POI slot first.
-	var hub := _hub_poi_for_chunk(chunk.cx, chunk.cy)
-	if not hub.is_empty():
-		var hub_type := str(hub["poi"])
-		var hub_def: Dictionary = reg.pois.get(hub_type, {}).duplicate(true)
-		hub_def["label"] = str(hub.get("label", hub_def.get("label", hub_type)))
-		hub_def.erase("biomes")  # the planner already picked this cell's biome
-		# Authored anchors may pin a specific boss (e.g. Amaruq at the ruins).
-		if not str(hub.get("boss", "")).is_empty():
-			hub_def["bossName"] = str(hub["boss"])
-		if majors < 1 and _try_place(chunk, hub_type, hub_def, occupied):
-			majors += 1
+	# Authored anchor (WorldSpec): pin a settlement / landmark / dungeon to this
+	# exact chunk, with its authored label and (optionally) a pinned boss.
+	if majors == 0 and reg.spec.active:
+		var anc: Dictionary = reg.spec.anchor_for_chunk(chunk.cx, chunk.cy)
+		if not anc.is_empty():
+			var adef: Dictionary = reg.pois.get(str(anc["poi"]), {}).duplicate(true)
+			if not adef.is_empty():
+				if not str(anc.get("label", "")).is_empty():
+					adef["label"] = str(anc["label"])
+				if not str(anc.get("boss", "")).is_empty():
+					adef["_pinnedBoss"] = str(anc["boss"])
+				if _try_place(chunk, str(anc["poi"]), adef, occupied, placement_grid):
+					majors += 1
 	for type: String in reg.pois:
+		# Authored-anchor POIs are placed only by the injection above.
+		if reg.spec.active and _authored_anchor_type(chunk.cx, chunk.cy, type):
+			continue
 		var def: Dictionary = reg.pois[type]
+		# Multi-chunk megastructures (cities/ruin fields) are produced by the
+		# StructurePlanner across many chunks, not as a single-chunk POI here.
+		if def.has("mega"):
+			continue
 		var placement: Dictionary = def.get("placement", {})
 		var mode := str(placement.get("mode", "chance"))
 		var is_major := mode != "chance"
@@ -58,7 +64,7 @@ func place(chunk: RefCounted, occupied: Dictionary) -> void:
 			continue
 		if int(chunk.zone.get("req", 1)) < int(def.get("minTier", 0)):
 			continue
-		if _try_place(chunk, type, def, occupied):
+		if _try_place(chunk, type, def, occupied, placement_grid):
 			if is_major:
 				majors += 1
 			else:
@@ -68,12 +74,12 @@ func place(chunk: RefCounted, occupied: Dictionary) -> void:
 ## Cheap predicate (no chunk generation needed): would this POI type want to
 ## live in chunk (cx, cy)? Used by WorldGen ring searches to skip chunks.
 func wants_chunk(cx: int, cy: int, zone: Dictionary, type: String) -> bool:
+	# Authored anchors always claim their chunk (so ring searches find them).
+	if reg.spec.active and _authored_anchor_type(cx, cy, type):
+		return true
 	var placement: Dictionary = reg.pois.get(type, {}).get("placement", {})
 	var salt: int = type.hash() & 0xFFFFFF
 	match str(placement.get("mode", "chance")):
-		"anchor":
-			var hub := _hub_poi_for_chunk(cx, cy)
-			return not hub.is_empty() and str(hub["poi"]) == type
 		"cell":
 			var cell := int(placement.get("cellChunks", 5))
 			var zx := floori(float(cx) / cell)
@@ -104,22 +110,12 @@ func candidate_types(cx: int, cy: int, zone: Dictionary) -> Array:
 	return out
 
 
-## Anchor with a placeholder POI assigned to this chunk, or {}.
-func _hub_poi_for_chunk(cx: int, cy: int) -> Dictionary:
-	if anchors == null:
-		return {}
-	var a: Dictionary = anchors.anchor_for_chunk(cx, cy)
-	if a.is_empty() or str(a.get("poi", "")).is_empty():
-		return {}
-	return a if reg.pois.has(str(a["poi"])) else {}
-
-
-func _try_place(chunk: RefCounted, type: String, def: Dictionary, occupied: Dictionary) -> bool:
+func _try_place(chunk: RefCounted, type: String, def: Dictionary, occupied: Dictionary, placement_grid: RefCounted) -> bool:
 	if def.is_empty():
 		return false
 	var parts: Array = def.get("parts", [])
 	var needs_water := bool(def.get("needsWater", false))
-	var anchor := _find_anchor(chunk, parts, occupied, needs_water)
+	var anchor := _find_anchor(chunk, parts, occupied, needs_water, placement_grid)
 	if anchor.x < 0:
 		return false
 	# Biome whitelist is checked at the actual anchor tile.
@@ -163,7 +159,7 @@ func _try_place(chunk: RefCounted, type: String, def: Dictionary, occupied: Dict
 		if raw.has("color"):
 			part["color"] = str(raw["color"])
 		if bool(raw.get("boss", false)):
-			var boss := _pick_boss_for(chunk, str(def.get("bossName", "")))
+			var boss := _pick_boss_for(chunk, str(def.get("_pinnedBoss", "")))
 			if boss.is_empty():
 				continue
 			part["boss_name"] = str(boss["name"])
@@ -173,27 +169,30 @@ func _try_place(chunk: RefCounted, type: String, def: Dictionary, occupied: Dict
 
 	if bool(def.get("safe", false)):
 		chunk.safe = true
+	placement_grid.place_footprint(chunk, anchor, parts)
 	chunk.pois.append(poi)
 	return true
 
 
 ## Spiral-scan for an anchor tile where the whole footprint is walkable land.
-func _find_anchor(chunk: RefCounted, parts: Array, occupied: Dictionary, needs_water: bool) -> Vector2i:
+func _find_anchor(chunk: RefCounted, parts: Array, occupied: Dictionary, needs_water: bool, placement_grid: RefCounted) -> Vector2i:
 	var center := WG.CHUNK_TILES / 2
-	for ring: int in range(0, 6):
+	for ring: int in range(0, WG.CHUNK_TILES):
 		for dy: int in range(-ring, ring + 1):
 			for dx: int in range(-ring, ring + 1):
 				if maxi(absi(dx), absi(dy)) != ring:
 					continue
 				var ax := center + dx
 				var ay := center + dy
-				if _footprint_ok(chunk, ax, ay, parts, occupied) \
+				if _footprint_ok(chunk, ax, ay, parts, occupied, placement_grid) \
 						and (not needs_water or _adjacent_water(chunk, ax, ay)):
 					return Vector2i(ax, ay)
 	return Vector2i(-1, -1)
 
 
-func _footprint_ok(chunk: RefCounted, ax: int, ay: int, parts: Array, occupied: Dictionary) -> bool:
+func _footprint_ok(chunk: RefCounted, ax: int, ay: int, parts: Array, occupied: Dictionary, placement_grid: RefCounted) -> bool:
+	if not placement_grid.can_place_footprint(chunk, Vector2i(ax, ay), parts):
+		return false
 	var offsets: Array = [[0, 0]]
 	for raw: Dictionary in parts:
 		offsets.append([int(raw.get("dx", 0)), int(raw.get("dy", 0))])
@@ -234,17 +233,18 @@ func _pick_variant(chunk: RefCounted, anchor: Vector2i, variants: Array) -> Dict
 	return fitting[roll]
 
 
-## Boss for a lair: an explicitly pinned bestiary boss (authored) if it exists,
-## otherwise the boss whose level best fits this zone.
+## True when an authored anchor of `type` is pinned to chunk (cx, cy).
+func _authored_anchor_type(cx: int, cy: int, type: String) -> bool:
+	var anc: Dictionary = reg.spec.anchor_for_chunk(cx, cy)
+	return not anc.is_empty() and str(anc["poi"]) == type
+
+
+## Boss for this anchor: a named bestiary boss when pinned, else best-fit.
 func _pick_boss_for(chunk: RefCounted, pinned: String) -> Dictionary:
 	if not pinned.is_empty():
 		for b: Dictionary in reg.boss_list:
 			if str(b["name"]) == pinned:
 				return b
-		var e: Dictionary = DataRegistry.get_enemy(pinned)
-		if not e.is_empty():
-			return {"name": str(e.get("name", pinned)), "level": int(e.get("level", 1)),
-				"biomes": []}
 	return _pick_boss(chunk)
 
 

@@ -106,15 +106,9 @@ Static terrain is deterministic from seed; snapshots preserve explored chunks ac
 
 ### WorldGenerator
 
-Orchestrates one chunk: terrain fields → elevation → tiles/biomes → roads → POIs → skill sites → monsters. Surface uses BiomeClassifier + ElevationMap + AnchorPlanner + placement passes; negative layers use CaveGenerator. See docs/WORLDGEN_GUIDE.md for the full pass table.
+Orchestrates one chunk: terrain → biomes → zone → POIs → skill sites → monsters. Surface uses BiomeClassifier + placement passes; negative layers use CaveGenerator.
 
 **Type:** World generation (pure data).
-
-### ElevationMap / AnchorPlanner
-
-`elevation_map.gd`: terraced elevation levels 0..7 from the height field (stored per tile, drives resource density and cliff rendering). `anchor_planner.gd`: high-level layout — hub anchors per zone cell (data/world/anchors.json) and road corridors from home to nearby hubs. Both deterministic, both consulted by chunk passes and the renderer. F3 in game opens the worldgen debug overlay.
-
-**Type:** World generation (layout layer).
 
 ### BiomeClassifier
 

@@ -14,6 +14,8 @@ var walking := false
 var progress := -1.0
 var facing := 1
 var _t := 0.0
+var _fish_cast_local := Vector2.ZERO
+var _fish_casting := false
 
 
 func _ready() -> void:
@@ -52,6 +54,17 @@ func set_progress(f: float) -> void:
 	queue_redraw()
 
 
+func set_fish_cast(world_pos: Vector2) -> void:
+	_fish_cast_local = to_local(world_pos)
+	_fish_casting = true
+	queue_redraw()
+
+
+func clear_fish_cast() -> void:
+	_fish_casting = false
+	queue_redraw()
+
+
 func _mode() -> String:
 	if walking:
 		return "run"
@@ -79,9 +92,10 @@ func _mode() -> String:
 
 
 func _draw() -> void:
+	var cast_local := _fish_cast_local if _fish_casting else Vector2.ZERO
 	IsoSprites.draw_player(
 		self, PixelPalette.pal("skin_a"), PixelPalette.pal("outfit_a"),
-		PixelPalette.pal("hair"), _mode(), _t, facing)
+		PixelPalette.pal("hair"), _mode(), _t, facing, cast_local)
 	if progress >= 0.0:
 		var bar_w := 36.0
 		var top := Vector2(-bar_w / 2.0, -48.0)

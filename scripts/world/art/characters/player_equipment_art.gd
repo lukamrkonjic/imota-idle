@@ -147,6 +147,7 @@ static func draw_hand_item(
 	facing: int,
 	mode: String,
 	t: float,
+	cast_local: Vector2 = Vector2.ZERO,
 ) -> void:
 	if kind.is_empty() or item_id.is_empty():
 		return
@@ -171,26 +172,37 @@ static func draw_hand_item(
 			PixelDraw.px_rect(canvas, hx + 4.0 * f, hy - 12.0 + swing * 2.0, 4.0, 4.0, metal)
 		"rod":
 			var bob := sin(t * 4.0) * 2.0 if mode == "fish" else 0.0
-			PixelDraw.px_rect(canvas, hx, hy + bob, 16.0 * f, 3.0, PixelPalette.pal("trunk_a"))
-			PixelDraw.px_rect(canvas, hx + 14.0 * f, hy - 2.0 + bob, 4.0, 8.0, PixelPalette.pal("water_a"))
+			var hand := Vector2(hx, hy + bob)
+			if mode == "fish" and cast_local != Vector2.ZERO:
+				var aim := hand.direction_to(cast_local)
+				var rod_len := minf(hand.distance_to(cast_local) * 0.42, 22.0)
+				var tip := hand + aim * rod_len
+				_draw_fishing_line(canvas, hand, tip, cast_local)
+				PixelDraw.px_rect(canvas, tip.x - 1.5, tip.y - 1.5, 3.0, 3.0, PixelPalette.pal("trunk_a"))
+				var bobber := cast_local
+				PixelDraw.px_rect(canvas, bobber.x - 2.0, bobber.y - 2.0, 4.0, 4.0, PixelPalette.pal("water_a"))
+			else:
+				PixelDraw.px_rect(canvas, hx, hy + bob, 16.0 * f, 3.0, PixelPalette.pal("trunk_a"))
+				PixelDraw.px_rect(canvas, hx + 14.0 * f, hy - 2.0 + bob, 4.0, 8.0, PixelPalette.pal("water_a"))
 		"lens":
 			PixelDraw.px_rect(canvas, hx - 2.0 * f, hy - 2.0, 8.0, 3.0, PixelPalette.pal("trunk_b"))
 			PixelDraw.px_diamond(canvas, hx + 6.0 * f, hy, 5.0, 5.0, Color(0.72, 0.86, 0.95, 0.85))
 		"sword":
-			var slash := sin(t * 8.0) if mode.begins_with("combat") else arm_swing * 0.5
-			hx += slash * 5.0 * f
-			hy += slash * 4.0
-			PixelDraw.px_rect(canvas, hx, hy - 14.0 + slash * 2.0, 3.0, 14.0, metal)
-			PixelDraw.px_rect(canvas, hx - 2.0 * f, hy + 2.0, 7.0, 3.0, PixelPalette.pal("trunk_a"))
+			var slash := sin(t * 8.0) if mode.begins_with("combat") else arm_swing * 0.35
+			var hand := Vector2(hx, hy)
+			var aim := (deg_to_rad(-30.0) + slash * 0.12) * f
+			canvas.draw_set_transform(hand, aim, Vector2(f, 1.0))
+			PixelDraw.px_rect(canvas, 2, -1.5, 16, 3, metal)
+			PixelDraw.px_rect(canvas, 17, -1, 3, 2, PixelPalette.shade(metal, 1.18))
+			PixelDraw.px_rect(canvas, -4, -2, 6, 5, PixelPalette.pal("trunk_a"))
+			PixelDraw.px_rect(canvas, -6, -1, 2, 3, PixelPalette.shade(metal, 0.82))
+			canvas.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		"bow":
-			var pull := (sin(t * 6.0) * 0.5 + 0.5) if mode == "combat_range" else 0.2
-			PixelDraw.px_rect(canvas, hx - 10.0 * f, hy - 6.0, 12.0 * f, 3.0, PixelPalette.pal("trunk_a"))
-			PixelDraw.px_rect(canvas, hx - 12.0 * f, hy - 10.0, 3.0, 12.0, metal)
-			PixelDraw.px_rect(canvas, hx - 4.0 * f - pull * 4.0 * f, hy - 2.0, 2.0, 2.0, PixelPalette.pal("trunk_b"))
+			var pull := (sin(t * 6.0) * 0.5 + 0.5) if mode == "combat_range" else 0.15
+			_draw_bow(canvas, hx, hy, f, metal, pull)
 		"staff":
-			var pulse := sin(t * 5.0) if mode == "combat_magic" else 0.0
-			PixelDraw.px_rect(canvas, hx - 2.0 * f, hy - 18.0, 4.0, 20.0, PixelPalette.pal("trunk_b"))
-			PixelDraw.px_diamond(canvas, hx, hy - 20.0 + pulse * 2.0, 4.0, 4.0, Color(0.55, 0.75, 1.0, 0.9))
+			var pulse := sin(t * 5.0) * 1.5 if mode == "combat_magic" else 0.0
+			_draw_staff(canvas, hx, hy, f, pulse, metal)
 		_:
 			PixelDraw.px_rect(canvas, hx, hy, 6.0, 6.0, metal)
 
@@ -240,3 +252,53 @@ static func _weapon_kind(item_name: String, mode: String) -> String:
 	if n.contains("sword") or n.contains("dagger") or n.contains("scimitar") or n.contains("reaver"):
 		return "sword"
 	return "sword"
+
+
+static func _draw_fishing_line(canvas: CanvasItem, hand: Vector2, tip: Vector2, bobber: Vector2) -> void:
+	var line := PixelPalette.shade(PixelPalette.pal("trunk_a"), 0.92)
+	line.a = 0.78
+	var steps := maxi(3, int(hand.distance_to(bobber) / 3.0))
+	for i: int in steps + 1:
+		var u := float(i) / float(steps)
+		var sag := sin(u * PI) * 2.5
+		var p := hand.lerp(bobber, u)
+		if u <= 0.55:
+			p = hand.lerp(tip, u / 0.55)
+		p.y += sag
+		PixelDraw.px_rect(canvas, p.x - 0.5, p.y - 0.5, 1.0, 1.0, line, line.a)
+
+
+static func _draw_bow(canvas: CanvasItem, gx: float, gy: float, facing: int, metal: Color, pull: float) -> void:
+	var s := float(facing)
+	var wood := PixelPalette.pal("trunk_a")
+	var wood_hi := PixelPalette.shade(wood, 1.12)
+	var string_col := Color(0.10, 0.08, 0.07)
+	# Mirrored: limbs toward the body, dark string on the outer side.
+	PixelDraw.px_rect(canvas, gx + 9.0 * s, gy - 11.0, 2.0, 14.0, string_col)
+	PixelDraw.px_rect(canvas, gx - 9.0 * s, gy + 1.0, 3.0 * s, 3.0, wood)
+	PixelDraw.px_rect(canvas, gx - 6.0 * s, gy + 3.0, 5.0 * s, 3.0, wood)
+	PixelDraw.px_rect(canvas, gx - 2.0 * s, gy + 4.0, 6.0 * s, 3.0, wood_hi)
+	PixelDraw.px_rect(canvas, gx - 9.0 * s, gy - 7.0, 3.0 * s, 3.0, wood)
+	PixelDraw.px_rect(canvas, gx - 5.0 * s, gy - 10.0, 5.0 * s, 3.0, wood)
+	PixelDraw.px_rect(canvas, gx - 1.0 * s, gy - 12.0, 6.0 * s, 3.0, wood_hi)
+	PixelDraw.px_rect(canvas, gx + 4.0 * s, gy - 13.0, 4.0 * s, 3.0, wood)
+	PixelDraw.px_rect(canvas, gx + 7.0 * s, gy - 12.0, 3.0 * s, 2.0, wood_hi)
+	PixelDraw.px_rect(canvas, gx - 2.0 * s, gy - 2.0, 5.0 * s, 4.0, metal)
+	if pull > 0.05:
+		PixelDraw.px_rect(canvas, gx + 12.0 * s + pull * 5.0 * s, gy - 1.0, 9.0 * s, 2.0, metal)
+
+
+static func _draw_staff(canvas: CanvasItem, gx: float, gy: float, facing: int, pulse: float, metal: Color) -> void:
+	var s := float(facing)
+	var wood := PixelPalette.pal("trunk_b")
+	var wood_hi := PixelPalette.shade(wood, 1.18)
+	var sx := gx - 1.5 * s
+	var top := gy - 22.0 + pulse
+	PixelDraw.px_rect(canvas, sx, top, 3.0, 20.0, wood)
+	PixelDraw.px_rect(canvas, sx + 1.0 * s, top, 1.0, 20.0, wood_hi)
+	PixelDraw.px_rect(canvas, sx - 2.0 * s, top - 2.0, 8.0, 3.0, wood)
+	PixelDraw.px_rect(canvas, sx + 4.0 * s, top - 4.0, 4.0, 3.0, wood)
+	PixelDraw.px_rect(canvas, sx + 5.0 * s, top - 6.0, 4.0, 3.0, wood)
+	PixelDraw.px_rect(canvas, sx + 6.0 * s, top - 7.0, 3.0, 2.0, wood_hi)
+	PixelDraw.px_diamond(canvas, sx + 6.0 * s, top - 5.0, 3.0, 3.0, Color(0.55, 0.75, 1.0, 0.92))
+	PixelDraw.px_rect(canvas, sx - 1.0, gy + 1.0, 4.0, 3.0, metal)

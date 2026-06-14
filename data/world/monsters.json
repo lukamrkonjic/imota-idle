@@ -22,12 +22,12 @@
   "passive": "(?i)chicken|cow|sheep|pig|goat|rabbit|bunny|crab",
   "aggressive": "(?i)goblin|gnoll|wolf|wolves|skelet|zombie|undead|bone|bony|toxic|giant|wight|ghost|ghast|revenant|crawler|cadaver|shambler|walker|feeder|hound|viper|scarab|guardian|sentinel|ritualist|acolyte|yeti|golem|drake|dragon|wyvern|oni|cyclops|devourer|elemental|widow|maw|slayer|archer|mage|fighter|soldier|banana",
   "rules": [
+    { "match": "(?i)mole", "biomes": ["forest", "plains", "wheatfield"], "caveLayers": [-1] },
     { "match": "(?i)frost|ice|snow|yeti|brumal|palescale|glacier", "biomes": ["tundra"] },
     { "match": "(?i)sand|dune|mummif|mummy|scarab|tomb|pharaoh|royal|oasis|sunbound|sunfang|buried|brightscale", "biomes": ["desert"] },
     { "match": "(?i)toxic|poison|bog|blight|pestilence|virulent|bloat|rot|carrion|carcass|oozing|leech|emerald viper|bloodmoss", "biomes": ["swamp"] },
     { "match": "(?i)fire giant|magma|ash|ember|demon|imp", "biomes": ["volcanic"] },
     { "match": "(?i)hill giant|fog giant|cyclops|golem|ancient fighter|veinwatcher", "biomes": ["rocky_hills"] },
-    { "match": "(?i)mole", "biomes": ["forest", "plains"], "caveLayers": [-1] },
     { "match": "(?i)bat|spider|skitter|widow|crawler|shrieker|devourer|eye", "biomes": ["forest", "rocky_hills"], "caveLayers": [-1] },
     { "match": "(?i)skelet|zombie|undead|bone|bony|cadaver|shambler|walker|corpse|grave|ossified|revenant|wight|ghost|ghast|dusty", "biomes": ["swamp", "plains"], "caveLayers": [-2] },
     { "match": "(?i)dragon|wyvern|drake|maw|vermithrax|vaerthrax", "biomes": ["volcanic", "rocky_hills", "dense_forest"] },
@@ -35,6 +35,6 @@
     { "match": "(?i)wolf|wolves|bear|shadowfang", "biomes": ["forest", "dense_forest", "tundra"] },
     { "match": "(?i)crab|aqua|water elemental|nessy", "biomes": ["beach", "ocean"] },
     { "match": "(?i)banana", "biomes": ["beach", "dense_forest"] },
-    { "match": "(?i)chicken|cow|sheep|pig|goat", "biomes": ["plains"] }
+    { "match": "(?i)chicken|cow|sheep|pig|goat", "biomes": ["plains", "flower_meadow"], "forbiddenBiomes": ["desert", "tundra", "volcanic", "ocean", "beach", "swamp"] },
   ]
 }

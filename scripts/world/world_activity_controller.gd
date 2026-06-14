@@ -3,6 +3,7 @@ class_name WorldActivityController
 ## Gather/combat/station actions and sim lifecycle.
 
 const WG := preload("res://scripts/worldgen/wg.gd")
+const FishingHelper := preload("res://scripts/world/fishing_helper.gd")
 
 const STATION_OPEN := {
 	"bank": "bank", "shop": "shop",
@@ -36,9 +37,18 @@ func process_tick(delta: float) -> void:
 func begin_action(entity: Node2D) -> void:
 	stop_all_sims()
 	clear_combat_target()
+	world.player.clear_fish_cast()
 	world.pending_action = entity.action.duplicate()
 	world.pending_action["entity_path"] = entity.get_path()
-	world.walk_to_pos(entity.position)
+	var target := entity.position
+	var action: Dictionary = entity.action
+	if str(action.get("type", "")) == "gather" and str(action.get("skill", "")) == "fishing":
+		var chunk: RefCounted = WorldGen.chunks.get(str(action["chunk_key"]))
+		if chunk != null:
+			var i := int(action["site_index"])
+			if i < chunk.sites.size():
+				target = FishingHelper.best_stand(world.player.position, chunk, chunk.sites[i])
+	world.walk_to_pos(target)
 
 
 func execute_action(action: Dictionary) -> void:
@@ -86,6 +96,13 @@ func _start_gather(action: Dictionary) -> void:
 		if world.auto_task.get("mode", "") == "gather":
 			world._auto_task_ctrl.find_next()
 		return
+	if str(action["skill"]) == "fishing":
+		if not FishingHelper.can_cast_from(world.player.position, chunk, site):
+			EventBus.combat_log.emit("[color=#444]Stand on the shore to cast into the water.[/color]")
+			if world.auto_task.get("mode", "") == "gather":
+				world._auto_task_ctrl.find_next()
+			return
+		world.player.set_fish_cast(FishingHelper.water_world_pos(chunk, site))
 	if TickSim.start_gather(str(action["skill"]), str(action["node"])):
 		world.gather_ref = {
 			"chunk": chunk, "site_index": i,
@@ -133,6 +150,7 @@ func on_player_died_grace() -> void:
 
 func on_activity_stopped(reason: String) -> void:
 	world.player.set_progress(-1.0)
+	world.player.clear_fish_cast()
 	if reason != "switching":
 		clear_combat_target()
 	if reason != "depleted" and reason != "switching":

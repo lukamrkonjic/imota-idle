@@ -5,9 +5,11 @@ class_name WorldEntitySpawner
 const WG := preload("res://scripts/worldgen/wg.gd")
 const WorldEntity := preload("res://scripts/world/world_entity.gd")
 const WorldDecor := preload("res://scripts/world/world_decor.gd")
+const WorldWaterDecor := preload("res://scripts/world/world_water_decor.gd")
 const IsoSprites := preload("res://scripts/world/art/iso_sprites.gd")
 const TreeArt := preload("res://scripts/world/art/trees/tree_art.gd")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
+const FishingHelper := preload("res://scripts/world/fishing_helper.gd")
 
 var world: Node2D
 
@@ -24,11 +26,15 @@ func on_chunk_loaded(chunk: RefCounted) -> void:
 	world._chunk_containers[chunk.key()] = container
 
 	_spawn_ground_decor(chunk, container)
+	_spawn_water_decor(chunk, container)
 	for i: int in chunk.sites.size():
 		_spawn_site(chunk, i, container)
+	_spawn_fishing_schools(chunk, container)
 	for poi: Dictionary in chunk.pois:
 		for part: Dictionary in poi["parts"]:
 			_spawn_poi_part(chunk, poi, part, container)
+	for part: Dictionary in chunk.structures:
+		_spawn_poi_part(chunk, {}, part, container)
 	for m: Dictionary in chunk.monsters:
 		_spawn_monster(chunk, m, container)
 	world.entities.sort_custom(func(a: Node2D, b: Node2D) -> bool:
@@ -47,6 +53,7 @@ func on_chunk_unloaded(chunk: RefCounted) -> void:
 		for e: Node2D in container.get_children():
 			world.entities.erase(e)
 			world._decor_nodes.erase(e)
+			world._water_decor_nodes.erase(e)
 			if e == world.hovered_entity:
 				world.hovered_entity = null
 			if e == world.combat_target_entity:
@@ -75,12 +82,17 @@ func _spawn_ground_decor(chunk: RefCounted, container: Node2D) -> void:
 	for ty: int in range(WG.CHUNK_TILES):
 		for tx: int in range(WG.CHUNK_TILES):
 			var tile: Dictionary = WorldGen.reg.tile_def(chunk.tile_id(tx, ty))
+			var tname: String = WorldGen.reg.tile_order[chunk.tile_id(tx, ty)]
 			if bool(tile.get("water", false)) or not bool(tile.get("walkable", true)):
+				continue
+			if tname in ["sand", "sand_dune", "shallow", "rock", "cobble", "snow", "gravel", "savanna_grass", "jungle_loam", "boreal_moss", "badland_clay"]:
 				continue
 			var r := WG.r01(seed, chunk.cx * 251 + tx, chunk.cy * 263 + ty, 201)
 			var biome_id := _tile_biome_id(chunk, tx, ty)
+			var b_idx: int = chunk.biome_at(tx, ty)
+			var parent_id: String = WorldGen.reg.parent_biome_id(b_idx) if b_idx != 255 else biome_id
 			var near_water := _tile_near_water(chunk, tx, ty)
-			var chance := _decor_chance(biome_id, near_water)
+			var chance := _decor_chance(biome_id, parent_id, near_water)
 			if r > chance:
 				continue
 			var d: Node2D = WorldDecor.new()
@@ -88,11 +100,80 @@ func _spawn_ground_decor(chunk: RefCounted, container: Node2D) -> void:
 			var kroll := WG.r01(seed, chunk.cx * 97 + tx, chunk.cy * 101 + ty, 205)
 			d.kind = _pick_decor_kind(biome_id, near_water, kroll)
 			var jitter := Vector2(
-				(WG.r01(seed, tx, ty, 203) - 0.5) * WG.TILE * 0.42,
-				(WG.r01(seed, tx, ty, 204) - 0.5) * WG.TILE * 0.32)
+				(WG.r01(seed, tx, ty, 203) - 0.5) * WG.TILE * 0.28,
+				(WG.r01(seed, tx, ty, 204) - 0.5) * WG.TILE * 0.14)
 			d.position = chunk.tile_world(tx, ty) + jitter
 			container.add_child(d)
 			world._decor_nodes.append(d)
+
+
+func _spawn_water_decor(chunk: RefCounted, container: Node2D) -> void:
+	if chunk.layer != 0:
+		return
+	var seed: int = WorldGen.store.world_seed
+	var reg: RefCounted = WorldGen.reg
+	for ty: int in range(WG.CHUNK_TILES):
+		for tx: int in range(WG.CHUNK_TILES):
+			var tid: int = chunk.tile_id(tx, ty)
+			if tid < 0 or tid >= reg.tile_order.size():
+				continue
+			var tname: String = reg.tile_order[tid]
+			var td: Dictionary = reg.tile_def(tid)
+			if not bool(td.get("water", false)):
+				continue
+			if tname == "deep_water":
+				continue
+			var water_n := _water_neighbors(chunk, tx, ty)
+			if water_n < 1:
+				continue
+			var r := WG.r01(seed, chunk.cx * 311 + tx, chunk.cy * 317 + ty, 401)
+			if tname in ["shallow", "water"] and r < 0.075:
+				var d: Node2D = WorldWaterDecor.new()
+				d.kind = "lily"
+				d.variant = int(WG.hash_i(seed, chunk.cx * 113 + tx, chunk.cy * 127 + ty, 402) % 10000)
+				d.position = chunk.tile_world(tx, ty)
+				container.add_child(d)
+				world._water_decor_nodes.append(d)
+
+
+func _spawn_fishing_schools(chunk: RefCounted, container: Node2D) -> void:
+	if chunk.layer != 0:
+		return
+	var seed: int = WorldGen.store.world_seed
+	for s: Dictionary in chunk.sites:
+		if str(s.get("skill", "")) != "fishing":
+			continue
+		var water := FishingHelper.water_tile(chunk, s)
+		if water.x < 0:
+			continue
+		var d: Node2D = WorldWaterDecor.new()
+		d.kind = "fish_school"
+		d.variant = int(WG.hash_i(seed, water.x, water.y, chunk.cx * 401 + chunk.cy) % 10000)
+		d.position = chunk.tile_world(water.x, water.y)
+		container.add_child(d)
+		world._water_decor_nodes.append(d)
+
+
+func _water_neighbors(chunk: RefCounted, tx: int, ty: int) -> int:
+	var count := 0
+	for oy: int in range(-1, 2):
+		for ox: int in range(-1, 2):
+			if ox == 0 and oy == 0:
+				continue
+			if _is_water_tile(chunk, tx + ox, ty + oy):
+				count += 1
+	return count
+
+
+func _is_water_tile(chunk: RefCounted, tx: int, ty: int) -> bool:
+	if tx >= 0 and ty >= 0 and tx < WG.CHUNK_TILES and ty < WG.CHUNK_TILES:
+		return bool(WorldGen.reg.tile_def(chunk.tile_id(tx, ty)).get("water", false))
+	var gtx: int = chunk.cx * WG.CHUNK_TILES + tx
+	var gty: int = chunk.cy * WG.CHUNK_TILES + ty
+	var tid: int = WorldGen.surface_tile_id(gtx, gty)
+	if tid < 0 or tid >= WorldGen.reg.tile_order.size():
+		return false
+	return bool(WorldGen.reg.tile_def(tid).get("water", false))
 
 
 func _tile_biome_id(chunk: RefCounted, tx: int, ty: int) -> String:
@@ -114,64 +195,34 @@ func _tile_near_water(chunk: RefCounted, tx: int, ty: int) -> bool:
 	return false
 
 
-func _decor_chance(biome_id: String, near_water: bool) -> float:
+func _decor_chance(biome_id: String, _parent_id: String, near_water: bool) -> float:
+	var cfg: Dictionary = WorldGen.reg.ground_decor(biome_id)
+	if cfg.is_empty():
+		return 0.025
 	if near_water:
-		return 0.25
-	match biome_id:
-		"dense_forest": return 0.24
-		"forest": return 0.18
-		"swamp": return 0.22
-		"rocky_hills": return 0.10
-		"plains": return 0.085
-		"beach", "desert": return 0.06
-		_: return 0.06
+		return float(cfg.get("waterDensity", cfg.get("density", 0.03)))
+	return float(cfg.get("density", 0.03))
 
 
 func _pick_decor_kind(biome_id: String, near_water: bool, roll: float) -> String:
-	if near_water:
-		if roll < 0.42: return "reed"
-		if roll < 0.62: return "stick"
-		if roll < 0.78: return "grass"
-		if roll < 0.92: return "pebble"
-		return "boulder"
-	match biome_id:
-		"dense_forest":
-			if roll < 0.26: return "shrub"
-			if roll < 0.46: return "fern"
-			if roll < 0.62: return "stick"
-			if roll < 0.74: return "mushroom"
-			if roll < 0.86: return "log"
-			return "grass"
-		"forest":
-			if roll < 0.24: return "shrub"
-			if roll < 0.44: return "fern"
-			if roll < 0.58: return "stick"
-			if roll < 0.68: return "mushroom"
-			if roll < 0.78: return "flower"
-			if roll < 0.88: return "log"
-			return "grass"
-		"swamp":
-			if roll < 0.32: return "reed"
-			if roll < 0.54: return "fern"
-			if roll < 0.70: return "mushroom"
-			if roll < 0.82: return "stick"
-			if roll < 0.92: return "log"
-			return "shrub"
-		"rocky_hills":
-			if roll < 0.50: return "pebble"
-			if roll < 0.78: return "boulder"
-			return "grass"
-		"beach", "desert":
-			if roll < 0.55: return "pebble"
-			if roll < 0.75: return "stick"
-			return "boulder"
-		_:
-			if roll < 0.30: return "grass"
-			if roll < 0.48: return "flower"
-			if roll < 0.62: return "stick"
-			if roll < 0.76: return "shrub"
-			if roll < 0.88: return "pebble"
-			return "boulder"
+	var cfg: Dictionary = WorldGen.reg.ground_decor(biome_id)
+	var kinds: Array = cfg.get("kinds", [])
+	if near_water and biome_id in ["swamp", "marsh_pool", "beach", "oasis", "jungle", "tide_flats", "bog"]:
+		for entry: Dictionary in kinds:
+			if str(entry.get("kind", "")) in ["reed", "fern", "mushroom"]:
+				if roll < 0.55:
+					return str(entry["kind"])
+	if not kinds.is_empty():
+		var total := 0.0
+		for entry: Dictionary in kinds:
+			total += float(entry.get("weight", 1.0))
+		var target := roll * total
+		for entry: Dictionary in kinds:
+			target -= float(entry.get("weight", 1.0))
+			if target <= 0.0:
+				return str(entry.get("kind", "grass"))
+		return str(kinds.back().get("kind", "grass"))
+	return "grass"
 
 
 func _spawn_site(chunk: RefCounted, i: int, container: Node2D) -> void:
@@ -183,10 +234,8 @@ func _spawn_site(chunk: RefCounted, i: int, container: Node2D) -> void:
 	e.tier_color = tier_color(int(s["level"]))
 	e.variant = absi(hash(str(s["node"]) + chunk.key())) % 1000
 	if e.kind == "tree":
-		# Trees draw 3x their node size: canopies should dwarf the player and
-		# read at world scale (reference: ruins/pine mockups in docs).
-		e.display_size = TreeArt.tree_size(int(s["level"]), e.label) * 3.0
-		e.click_radius = clampf(e.display_size * 0.30, 30.0, 84.0)
+		e.display_size = TreeArt.tree_size(int(s["level"]), e.label)
+		e.click_radius = maxf(e.display_size * 0.5, 30.0)
 	else:
 		e.display_size = IsoSprites.node_size(e.kind)
 		e.click_radius = maxf(e.display_size * 0.8, 26.0)
@@ -236,14 +285,41 @@ func _spawn_poi_part(chunk: RefCounted, poi: Dictionary, part: Dictionary, conta
 			e.attuned = WorldGen.store.obelisks.has(chunk.key())
 			e.action = {"type": "obelisk", "chunk_key": chunk.key()}
 		"landmark_tree", "meteor", "mammoth":
-			e.display_size = 330.0 if kind == "landmark_tree" else 60.0
+			e.display_size = 110.0 if kind == "landmark_tree" else 60.0
 			e.click_radius = 48.0
 			e.action = {"type": "landmark", "label": e.label}
-		"ruin_tower", "ruin_wall", "ruin_pillar", "ruin_stone":
-			e.display_size = 92.0 if kind == "ruin_tower" else 58.0
-			e.click_radius = 42.0
-			e.variant = absi(hash(chunk.key() + str(part["tx"]) + ":" + str(part["ty"]))) % 1000
+		"ruin_arch":
+			e.variant = absi(hash(kind + chunk.key())) % 1000
+			e.display_size = 64.0
+			e.click_radius = 44.0
 			e.action = {"type": "landmark", "label": e.label}
+		"ruin_pillar", "broken_wall", "rubble_pile", "broken_statue":
+			# Decorative ruin masonry — seed a per-tile variant for variety and
+			# leave the action empty so they aren't clickable interactables.
+			e.variant = absi(hash(kind + chunk.key() + str(part["tx"]) + ":" + str(part["ty"]))) % 1000
+		"house":
+			# Decorative townhouse with a fade-on-approach roof (driven by the
+			# visual controller); the station entity in front is what's clickable.
+			e.variant = absi(hash("house" + chunk.key() + str(part["tx"]) + ":" + str(part["ty"]))) % 1000
+			if part.has("color"):
+				e.roof_color = Color.from_string("#" + str(part["color"]), e.roof_color)
+		"building":
+			# Large multi-tile hall — display_size carries its footprint in tiles.
+			e.display_size = float(part.get("foot", 6))
+			e.variant = absi(hash("bld" + chunk.key() + str(part["tx"]) + ":" + str(part["ty"]))) % 1000
+			if part.has("color"):
+				e.roof_color = Color.from_string("#" + str(part["color"]), e.roof_color)
+		"city_wall":
+			e.variant = int(part.get("piece", 0))
+		"city_prop":
+			e.prop_kind = str(part.get("prop", "crate"))
+			e.variant = absi(hash(e.prop_kind + chunk.key() + str(part["tx"]) + ":" + str(part["ty"]))) % 1000
+		"bridge":
+			pass  # purely decorative deck over the canal
+		"fountain":
+			e.display_size = 40.0
+			e.click_radius = 30.0
+			e.action = {"type": "landmark", "label": e.label if not e.label.is_empty() else "Fountain"}
 		_:
 			if part.has("station"):
 				e.action = {"type": "station", "station": str(part["station"]), "label": e.label}
@@ -282,4 +358,4 @@ static func tier_color(level: int) -> Color:
 	for threshold: int in [10, 20, 40, 60, 80, 100, 150]:
 		if level >= threshold:
 			idx += 1
-	return colors[idx]
+	return PixelPalette.enrich_entity(colors[idx])

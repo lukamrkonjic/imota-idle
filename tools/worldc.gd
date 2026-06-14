@@ -8,8 +8,9 @@ extends Node
 ##   godot --headless --path . res://tools/worldc.tscn -- --validate
 ##   godot --headless --path . res://tools/worldc.tscn -- --ascii --radius=10
 ##   godot --headless --path . res://tools/worldc.tscn -- --explain=anchor:kingsreach
-##   godot --headless --path . res://tools/worldc.tscn -- --explain=chunk:-4,1
+##   godot --headless --path . res://tools/worldc.tscn -- --explain=chunk:-3,2
 ##   godot --headless --path . res://tools/worldc.tscn -- --metrics --region=eastvale
+##   godot --headless --path . res://tools/worldc.tscn -- --regen=vegetation --region=oakmantle
 ##
 ## Every run prints a JSON trailer after the line "=== WORLDC RESULT ===".
 
@@ -23,6 +24,7 @@ var artifacts: Dictionary = {}
 
 func _ready() -> void:
 	SaveManager.suppress = true
+	GameSettings.suppress = true
 	WorldGen.store.suppress = true
 
 	var do_validate := false
@@ -83,7 +85,7 @@ func _print_header() -> void:
 		spec.id, spec.spec_name, spec.version, WorldGen.store.world_seed, spec.generator_version])
 	print("  Regions (%d):" % spec.regions.size())
 	for r: Dictionary in spec.regions:
-		print("    %-12s %-26s biome=%-12s req=%-3d danger=%-7s center=(%d,%d) r=%.1f" % [
+		print("    %-12s %-26s biome=%-13s req=%-3d danger=%-11s center=(%d,%d) r=%.1f" % [
 			str(r["id"]), str(r["name"]), str(r["biome"]), int(r["req"]),
 			str(r["danger"]), int(r["cx"]), int(r["cy"]), float(r["radius"])])
 	print("  Anchors (%d):" % spec.anchors.size())
@@ -99,7 +101,7 @@ func _print_header() -> void:
 
 func _print_region_map(radius: int) -> void:
 	print("\n  Region / biome map (radius %d chunks, @ = spawn):" % radius)
-	print("  legend: lowercase=authored region 1st letter, .=procedural land, ~=water-ish")
+	print("  legend: lowercase=authored region 1st letter, #=anchor, .=procedural land, ~=water")
 	var spec: RefCounted = WorldGen.reg.spec
 	for cy: int in range(-radius, radius + 1):
 		var line := "  "
@@ -278,6 +280,11 @@ func _v_anchors_placed() -> void:
 	var spec: RefCounted = WorldGen.reg.spec
 	if spec == null or not spec.active:
 		return
+	# Start from a clean slate: the global placement grid accumulates footprints
+	# across the run (and the determinism check clears the chunk cache without it),
+	# which would falsely block re-generation here. In-game, chunks generate once.
+	WorldGen.chunks.clear()
+	WorldGen.generator.placement_grid.clear()
 	for a: Dictionary in spec.anchors:
 		var c: Vector2i = a["chunk"]
 		var chunk: RefCounted = WorldGen.get_chunk(0, c.x, c.y)
@@ -341,11 +348,11 @@ func _check_reachable(spec: RefCounted, from_id: String, to_id: String) -> void:
 		return
 	var ca: Vector2i = Vector2i(a.get("chunk", Vector2i.ZERO))
 	var cb: Vector2i = Vector2i(b.get("chunk", Vector2i.ZERO))
-	var blocked := _line_walkable_ratio(ca, cb)
-	if blocked < 0.6:
+	var walkable := _line_walkable_ratio(ca, cb)
+	if walkable < 0.6:
 		_add(str(b.get("region", "*")), "high", "inaccessible_location",
-			"Route %s -> %s is only %d%% walkable along its corridor." % [from_id, to_id, int(blocked * 100.0)],
-			"Route a road through walkable land or lower the region's water.", ["road_generation"], [])
+			"Route %s -> %s is only %d%% walkable along its corridor." % [from_id, to_id, int(walkable * 100.0)],
+			"Route through walkable land or lower the region's water.", ["road_generation"], [])
 
 
 func _check_travel(spec: RefCounted, rel: Dictionary) -> void:

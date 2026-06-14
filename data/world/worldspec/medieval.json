@@ -1,94 +1,96 @@
 {
   "_doc": [
     "WorldSpec — the semantic design of a world, authored by an AI World Director",
-    "from a natural-language brief and compiled deterministically by the existing",
-    "Godot generator (see docs/AI_WORLD_AUTHORING.md). It describes regions, named",
-    "settlements/landmarks/dungeons, primary roads and relationships — NOT every",
-    "tree or rock. Edit freely: regions force a biome + zone name + entry level,",
-    "anchors pin a POI (and optional boss) to an exact chunk, routes draw the",
-    "primary roads. Everything outside these stays procedural and infinite.",
-    "Coordinates are in CHUNK space (1 chunk = 16 tiles = 768 px).",
-    "Bump 'generatorVersion' (and scripts/worldgen/world_store.gd) when layout",
-    "changes so explored chunks regenerate."
+    "and compiled deterministically by the Godot generator (see",
+    "docs/AI_WORLD_AUTHORING.md). This is NOT a list of trees/rocks: it names",
+    "regions, pins a few landmark anchors, and declares relationships the",
+    "validator (tools/worldc.gd) checks. Everything else stays procedural.",
+    "",
+    "Coordinates are in CHUNK space (1 chunk = 16 tiles), so the layout is",
+    "seed-independent and reproducible. regions[].shape is a disc {center,radius}",
+    "that forces a parent biome + a named zone with an entry-level 'req'; your",
+    "sub-biomes (groves, bamboo, dense_forest...) still stamp inside them.",
+    "anchors pin a POI (from data/world/pois.json) to one chunk and may pin a",
+    "named boss from data/enemies.json. To expand the world: add a region, drop",
+    "an anchor at its center, then run `worldc --validate`."
   ],
   "id": "medieval",
   "version": 1,
   "name": "The Eastvale Realm",
   "seed": 7,
-  "generatorVersion": 3,
-  "defaults": { "biome": "", "danger": "safe" },
+  "generatorVersion": 11,
 
   "regions": [
     {
       "id": "eastvale", "name": "Eastvale Commons",
-      "shape": { "type": "disc", "center": [0, 0], "radius": 2 },
-      "biome": "plains", "req": 1, "tier": "Beginner", "danger": "safe",
-      "motif": "rolling green commons, timber fences, a stone guidepost by the camp",
-      "material": "grass + timber", "silhouette": "open and gentle",
+      "biome": "plains", "req": 1, "danger": "safe",
+      "shape": { "center": [0, 0], "radius": 2 },
+      "motif": "Gentle rolling commons around the home camp — the beginner heartland (Lumbridge vibes): open sightlines, a few oaks, easy paths out to every neighbour.",
+      "material": "soft green grass", "silhouette": "low hedgerows and a lone campfire",
       "locked": true, "regen": ["vegetation", "decals"]
     },
     {
-      "id": "kingsreach", "name": "Kingsreach, the Crown City",
-      "shape": { "type": "disc", "center": [4, 0], "radius": 2 },
-      "biome": "plains", "req": 1, "tier": "Beginner", "danger": "safe",
-      "motif": "walled capital with a central obelisk, market and royal forge",
-      "material": "cut stone + banners", "silhouette": "tall walls and spires",
-      "locked": true, "regen": ["vegetation", "decals"]
+      "id": "kingsreach", "name": "Kingsreach",
+      "biome": "plains", "req": 2, "danger": "safe",
+      "shape": { "center": [3, -2], "radius": 2 },
+      "motif": "The capital on the northern downs — the Crown Obelisk spire is visible from far off and every service in the realm is gathered here.",
+      "material": "flagstone and banners", "silhouette": "the Crown Obelisk above the rooftops",
+      "locked": true
     },
     {
       "id": "goldfurrow", "name": "Goldfurrow Fields",
-      "shape": { "type": "disc", "center": [0, 4], "radius": 2 },
-      "biome": "wheatfield", "req": 3, "tier": "Beginner", "danger": "low",
-      "motif": "endless golden wheat broken by hedgerows and a lone scarecrow",
-      "material": "ripe wheat + tilled earth", "silhouette": "flat gold sea",
-      "locked": false, "regen": ["vegetation", "decals", "resources"]
+      "biome": "wheatfield", "req": 3, "danger": "safe",
+      "shape": { "center": [3, 2], "radius": 2 },
+      "motif": "Endless golden wheat between Eastvale and the capital — the realm's granary, swaying amber under the sun.",
+      "material": "ripe golden wheat", "silhouette": "flat amber sea of grain",
+      "locked": false, "regen": ["vegetation", "resources"]
     },
     {
       "id": "oakmantle", "name": "Oakmantle Woods",
-      "shape": { "type": "disc", "center": [-4, 0], "radius": 2 },
-      "biome": "forest", "req": 5, "tier": "Beginner", "danger": "low",
-      "motif": "broad oak canopy; a dark burrow mouth marks the Molehollow",
-      "material": "oak + leaf litter", "silhouette": "rounded canopies",
-      "locked": false, "regen": ["vegetation", "decals", "resources"]
+      "biome": "forest", "req": 6, "danger": "low",
+      "shape": { "center": [-3, 2], "radius": 2 },
+      "motif": "Deep broadleaf oak forest west of home — dense groves, woodcutting country, and a burrow that drops into the Molehollow.",
+      "material": "mossy oak and leaf litter", "silhouette": "tall oak canopy",
+      "locked": false, "regen": ["vegetation"]
     },
     {
       "id": "pinscar", "name": "Pinscar Deepwood",
-      "shape": { "type": "disc", "center": [-4, -4], "radius": 2 },
-      "biome": "dense_forest", "req": 9, "tier": "Beginner", "danger": "medium",
-      "motif": "tight black pines, needled floor, little sky",
-      "material": "pine + shadow", "silhouette": "jagged dark spires",
-      "locked": false, "regen": ["vegetation", "decals", "resources"]
+      "biome": "boreal_forest", "req": 10, "danger": "medium",
+      "shape": { "center": [-3, -2], "radius": 2 },
+      "motif": "Cold pine highlands to the northwest — straight black pines, needle floor, and a hush that gets heavier the deeper you go.",
+      "material": "dark pine and moss", "silhouette": "spiked pine ridgeline",
+      "locked": false, "regen": ["vegetation"]
     },
     {
       "id": "grimwarden", "name": "Grimwarden Ruins",
-      "shape": { "type": "disc", "center": [0, -4], "radius": 2 },
-      "biome": "rocky_hills", "req": 12, "tier": "Beginner", "danger": "high",
-      "motif": "a broken keep on bare crags, home to a beastmaster",
-      "material": "weathered granite", "silhouette": "a single ruined tower",
-      "locked": true, "regen": ["vegetation", "decals"]
+      "biome": "rocky_hills", "req": 14, "danger": "high",
+      "shape": { "center": [0, -5], "radius": 2 },
+      "motif": "A shattered keep on the high rocks due north — the Broken Spire leans over a toppled shrine, and the beastmaster Amaruq stalks the rubble.",
+      "material": "cracked granite and ivy", "silhouette": "the leaning Broken Spire",
+      "locked": true
     },
     {
       "id": "dreadmoor", "name": "The Dreadmoor",
-      "shape": { "type": "disc", "center": [0, -9], "radius": 3 },
-      "biome": "swamp", "req": 45, "tier": "Intermediate", "danger": "deadly",
-      "motif": "the lawless mire — sunken ruins, fog, and no safe ground (wilderness)",
-      "material": "black water + bog", "silhouette": "drowned pillars",
-      "locked": false, "regen": ["vegetation", "decals", "resources"]
+      "biome": "swamp", "req": 45, "danger": "wilderness",
+      "shape": { "center": [0, 6], "radius": 3 },
+      "motif": "The southern wilderness — a drowned, fog-bound moor with few safe ways in, where players fight players. High risk, high reward.",
+      "material": "black water and reed", "silhouette": "dead trees in standing fog",
+      "locked": false, "regen": ["vegetation", "monsters"]
     }
   ],
 
   "anchors": [
     {
       "id": "kingsreach", "poi": "capital_city", "label": "Kingsreach",
-      "chunk": [4, 0], "region": "kingsreach", "teleport": true, "locked": true
+      "chunk": [3, -2], "region": "kingsreach", "teleport": true, "locked": true
     },
     {
       "id": "grimwarden_keep", "poi": "great_ruins", "label": "Grimwarden Ruins",
-      "chunk": [0, -4], "region": "grimwarden", "boss": "Amaruq", "locked": true
+      "chunk": [0, -5], "region": "grimwarden", "boss": "Amaruq", "locked": true
     },
     {
       "id": "molehollow", "poi": "mole_dungeon", "label": "The Molehollow",
-      "chunk": [-4, 1], "region": "oakmantle", "boss": "Giant Mole", "locked": true
+      "chunk": [-3, 2], "region": "oakmantle", "boss": "Giant Mole", "locked": true
     }
   ],
 
@@ -99,11 +101,19 @@
   ],
 
   "relationships": [
-    { "kind": "service_present", "region": "eastvale", "service": "bank" },
-    { "kind": "service_present", "region": "kingsreach", "service": "bank" },
-    { "kind": "service_present", "region": "kingsreach", "service": "anvil" },
-    { "kind": "reachable", "from": "spawn", "to": "kingsreach" },
-    { "kind": "travel_time", "from": "spawn", "to": "kingsreach", "seconds": 15, "tolerance": 20 },
-    { "kind": "max_entrances", "region": "dreadmoor", "count": 2 }
+    { "kind": "service_present", "region": "eastvale", "service": "bank",
+      "why": "The beginner home must have a bank at the camp." },
+    { "kind": "service_present", "region": "kingsreach", "service": "bank",
+      "why": "The capital is the realm's full-service hub." },
+    { "kind": "service_present", "region": "kingsreach", "service": "anvil",
+      "why": "Smithing belongs in the capital forge." },
+    { "kind": "reachable", "from": "spawn", "to": "kingsreach",
+      "why": "Players must be able to walk from home to the capital." },
+    { "kind": "reachable", "from": "spawn", "to": "grimwarden_keep",
+      "why": "The ruins landmark must be reachable on foot." },
+    { "kind": "reachable", "from": "spawn", "to": "molehollow",
+      "why": "The dungeon must be reachable on foot." },
+    { "kind": "max_entrances", "region": "dreadmoor", "count": 3,
+      "why": "The wilderness should have few, memorable ways in." }
   ]
 }

@@ -1,130 +1,475 @@
 {
   "_doc": [
-    "Biome + tile registry consumed by scripts/worldgen/biome_classifier.gd and chunk_renderer.gd.",
-    "TILES: id -> { colors: [hexA, hexB] (dither pair), walkable, water, hazard }.",
-    "BIOMES: classifier picks the highest-priority biome whose 'when' ranges all",
-    "match the tile's height/moisture/temp (each 0..1; absent bound = unbounded).",
-    "Always keep one biome with priority 0 and empty 'when' as the fallback.",
-    "tiles: weighted ground palette. tint: ambient CanvasModulate hex. music: tag",
-    "emitted on EventBus.biome_changed. skillWeights: relative chance per gather",
-    "skill when populating sites. siteDensity/monsterDensity: spawns per chunk",
-    "scale. To add a biome: append an entry here, add zone words in",
-    "zone_names.json, and (optionally) reference it from skill_sites.json /",
-    "monsters.json / pois.json. No generator code changes needed."
+    "Whittaker field biomes: domain-warped climate noise → biome lookup → smooth.",
+    "Border art is render-time beveled edges (no transition tile speckle).",
+    "neighbors: allowed adjacent parent biomes (enforced by smoothing pass).",
+    "transitions: border tile palettes keyed 'a:b' (sorted ids).",
+    "groundDecor: clutter density + weighted kinds per biome.",
+    "subBiomes: micro-regions stamped only inside allowedParents."
   ],
   "tiles": {
-    "deep_water":   { "colors": ["444a65", "222228"], "walkable": false, "water": true },
-    "water":        { "colors": ["7687ab", "444a65"], "walkable": false, "water": true },
-    "shallow":      { "colors": ["a9bbcc", "7687ab"], "walkable": true,  "water": true },
-    "sand":         { "colors": ["d9c277", "c17b5c"], "walkable": true,  "water": false },
-    "grass":        { "colors": ["596e47", "647551"], "walkable": true,  "water": false },
-    "grass_dark":   { "colors": ["4e6044", "596e47"], "walkable": true,  "water": false },
-    "wheat":        { "colors": ["d9c277", "b8923f"], "walkable": true,  "water": false },
-    "wheat_ripe":   { "colors": ["e6c463", "c8a24a"], "walkable": true,  "water": false },
-    "dirt":         { "colors": ["c17b5c", "85444a"], "walkable": true,  "water": false },
-    "mud":          { "colors": ["4a363c", "38453a"], "walkable": true,  "water": false },
-    "marsh":        { "colors": ["596e47", "38453a"], "walkable": true,  "water": false },
-    "snow":         { "colors": ["dfe6e0", "a9bbcc"], "walkable": true,  "water": false },
-    "frozen_grass": { "colors": ["9ba15f", "7687ab"], "walkable": true,  "water": false },
-    "ash":          { "colors": ["4a363c", "222228"], "walkable": true,  "water": false },
-    "lava_rock":    { "colors": ["4a363c", "222228"], "walkable": true,  "water": false },
-    "lava":         { "colors": ["c17b5c", "85444a"], "walkable": false, "water": false, "hazard": true },
-    "rock":         { "colors": ["a9bbcc", "7687ab"], "walkable": true,  "water": false },
-    "cobble":       { "colors": ["dfe6e0", "a9bbcc"], "walkable": true,  "water": false },
+    "deep_water":   { "colors": ["3a4558", "2a3344"], "walkable": false, "water": true },
+    "water":        { "colors": ["4e5f78", "3a4558"], "walkable": false, "water": true },
+    "shallow":      { "colors": ["6a7a92", "4e5f78"], "walkable": true,  "water": true },
+    "sand":         { "colors": ["c4b08a", "b8a078"], "walkable": true,  "water": false },
+    "sand_dune":    { "colors": ["b8a078", "a89468"], "walkable": true,  "water": false },
+    "grass":        { "colors": ["5a6b4a", "526040"], "walkable": true,  "water": false },
+    "grass_dark":   { "colors": ["4a5a3c", "5a6b4a"], "walkable": true,  "water": false },
+    "dirt":         { "colors": ["8a7558", "7a684c"], "walkable": true,  "water": false },
+    "mud":          { "colors": ["4a5244", "3e4638"], "walkable": true,  "water": false },
+    "marsh":        { "colors": ["4f6042", "465838"], "walkable": true,  "water": false },
+    "snow":         { "colors": ["d8e0dc", "c4ccc8"], "walkable": true,  "water": false },
+    "frozen_grass": { "colors": ["d8e0dc", "8a9478"], "walkable": true,  "water": false },
+    "ash":          { "colors": ["5a5248", "4a443c"], "walkable": true,  "water": false },
+    "lava_rock":    { "colors": ["5a4840", "4a3830"], "walkable": true,  "water": false },
+    "lava":         { "colors": ["a85030", "883818"], "walkable": false, "water": false, "hazard": true },
+    "rock":         { "colors": ["6a7078", "5a6068"], "walkable": true,  "water": false },
+    "cobble":       { "colors": ["747a82", "6a7078"], "walkable": true,  "water": false },
     "cave_floor":   { "colors": ["4a363c", "222228"], "walkable": true,  "water": false },
     "cave_wall":    { "colors": ["222228", "111116"], "walkable": false, "water": false },
     "fungal_floor": { "colors": ["444a65", "4a363c"], "walkable": true,  "water": false },
     "deep_floor":   { "colors": ["38453a", "222228"], "walkable": true,  "water": false },
-    "deep_wall":    { "colors": ["222228", "0b0b10"], "walkable": false, "water": false }
+    "deep_wall":    { "colors": ["222228", "0b0b10"], "walkable": false, "water": false },
+    "savanna_grass": { "colors": ["b8a868", "a89858"], "walkable": true,  "water": false },
+    "jungle_loam":   { "colors": ["3e5240", "4a6248"], "walkable": true,  "water": false },
+    "boreal_moss":   { "colors": ["4a5a48", "3e4a38"], "walkable": true,  "water": false },
+    "badland_clay":  { "colors": ["8a6848", "7a5838"], "walkable": true,  "water": false },
+    "gravel":        { "colors": ["8a8680", "7a7670"], "walkable": true,  "water": false },
+    "wheat":         { "colors": ["c9ab53", "b8973f"], "walkable": true,  "water": false },
+    "wheat_ripe":    { "colors": ["e0c463", "cfae49"], "walkable": true,  "water": false },
+    "plaza":         { "colors": ["8f8a82", "817c74"], "walkable": true,  "water": false },
+    "plank_floor":   { "colors": ["6e5638", "5e4a30"], "walkable": true,  "water": false },
+    "building_wall": { "colors": ["5a5560", "4a4650"], "walkable": false, "water": false }
   },
+  "transitions": {},
   "biomes": [
     {
       "id": "ocean", "name": "Ocean", "priority": 100,
+      "neighbors": ["beach", "ocean"],
       "when": { "heightMax": 0.30 },
       "tiles": { "water": 1.0 },
       "tint": "a9bbcc", "music": "ocean",
       "skillWeights": { "fishing": 1.0 },
-      "siteDensity": 0.0, "monsterDensity": 0.0
+      "siteDensity": 0.0, "monsterDensity": 0.0,
+      "groundDecor": { "density": 0.0, "waterDensity": 0.075, "kinds": [{ "kind": "pebble", "weight": 1.0 }] }
     },
     {
       "id": "beach", "name": "Coast", "priority": 90,
+      "neighbors": ["ocean", "beach", "plains", "forest", "swamp", "desert", "rocky_hills", "savanna", "jungle"],
       "when": { "heightMax": 0.345 },
       "tiles": { "sand": 1.0 },
       "tint": "d9c277", "music": "coast",
       "skillWeights": { "fishing": 3.0, "foraging": 0.6 },
-      "siteDensity": 0.7, "monsterDensity": 0.25
+      "siteDensity": 0.5, "monsterDensity": 0.2,
+      "groundDecor": { "density": 0.035, "waterDensity": 0.15, "kinds": [{ "kind": "shell", "weight": 0.32 }, { "kind": "driftwood", "weight": 0.22 }, { "kind": "pebble", "weight": 0.28 }, { "kind": "stick", "weight": 0.18 }] }
     },
     {
       "id": "volcanic", "name": "Ash Wastes", "priority": 80,
+      "neighbors": ["volcanic", "rocky_hills", "desert"],
       "when": { "tempMin": 0.82, "heightMin": 0.60 },
       "tiles": { "ash": 0.78, "lava_rock": 0.18, "lava": 0.04 },
       "tint": "85444a", "music": "volcanic",
       "skillWeights": { "mining": 3.0, "woodcutting": 0.1 },
-      "siteDensity": 0.8, "monsterDensity": 0.8
+      "siteDensity": 0.8, "monsterDensity": 0.8,
+      "groundDecor": { "density": 0.028, "kinds": [{ "kind": "pebble", "weight": 0.85 }, { "kind": "stick", "weight": 0.15 }, { "kind": "rubble", "weight": 0.1 }] }
     },
     {
       "id": "rocky_hills", "name": "Highlands", "priority": 70,
+      "neighbors": ["rocky_hills", "forest", "plains", "tundra", "desert", "volcanic", "beach", "alpine", "badlands"],
       "when": { "heightMin": 0.78 },
       "tiles": { "rock": 0.74, "dirt": 0.16, "grass_dark": 0.10 },
       "tint": "a9bbcc", "music": "hills",
-      "skillWeights": { "mining": 4.0, "woodcutting": 0.3, "foraging": 0.4 },
-      "siteDensity": 1.1, "monsterDensity": 0.5
+      "skillWeights": { "mining": 5.5, "woodcutting": 0.25, "foraging": 0.35 },
+      "siteDensity": 1.35, "monsterDensity": 0.5,
+      "groundDecor": { "density": 0.049, "kinds": [{ "kind": "pebble", "weight": 0.75 }, { "kind": "grass", "weight": 0.25 }, { "kind": "rubble", "weight": 0.1 }] }
     },
     {
       "id": "tundra", "name": "Tundra", "priority": 60,
+      "neighbors": ["tundra", "rocky_hills", "plains", "forest", "beach", "boreal_forest", "alpine"],
       "when": { "tempMax": 0.25 },
       "tiles": { "snow": 0.74, "frozen_grass": 0.23, "rock": 0.03 },
       "tint": "dfe6e0", "music": "tundra",
       "skillWeights": { "woodcutting": 1.2, "mining": 1.5, "foraging": 1.0, "fishing": 0.8 },
-      "siteDensity": 0.9, "monsterDensity": 0.6
+      "siteDensity": 0.9, "monsterDensity": 0.6,
+      "groundDecor": { "density": 0.031, "kinds": [{ "kind": "lichen", "weight": 0.35 }, { "kind": "stick", "weight": 0.38 }, { "kind": "pebble", "weight": 0.27 }] }
     },
     {
       "id": "desert", "name": "Desert", "priority": 55,
-      "when": { "tempMin": 0.72, "moistureMax": 0.35 },
-      "tiles": { "sand": 0.985, "rock": 0.015 },
+      "neighbors": ["desert", "beach", "rocky_hills", "plains", "volcanic", "savanna", "badlands"],
+      "when": { "tempMin": 0.68, "moistureMax": 0.38 },
+      "tiles": { "sand": 0.82, "sand_dune": 0.18 },
       "tint": "d9c277", "music": "desert",
       "skillWeights": { "mining": 1.6, "woodcutting": 0.5, "foraging": 0.8 },
-      "siteDensity": 0.7, "monsterDensity": 0.6
+      "siteDensity": 0.7, "monsterDensity": 0.6,
+      "groundDecor": { "density": 0.031, "kinds": [{ "kind": "cactus", "weight": 0.32 }, { "kind": "pebble", "weight": 0.42 }, { "kind": "bone", "weight": 0.14 }, { "kind": "stick", "weight": 0.12 }] }
     },
     {
       "id": "swamp", "name": "Swamp", "priority": 50,
+      "neighbors": ["swamp", "forest", "plains", "beach", "jungle"],
       "when": { "moistureMin": 0.74, "tempMin": 0.28, "tempMax": 0.72, "heightMax": 0.52 },
       "tiles": { "marsh": 0.76, "mud": 0.16, "shallow": 0.08 },
       "tint": "9ba15f", "music": "swamp",
       "skillWeights": { "foraging": 2.5, "fishing": 1.4, "woodcutting": 1.0 },
-      "siteDensity": 1.0, "monsterDensity": 0.8
+      "siteDensity": 1.0, "monsterDensity": 0.8,
+      "groundDecor": { "density": 0.077, "waterDensity": 0.175, "kinds": [{ "kind": "reed", "weight": 0.4 }, { "kind": "fern", "weight": 0.25 }, { "kind": "mushroom", "weight": 0.2 }, { "kind": "stick", "weight": 0.15 }, { "kind": "bramble", "weight": 0.12 }] }
     },
     {
-      "id": "dense_forest", "name": "Deepwood", "priority": 40,
-      "when": { "moistureMin": 0.66, "tempMin": 0.25, "tempMax": 0.82 },
+      "id": "alpine", "name": "Alpine Peaks", "priority": 62,
+      "neighbors": ["alpine", "rocky_hills", "tundra", "boreal_forest", "forest"],
+      "when": { "heightMin": 0.64, "tempMax": 0.36 },
+      "tiles": { "gravel": 0.62, "rock": 0.28, "snow": 0.10 },
+      "tint": "c4ccc8", "music": "tundra",
+      "skillWeights": { "mining": 3.5, "foraging": 0.6, "woodcutting": 0.3 },
+      "siteDensity": 0.85, "monsterDensity": 0.45,
+      "groundDecor": { "density": 0.039, "kinds": [{ "kind": "lichen", "weight": 0.45 }, { "kind": "pebble", "weight": 0.4 }, { "kind": "stick", "weight": 0.15 }, { "kind": "rubble", "weight": 0.1 }] }
+    },
+    {
+      "id": "jungle", "name": "Jungle", "priority": 48,
+      "neighbors": ["jungle", "swamp", "forest", "savanna", "beach"],
+      "when": { "tempMin": 0.70, "moistureMin": 0.76, "heightMax": 0.58 },
+      "tiles": { "jungle_loam": 0.72, "grass_dark": 0.20, "mud": 0.08 },
+      "tint": "4a6248", "music": "deep_forest",
+      "skillWeights": { "foraging": 3.2, "woodcutting": 2.8, "fishing": 0.6, "mining": 0.2 },
+      "siteDensity": 1.15, "monsterDensity": 0.75,
+      "groundDecor": { "density": 0.091, "waterDensity": 0.1, "kinds": [{ "kind": "vine", "weight": 0.32 }, { "kind": "fern", "weight": 0.28 }, { "kind": "mushroom", "weight": 0.18 }, { "kind": "flower", "weight": 0.12 }, { "kind": "stick", "weight": 0.1 }, { "kind": "bramble", "weight": 0.12 }] }
+    },
+    {
+      "id": "boreal_forest", "name": "Boreal Forest", "priority": 44,
+      "neighbors": ["boreal_forest", "tundra", "forest", "rocky_hills", "alpine", "swamp"],
+      "when": { "tempMin": 0.30, "tempMax": 0.44, "moistureMin": 0.42 },
+      "tiles": { "boreal_moss": 0.68, "grass_dark": 0.22, "dirt": 0.10 },
+      "tint": "6a7a62", "music": "forest",
+      "skillWeights": { "woodcutting": 2.6, "foraging": 1.2, "mining": 0.5, "fishing": 0.5 },
+      "siteDensity": 1.05, "monsterDensity": 0.55,
+      "groundDecor": { "density": 0.067, "kinds": [{ "kind": "moss", "weight": 0.35 }, { "kind": "stick", "weight": 0.28 }, { "kind": "shrub", "weight": 0.22 }, { "kind": "pebble", "weight": 0.15 }] }
+    },
+    {
+      "id": "savanna", "name": "Savanna", "priority": 41,
+      "neighbors": ["savanna", "desert", "plains", "forest", "jungle", "badlands"],
+      "when": { "tempMin": 0.52, "tempMax": 0.74, "moistureMin": 0.26, "moistureMax": 0.48 },
+      "tiles": { "savanna_grass": 0.78, "dirt": 0.14, "grass": 0.08 },
+      "tint": "c4b878", "music": "plains",
+      "skillWeights": { "foraging": 1.6, "woodcutting": 0.9, "mining": 0.6, "fishing": 0.3 },
+      "siteDensity": 0.85, "monsterDensity": 0.55,
+      "groundDecor": { "density": 0.056, "kinds": [{ "kind": "grass", "weight": 0.35 }, { "kind": "shrub", "weight": 0.3 }, { "kind": "stick", "weight": 0.2 }, { "kind": "flower", "weight": 0.15 }, { "kind": "rubble", "weight": 0.1 }] }
+    },
+    {
+      "id": "badlands", "name": "Badlands", "priority": 39,
+      "neighbors": ["badlands", "desert", "rocky_hills", "savanna", "alpine", "volcanic"],
+      "when": { "tempMin": 0.52, "moistureMax": 0.42, "heightMin": 0.42, "heightMax": 0.68 },
+      "tiles": { "badland_clay": 0.58, "rock": 0.28, "dirt": 0.14 },
+      "tint": "8a6848", "music": "desert",
+      "skillWeights": { "mining": 2.8, "foraging": 0.5, "woodcutting": 0.2 },
+      "siteDensity": 0.95, "monsterDensity": 0.65,
+      "groundDecor": { "density": 0.042, "kinds": [{ "kind": "bone", "weight": 0.28 }, { "kind": "pebble", "weight": 0.45 }, { "kind": "stick", "weight": 0.27 }, { "kind": "bramble", "weight": 0.12 }, { "kind": "rubble", "weight": 0.1 }] }
+    },
+    {
+      "id": "dense_forest", "name": "Deepwood", "priority": 40, "isSubBiome": true,
+      "parentBiome": "forest",
+      "when": {},
       "tiles": { "grass_dark": 0.70, "grass": 0.30 },
       "tint": "596e47", "music": "deep_forest",
       "skillWeights": { "woodcutting": 4.0, "foraging": 1.6, "mining": 0.2 },
-      "siteDensity": 1.3, "monsterDensity": 0.7
+      "siteDensity": 1.3, "monsterDensity": 0.7,
+      "groundDecor": { "density": 0.098, "kinds": [{ "kind": "fern", "weight": 0.3 }, { "kind": "shrub", "weight": 0.25 }, { "kind": "mushroom", "weight": 0.22 }, { "kind": "stick", "weight": 0.13 }, { "kind": "grass", "weight": 0.1 }, { "kind": "bramble", "weight": 0.12 }] }
+    },
+    {
+      "id": "flower_meadow", "name": "Flower Meadow", "priority": 38, "isSubBiome": true,
+      "parentBiome": "plains",
+      "when": {},
+      "tiles": { "grass": 0.85, "dirt": 0.15 },
+      "tint": "ffffff", "music": "plains",
+      "skillWeights": { "foraging": 2.2, "woodcutting": 0.4 },
+      "siteDensity": 0.8, "monsterDensity": 0.35,
+      "groundDecor": { "density": 0.1, "kinds": [{ "kind": "flower", "weight": 0.55 }, { "kind": "grass", "weight": 0.3 }, { "kind": "shrub", "weight": 0.15 }] }
+    },
+    {
+      "id": "marsh_pool", "name": "Marsh Pool", "priority": 37, "isSubBiome": true,
+      "parentBiome": "swamp",
+      "when": {},
+      "tiles": { "shallow": 0.45, "mud": 0.35, "marsh": 0.20 },
+      "tint": "9ba15f", "music": "swamp",
+      "skillWeights": { "fishing": 2.5, "foraging": 1.8 },
+      "siteDensity": 0.6, "monsterDensity": 0.4,
+      "groundDecor": { "density": 0.084, "waterDensity": 0.22, "kinds": [{ "kind": "reed", "weight": 0.5 }, { "kind": "mushroom", "weight": 0.3 }, { "kind": "fern", "weight": 0.2 }, { "kind": "bramble", "weight": 0.12 }] }
+    },
+    {
+      "id": "rocky_clearing", "name": "Rocky Clearing", "priority": 36, "isSubBiome": true,
+      "parentBiome": "rocky_hills",
+      "when": {},
+      "tiles": { "rock": 0.55, "cobble": 0.25, "dirt": 0.20 },
+      "tint": "a9bbcc", "music": "hills",
+      "skillWeights": { "mining": 4.5, "foraging": 0.5 },
+      "siteDensity": 1.1, "monsterDensity": 0.45,
+      "groundDecor": { "density": 0.056, "kinds": [{ "kind": "pebble", "weight": 0.85 }, { "kind": "stick", "weight": 0.15 }, { "kind": "rubble", "weight": 0.1 }] }
+    },
+    {
+      "id": "oasis", "name": "Oasis", "priority": 35, "isSubBiome": true,
+      "parentBiome": "desert",
+      "when": {},
+      "tiles": { "shallow": 0.35, "grass": 0.30, "sand": 0.35 },
+      "tint": "9ba15f", "music": "desert",
+      "skillWeights": { "foraging": 2.0, "fishing": 1.2, "woodcutting": 0.6 },
+      "siteDensity": 0.5, "monsterDensity": 0.2,
+      "groundDecor": { "density": 0.063, "waterDensity": 0.15, "kinds": [{ "kind": "reed", "weight": 0.4 }, { "kind": "grass", "weight": 0.35 }, { "kind": "flower", "weight": 0.25 }] }
+    },
+    {
+      "id": "grove", "name": "Sunlit Grove", "priority": 34, "isSubBiome": true,
+      "parentBiome": "forest",
+      "when": {},
+      "tiles": { "grass": 0.72, "grass_dark": 0.28 },
+      "tint": "b8c878", "music": "forest",
+      "skillWeights": { "foraging": 2.0, "woodcutting": 1.8 },
+      "siteDensity": 0.9, "monsterDensity": 0.3,
+      "groundDecor": { "density": 0.084, "kinds": [{ "kind": "flower", "weight": 0.4 }, { "kind": "grass", "weight": 0.35 }, { "kind": "shrub", "weight": 0.25 }, { "kind": "bramble", "weight": 0.12 }] }
+    },
+    {
+      "id": "bamboo_thicket", "name": "Bamboo Thicket", "priority": 33, "isSubBiome": true,
+      "parentBiome": "jungle",
+      "when": {},
+      "tiles": { "jungle_loam": 0.80, "grass_dark": 0.20 },
+      "tint": "5a7a48", "music": "deep_forest",
+      "skillWeights": { "woodcutting": 3.5, "foraging": 2.0 },
+      "siteDensity": 1.0, "monsterDensity": 0.5,
+      "groundDecor": { "density": 0.098, "kinds": [{ "kind": "vine", "weight": 0.45 }, { "kind": "fern", "weight": 0.3 }, { "kind": "stick", "weight": 0.25 }, { "kind": "bramble", "weight": 0.12 }] }
+    },
+    {
+      "id": "snowdrift", "name": "Snowdrift", "priority": 32, "isSubBiome": true,
+      "parentBiome": "tundra",
+      "when": {},
+      "tiles": { "snow": 0.88, "frozen_grass": 0.12 },
+      "tint": "e8f0ec", "music": "tundra",
+      "skillWeights": { "foraging": 0.8, "mining": 1.0 },
+      "siteDensity": 0.5, "monsterDensity": 0.35,
+      "groundDecor": { "density": 0.021, "kinds": [{ "kind": "lichen", "weight": 0.55 }, { "kind": "stick", "weight": 0.45 }] }
+    },
+    {
+      "id": "cactus_plain", "name": "Cactus Plain", "priority": 31, "isSubBiome": true,
+      "parentBiome": "desert",
+      "when": {},
+      "tiles": { "sand": 0.70, "sand_dune": 0.30 },
+      "tint": "d4b868", "music": "desert",
+      "skillWeights": { "foraging": 1.2, "mining": 1.0 },
+      "siteDensity": 0.55, "monsterDensity": 0.45,
+      "groundDecor": { "density": 0.049, "kinds": [{ "kind": "cactus", "weight": 0.55 }, { "kind": "bone", "weight": 0.2 }, { "kind": "pebble", "weight": 0.25 }] }
+    },
+    {
+      "id": "salt_pan", "name": "Salt Pan", "priority": 30, "isSubBiome": true,
+      "parentBiome": "desert",
+      "when": {},
+      "tiles": { "sand_dune": 0.85, "sand": 0.15 },
+      "tint": "e0d8c8", "music": "desert",
+      "skillWeights": { "mining": 2.0, "foraging": 0.3 },
+      "siteDensity": 0.4, "monsterDensity": 0.25,
+      "groundDecor": { "density": 0.017, "kinds": [{ "kind": "pebble", "weight": 0.7 }, { "kind": "bone", "weight": 0.3 }] }
+    },
+    {
+      "id": "heather_moor", "name": "Heather Moor", "priority": 29, "isSubBiome": true,
+      "parentBiome": "boreal_forest",
+      "when": {},
+      "tiles": { "boreal_moss": 0.55, "gravel": 0.25, "grass_dark": 0.20 },
+      "tint": "8a7a88", "music": "hills",
+      "skillWeights": { "foraging": 1.8, "mining": 1.2 },
+      "siteDensity": 0.75, "monsterDensity": 0.4,
+      "groundDecor": { "density": 0.07, "kinds": [{ "kind": "flower", "weight": 0.35 }, { "kind": "moss", "weight": 0.3 }, { "kind": "shrub", "weight": 0.2 }, { "kind": "stick", "weight": 0.15 }, { "kind": "bramble", "weight": 0.12 }, { "kind": "rubble", "weight": 0.1 }] }
+    },
+    {
+      "id": "bog", "name": "Peat Bog", "priority": 28, "isSubBiome": true,
+      "parentBiome": "swamp",
+      "when": {},
+      "tiles": { "mud": 0.55, "marsh": 0.35, "shallow": 0.10 },
+      "tint": "5a6a48", "music": "swamp",
+      "skillWeights": { "foraging": 2.8, "fishing": 1.5 },
+      "siteDensity": 0.65, "monsterDensity": 0.35,
+      "groundDecor": { "density": 0.084, "waterDensity": 0.2, "kinds": [{ "kind": "moss", "weight": 0.4 }, { "kind": "reed", "weight": 0.35 }, { "kind": "mushroom", "weight": 0.25 }, { "kind": "bramble", "weight": 0.12 }] }
+    },
+    {
+      "id": "tide_flats", "name": "Tide Flats", "priority": 27, "isSubBiome": true,
+      "parentBiome": "beach",
+      "when": {},
+      "tiles": { "sand": 0.65, "shallow": 0.35 },
+      "tint": "c8b888", "music": "coast",
+      "skillWeights": { "fishing": 2.8, "foraging": 1.0 },
+      "siteDensity": 0.45, "monsterDensity": 0.15,
+      "groundDecor": { "density": 0.042, "waterDensity": 0.175, "kinds": [{ "kind": "shell", "weight": 0.45 }, { "kind": "driftwood", "weight": 0.3 }, { "kind": "reed", "weight": 0.25 }] }
+    },
+    {
+      "id": "geyser_field", "name": "Geyser Field", "priority": 26, "isSubBiome": true,
+      "parentBiome": "volcanic",
+      "when": {},
+      "tiles": { "ash": 0.55, "lava_rock": 0.30, "gravel": 0.15 },
+      "tint": "9a5848", "music": "volcanic",
+      "skillWeights": { "mining": 3.5, "foraging": 0.4 },
+      "siteDensity": 0.7, "monsterDensity": 0.55,
+      "groundDecor": { "density": 0.035, "kinds": [{ "kind": "pebble", "weight": 0.6 }, { "kind": "bone", "weight": 0.25 }, { "kind": "stick", "weight": 0.15 }, { "kind": "rubble", "weight": 0.1 }] }
+    },
+    {
+      "id": "savanna_scrub", "name": "Savanna Scrub", "priority": 25, "isSubBiome": true,
+      "parentBiome": "savanna",
+      "when": {},
+      "tiles": { "savanna_grass": 0.65, "dirt": 0.25, "grass": 0.10 },
+      "tint": "b8a060", "music": "plains",
+      "skillWeights": { "foraging": 1.4, "woodcutting": 0.7 },
+      "siteDensity": 0.7, "monsterDensity": 0.5,
+      "groundDecor": { "density": 0.063, "kinds": [{ "kind": "shrub", "weight": 0.4 }, { "kind": "grass", "weight": 0.35 }, { "kind": "stick", "weight": 0.25 }, { "kind": "bramble", "weight": 0.12 }] }
+    },
+    {
+      "id": "thorn_waste", "name": "Thorn Waste", "priority": 24, "isSubBiome": true,
+      "parentBiome": "badlands",
+      "when": {},
+      "tiles": { "badland_clay": 0.62, "rock": 0.38 },
+      "tint": "7a5840", "music": "desert",
+      "skillWeights": { "mining": 3.0, "foraging": 0.4 },
+      "siteDensity": 0.8, "monsterDensity": 0.6,
+      "groundDecor": { "density": 0.039, "kinds": [{ "kind": "bone", "weight": 0.35 }, { "kind": "pebble", "weight": 0.4 }, { "kind": "stick", "weight": 0.25 }, { "kind": "bramble", "weight": 0.12 }, { "kind": "rubble", "weight": 0.1 }] }
+    },
+    {
+      "id": "lichen_field", "name": "Lichen Field", "priority": 23, "isSubBiome": true,
+      "parentBiome": "alpine",
+      "when": {},
+      "tiles": { "gravel": 0.58, "snow": 0.28, "rock": 0.14 },
+      "tint": "b8c0b8", "music": "tundra",
+      "skillWeights": { "foraging": 1.0, "mining": 2.0 },
+      "siteDensity": 0.6, "monsterDensity": 0.3,
+      "groundDecor": { "density": 0.056, "kinds": [{ "kind": "lichen", "weight": 0.55 }, { "kind": "pebble", "weight": 0.3 }, { "kind": "stick", "weight": 0.15 }, { "kind": "rubble", "weight": 0.1 }] }
     },
     {
       "id": "forest", "name": "Forest", "priority": 30,
+      "neighbors": ["forest", "plains", "swamp", "rocky_hills", "beach", "tundra", "boreal_forest", "jungle", "savanna"],
       "when": { "moistureMin": 0.52, "tempMin": 0.25, "tempMax": 0.82 },
-      "tiles": { "grass": 0.92, "grass_dark": 0.08 },
+      "tiles": { "grass": 0.82, "grass_dark": 0.18 },
       "tint": "9ba15f", "music": "forest",
       "skillWeights": { "woodcutting": 3.0, "foraging": 1.4, "mining": 0.4, "fishing": 0.4 },
-      "siteDensity": 1.2, "monsterDensity": 0.55
+      "siteDensity": 1.2, "monsterDensity": 0.55,
+      "groundDecor": { "density": 0.077, "kinds": [{ "kind": "fern", "weight": 0.28 }, { "kind": "shrub", "weight": 0.24 }, { "kind": "stick", "weight": 0.18 }, { "kind": "mushroom", "weight": 0.16 }, { "kind": "grass", "weight": 0.14 }, { "kind": "bramble", "weight": 0.12 }, { "kind": "rubble", "weight": 0.1 }] }
     },
     {
-      "id": "wheatfield", "name": "Farmland", "priority": 95,
-      "when": { "heightMin": 2.0 },
-      "tiles": { "wheat": 0.6, "wheat_ripe": 0.34, "dirt": 0.06 },
-      "tint": "e6c463", "music": "plains",
-      "skillWeights": { "foraging": 2.2, "woodcutting": 0.4, "fishing": 0.4, "mining": 0.2 },
-      "siteDensity": 1.0, "monsterDensity": 0.35
-    },
-    {
-      "id": "plains", "name": "Plains", "priority": 0,
+      "id": "plains", "name": "Grassland", "priority": 0,
+      "neighbors": ["plains", "forest", "swamp", "beach", "rocky_hills", "desert", "tundra", "savanna", "badlands"],
       "when": {},
-      "tiles": { "grass": 0.99, "grass_dark": 0.01 },
+      "tiles": { "grass": 0.82, "grass_dark": 0.18 },
       "tint": "ffffff", "music": "plains",
       "skillWeights": { "woodcutting": 1.2, "mining": 0.8, "foraging": 1.4, "fishing": 0.5 },
-      "siteDensity": 1.0, "monsterDensity": 0.5
+      "siteDensity": 1.0, "monsterDensity": 0.5,
+      "groundDecor": { "density": 0.049, "kinds": [{ "kind": "grass", "weight": 0.38 }, { "kind": "flower", "weight": 0.28 }, { "kind": "shrub", "weight": 0.2 }, { "kind": "stick", "weight": 0.14 }, { "kind": "rubble", "weight": 0.1 }] }
+    },
+    {
+      "_note": "Authored-only biome: not produced by the Whittaker classifier, so it appears solely where a WorldSpec region forces it (see world_spec.gd).",
+      "id": "wheatfield", "name": "Wheatfields", "priority": 5,
+      "neighbors": ["plains", "forest", "savanna", "wheatfield"],
+      "when": {},
+      "tiles": { "wheat": 0.72, "wheat_ripe": 0.28 },
+      "tint": "f0d27a", "music": "plains",
+      "skillWeights": { "foraging": 2.4, "woodcutting": 0.5, "mining": 0.3, "fishing": 0.3 },
+      "siteDensity": 1.1, "monsterDensity": 0.35,
+      "groundDecor": { "density": 0.042, "kinds": [{ "kind": "grass", "weight": 0.5 }, { "kind": "flower", "weight": 0.3 }, { "kind": "stick", "weight": 0.2 }] }
+    }
+  ],
+  "subBiomes": [
+    {
+      "id": "dense_forest",
+      "allowedParents": ["forest"],
+      "minSize": 36, "maxSize": 140,
+      "chance": 0.12, "macroSpacing": 3
+    },
+    {
+      "id": "flower_meadow",
+      "allowedParents": ["plains", "forest"],
+      "minSize": 24, "maxSize": 90,
+      "chance": 0.10, "macroSpacing": 4
+    },
+    {
+      "id": "marsh_pool",
+      "allowedParents": ["swamp"],
+      "requiresWater": true,
+      "minSize": 14, "maxSize": 48,
+      "chance": 0.16, "macroSpacing": 3
+    },
+    {
+      "id": "rocky_clearing",
+      "allowedParents": ["rocky_hills", "desert"],
+      "minSize": 20, "maxSize": 72,
+      "chance": 0.09, "macroSpacing": 4
+    },
+    {
+      "id": "oasis",
+      "allowedParents": ["desert"],
+      "minSize": 10, "maxSize": 32,
+      "chance": 0.06, "macroSpacing": 5
+    },
+    {
+      "id": "grove",
+      "allowedParents": ["forest", "boreal_forest"],
+      "minSize": 18, "maxSize": 64,
+      "chance": 0.11, "macroSpacing": 4
+    },
+    {
+      "id": "bamboo_thicket",
+      "allowedParents": ["jungle"],
+      "minSize": 20, "maxSize": 72,
+      "chance": 0.14, "macroSpacing": 3
+    },
+    {
+      "id": "snowdrift",
+      "allowedParents": ["tundra", "alpine"],
+      "minSize": 16, "maxSize": 56,
+      "chance": 0.10, "macroSpacing": 4
+    },
+    {
+      "id": "cactus_plain",
+      "allowedParents": ["desert", "savanna"],
+      "minSize": 22, "maxSize": 80,
+      "chance": 0.09, "macroSpacing": 4
+    },
+    {
+      "id": "salt_pan",
+      "allowedParents": ["desert"],
+      "minSize": 12, "maxSize": 40,
+      "chance": 0.05, "macroSpacing": 6
+    },
+    {
+      "id": "heather_moor",
+      "allowedParents": ["boreal_forest", "alpine", "rocky_hills"],
+      "minSize": 24, "maxSize": 88,
+      "chance": 0.08, "macroSpacing": 4
+    },
+    {
+      "id": "bog",
+      "allowedParents": ["swamp", "boreal_forest"],
+      "requiresWater": true,
+      "minSize": 16, "maxSize": 52,
+      "chance": 0.12, "macroSpacing": 3
+    },
+    {
+      "id": "tide_flats",
+      "allowedParents": ["beach"],
+      "requiresWater": true,
+      "minSize": 14, "maxSize": 44,
+      "chance": 0.13, "macroSpacing": 3
+    },
+    {
+      "id": "geyser_field",
+      "allowedParents": ["volcanic"],
+      "minSize": 12, "maxSize": 36,
+      "chance": 0.08, "macroSpacing": 5
+    },
+    {
+      "id": "savanna_scrub",
+      "allowedParents": ["savanna"],
+      "minSize": 20, "maxSize": 76,
+      "chance": 0.11, "macroSpacing": 4
+    },
+    {
+      "id": "thorn_waste",
+      "allowedParents": ["badlands"],
+      "minSize": 18, "maxSize": 60,
+      "chance": 0.09, "macroSpacing": 4
+    },
+    {
+      "id": "lichen_field",
+      "allowedParents": ["alpine", "tundra"],
+      "minSize": 20, "maxSize": 68,
+      "chance": 0.10, "macroSpacing": 4
     }
   ]
 }

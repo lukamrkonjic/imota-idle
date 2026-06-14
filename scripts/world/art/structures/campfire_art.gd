@@ -6,7 +6,7 @@ const PixelDraw := preload("res://scripts/world/art/core/pixel_draw.gd")
 
 
 static func draw(canvas: CanvasItem, t: float) -> void:
-	PixelDraw.draw_foot_shadow(canvas, 22.0, 3.0)
+	PixelDraw.draw_foot_shadow(canvas, 22.0, 3.0, 0.3, 8.0)
 	for i: int in 7:
 		var a := float(i) / 7.0 * TAU
 		PixelDraw.px_rect(canvas, cos(a) * 18.0 - 3.0, sin(a) * 5.0 - 2.0, 6.0, 5.0,

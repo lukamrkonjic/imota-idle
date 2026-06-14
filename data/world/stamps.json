@@ -1,0 +1,25 @@
+{
+  "_doc": [
+    "Natural map STAMPS — reusable multi-tile pieces the world editor paints to",
+    "assemble a hybrid world (authored macro layout + procedural fill + stamps).",
+    "Data-driven: add entries here and they appear in the editor palette.",
+    "kind 'blob'  = round water/terrain piece with core/ring/edge tile bands.",
+    "kind 'patch' = filled area + biome, with scattered gather sites.",
+    "Optional resource counts (woodcutting/mining/fishing/foraging) drop that many",
+    "natural gather nodes. radius is in tiles. Placement adds deterministic",
+    "per-stamp variation so repeats don't look identical."
+  ],
+  "stamps": [
+    {"id": "pond", "name": "Pond", "kind": "blob", "radius": 3, "core": "water", "ring": "shallow", "edge": "grass"},
+    {"id": "lake", "name": "Lake", "kind": "blob", "radius": 7, "core": "deep_water", "ring": "water", "edge": "sand"},
+    {"id": "river_bend", "name": "River Bend", "kind": "blob", "radius": 2, "core": "water", "ring": "shallow", "edge": ""},
+    {"id": "swamp_pool", "name": "Swamp Pool", "kind": "blob", "radius": 3, "core": "water", "ring": "marsh", "edge": "mud", "biome": "swamp"},
+    {"id": "beach_cove", "name": "Beach Cove", "kind": "blob", "radius": 5, "core": "shallow", "ring": "sand", "edge": "grass", "biome": "beach"},
+    {"id": "meadow", "name": "Meadow Clearing", "kind": "patch", "radius": 4, "fill": "grass", "biome": "plains", "foraging": 2},
+    {"id": "grove", "name": "Tree Grove", "kind": "patch", "radius": 4, "fill": "grass", "biome": "forest", "woodcutting": 5},
+    {"id": "dense_grove", "name": "Dense Forest", "kind": "patch", "radius": 5, "fill": "grass_dark", "biome": "forest", "woodcutting": 10},
+    {"id": "rocky_outcrop", "name": "Rocky Outcrop", "kind": "patch", "radius": 3, "fill": "rock", "biome": "rocky_hills", "mining": 4},
+    {"id": "cliff_edge", "name": "Cliff / Highland", "kind": "patch", "radius": 4, "fill": "rock", "biome": "rocky_hills"},
+    {"id": "fishing_shore", "name": "Fishing Shore", "kind": "blob", "radius": 4, "core": "shallow", "ring": "sand", "edge": "grass", "fishing": 4}
+  ]
+}

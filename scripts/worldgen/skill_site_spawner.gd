@@ -8,34 +8,30 @@ extends RefCounted
 const WG := preload("res://scripts/worldgen/wg.gd")
 const Chunk := preload("res://scripts/worldgen/chunk.gd")
 
-const BASE_SITES_PER_CHUNK := 3.2
+const BASE_SITES_PER_CHUNK := 1.6
 const PLACE_ATTEMPTS := 28
-const FOREST_BIOMES := ["forest", "dense_forest", "swamp"]
-const WATER_TREE_BIOMES := ["plains", "forest", "dense_forest", "swamp", "beach"]
-const COMMON_TREE_SPACING := 4.4   # tiles; trees render ~3x node size now
-const SOLITARY_TREE_SPACING := 6.5
+const TREE_GRID := 7
+const ORE_GRID := 9
+const FOREST_BIOMES := ["forest", "dense_forest", "swamp", "jungle", "boreal_forest", "grove", "bamboo_thicket"]
+const WATER_TREE_BIOMES := ["plains", "forest", "dense_forest", "swamp", "jungle", "boreal_forest", "savanna"]
+const TREE_GROUND_TILES := ["grass", "grass_dark", "marsh", "mud", "frozen_grass", "dirt"]
+const WATER_SURFACE_TILES := ["deep_water", "water", "shallow"]
+const SAND_TILES := ["sand", "sand_dune"]
+const ROCKY_TILES := ["rock", "cobble", "lava_rock"]
 var reg: RefCounted
-var elevation: RefCounted
 var world_seed: int = 0
-var _elev_density: Dictionary = {}  # skill -> [factor per elevation level 0..7]
+var _tree_cells: Dictionary = {}  # global tree-slot key -> true
+var _ore_cells: Dictionary = {}  # global ore-slot key -> true
 
 
-func setup(p_reg: RefCounted, p_seed: int, p_elevation: RefCounted = null) -> void:
+func setup(p_reg: RefCounted, p_seed: int) -> void:
 	reg = p_reg
 	world_seed = p_seed
-	elevation = p_elevation
-	_elev_density = p_reg.gen_rules.get("resources", {}).get("elevationDensity", {})
+	_tree_cells.clear()
+	_ore_cells.clear()
 
 
-## Density multiplier for a skill at an elevation level (1.0 = neutral).
-func elev_factor(skill: String, level: int) -> float:
-	var bands: Array = _elev_density.get(skill, [])
-	if bands.is_empty() or level < 0 or level >= bands.size():
-		return 1.0
-	return float(bands[level])
-
-
-func populate(chunk: RefCounted, occupied: Dictionary) -> void:
+func populate(chunk: RefCounted, occupied: Dictionary, _placement_grid: RefCounted = null) -> void:
 	var req := int(chunk.zone.get("req", 1))
 	var weights := {}
 	var density := 1.0
@@ -58,19 +54,13 @@ func populate(chunk: RefCounted, occupied: Dictionary) -> void:
 		_place_forest_patches(chunk, occupied, req, str(center_biome.get("id", "")))
 		_place_waterline_trees(chunk, occupied, req, str(center_biome.get("id", "")))
 
-	# Drop skills that can't spawn here (e.g. fishing in a dry chunk), and
-	# re-weigh the rest by the chunk's elevation: peaks favor mining, lowlands
-	# favor trees (rules in generation_rules.json resources.elevationDensity).
+	# Drop skills that can't spawn here (e.g. fishing in a dry chunk).
 	weights = weights.duplicate()
 	if not _has_water(chunk):
 		weights.erase("fishing")
-	if chunk.layer == 0:
-		var c := WG.CHUNK_TILES / 2
-		var center_lvl: int = chunk.elev_at(c, c)
-		for skill_key: String in weights.keys():
-			weights[skill_key] = float(weights[skill_key]) * elev_factor(skill_key, center_lvl)
-			if float(weights[skill_key]) <= 0.0:
-				weights.erase(skill_key)
+	var rocky_bonus := _rocky_tile_count(chunk)
+	if rocky_bonus > 0:
+		weights["mining"] = float(weights.get("mining", 0.0)) * (1.0 + float(rocky_bonus) * 0.14)
 	if weights.is_empty():
 		return
 
@@ -86,23 +76,25 @@ func populate(chunk: RefCounted, occupied: Dictionary) -> void:
 		var tile: Vector2i
 		if skill == "woodcutting" and chunk.layer == 0 and not water_edge:
 			var b: String = str(_center_biome(chunk).get("id", ""))
-			tile = _pick_inland_biome_tile(chunk, occupied, b, 240 + i) if FOREST_BIOMES.has(b) else _pick_tile(chunk, occupied, i, false)
+			tile = _pick_tree_tile(chunk, occupied, b if FOREST_BIOMES.has(b) else "", 240 + i)
+		elif skill == "mining":
+			tile = _pick_rocky_tile(chunk, occupied, i)
+			if tile.x < 0:
+				continue
+			if not _claim_ore_slot(chunk, tile):
+				continue
 		else:
 			tile = _pick_tile(chunk, occupied, i, water_edge)
 		if tile.x < 0:
 			continue
-		# Per-tile elevation gate: a mostly-lowland chunk can still contain a
-		# peak corner where trees shouldn't crowd.
-		if chunk.layer == 0:
-			var f := elev_factor(skill, chunk.elev_at(tile.x, tile.y))
-			if f < 1.0 and WG.r01(world_seed, chunk.cx * 53 + tile.x, chunk.cy * 59 + tile.y, 63) >= f:
-				continue
 		var entry := _pick_node(chunk, skill, tile, req, i)
 		if entry.is_empty():
 			continue
-		if skill == "woodcutting" and not _tree_spacing_ok(chunk, tile, str(entry["name"])):
-			continue
-		_add_site(chunk, occupied, skill, entry, tile, cfg)
+		if skill == "woodcutting":
+			if not _place_tree_site(chunk, occupied, entry, tile, cfg, false):
+				continue
+		else:
+			_add_site(chunk, occupied, skill, entry, tile, cfg)
 
 
 func _place_forest_patches(chunk: RefCounted, occupied: Dictionary, req: int, biome_id: String) -> void:
@@ -111,47 +103,180 @@ func _place_forest_patches(chunk: RefCounted, occupied: Dictionary, req: int, bi
 	var cfg: Dictionary = reg.skill_cfg("woodcutting")
 	if cfg.is_empty():
 		return
-	var patch_count := 1 + (1 if WG.r01(world_seed, chunk.cx, chunk.cy, 168) < 0.35 else 0)
-	var trees_per_patch := 5
-	if biome_id == "dense_forest":
-		patch_count = 2
-		trees_per_patch = 6
-	elif biome_id == "swamp":
+	var patch_count := 1 if WG.r01(world_seed, chunk.cx, chunk.cy, 168) < 0.55 else 0
+	var trees_per_patch := 2
+	if biome_id in ["dense_forest", "jungle", "bamboo_thicket"]:
+		patch_count = 1 + (1 if WG.r01(world_seed, chunk.cx, chunk.cy, 169) < 0.25 else 0)
 		trees_per_patch = 3
+	elif biome_id == "swamp":
+		trees_per_patch = 2
 	for p: int in patch_count:
-		var anchor := _pick_inland_biome_tile(chunk, occupied, biome_id, 170 + p)
-		if anchor.x < 0:
+		var candidates := _tree_slot_candidates(chunk, occupied, biome_id, 170 + p)
+		if candidates.is_empty():
 			continue
-		var entry := _pick_forest_tree_node(chunk, biome_id, anchor, req, 172 + p)
+		var entry := _pick_forest_tree_node(chunk, biome_id, candidates[0]["tile"], req, 172 + p)
 		if entry.is_empty():
 			continue
 		var node_name := str(entry["name"])
 		var rare_patch := _is_solitary_tree(node_name)
-		var wanted := 1 if rare_patch else trees_per_patch
+		var wanted := 1 if rare_patch else mini(trees_per_patch, candidates.size())
 		var placed := 0
-		for j: int in range(36):
+		for slot: Dictionary in candidates:
 			if placed >= wanted:
 				break
-			var t := anchor if j == 0 else _tree_patch_tile(anchor, chunk, p, j)
-			if not _tile_ok(chunk, occupied, t, false):
-				continue
-			if _tile_biome_id(chunk, t) != biome_id:
-				continue
-			if not _tree_spacing_ok(chunk, t, node_name):
-				continue
-			_add_site(chunk, occupied, "woodcutting", entry, t, cfg)
-			placed += 1
+			if _place_tree_site(chunk, occupied, entry, slot["tile"], cfg):
+				placed += 1
 
 
-func _tree_patch_tile(anchor: Vector2i, chunk: RefCounted, patch_index: int, salt: int) -> Vector2i:
-	var angle := WG.r01(world_seed, chunk.cx * 83 + anchor.x, chunk.cy * 89 + anchor.y, 250 + patch_index * 53 + salt) * TAU
-	var radius_roll := WG.r01(world_seed, chunk.cx * 97 + anchor.x, chunk.cy * 101 + anchor.y, 251 + patch_index * 53 + salt)
-	var radius := lerpf(3.4, 8.6, sqrt(radius_roll))
-	var wobble := Vector2(
-		WG.r01(world_seed, anchor.x, anchor.y, 252 + salt) - 0.5,
-		WG.r01(world_seed, anchor.y, anchor.x, 253 + salt) - 0.5)
-	var off := Vector2(cos(angle), sin(angle)) * radius + wobble * 1.9
-	return Vector2i(anchor.x + roundi(off.x), anchor.y + roundi(off.y))
+func _tree_cell_key(gtx: int, gty: int) -> String:
+	return "%d:%d" % [floori(float(gtx) / float(TREE_GRID)), floori(float(gty) / float(TREE_GRID))]
+
+
+func _tree_cell_for_global(gtx: int, gty: int) -> Vector2i:
+	return Vector2i(floori(float(gtx) / float(TREE_GRID)), floori(float(gty) / float(TREE_GRID)))
+
+
+func _tree_tile_in_cell(chunk: RefCounted, cell: Vector2i, salt: int) -> Vector2i:
+	for attempt: int in TREE_GRID * TREE_GRID:
+		var jx: int = WG.hash_i(world_seed, cell.x, cell.y, 300 + salt + attempt) % TREE_GRID
+		var jy: int = WG.hash_i(world_seed, cell.y, cell.x, 301 + salt + attempt) % TREE_GRID
+		var gtx: int = cell.x * TREE_GRID + jx
+		var gty: int = cell.y * TREE_GRID + jy
+		var lx: int = gtx - chunk.cx * WG.CHUNK_TILES
+		var ly: int = gty - chunk.cy * WG.CHUNK_TILES
+		if lx >= 1 and ly >= 1 and lx < WG.CHUNK_TILES - 1 and ly < WG.CHUNK_TILES - 1:
+			return Vector2i(lx, ly)
+	return Vector2i(-1, -1)
+
+
+func _tree_slot_free(gtx: int, gty: int) -> bool:
+	return not _tree_cells.has(_tree_cell_key(gtx, gty))
+
+
+func _claim_tree_slot(gtx: int, gty: int) -> void:
+	_tree_cells[_tree_cell_key(gtx, gty)] = true
+
+
+func _ore_cell_key(gtx: int, gty: int) -> String:
+	return "%d:%d" % [floori(float(gtx) / float(ORE_GRID)), floori(float(gty) / float(ORE_GRID))]
+
+
+func _claim_ore_slot(chunk: RefCounted, tile: Vector2i) -> bool:
+	var gtx: int = chunk.cx * WG.CHUNK_TILES + tile.x
+	var gty: int = chunk.cy * WG.CHUNK_TILES + tile.y
+	var key := _ore_cell_key(gtx, gty)
+	if _ore_cells.has(key):
+		return false
+	_ore_cells[key] = true
+	return true
+
+
+func _place_tree_site(
+		chunk: RefCounted,
+		occupied: Dictionary,
+		entry: Dictionary,
+		tile: Vector2i,
+		cfg: Dictionary,
+		water_edge: bool = false) -> bool:
+	if tile.x < 0:
+		return false
+	var gtx: int = chunk.cx * WG.CHUNK_TILES + tile.x
+	var gty: int = chunk.cy * WG.CHUNK_TILES + tile.y
+	if not _tree_slot_free(gtx, gty):
+		return false
+	if not _tree_tile_ok(chunk, occupied, tile, water_edge):
+		return false
+	_claim_tree_slot(gtx, gty)
+	_add_site(chunk, occupied, "woodcutting", entry, tile, cfg)
+	return true
+
+
+func _tree_slot_candidates(
+		chunk: RefCounted,
+		occupied: Dictionary,
+		biome_id: String,
+		salt: int,
+		water_edge_only: bool = false) -> Array:
+	var cells: Array = _cells_overlapping_chunk(chunk)
+	cells.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+		return WG.hash_i(world_seed, a.x, a.y, salt) < WG.hash_i(world_seed, b.x, b.y, salt))
+	var out: Array = []
+	for i: int in cells.size():
+		var cell: Vector2i = cells[i]
+		if _tree_cells.has(_tree_cell_key(cell.x * TREE_GRID, cell.y * TREE_GRID)):
+			continue
+		var t := _tree_tile_in_cell(chunk, cell, salt + i)
+		if t.x < 0:
+			continue
+		if not _tree_tile_ok(chunk, occupied, t, water_edge_only):
+			continue
+		if biome_id != "" and _tile_biome_id(chunk, t) != biome_id:
+			continue
+		if water_edge_only:
+			if not _adjacent_water(chunk, t):
+				continue
+		elif _adjacent_water(chunk, t):
+			continue
+		out.append({"cell": cell, "tile": t})
+	return out
+
+
+func _cells_overlapping_chunk(chunk: RefCounted) -> Array:
+	var gx0: int = chunk.cx * WG.CHUNK_TILES
+	var gy0: int = chunk.cy * WG.CHUNK_TILES
+	var gx1: int = gx0 + WG.CHUNK_TILES - 1
+	var gy1: int = gy0 + WG.CHUNK_TILES - 1
+	var cx0: int = floori(float(gx0) / float(TREE_GRID))
+	var cy0: int = floori(float(gy0) / float(TREE_GRID))
+	var cx1: int = floori(float(gx1) / float(TREE_GRID))
+	var cy1: int = floori(float(gy1) / float(TREE_GRID))
+	var out: Array = []
+	for cy: int in range(cy0, cy1 + 1):
+		for cx: int in range(cx0, cx1 + 1):
+			out.append(Vector2i(cx, cy))
+	return out
+
+
+func _pick_tree_tile(
+		chunk: RefCounted,
+		occupied: Dictionary,
+		biome_id: String,
+		salt: int) -> Vector2i:
+	var candidates := _tree_slot_candidates(chunk, occupied, biome_id, salt)
+	if candidates.is_empty():
+		return Vector2i(-1, -1)
+	return candidates[int(WG.hash_i(world_seed, chunk.cx, chunk.cy, 260 + salt) % candidates.size())]["tile"]
+
+
+func _is_rocky_tile_id(byte_id: int) -> bool:
+	if byte_id < 0 or byte_id >= reg.tile_order.size():
+		return false
+	return ROCKY_TILES.has(reg.tile_order[byte_id])
+
+
+func _rocky_tile_count(chunk: RefCounted) -> int:
+	var n := 0
+	for ty: int in WG.CHUNK_TILES:
+		for tx: int in WG.CHUNK_TILES:
+			if _is_rocky_tile_id(chunk.tile_id(tx, ty)):
+				n += 1
+	return n
+
+
+func _pick_rocky_tile(chunk: RefCounted, occupied: Dictionary, salt: int) -> Vector2i:
+	for attempt: int in PLACE_ATTEMPTS * 2:
+		var tx := 1 + WG.hash_i(world_seed, chunk.cx * 53 + salt, chunk.cy, 280 + attempt * 2) % (WG.CHUNK_TILES - 2)
+		var ty := 1 + WG.hash_i(world_seed, chunk.cx, chunk.cy * 53 + salt, 281 + attempt * 2) % (WG.CHUNK_TILES - 2)
+		var t := Vector2i(tx, ty)
+		if not _tile_ok(chunk, occupied, t, false):
+			continue
+		if _is_rocky_tile_id(chunk.tile_id(tx, ty)):
+			return t
+	for attempt: int in PLACE_ATTEMPTS:
+		var t := _pick_tile(chunk, occupied, salt + attempt, false)
+		if t.x >= 0:
+			return t
+	return Vector2i(-1, -1)
 
 
 func _place_home_regular_trees(chunk: RefCounted, occupied: Dictionary) -> void:
@@ -163,14 +288,10 @@ func _place_home_regular_trees(chunk: RefCounted, occupied: Dictionary) -> void:
 		return
 	var placed := 0
 	for t: Vector2i in [Vector2i(5, 11), Vector2i(10, 11), Vector2i(12, 6), Vector2i(4, 5)]:
-		if not _tile_ok(chunk, occupied, t, false):
+		if not _tree_tile_ok(chunk, occupied, t, false):
 			continue
-		if _near_water(chunk, t, 1):
-			continue
-		if not _tree_spacing_ok(chunk, t, str(entry["name"])):
-			continue
-		_add_site(chunk, occupied, "woodcutting", entry, t, cfg)
-		placed += 1
+		if _place_tree_site(chunk, occupied, entry, t, cfg, false):
+			placed += 1
 		if placed >= 2:
 			break
 
@@ -178,28 +299,28 @@ func _place_home_regular_trees(chunk: RefCounted, occupied: Dictionary) -> void:
 func _place_waterline_trees(chunk: RefCounted, occupied: Dictionary, req: int, biome_id: String) -> void:
 	if not WATER_TREE_BIOMES.has(biome_id) or not _has_water(chunk):
 		return
-	if WG.r01(world_seed, chunk.cx, chunk.cy, 180) > 0.88:
+	if WG.r01(world_seed, chunk.cx, chunk.cy, 180) > 0.92:
 		return
 	var cfg: Dictionary = reg.skill_cfg("woodcutting")
 	if cfg.is_empty():
 		return
-	var wanted := 2 + int(WG.hash_i(world_seed, chunk.cx, chunk.cy, 181) % 2)
-	if biome_id == "forest" or biome_id == "swamp" or biome_id == "dense_forest":
+	var wanted := 1 + int(WG.hash_i(world_seed, chunk.cx, chunk.cy, 181) % 2)
+	if biome_id in ["forest", "swamp", "dense_forest", "jungle", "bamboo_thicket", "boreal_forest"]:
 		wanted += 1
 	var placed := 0
-	for i: int in range(wanted * 12):
+	for i: int in range(wanted * 8):
 		if placed >= wanted:
 			break
-		var tile := _pick_tile(chunk, occupied, 182 + i, true)
-		if tile.x < 0:
+		var candidates := _tree_slot_candidates(chunk, occupied, "", 182 + i, true)
+		if candidates.is_empty():
 			continue
+		var slot: Dictionary = candidates[int(WG.hash_i(world_seed, chunk.cx, chunk.cy, 184 + i) % candidates.size())]
+		var tile: Vector2i = slot["tile"]
 		var entry := _pick_water_tree_node(chunk, tile, req, 183 + i)
 		if entry.is_empty():
 			continue
-		if not _tree_spacing_ok(chunk, tile, str(entry["name"])):
-			continue
-		_add_site(chunk, occupied, "woodcutting", entry, tile, cfg)
-		placed += 1
+		if _place_tree_site(chunk, occupied, entry, tile, cfg, true):
+			placed += 1
 
 
 ## Resource depots / fishing hotspots: a ring of one node type around the POI.
@@ -224,7 +345,12 @@ func _place_clusters(chunk: RefCounted, occupied: Dictionary, weights: Dictionar
 			if placed >= n:
 				break
 			var t := Vector2i(anchor.x + int(off[0]), anchor.y + int(off[1]))
-			if not _tile_ok(chunk, occupied, t, bool(cfg.get("waterEdge", false))):
+			if skill == "woodcutting":
+				if not _tree_tile_ok(chunk, occupied, t, false):
+					continue
+			elif not _tile_ok(chunk, occupied, t, bool(cfg.get("waterEdge", false))):
+				continue
+			if skill == "mining" and not _claim_ore_slot(chunk, t):
 				continue
 			_add_site(chunk, occupied, skill, entry, t, cfg)
 			placed += 1
@@ -232,7 +358,7 @@ func _place_clusters(chunk: RefCounted, occupied: Dictionary, weights: Dictionar
 
 func _add_site(chunk: RefCounted, occupied: Dictionary, skill: String, entry: Dictionary, tile: Vector2i, cfg: Dictionary) -> void:
 	occupied[Chunk.idx(tile.x, tile.y)] = true
-	chunk.sites.append({
+	var site := {
 		"skill": skill,
 		"node": entry["name"],
 		"level": int(entry["level"]),
@@ -243,7 +369,13 @@ func _add_site(chunk: RefCounted, occupied: Dictionary, skill: String, entry: Di
 		"respawn_sec": float(cfg.get("respawnSec", reg.site_defaults.get("respawnSec", 25.0))),
 		"available": true,
 		"respawn_at": 0.0,
-	})
+	}
+	if skill == "fishing":
+		var water := _water_tile_beside(chunk, tile)
+		if water.x >= 0:
+			site["fish_tx"] = water.x
+			site["fish_ty"] = water.y
+	chunk.sites.append(site)
 
 
 func _center_biome(chunk: RefCounted) -> Dictionary:
@@ -296,20 +428,68 @@ func _tile_ok(chunk: RefCounted, occupied: Dictionary, t: Vector2i, water_edge: 
 		return false
 	if occupied.has(Chunk.idx(t.x, t.y)):
 		return false
-	var td: Dictionary = reg.tile_def(chunk.tile_id(t.x, t.y))
-	if not td["walkable"] or td["water"] or td["hazard"]:
+	var td: Dictionary = _tile_def_at(chunk, t.x, t.y)
+	if td.is_empty() or not td["walkable"] or td["water"] or td["hazard"]:
 		return false
-	if water_edge:
-		var found := false
-		for off: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-			var n := t + off
-			if n.x >= 0 and n.y >= 0 and n.x < WG.CHUNK_TILES and n.y < WG.CHUNK_TILES \
-					and reg.tile_def(chunk.tile_id(n.x, n.y))["water"]:
-				found = true
-				break
-		if not found:
-			return false
+	if water_edge and not _adjacent_water(chunk, t):
+		return false
 	return true
+
+
+func _tree_tile_ok(chunk: RefCounted, occupied: Dictionary, t: Vector2i, water_edge: bool) -> bool:
+	if not _tile_ok(chunk, occupied, t, water_edge):
+		return false
+	return _is_tree_ground_tile(chunk, t.x, t.y)
+
+
+func _tile_name_at(chunk: RefCounted, lx: int, ly: int) -> String:
+	if lx >= 0 and ly >= 0 and lx < WG.CHUNK_TILES and ly < WG.CHUNK_TILES:
+		var tid: int = chunk.tile_id(lx, ly)
+		if tid >= 0 and tid < reg.tile_order.size():
+			return reg.tile_order[tid]
+	if chunk.layer != 0:
+		return ""
+	var gtx: int = chunk.cx * WG.CHUNK_TILES + lx
+	var gty: int = chunk.cy * WG.CHUNK_TILES + ly
+	var tid: int = WorldGen.surface_tile_id(gtx, gty)
+	if tid >= 0 and tid < reg.tile_order.size():
+		return reg.tile_order[tid]
+	return ""
+
+
+func _tile_def_at(chunk: RefCounted, lx: int, ly: int) -> Dictionary:
+	var tname: String = _tile_name_at(chunk, lx, ly)
+	if tname.is_empty() or not reg.tile_index.has(tname):
+		return {}
+	return reg.tile_def(int(reg.tile_index[tname]))
+
+
+func _is_tree_ground_tile(chunk: RefCounted, tx: int, ty: int) -> bool:
+	var tname: String = _tile_name_at(chunk, tx, ty)
+	if tname.is_empty() or not TREE_GROUND_TILES.has(tname):
+		return false
+	if WATER_SURFACE_TILES.has(tname) or SAND_TILES.has(tname):
+		return false
+	var td: Dictionary = _tile_def_at(chunk, tx, ty)
+	return not td.is_empty() and bool(td.get("walkable", false)) \
+		and not bool(td.get("water", false)) and not bool(td.get("hazard", false))
+
+
+func _adjacent_water(chunk: RefCounted, t: Vector2i) -> bool:
+	for off: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		var tname: String = _tile_name_at(chunk, t.x + off.x, t.y + off.y)
+		if WATER_SURFACE_TILES.has(tname):
+			return true
+	return false
+
+
+func _water_tile_beside(chunk: RefCounted, shore: Vector2i) -> Vector2i:
+	for off: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		var w := Vector2i(shore.x + off.x, shore.y + off.y)
+		var tname: String = _tile_name_at(chunk, w.x, w.y)
+		if WATER_SURFACE_TILES.has(tname):
+			return w
+	return Vector2i(-1, -1)
 
 
 func _tile_biome_id(chunk: RefCounted, t: Vector2i) -> String:
@@ -331,22 +511,6 @@ func _near_water(chunk: RefCounted, t: Vector2i, radius: int = 1) -> bool:
 			if reg.tile_def(chunk.tile_id(nx, ny))["water"]:
 				return true
 	return false
-
-
-func _tree_spacing_ok(chunk: RefCounted, tile: Vector2i, node_name: String) -> bool:
-	var min_dist := COMMON_TREE_SPACING
-	if _is_solitary_tree(node_name):
-		min_dist = SOLITARY_TREE_SPACING
-	for s: Dictionary in chunk.sites:
-		if str(s.get("kind", "")) != "tree":
-			continue
-		var other := Vector2(float(int(s["tx"])), float(int(s["ty"])))
-		var dist := Vector2(float(tile.x), float(tile.y)).distance_to(other)
-		var other_name := str(s.get("node", ""))
-		var needed := maxf(min_dist, SOLITARY_TREE_SPACING if _is_solitary_tree(other_name) else COMMON_TREE_SPACING)
-		if dist < needed:
-			return false
-	return true
 
 
 func _is_solitary_tree(node_name: String) -> bool:
@@ -384,7 +548,14 @@ func _pick_forest_tree_node(chunk: RefCounted, biome_id: String, tile: Vector2i,
 
 
 func _pick_water_tree_node(chunk: RefCounted, tile: Vector2i, req: int, salt: int) -> Dictionary:
-	return _pick_node(chunk, "woodcutting", tile, req, salt)
+	var fitting := _fitting_nodes(chunk, "woodcutting", tile, req)
+	var willows: Array = []
+	for e: Dictionary in fitting:
+		if str(e["name"]).to_lower().contains("willow"):
+			willows.append(e)
+	if willows.is_empty():
+		return {}
+	return willows[int(WG.hash_i(world_seed, chunk.cx * 31 + tile.x, chunk.cy * 31 + tile.y, 232 + salt) % willows.size())]
 
 
 func _fitting_nodes(chunk: RefCounted, skill: String, tile: Vector2i, req: int) -> Array:

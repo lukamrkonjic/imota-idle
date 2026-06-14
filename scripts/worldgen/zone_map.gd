@@ -28,15 +28,6 @@ func setup(p_reg: RefCounted, p_classifier: RefCounted, p_seed: int) -> void:
 	_home_cell = _nearest_cell(Vector2(0.5, 0.5))
 
 
-func home_cell() -> Vector2i:
-	return _home_cell
-
-
-## Zone dict for an explicit cell (anchor planner / debug tools).
-func zone_cell(zx: int, zy: int) -> Dictionary:
-	return _zone(zx, zy)
-
-
 ## Jittered site position (in chunk space) for a zone cell.
 func cell_site(zx: int, zy: int) -> Vector2:
 	var jx := 0.15 + 0.7 * WG.r01(world_seed, zx, zy, 21)
@@ -62,13 +53,11 @@ func zone_for_chunk(cx: int, cy: int) -> Dictionary:
 	var ck := "%d:%d" % [cx, cy]
 	if _chunk_zone.has(ck):
 		return _chunk_zone[ck]
-	# Authored regions (WorldSpec) own the zone identity where present: fixed
-	# name (pops on entry), entry-level requirement and forced biome.
-	if reg.spec != null and reg.spec.active:
-		var az: Dictionary = reg.spec.zone_for_chunk(cx, cy)
-		if not az.is_empty():
-			_chunk_zone[ck] = az
-			return az
+	# Zones (level requirements) follow the radial/Voronoi distance model so they
+	# stay consistent with the natural centre-out progression and the biome
+	# danger field — i.e. monster/resource tiers fit their zone everywhere.
+	# (Authored WorldSpec regions no longer override the req; they only name POIs
+	# and anchor settlements.)
 	var cell := _nearest_cell(Vector2(float(cx) + 0.5, float(cy) + 0.5))
 	var z := _zone(cell.x, cell.y)
 	_chunk_zone[ck] = z

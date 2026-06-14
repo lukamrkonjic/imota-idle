@@ -5,10 +5,10 @@ extends Node
 ## docs/AI_WORLD_AUTHORING.md (AI evaluation loop / visual-identity critic).
 ##
 ## Usage (a window briefly opens):
-##   godot --path . res://tools/world_shoot.tscn -- --out=user://shots/
+##   godot --path . res://tools/world_shoot.tscn -- --out=C:/path/shots/
 ##
-## Output PNGs land in the given dir (default user://shots/, i.e.
-## %APPDATA%/Godot/app_userdata/Imota/shots/). The trailer prints saved paths.
+## Output PNGs default to user://shots/ (i.e. %APPDATA%/Godot/app_userdata/<game>/shots/).
+## The trailer prints the absolute saved paths as JSON.
 
 const WG := preload("res://scripts/worldgen/wg.gd")
 
@@ -19,6 +19,7 @@ var _saved: Array = []
 
 func _ready() -> void:
 	SaveManager.suppress = true
+	GameSettings.suppress = true
 	WorldGen.store.suppress = true
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--out="):
@@ -42,7 +43,7 @@ func _run() -> void:
 	var spec: RefCounted = WorldGen.reg.spec
 	var shots: Array = [
 		{"name": "overview", "chunk": Vector2i(0, 0), "zoom": 0.32},
-		{"name": "eastvale_spawn", "chunk": Vector2i(0, 0), "zoom": 0.9},
+		{"name": "eastvale_spawn", "chunk": Vector2i(0, 0), "zoom": 0.95},
 	]
 	if spec != null and spec.active:
 		for a: Dictionary in spec.anchors:
@@ -66,9 +67,9 @@ func _capture(shot: Dictionary) -> void:
 		cam.reset_smoothing()
 	_world.chunk_manager.update_center(pos)
 	# Let chunks stream in, entities spawn and the renderer settle.
-	for i: int in 30:
+	for i: int in 40:
 		await get_tree().process_frame
-	await get_tree().create_timer(0.4).timeout
+	await get_tree().create_timer(0.5).timeout
 	await RenderingServer.frame_post_draw
 
 	var img: Image = get_viewport().get_texture().get_image()

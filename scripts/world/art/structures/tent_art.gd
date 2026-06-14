@@ -8,7 +8,7 @@ const PixelDraw := preload("res://scripts/world/art/core/pixel_draw.gd")
 static func draw(canvas: CanvasItem, size: float, color: Color) -> void:
 	var w := PixelPalette.snap(size)
 	var hgt := PixelPalette.snap(size * 0.95)
-	PixelDraw.draw_foot_shadow(canvas, w * 0.85)
+	PixelDraw.draw_foot_shadow(canvas, w * 0.85, 5.0, 0.3, w * 0.9)
 	var row := 0.0
 	while row < hgt:
 		var t := row / hgt

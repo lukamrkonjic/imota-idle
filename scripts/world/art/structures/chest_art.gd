@@ -6,7 +6,7 @@ const PixelDraw := preload("res://scripts/world/art/core/pixel_draw.gd")
 
 
 static func draw(canvas: CanvasItem, size: float, color: Color, depleted: bool) -> void:
-	PixelDraw.draw_foot_shadow(canvas, size * 0.52, 4.0)
+	PixelDraw.draw_foot_shadow(canvas, size * 0.52, 4.0, 0.3, size * 0.42)
 	var w := PixelPalette.snap(size * 0.72)
 	var h := PixelPalette.snap(size * 0.48)
 	var c := PixelPalette.pal("stone_b") if depleted else color
