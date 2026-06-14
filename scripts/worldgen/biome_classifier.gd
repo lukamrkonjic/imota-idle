@@ -186,18 +186,20 @@ func mountain_field(tx: float, ty: float) -> float:
 	return ridged * (0.62 + range_mask * 0.6)
 
 
-## Discrete terrain elevation in steps (0 = flat lowland). Rises gradually toward
-## mountains so the ground terraces up to the peaks. Each step is drawn raised by
-## WG.ELEV_STEP_PX with a bevel riser. Kept 0 outside the mountain belt so the
-## lowlands, hub and settlements stay flat (entities there assume flat ground).
-const ELEV_MAX_STEPS := 16
+## Discrete terrain elevation in steps (0 = flat lowland). The mountains ARE this
+## terraced height — no sprites — so peaks tower well over the player while the
+## ground climbs gradually to them. Aligned to the mountain tiles (mf >= 0.70,
+## all impassable) so elevation is non-zero only on rock the player cannot stand
+## on; lowlands, valleys, hub and settlements stay flat (entities assume flat
+## ground). Each step is drawn raised by WG.ELEV_STEP_PX with a bevel riser.
+const ELEV_MAX_STEPS := 40
 func elevation_steps(tx: float, ty: float) -> int:
 	if not _finite:
 		return 0
 	var mf := mountain_field(tx, ty)
-	if mf < 0.62:
+	if mf < 0.70:
 		return 0
-	return int(round(pow((mf - 0.62) / 0.62, 1.25) * float(ELEV_MAX_STEPS)))
+	return int(round(pow((mf - 0.70) / 0.54, 1.2) * float(ELEV_MAX_STEPS)))
 
 
 ## Mountain elevation at a tile: 0 none, 1 foothill (walkable rock), 2 rock peak

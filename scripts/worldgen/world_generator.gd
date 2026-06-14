@@ -97,10 +97,9 @@ func generate_natural(cx: int, cy: int) -> RefCounted:
 ## tiles), snow caps the tallest/coldest. A detailed mountain art entity is
 ## dropped on a coarse grid of peaks so a range reads as a 3D massif with passes.
 func _place_mountains(chunk: RefCounted) -> void:
-	var t_rock := int(reg.tile_index.get("rock", -1))
 	var t_peak := int(reg.tile_index.get("peak_rock", -1))
 	var t_snow := int(reg.tile_index.get("peak_snow", -1))
-	if t_peak < 0 or t_rock < 0:
+	if t_peak < 0:
 		return
 	var b_rh := int(reg.biome_index.get("rocky_hills", 0))
 	var b_alp := int(reg.biome_index.get("alpine", b_rh))
@@ -115,42 +114,9 @@ func _place_mountains(chunk: RefCounted) -> void:
 			var i := Chunk.idx(tx, ty)
 			if bool(reg.tile_def(chunk.tiles[i]).get("water", false)):
 				continue
-			if ml == 1:
-				chunk.tiles[i] = t_rock
-				chunk.biomes_t[i] = b_rh
-				chunk.parent_biomes_t[i] = b_rh
-			else:
-				chunk.tiles[i] = t_snow if (ml == 3 and t_snow >= 0) else t_peak
-				chunk.biomes_t[i] = b_alp if ml == 3 else b_rh
-				chunk.parent_biomes_t[i] = chunk.biomes_t[i]
-				# Drop a massif sprite only on a ridge CREST (a local maximum of the
-				# mountain field) so the range reads as a few big rock massifs with
-				# bare rock slopes and passes between, not a dense field of cones.
-				if _is_ridge_crest(gtx, gty):
-					# Footprint scales with field strength: lesser crests are modest
-					# hills, the dominant crest of a range towers (a grand peak).
-					var mf: float = classifier.mountain_field(float(gtx), float(gty))
-					var foot: int = clampi(5 + int((mf - 0.84) * 34.0), 5, 16)
-					foot += int(WG.hash_i(world_seed, gtx, gty, 71) % 2)
-					chunk.structures.append({
-						"kind": "mountain", "tx": tx, "ty": ty, "foot": foot,
-						"snow": 1.0 if ml == 3 else 0.0})
-
-
-## True when (gtx,gty) is a strict local maximum of the mountain field within a
-## radius-3 neighbourhood and prominent enough to deserve a massif. Ties broken by
-## a hash so a flat crest still yields exactly one sprite.
-func _is_ridge_crest(gtx: int, gty: int) -> bool:
-	var v: float = classifier.mountain_field(float(gtx), float(gty))
-	if v < 0.84:
-		return false
-	for dy: int in range(-3, 4):
-		for dx: int in range(-3, 4):
-			if dx == 0 and dy == 0:
-				continue
-			var nv: float = classifier.mountain_field(float(gtx + dx), float(gty + dy))
-			if nv > v:
-				return false
-			if nv == v and (WG.hash_i(world_seed, gtx + dx, gty + dy, 3) > WG.hash_i(world_seed, gtx, gty, 3)):
-				return false
-	return true
+			# The mountain IS the terraced elevation (see classifier.elevation_steps)
+			# plus impassable rocky tiles — no sprites. Snow caps the tall/cold
+			# peaks; everything rocky reads as a Vintage-Story / Minecraft massif.
+			chunk.tiles[i] = t_snow if (ml == 3 and t_snow >= 0) else t_peak
+			chunk.biomes_t[i] = b_alp if ml == 3 else b_rh
+			chunk.parent_biomes_t[i] = chunk.biomes_t[i]
