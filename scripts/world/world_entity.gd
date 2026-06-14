@@ -14,6 +14,8 @@ const ANIMATED_KINDS := ["fish", "enemy", "campfire", "anvil", "altar", "obelisk
 # roof fade; landmark trees animate wind; the rest of ANIMATED_KINDS animate too.
 const LIVE_KINDS := ["fish", "enemy", "campfire", "anvil", "altar", "obelisk",
 	"meteor", "fountain", "house", "building", "landmark_tree"]
+const ROOF_FADE_KINDS := ["house", "building"]
+const FROZEN_VARIANTLESS_KINDS := ["enemy", "campfire", "anvil", "altar", "obelisk", "meteor", "fountain"]
 ## Shared bake cache, set by World. Null in tests/previewer -> fall back to live.
 static var sprite_cache: Node = null
 const GATHER_VERB := {"woodcutting": "Chop", "mining": "Mine", "fishing": "Fish", "foraging": "Pick"}
@@ -220,7 +222,13 @@ func _draw() -> void:
 ## A static-look entity whose art we bake once and blit, instead of redrawing its
 ## polygons every frame. Animated/house/landmark kinds stay live.
 func _is_baked_kind() -> bool:
-	return is_instance_valid(sprite_cache) and not (kind in LIVE_KINDS)
+	if not is_instance_valid(sprite_cache):
+		return false
+	if kind in ROOF_FADE_KINDS:
+		return not animations_enabled and roof_alpha >= 0.99
+	if kind in LIVE_KINDS:
+		return not animations_enabled
+	return true
 
 
 func _draw_cached() -> void:
@@ -241,9 +249,15 @@ func _paint_into(canvas: CanvasItem) -> void:
 ## A string capturing everything that affects this entity's static look, so
 ## identical-looking entities share one baked texture.
 func _sprite_key() -> String:
-	return "%s|%d|%.1f|%s|%s|%d|%s|%.2f|%s" % [
-		kind, variant, display_size, tier_color.to_html(false), tent_color.to_html(false),
-		int(dimmed), label, mountain_snow, prop_kind]
+	var key_variant := variant
+	if kind in FROZEN_VARIANTLESS_KINDS:
+		key_variant = 0
+	elif kind == "fish":
+		key_variant = variant % 8
+	return "%s|%d|%.1f|%s|%s|%s|%s|%d|%d|%s|%.2f|%s" % [
+		kind, key_variant, display_size, tier_color.to_html(false), tent_color.to_html(false),
+		glow_color.to_html(false), roof_color.to_html(false),
+		int(dimmed), int(attuned), label, mountain_snow, prop_kind]
 
 
 ## Generous art-space bounding box (origin at the foot, art rising into -Y, the

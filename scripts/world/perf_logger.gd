@@ -43,7 +43,9 @@ func _ready() -> void:
 		ProjectSettings.get_setting("rendering/renderer/rendering_method", "?")])
 	_file.store_line("# t  fps  frame_ms  worst_ms  proc_ms  phys_ms  draw_calls  prims  objs  nodes  "
 		+ "ent_total  ent_vis  decor_total  decor_vis  water  terr_load  terr_vis  view_r  active_r  nav_r  "
-		+ "| sub_us: chunk stream path visual hover activity")
+		+ "| sub_us: chunk stream path visual hover activity "
+		+ "| cm_us: load redraw mesh deact unload act detail total q_load q_mesh q_act q_unload "
+		+ "| bake_us: total jobs q inflight kept")
 	_file.flush()
 
 
@@ -110,8 +112,37 @@ func _write_sample() -> void:
 		int(float(_timings.get("hover", 0.0)) / n),
 		int(float(_timings.get("activity", 0.0)) / n),
 	]
+	var cm_sub := "0 0 0 0 0 0 0 0 0 0 0 0"
+	if world != null and world.chunk_manager != null and world.chunk_manager.has_method("consume_perf_timings"):
+		var cm_perf: Dictionary = world.chunk_manager.call("consume_perf_timings")
+		cm_sub = "%d %d %d %d %d %d %d %d %d %d %d %d" % [
+			int(cm_perf.get("load", 0)),
+			int(cm_perf.get("redraw", 0)),
+			int(cm_perf.get("mesh", 0)),
+			int(cm_perf.get("deactivate", 0)),
+			int(cm_perf.get("unload", 0)),
+			int(cm_perf.get("activate", 0)),
+			int(cm_perf.get("detail", 0)),
+			int(cm_perf.get("total", 0)),
+			int(cm_perf.get("load_q", 0)),
+			int(cm_perf.get("mesh_q", 0)),
+			int(cm_perf.get("activate_q", 0)),
+			int(cm_perf.get("unload_q", 0)),
+		]
+	var bake_sub := "0 0 0 0 0"
+	if world != null:
+		var bake := world.get_node_or_null("BakeQueue")
+		if bake != null and bake.has_method("consume_perf_timings"):
+			var bake_perf: Dictionary = bake.call("consume_perf_timings")
+			bake_sub = "%d %d %d %d %d" % [
+				int(bake_perf.get("total", 0)),
+				int(bake_perf.get("jobs", 0)),
+				int(bake_perf.get("queue", 0)),
+				int(bake_perf.get("in_flight", 0)),
+				int(bake_perf.get("kept", 0)),
+			]
 
-	var line := "%.1f  %d  %.1f  %.1f  %.1f  %.1f  %d  %d  %d  %d  %d %d  %d %d  %d  %d %d  %d %d %d  | %s" % [
+	var line := "%.1f  %d  %.1f  %.1f  %.1f  %.1f  %d  %d  %d  %d  %d %d  %d %d  %d  %d %d  %d %d %d  | %s | %s | %s" % [
 		Time.get_ticks_msec() / 1000.0,
 		Engine.get_frames_per_second(),
 		Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0 + Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
@@ -123,7 +154,7 @@ func _write_sample() -> void:
 		int(Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME)),
 		int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
 		ent_total, ent_vis, decor_total, decor_vis, water,
-		terr_load, terr_vis, view_r, active_r, nav_r, sub,
+		terr_load, terr_vis, view_r, active_r, nav_r, sub, cm_sub, bake_sub,
 	]
 	_file.store_line(line)
 	_file.flush()

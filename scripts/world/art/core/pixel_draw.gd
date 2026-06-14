@@ -6,7 +6,7 @@ const SilhouetteDraw := preload("res://scripts/world/art/core/silhouette_draw.gd
 const ShadowProjector := preload("res://scripts/world/art/core/shadow_projector.gd")
 
 
-static func px_rect(canvas: CanvasItem, x: float, y: float, w: float, h: float, color: Color, alpha: float = 1.0) -> void:
+static func px_rect(canvas: Variant, x: float, y: float, w: float, h: float, color: Color, alpha: float = 1.0) -> void:
 	var c := SilhouetteDraw.ink(color, alpha)
 	canvas.draw_rect(
 		Rect2(PixelPalette.snap(x), PixelPalette.snap(y),
@@ -29,7 +29,7 @@ static func px_blob(canvas: CanvasItem, cx: float, cy: float, rx: float, ry: flo
 		px_rect(canvas, cx - w, cy + t * ry - PixelPalette.PX, w * 2.0, PixelPalette.PX * 2.0, color, alpha)
 
 
-static func px_diamond(canvas: CanvasItem, cx: float, cy: float, hw: float, hh: float, color: Color, alpha: float = 1.0) -> void:
+static func px_diamond(canvas: Variant, cx: float, cy: float, hw: float, hh: float, color: Color, alpha: float = 1.0) -> void:
 	var c := SilhouetteDraw.ink(color, alpha)
 	var pts := PackedVector2Array([
 		Vector2(PixelPalette.snap(cx), PixelPalette.snap(cy - hh)),

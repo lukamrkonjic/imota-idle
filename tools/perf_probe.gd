@@ -59,8 +59,9 @@ func _walk_test(zoom: float) -> void:
 	for i: int in frames:
 		pos += Vector2(WG.CHUNK_SIZE * 0.015, WG.CHUNK_SIZE * 0.008)
 		_world.player.position = pos
+		var frame_started := Time.get_ticks_usec()
 		await get_tree().process_frame
-		var ms := Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+		var ms := float(Time.get_ticks_usec() - frame_started) / 1000.0
 		worst_ms = maxf(worst_ms, ms)
 		if ms > 33.0:
 			jank += 1

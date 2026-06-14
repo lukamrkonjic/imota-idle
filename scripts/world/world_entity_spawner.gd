@@ -18,9 +18,13 @@ func setup(w: Node2D) -> void:
 	world = w
 
 
-# Per-frame microsecond budget for streaming a chunk's contents in. Kept small
-# so several overlapping chunk spawns still fit comfortably inside one frame.
-const SPAWN_BUDGET_USEC := 1200
+# Per-coroutine slice and shared frame budget for streaming a chunk's contents
+# in. Several chunk spawn coroutines can overlap while walking, so each one is
+# kept tiny and they all share a soft per-frame cap.
+const SPAWN_BUDGET_USEC := 450
+const STREAM_FRAME_BUDGET_USEC := 1200
+var _stream_budget_frame := -1
+var _stream_budget_used_usec := 0
 
 
 func on_chunk_loaded(chunk: RefCounted, immediate: bool = false) -> void:
@@ -63,39 +67,78 @@ func _spawn_chunk_contents(chunk: RefCounted, container: Node2D) -> void:
 # unloaded mid-spawn (player walked back out of range).
 func _spawn_chunk_streamed(chunk: RefCounted, container: Node2D) -> void:
 	var key: String = chunk.key()
-	var started := Time.get_ticks_usec()
+	var started := _begin_stream_slice()
 
 	if chunk.layer == 0:
 		var seed: int = WorldGen.store.world_seed
 		for ty: int in range(WG.CHUNK_TILES):
 			for tx: int in range(WG.CHUNK_TILES):
 				_spawn_ground_decor_tile(chunk, container, seed, tx, ty)
-			if Time.get_ticks_usec() - started > SPAWN_BUDGET_USEC:
+			if _stream_budget_exhausted(started):
+				_finish_stream_slice(started)
 				await world.get_tree().process_frame
 				if not _still_loading(key, container):
 					return
-				started = Time.get_ticks_usec()
-		_spawn_water_decor(chunk, container)
-		_spawn_fishing_schools(chunk, container)
+				started = _begin_stream_slice()
 
-	if Time.get_ticks_usec() - started > SPAWN_BUDGET_USEC:
-		await world.get_tree().process_frame
-		if not _still_loading(key, container):
-			return
-		started = Time.get_ticks_usec()
+		var reg: RefCounted = WorldGen.reg
+		for ty: int in range(WG.CHUNK_TILES):
+			for tx: int in range(WG.CHUNK_TILES):
+				_spawn_water_decor_tile(chunk, container, seed, reg, tx, ty)
+			if _stream_budget_exhausted(started):
+				_finish_stream_slice(started)
+				await world.get_tree().process_frame
+				if not _still_loading(key, container):
+					return
+				started = _begin_stream_slice()
+
+		for s: Dictionary in chunk.sites:
+			_spawn_fishing_school(chunk, s, container)
+			if _stream_budget_exhausted(started):
+				_finish_stream_slice(started)
+				await world.get_tree().process_frame
+				if not _still_loading(key, container):
+					return
+				started = _begin_stream_slice()
 
 	for i: int in chunk.sites.size():
 		_spawn_site(chunk, i, container)
+		if _stream_budget_exhausted(started):
+			_finish_stream_slice(started)
+			await world.get_tree().process_frame
+			if not _still_loading(key, container):
+				return
+			started = _begin_stream_slice()
 	for poi: Dictionary in chunk.pois:
 		for part: Dictionary in poi["parts"]:
 			_spawn_poi_part(chunk, poi, part, container)
+			if _stream_budget_exhausted(started):
+				_finish_stream_slice(started)
+				await world.get_tree().process_frame
+				if not _still_loading(key, container):
+					return
+				started = _begin_stream_slice()
 	for part: Dictionary in chunk.structures:
 		_spawn_poi_part(chunk, {}, part, container)
+		if _stream_budget_exhausted(started):
+			_finish_stream_slice(started)
+			await world.get_tree().process_frame
+			if not _still_loading(key, container):
+				return
+			started = _begin_stream_slice()
 	for m: Dictionary in chunk.monsters:
 		_spawn_monster(chunk, m, container)
+		if _stream_budget_exhausted(started):
+			_finish_stream_slice(started)
+			await world.get_tree().process_frame
+			if not _still_loading(key, container):
+				return
+			started = _begin_stream_slice()
 
 	if not _still_loading(key, container):
+		_finish_stream_slice(started)
 		return
+	_finish_stream_slice(started)
 	_finalize_chunk(chunk, container)
 
 
@@ -105,9 +148,41 @@ func _still_loading(key: String, container: Variant) -> bool:
 	return is_instance_valid(container) and world._chunk_containers.get(key) == container
 
 
+func _begin_stream_slice() -> int:
+	_reset_stream_budget_if_needed()
+	return Time.get_ticks_usec()
+
+
+func _stream_budget_exhausted(started: int) -> bool:
+	_reset_stream_budget_if_needed()
+	var elapsed := maxi(0, Time.get_ticks_usec() - started)
+	return elapsed >= SPAWN_BUDGET_USEC or _stream_budget_used_usec + elapsed >= STREAM_FRAME_BUDGET_USEC
+
+
+func _finish_stream_slice(started: int) -> void:
+	_reset_stream_budget_if_needed()
+	_stream_budget_used_usec += maxi(0, Time.get_ticks_usec() - started)
+
+
+func _reset_stream_budget_if_needed() -> void:
+	var frame := Engine.get_process_frames()
+	if frame == _stream_budget_frame:
+		return
+	_stream_budget_frame = frame
+	_stream_budget_used_usec = 0
+
+
 func _finalize_chunk(_chunk: RefCounted, container: Node2D) -> void:
-	# Decorate-sort-undecorate: the lock test calls WorldGen.zone_at (a spatial
-	# lookup), so compute it ONCE per entity instead of twice per comparison.
+	# Entity lookups choose by distance at click/hover time, so finalization does
+	# not need to re-sort the whole world list for every streamed chunk.
+	world._path_ctrl.mark_path_dirty()
+	# Reveal the chunk only once it is fully built (it was kept invisible during
+	# the streamed spawn) — no fade, so props simply appear, never pop in one by
+	# one. It is loaded outside the view, so the reveal happens off screen.
+	container.modulate.a = 1.0
+
+
+func sort_entities_for_targeting() -> void:
 	var pp: Vector2 = world.player.position
 	var keyed: Array = []
 	keyed.resize(world.entities.size())
@@ -120,11 +195,15 @@ func _finalize_chunk(_chunk: RefCounted, container: Node2D) -> void:
 		return a[2] < b[2])
 	for i: int in keyed.size():
 		world.entities[i] = keyed[i][0]
-	world._path_ctrl.mark_path_dirty()
-	# Reveal the chunk only once it is fully built (it was kept invisible during
-	# the streamed spawn) — no fade, so props simply appear, never pop in one by
-	# one. It is loaded outside the view, so the reveal happens off screen.
-	container.modulate.a = 1.0
+
+
+func _entity_locked_for_sort(e: Node2D) -> bool:
+	var action: Dictionary = e.get("action")
+	if action.has("chunk_key") and WorldGen.chunks.has(str(action["chunk_key"])):
+		var chunk: RefCounted = WorldGen.chunks[str(action["chunk_key"])]
+		return int(chunk.zone.get("req", 1)) > WorldGen.player_entry_level()
+	var zone: Dictionary = WorldGen.zone_at(e.position)
+	return int(zone.get("req", 1)) > WorldGen.player_entry_level()
 
 
 func on_chunk_unloaded(chunk: RefCounted) -> void:
@@ -152,15 +231,6 @@ func on_chunk_unloaded(chunk: RefCounted) -> void:
 		if sk.begins_with(key + "#"):
 			world._site_entities.erase(sk)
 	world._path_ctrl.mark_path_dirty()
-
-
-func _entity_locked_for_sort(e: Node2D) -> bool:
-	var action: Dictionary = e.get("action")
-	if action.has("chunk_key") and WorldGen.chunks.has(str(action["chunk_key"])):
-		var chunk: RefCounted = WorldGen.chunks[str(action["chunk_key"])]
-		return int(chunk.zone.get("req", 1)) > WorldGen.player_entry_level()
-	var zone: Dictionary = WorldGen.zone_at(e.position)
-	return int(zone.get("req", 1)) > WorldGen.player_entry_level()
 
 
 func _spawn_ground_decor(chunk: RefCounted, container: Node2D) -> void:
@@ -197,6 +267,7 @@ func _spawn_ground_decor_tile(chunk: RefCounted, container: Node2D, seed: int, t
 		(WG.r01(seed, tx, ty, 203) - 0.5) * WG.TILE * 0.28,
 		(WG.r01(seed, tx, ty, 204) - 0.5) * WG.TILE * 0.14)
 	d.position = chunk.tile_world(tx, ty) + jitter
+	d.visible = false
 	container.add_child(d)
 	world._decor_nodes.append(d)
 
@@ -208,44 +279,54 @@ func _spawn_water_decor(chunk: RefCounted, container: Node2D) -> void:
 	var reg: RefCounted = WorldGen.reg
 	for ty: int in range(WG.CHUNK_TILES):
 		for tx: int in range(WG.CHUNK_TILES):
-			var tid: int = chunk.tile_id(tx, ty)
-			if tid < 0 or tid >= reg.tile_order.size():
-				continue
-			var tname: String = reg.tile_order[tid]
-			var td: Dictionary = reg.tile_def(tid)
-			if not bool(td.get("water", false)):
-				continue
-			if tname == "deep_water":
-				continue
-			var water_n := _water_neighbors(chunk, tx, ty)
-			if water_n < 1:
-				continue
-			var r := WG.r01(seed, chunk.cx * 311 + tx, chunk.cy * 317 + ty, 401)
-			if tname in ["shallow", "water"] and r < 0.075:
-				var d: Node2D = WorldWaterDecor.new()
-				d.kind = "lily"
-				d.variant = int(WG.hash_i(seed, chunk.cx * 113 + tx, chunk.cy * 127 + ty, 402) % 10000)
-				d.position = chunk.tile_world(tx, ty)
-				container.add_child(d)
-				world._water_decor_nodes.append(d)
+			_spawn_water_decor_tile(chunk, container, seed, reg, tx, ty)
+
+
+func _spawn_water_decor_tile(chunk: RefCounted, container: Node2D, seed: int, reg: RefCounted, tx: int, ty: int) -> void:
+	var tid: int = chunk.tile_id(tx, ty)
+	if tid < 0 or tid >= reg.tile_order.size():
+		return
+	var tname: String = reg.tile_order[tid]
+	var td: Dictionary = reg.tile_def(tid)
+	if not bool(td.get("water", false)):
+		return
+	if tname == "deep_water":
+		return
+	var water_n := _water_neighbors(chunk, tx, ty)
+	if water_n < 1:
+		return
+	var r := WG.r01(seed, chunk.cx * 311 + tx, chunk.cy * 317 + ty, 401)
+	if tname in ["shallow", "water"] and r < 0.075:
+		var d: Node2D = WorldWaterDecor.new()
+		d.kind = "lily"
+		d.variant = int(WG.hash_i(seed, chunk.cx * 113 + tx, chunk.cy * 127 + ty, 402) % 10000)
+		d.position = chunk.tile_world(tx, ty)
+		d.visible = false
+		container.add_child(d)
+		world._water_decor_nodes.append(d)
 
 
 func _spawn_fishing_schools(chunk: RefCounted, container: Node2D) -> void:
 	if chunk.layer != 0:
 		return
-	var seed: int = WorldGen.store.world_seed
 	for s: Dictionary in chunk.sites:
-		if str(s.get("skill", "")) != "fishing":
-			continue
-		var water := FishingHelper.water_tile(chunk, s)
-		if water.x < 0:
-			continue
-		var d: Node2D = WorldWaterDecor.new()
-		d.kind = "fish_school"
-		d.variant = int(WG.hash_i(seed, water.x, water.y, chunk.cx * 401 + chunk.cy) % 10000)
-		d.position = chunk.tile_world(water.x, water.y)
-		container.add_child(d)
-		world._water_decor_nodes.append(d)
+		_spawn_fishing_school(chunk, s, container)
+
+
+func _spawn_fishing_school(chunk: RefCounted, s: Dictionary, container: Node2D) -> void:
+	if str(s.get("skill", "")) != "fishing":
+		return
+	var water := FishingHelper.water_tile(chunk, s)
+	if water.x < 0:
+		return
+	var seed: int = WorldGen.store.world_seed
+	var d: Node2D = WorldWaterDecor.new()
+	d.kind = "fish_school"
+	d.variant = int(WG.hash_i(seed, water.x, water.y, chunk.cx * 401 + chunk.cy) % 10000)
+	d.position = chunk.tile_world(water.x, water.y)
+	d.visible = false
+	container.add_child(d)
+	world._water_decor_nodes.append(d)
 
 
 func _water_neighbors(chunk: RefCounted, tx: int, ty: int) -> int:
@@ -468,5 +549,3 @@ static func tier_color(level: int) -> Color:
 		if level >= threshold:
 			idx += 1
 	return PixelPalette.enrich_entity(colors[idx])
-
-

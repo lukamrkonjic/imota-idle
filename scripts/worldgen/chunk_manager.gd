@@ -7,6 +7,7 @@ signal chunk_loaded(chunk: RefCounted, immediate: bool)
 signal chunk_unloaded(chunk: RefCounted)
 
 const WG := preload("res://scripts/worldgen/wg.gd")
+const Chunk := preload("res://scripts/worldgen/chunk.gd")
 const ChunkRenderer := preload("res://scripts/worldgen/chunk_renderer.gd")
 
 var layer := 0
@@ -23,6 +24,7 @@ var use_threads := false
 
 var _renderers: Dictionary = {}   # "cx:cy" -> renderer node
 var _chunks: Dictionary = {}      # "cx:cy" -> Chunk
+var _visual_only: Dictionary = {} # "cx:cy" -> true, cheap terrain placeholder only
 var _active: Dictionary = {}      # "cx:cy" -> true, has emitted chunk_loaded
 var _seen: Dictionary = {}        # layer -> {"cx:cy": true}
 var _center := Vector2i(2000000, 2000000)
@@ -33,13 +35,21 @@ var _results_mutex := Mutex.new()
 # Incremental streaming: after the initial fill, new chunks are queued and loaded
 # a few per frame instead of all at once on the crossing frame. This trades a
 # slightly slower fill for no frame hiccup when the player walks into a new area.
-const LOADS_PER_FRAME := 3
-const LOAD_TIME_BUDGET_USEC := 2600
-const ACTIVATIONS_PER_FRAME := 3
-const DEACTIVATIONS_PER_FRAME := 4
-const TERRAIN_REDRAWS_PER_FRAME := 3
+const LOADS_PER_FRAME := 1
+const LOAD_TIME_BUDGET_USEC := 1400
+const ACTIVATIONS_PER_FRAME := 1
+const DEACTIVATIONS_PER_FRAME := 1
+const UNLOADS_PER_FRAME := 1
+const TERRAIN_REDRAWS_PER_FRAME := 2
+const MESH_REBUILDS_PER_FRAME := 1
+const MESH_REBUILD_TIME_BUDGET_USEC := 1800
+const MESH_REBUILD_IDLE_MSEC := 180
+const DETAIL_UPDATE_IDLE_MSEC := 350
+const UNLOAD_IDLE_MSEC := 500
 var _load_queue: Array = []       # Array[Vector2i], nearest-first
 var _queued: Dictionary = {}      # "cx:cy" -> true (dedupe what's already queued)
+var _unload_queue: Array[String] = []
+var _queued_unload: Dictionary = {}
 # Seam re-draws after a neighbour loads are expensive (a full chunk _draw), so
 # they are coalesced and flushed a few per frame instead of all-at-once on load.
 var _redraw_queue: Array = []     # Array[String] keys, FIFO
@@ -48,6 +58,14 @@ var _activate_queue: Array[String] = []
 var _queued_activate: Dictionary = {}
 var _deactivate_queue: Array[String] = []
 var _queued_deactivate: Dictionary = {}
+var _mesh_queue: Array[String] = []
+var _queued_mesh: Dictionary = {}
+var _mesh_queue_dirty := false
+var _last_center_change_msec := 0
+var _detail_update_pending := false
+const PERF_KEYS := ["load", "redraw", "mesh", "deactivate", "unload", "activate", "detail", "total"]
+var _perf_accum: Dictionary = {}
+var _perf_frames := 0
 
 
 ## Gameplay-active chunks only. Pathfinding/entities intentionally stay on this
@@ -64,7 +82,7 @@ func loaded_chunks() -> Array:
 
 
 func terrain_chunk_count() -> int:
-	return _chunks.size()
+	return _renderers.size()
 
 
 func set_visible_rect(world_rect: Rect2) -> void:
@@ -86,11 +104,18 @@ func clear_all() -> void:
 		_unload(key)
 	_load_queue.clear()
 	_queued.clear()
+	_unload_queue.clear()
+	_queued_unload.clear()
 	_activate_queue.clear()
 	_queued_activate.clear()
 	_deactivate_queue.clear()
 	_queued_deactivate.clear()
+	_mesh_queue.clear()
+	_queued_mesh.clear()
+	_mesh_queue_dirty = false
+	_detail_update_pending = false
 	_active.clear()
+	_visual_only.clear()
 	_center = Vector2i(2000000, 2000000)
 
 
@@ -103,6 +128,7 @@ func update_center(world_pos: Vector2) -> void:
 	# synchronously. Farther visual chunks stream in over following frames.
 	var first_fill: bool = _center.x == 2000000
 	_center = c
+	_last_center_change_msec = Time.get_ticks_msec()
 	_refresh(first_fill)
 
 
@@ -111,7 +137,7 @@ func update_center(world_pos: Vector2) -> void:
 ## the radius grows and unloads when it shrinks.
 func set_radii(p_view: int, p_active: int) -> void:
 	var v := clampi(p_view, WG.VIEW_RADIUS, WG.MAX_VIEW_RADIUS)
-	var a := clampi(p_active, WG.ACTIVE_RADIUS, mini(WG.MAX_ACTIVE_RADIUS, v - 1))
+	var a := clampi(p_active, WG.NAV_RADIUS, mini(WG.MAX_ACTIVE_RADIUS, v - 1))
 	if v == view_radius and a == active_radius:
 		return
 	view_radius = v
@@ -145,28 +171,78 @@ func _refresh(first_fill: bool) -> void:
 			var dx: int = absi(int(parts[0]) - c.x)
 			var dy: int = absi(int(parts[1]) - c.y)
 			if dx > unload_radius or dy > unload_radius:
-				_unload(key)
-	_update_renderer_detail()
+				_queue_unload(key)
+	_request_renderer_detail_update(first_fill)
 	_sync_active_chunks()
 
 
 func _load(coords: Vector2i, immediate_active: bool = false) -> void:
+	var key := "%d:%d" % [coords.x, coords.y]
+	if _visual_only.has(key):
+		_hydrate_visual_placeholder(coords, immediate_active)
+		return
 	var chunk: RefCounted = WorldGen.get_chunk(layer, coords.x, coords.y)
 	WorldGen.snapshot_chunk_if_needed(chunk)
 	if layer == 0:
 		WorldGen.store.mark_explored(coords.x, coords.y)
-	var key := "%d:%d" % [coords.x, coords.y]
 	_chunks[key] = chunk
 	if not _seen.has(layer):
 		_seen[layer] = {}
 	_seen[layer][key] = true
 	var avg := ChunkRenderer.tile_color(WorldGen.reg, chunk.tile_id(WG.CHUNK_TILES / 2, WG.CHUNK_TILES / 2))
-	var renderer: Node2D = ChunkRenderer.new(chunk, avg, _detail_for(coords))
+	var detail := _detail_for(coords)
+	if not immediate_active and detail == ChunkRenderer.DETAIL_FULL and not _detail_updates_allowed():
+		detail = ChunkRenderer.DETAIL_LOW
+	var renderer: Node2D = ChunkRenderer.new(chunk, avg, detail)
 	renderer.name = "Chunk_" + key.replace(":", "_").replace("-", "m")
 	# No fade: terrain loads well outside the view (large radius), so it is simply
 	# present when it scrolls on screen — fading introduced the visible "pop".
 	add_child(renderer)
 	_renderers[key] = renderer
+	_queue_mesh_rebuild(key)
+	_redraw_loaded_neighbors(coords)
+	if _within_radius(coords, _center, active_radius):
+		if immediate_active:
+			_activate(key, chunk, true)
+		else:
+			_queue_activate(key)
+
+
+func _load_visual_placeholder(coords: Vector2i) -> void:
+	var key := "%d:%d" % [coords.x, coords.y]
+	if _renderers.has(key):
+		return
+	var tid := WorldGen.surface_tile_id(coords.x * WG.CHUNK_TILES + WG.CHUNK_TILES / 2, coords.y * WG.CHUNK_TILES + WG.CHUNK_TILES / 2)
+	if tid < 0 or tid >= WorldGen.reg.tile_order.size():
+		tid = int(WorldGen.reg.tile_index.get("grass", 0))
+	var chunk := Chunk.new()
+	chunk.setup(layer, coords.x, coords.y)
+	var avg := ChunkRenderer.tile_color(WorldGen.reg, tid)
+	var renderer: Node2D = ChunkRenderer.new(chunk, avg, ChunkRenderer.DETAIL_LOW)
+	renderer.name = "Chunk_" + key.replace(":", "_").replace("-", "m")
+	add_child(renderer)
+	_renderers[key] = renderer
+	_visual_only[key] = true
+
+
+func _hydrate_visual_placeholder(coords: Vector2i, immediate_active: bool = false) -> void:
+	var key := "%d:%d" % [coords.x, coords.y]
+	if not _visual_only.has(key):
+		return
+	var chunk: RefCounted = WorldGen.get_chunk(layer, coords.x, coords.y)
+	WorldGen.snapshot_chunk_if_needed(chunk)
+	if layer == 0:
+		WorldGen.store.mark_explored(coords.x, coords.y)
+	_chunks[key] = chunk
+	if not _seen.has(layer):
+		_seen[layer] = {}
+	_seen[layer][key] = true
+	_visual_only.erase(key)
+	if _renderers.has(key):
+		var renderer: Node2D = _renderers[key]
+		renderer.set("chunk", chunk)
+		renderer.call("set_detail_level", _detail_for(coords))
+		_queue_mesh_rebuild(key)
 	_redraw_loaded_neighbors(coords)
 	if _within_radius(coords, _center, active_radius):
 		if immediate_active:
@@ -211,7 +287,12 @@ func _update_renderer_detail() -> void:
 		var coord := _coord_from_key(key)
 		if coord == Vector2i(999999, 999999):
 			continue
-		_renderers[key].call("set_detail_level", _detail_for(coord))
+		if _visual_only.has(key):
+			continue
+		var renderer: Node2D = _renderers[key]
+		renderer.call("set_detail_level", _detail_for(coord))
+		if renderer.has_method("needs_mesh_rebuild") and renderer.call("needs_mesh_rebuild"):
+			_queue_mesh_rebuild(key)
 
 
 func _fade_in(node: CanvasItem, seconds: float) -> void:
@@ -239,6 +320,7 @@ func _redraw_loaded_neighbors(coords: Vector2i) -> void:
 func _process(_delta: float) -> void:
 	# Stream queued chunks in a few per frame; skip any that are already loaded
 	# or that the player has since walked out of range of.
+	var p0 := Time.get_ticks_usec()
 	var budget := LOADS_PER_FRAME
 	var started := Time.get_ticks_usec()
 	while budget > 0 and not _load_queue.is_empty():
@@ -247,15 +329,104 @@ func _process(_delta: float) -> void:
 		var coord: Vector2i = _load_queue.pop_front()
 		var key := "%d:%d" % [coord.x, coord.y]
 		_queued.erase(key)
-		if _renderers.has(key):
+		if _renderers.has(key) and not _visual_only.has(key):
 			continue
 		if absi(coord.x - _center.x) > view_radius or absi(coord.y - _center.y) > view_radius:
 			continue
-		_load(coord)
+		if _visual_only.has(key):
+			if not _should_load_real_chunk(coord):
+				continue
+			_load(coord)
+		elif _should_load_real_chunk(coord):
+			_load(coord)
+		else:
+			_load_visual_placeholder(coord)
 		budget -= 1
+	var p1 := Time.get_ticks_usec()
 	_process_redraw_queue()
+	var p2 := Time.get_ticks_usec()
+	_process_mesh_rebuild_queue()
+	var p3 := Time.get_ticks_usec()
 	_process_deactivation_queue()
+	var p4 := Time.get_ticks_usec()
+	_process_unload_queue()
+	var p5 := Time.get_ticks_usec()
 	_process_activation_queue()
+	var p6 := Time.get_ticks_usec()
+	if _detail_update_pending and _detail_updates_allowed():
+		_detail_update_pending = false
+		_update_renderer_detail()
+	var p7 := Time.get_ticks_usec()
+	_record_perf_timings({
+		"load": p1 - p0,
+		"redraw": p2 - p1,
+		"mesh": p3 - p2,
+		"deactivate": p4 - p3,
+		"unload": p5 - p4,
+		"activate": p6 - p5,
+		"detail": p7 - p6,
+		"total": p7 - p0,
+	})
+
+
+func _record_perf_timings(times: Dictionary) -> void:
+	for k: String in PERF_KEYS:
+		_perf_accum[k] = float(_perf_accum.get(k, 0.0)) + float(times.get(k, 0))
+	_perf_frames += 1
+
+
+func consume_perf_timings() -> Dictionary:
+	var n := maxi(1, _perf_frames)
+	var out: Dictionary = {}
+	for k: String in PERF_KEYS:
+		out[k] = int(float(_perf_accum.get(k, 0.0)) / float(n))
+	out["frames"] = _perf_frames
+	out["load_q"] = _load_queue.size()
+	out["mesh_q"] = _mesh_queue.size()
+	out["activate_q"] = _activate_queue.size()
+	out["unload_q"] = _unload_queue.size()
+	_perf_accum.clear()
+	_perf_frames = 0
+	return out
+
+
+func _request_renderer_detail_update(force: bool = false) -> void:
+	if force or _detail_updates_allowed():
+		_detail_update_pending = false
+		_update_renderer_detail()
+	else:
+		_detail_update_pending = true
+
+
+func _detail_updates_allowed() -> bool:
+	return Time.get_ticks_msec() - _last_center_change_msec >= DETAIL_UPDATE_IDLE_MSEC
+
+
+func _should_load_real_chunk(coord: Vector2i) -> bool:
+	return _within_radius(coord, _center, active_radius + 1) or _detail_updates_allowed()
+
+
+func _queue_unload(key: String) -> void:
+	if not _renderers.has(key) or _queued_unload.has(key):
+		return
+	_queued_unload[key] = true
+	_unload_queue.append(key)
+
+
+func _process_unload_queue() -> void:
+	if not _unloads_allowed():
+		return
+	var budget := UNLOADS_PER_FRAME
+	while budget > 0 and not _unload_queue.is_empty():
+		var key: String = _unload_queue.pop_front()
+		_queued_unload.erase(key)
+		if not _renderers.has(key):
+			continue
+		var coord := _coord_from_key(key)
+		if coord != Vector2i(999999, 999999) and _within_radius(coord, _center, unload_radius):
+			continue
+		_unload(key)
+		budget -= 1
 
 
 func _process_redraw_queue() -> void:
@@ -263,9 +434,45 @@ func _process_redraw_queue() -> void:
 	while budget > 0 and not _redraw_queue.is_empty():
 		var key: String = _redraw_queue.pop_front()
 		_redraw_pending.erase(key)
-		if _renderers.has(key):
-			_renderers[key].queue_redraw()
+		if _renderers.has(key) and not _visual_only.has(key):
+			_renderers[key].mark_dirty()  # rebuild the chunk mesh (seam/shadow may have changed)
+			_queue_mesh_rebuild(key)
 			budget -= 1
+
+
+func _queue_mesh_rebuild(key: String) -> void:
+	if not _renderers.has(key) or _queued_mesh.has(key):
+		return
+	_queued_mesh[key] = true
+	_mesh_queue.append(key)
+	_mesh_queue_dirty = true
+
+
+func _process_mesh_rebuild_queue() -> void:
+	if not _mesh_rebuilds_allowed():
+		return
+	if _mesh_queue_dirty:
+		_mesh_queue.sort_custom(_closer_key_to_center)
+		_mesh_queue_dirty = false
+	var budget := MESH_REBUILDS_PER_FRAME
+	var rebuilt := 0
+	var started := Time.get_ticks_usec()
+	while budget > 0 and not _mesh_queue.is_empty():
+		if rebuilt > 0 and Time.get_ticks_usec() - started > MESH_REBUILD_TIME_BUDGET_USEC:
+			break
+		var key: String = _mesh_queue.pop_front()
+		_queued_mesh.erase(key)
+		if not _renderers.has(key):
+			continue
+		var renderer: Node2D = _renderers[key]
+		if renderer.has_method("needs_mesh_rebuild") and renderer.call("needs_mesh_rebuild"):
+			renderer.call("rebuild_mesh")
+			rebuilt += 1
+			budget -= 1
+
+
+func _mesh_rebuilds_allowed() -> bool:
+	return Time.get_ticks_msec() - _last_center_change_msec >= MESH_REBUILD_IDLE_MSEC
 
 
 func _unload(key: String) -> void:
@@ -274,13 +481,27 @@ func _unload(key: String) -> void:
 		_deactivate(key, chunk)
 	_queued_activate.erase(key)
 	_queued_deactivate.erase(key)
+	_queued_unload.erase(key)
 	if _renderers.has(key):
 		_renderers[key].queue_free()
 	_renderers.erase(key)
+	_visual_only.erase(key)
+	_queued_mesh.erase(key)
 	_chunks.erase(key)
 
 
 func _sync_active_chunks() -> void:
+	for key: String in _visual_only.keys():
+		var coord := _coord_from_key(key)
+		if coord == Vector2i(999999, 999999) or not _should_load_real_chunk(coord):
+			continue
+		if _queued.has(key):
+			continue
+		_queued[key] = true
+		if _within_radius(coord, _center, active_radius + 1):
+			_load_queue.push_front(coord)
+		else:
+			_load_queue.append(coord)
 	for key: String in _active.keys():
 		var coord := _coord_from_key(key)
 		if coord == Vector2i(999999, 999999) or not _within_radius(coord, _center, active_radius):
@@ -334,6 +555,10 @@ func _process_deactivation_queue() -> void:
 			continue
 		_deactivate(key, _chunks.get(key))
 		budget -= 1
+
+
+func _unloads_allowed() -> bool:
+	return Time.get_ticks_msec() - _last_center_change_msec >= UNLOAD_IDLE_MSEC
 
 
 func _activate(key: String, chunk: RefCounted, immediate: bool = false) -> void:

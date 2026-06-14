@@ -48,6 +48,7 @@ var _ambient: CanvasModulate
 var _ambience: Node2D
 var _biome_debug: Node2D
 var _perf_logger: Node
+var _last_bake_gate_pos := Vector2.INF
 
 # --- controllers ---
 var _entity_spawner: RefCounted
@@ -66,6 +67,7 @@ func _ready() -> void:
 	_connect_events()
 	call_deferred("_finalize_player_spawn")
 	chunk_manager.update_center(player.position)
+	_entity_spawner.sort_entities_for_targeting()
 	_path_ctrl.rebuild()
 
 
@@ -74,6 +76,7 @@ func _finalize_player_spawn() -> void:
 	if not WorldGen.is_spawn_floor(player.position):
 		player.position = pos
 	chunk_manager.update_center(player.position)
+	_entity_spawner.sort_entities_for_targeting()
 	_path_ctrl.mark_path_dirty()
 	_path_ctrl.rebuild()
 
@@ -207,10 +210,19 @@ func _update_stream_radius() -> void:
 	var span_x: float = float(WG.CHUNK_TILES) * WG.ISO_HW
 	var span_y: float = float(WG.CHUNK_TILES) * WG.ISO_HH
 	var r: int = ceili((wx / span_x + wy / span_y) * 0.5)
-	chunk_manager.set_radii(r + 2, r + 1)
+	# Terrain must fill the whole zoomed-out view, but interactive/entity chunks
+	# only need a modest buffer around the player. Expanding both was flooding the
+	# moving camera with hundreds of extra CanvasItems.
+	var active_r: int = WG.NAV_RADIUS if zoom < 0.7 else mini(r + 1, WG.ACTIVE_RADIUS + 1)
+	chunk_manager.set_radii(r + 2, active_r)
 	# Freeze entity animations when zoomed far out — the per-frame live redraw of
 	# hundreds of visible enemies/fish is the dominant cost there and invisible.
 	WorldEntity.animations_enabled = zoom >= 0.7
+	var bake_queue := get_node_or_null("BakeQueue")
+	if bake_queue != null:
+		var moving := _last_bake_gate_pos != Vector2.INF and player.position.distance_squared_to(_last_bake_gate_pos) > 1.0
+		bake_queue.set("paused", moving and zoom < 0.7)
+		_last_bake_gate_pos = player.position
 
 
 func _unhandled_input(event: InputEvent) -> void:

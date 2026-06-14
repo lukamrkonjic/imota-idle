@@ -130,7 +130,8 @@ func _update_darkness() -> void:
 			world.unexplored_backdrop.visible = false
 		return
 	if world.unexplored_backdrop != null:
-		world.unexplored_backdrop.visible = true
+		world.unexplored_backdrop.visible = not (
+			WorldGen.reg.spec.active and WorldGen.reg.spec.finite)
 
 
 func _update_visibility_budget(delta: float) -> void:
@@ -163,6 +164,18 @@ func _update_visibility_budget(delta: float) -> void:
 		if not is_instance_valid(d):
 			continue
 		d.visible = show_water and rect.has_point(d.global_position)
+	for e: Node2D in world.entities:
+		if not is_instance_valid(e):
+			continue
+		e.visible = _entity_intersects_rect(e, rect)
+
+
+func _entity_intersects_rect(e: Node2D, rect: Rect2) -> bool:
+	var h := float(e.call("icon_height")) if e.has_method("icon_height") else float(e.get("display_size"))
+	var r := maxf(maxf(float(e.get("click_radius")), float(e.get("display_size")) * 0.75), 28.0)
+	var pos := e.global_position
+	var bounds := Rect2(pos - Vector2(r, h + r), Vector2(r * 2.0, h + r * 2.0))
+	return rect.intersects(bounds)
 
 
 ## Fade a house's roof out as the player steps inside, so city interiors and
