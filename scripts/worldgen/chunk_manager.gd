@@ -3,7 +3,7 @@ extends Node2D
 ## activity. A large terrain ring is rendered so the camera sees far ahead, while
 ## only the smaller active ring emits spawn/path signals for entities.
 
-signal chunk_loaded(chunk: RefCounted)
+signal chunk_loaded(chunk: RefCounted, immediate: bool)
 signal chunk_unloaded(chunk: RefCounted)
 
 const WG := preload("res://scripts/worldgen/wg.gd")
@@ -36,8 +36,13 @@ const LOADS_PER_FRAME := 2
 const LOAD_TIME_BUDGET_USEC := 2600
 const ACTIVATIONS_PER_FRAME := 1
 const DEACTIVATIONS_PER_FRAME := 3
+const TERRAIN_REDRAWS_PER_FRAME := 3
 var _load_queue: Array = []       # Array[Vector2i], nearest-first
 var _queued: Dictionary = {}      # "cx:cy" -> true (dedupe what's already queued)
+# Seam re-draws after a neighbour loads are expensive (a full chunk _draw), so
+# they are coalesced and flushed a few per frame instead of all-at-once on load.
+var _redraw_queue: Array = []     # Array[String] keys, FIFO
+var _redraw_pending: Dictionary = {}  # "cx:cy" -> true (dedupe)
 var _activate_queue: Array[String] = []
 var _queued_activate: Dictionary = {}
 var _deactivate_queue: Array[String] = []
@@ -141,7 +146,7 @@ func _load(coords: Vector2i, immediate_active: bool = false) -> void:
 	_redraw_loaded_neighbors(coords)
 	if _within_radius(coords, _center, active_radius):
 		if immediate_active:
-			_activate(key, chunk)
+			_activate(key, chunk, true)
 		else:
 			_queue_activate(key)
 
@@ -180,11 +185,18 @@ func _fade_in(node: CanvasItem, seconds: float) -> void:
 
 
 func _redraw_loaded_neighbors(coords: Vector2i) -> void:
+	# Enqueue the existing neighbours for a seam refresh (the just-created chunk
+	# already draws fresh on entering the tree, so skip its own centre). The queue
+	# is drained a few per frame in _process so a load never triggers a burst of
+	# full chunk redraws on the same frame.
 	for dy: int in range(-1, 2):
 		for dx: int in range(-1, 2):
+			if dx == 0 and dy == 0:
+				continue
 			var key := "%d:%d" % [coords.x + dx, coords.y + dy]
-			if _renderers.has(key):
-				_renderers[key].queue_redraw()
+			if _renderers.has(key) and not _redraw_pending.has(key):
+				_redraw_pending[key] = true
+				_redraw_queue.append(key)
 
 
 func _process(_delta: float) -> void:
@@ -204,8 +216,19 @@ func _process(_delta: float) -> void:
 			continue
 		_load(coord)
 		budget -= 1
+	_process_redraw_queue()
 	_process_deactivation_queue()
 	_process_activation_queue()
+
+
+func _process_redraw_queue() -> void:
+	var budget := TERRAIN_REDRAWS_PER_FRAME
+	while budget > 0 and not _redraw_queue.is_empty():
+		var key: String = _redraw_queue.pop_front()
+		_redraw_pending.erase(key)
+		if _renderers.has(key):
+			_renderers[key].queue_redraw()
+			budget -= 1
 
 
 func _unload(key: String) -> void:
@@ -276,11 +299,11 @@ func _process_deactivation_queue() -> void:
 		budget -= 1
 
 
-func _activate(key: String, chunk: RefCounted) -> void:
+func _activate(key: String, chunk: RefCounted, immediate: bool = false) -> void:
 	if chunk == null or _active.has(key):
 		return
 	_active[key] = true
-	chunk_loaded.emit(chunk)
+	chunk_loaded.emit(chunk, immediate)
 
 
 func _deactivate(key: String, chunk: RefCounted) -> void:

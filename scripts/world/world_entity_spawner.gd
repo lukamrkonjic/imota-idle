@@ -18,7 +18,12 @@ func setup(w: Node2D) -> void:
 	world = w
 
 
-func on_chunk_loaded(chunk: RefCounted) -> void:
+# Per-frame microsecond budget for streaming a chunk's contents in. Kept small
+# so several overlapping chunk spawns still fit comfortably inside one frame.
+const SPAWN_BUDGET_USEC := 1200
+
+
+func on_chunk_loaded(chunk: RefCounted, immediate: bool = false) -> void:
 	var container := Node2D.new()
 	container.name = "E_" + chunk.key().replace(":", "_").replace("-", "m")
 	container.y_sort_enabled = true
@@ -26,6 +31,18 @@ func on_chunk_loaded(chunk: RefCounted) -> void:
 	world._entities_layer.add_child(container)
 	world._chunk_containers[chunk.key()] = container
 
+	# Initial fill (and anything that must be ready this frame) spawns
+	# synchronously; chunks streamed in as the player walks are spread across a
+	# few frames so a chunk crossing never spikes the frame. The container stays
+	# invisible until finalize, then fades in — so nothing pops in half-built.
+	if immediate:
+		_spawn_chunk_contents(chunk, container)
+		_finalize_chunk(chunk, container)
+	else:
+		_spawn_chunk_streamed(chunk, container)
+
+
+func _spawn_chunk_contents(chunk: RefCounted, container: Node2D) -> void:
 	_spawn_ground_decor(chunk, container)
 	_spawn_water_decor(chunk, container)
 	for i: int in chunk.sites.size():
@@ -38,6 +55,56 @@ func on_chunk_loaded(chunk: RefCounted) -> void:
 		_spawn_poi_part(chunk, {}, part, container)
 	for m: Dictionary in chunk.monsters:
 		_spawn_monster(chunk, m, container)
+
+
+# Time-sliced version of _spawn_chunk_contents: yields a frame whenever the
+# per-frame budget is exhausted, and bails out cleanly if the chunk gets
+# unloaded mid-spawn (player walked back out of range).
+func _spawn_chunk_streamed(chunk: RefCounted, container: Node2D) -> void:
+	var key: String = chunk.key()
+	var started := Time.get_ticks_usec()
+
+	if chunk.layer == 0:
+		var seed: int = WorldGen.store.world_seed
+		for ty: int in range(WG.CHUNK_TILES):
+			for tx: int in range(WG.CHUNK_TILES):
+				_spawn_ground_decor_tile(chunk, container, seed, tx, ty)
+			if Time.get_ticks_usec() - started > SPAWN_BUDGET_USEC:
+				await world.get_tree().process_frame
+				if not _still_loading(key, container):
+					return
+				started = Time.get_ticks_usec()
+		_spawn_water_decor(chunk, container)
+		_spawn_fishing_schools(chunk, container)
+
+	if Time.get_ticks_usec() - started > SPAWN_BUDGET_USEC:
+		await world.get_tree().process_frame
+		if not _still_loading(key, container):
+			return
+		started = Time.get_ticks_usec()
+
+	for i: int in chunk.sites.size():
+		_spawn_site(chunk, i, container)
+	for poi: Dictionary in chunk.pois:
+		for part: Dictionary in poi["parts"]:
+			_spawn_poi_part(chunk, poi, part, container)
+	for part: Dictionary in chunk.structures:
+		_spawn_poi_part(chunk, {}, part, container)
+	for m: Dictionary in chunk.monsters:
+		_spawn_monster(chunk, m, container)
+
+	if not _still_loading(key, container):
+		return
+	_finalize_chunk(chunk, container)
+
+
+## The chunk is still the live container for its key (not unloaded/replaced
+## while we were yielding). Guards every resume point in the streamed spawn.
+func _still_loading(key: String, container: Node2D) -> bool:
+	return is_instance_valid(container) and world._chunk_containers.get(key) == container
+
+
+func _finalize_chunk(_chunk: RefCounted, container: Node2D) -> void:
 	# Decorate-sort-undecorate: the lock test calls WorldGen.zone_at (a spatial
 	# lookup), so compute it ONCE per entity instead of twice per comparison.
 	var pp: Vector2 = world.player.position
@@ -60,15 +127,21 @@ func on_chunk_unloaded(chunk: RefCounted) -> void:
 	var key: String = chunk.key()
 	var container: Node2D = world._chunk_containers.get(key)
 	if container != null:
+		# Collect this chunk's children once, then filter each tracking array in a
+		# single pass — far cheaper than a linear Array.erase() per child per array.
+		var kids: Dictionary = {}
 		for e: Node2D in container.get_children():
-			world.entities.erase(e)
-			world._decor_nodes.erase(e)
-			world._water_decor_nodes.erase(e)
-			world._roofed_entities.erase(e)
+			kids[e] = true
 			if e == world.hovered_entity:
 				world.hovered_entity = null
 			if e == world.combat_target_entity:
 				world.combat_target_entity = null
+		if not kids.is_empty():
+			var keep := func(e: Node2D) -> bool: return not kids.has(e)
+			world.entities = world.entities.filter(keep)
+			world._decor_nodes = world._decor_nodes.filter(keep)
+			world._water_decor_nodes = world._water_decor_nodes.filter(keep)
+			world._roofed_entities = world._roofed_entities.filter(keep)
 		container.queue_free()
 	world._chunk_containers.erase(key)
 	for sk: String in world._site_entities.keys():
@@ -92,32 +165,36 @@ func _spawn_ground_decor(chunk: RefCounted, container: Node2D) -> void:
 	var seed: int = WorldGen.store.world_seed
 	for ty: int in range(WG.CHUNK_TILES):
 		for tx: int in range(WG.CHUNK_TILES):
-			var tile: Dictionary = WorldGen.reg.tile_def(chunk.tile_id(tx, ty))
-			var tname: String = WorldGen.reg.tile_order[chunk.tile_id(tx, ty)]
-			if chunk.elev.size() > 0 and chunk.elev[ty * WG.CHUNK_TILES + tx] > 0:
-				continue
-			if bool(tile.get("water", false)) or not bool(tile.get("walkable", true)):
-				continue
-			if tname in ["sand", "sand_dune", "shallow", "rock", "cobble", "snow", "gravel", "savanna_grass", "jungle_loam", "boreal_moss", "badland_clay"]:
-				continue
-			var r := WG.r01(seed, chunk.cx * 251 + tx, chunk.cy * 263 + ty, 201)
-			var biome_id := _tile_biome_id(chunk, tx, ty)
-			var b_idx: int = chunk.biome_at(tx, ty)
-			var parent_id: String = WorldGen.reg.parent_biome_id(b_idx) if b_idx != 255 else biome_id
-			var near_water := _tile_near_water(chunk, tx, ty)
-			var chance := _decor_chance(biome_id, parent_id, near_water)
-			if r > chance:
-				continue
-			var d: Node2D = WorldDecor.new()
-			d.variant = int(WG.hash_i(seed, chunk.cx * 97 + tx, chunk.cy * 101 + ty, 202) % 1000)
-			var kroll := WG.r01(seed, chunk.cx * 97 + tx, chunk.cy * 101 + ty, 205)
-			d.kind = _pick_decor_kind(biome_id, near_water, kroll)
-			var jitter := Vector2(
-				(WG.r01(seed, tx, ty, 203) - 0.5) * WG.TILE * 0.28,
-				(WG.r01(seed, tx, ty, 204) - 0.5) * WG.TILE * 0.14)
-			d.position = chunk.tile_world(tx, ty) + jitter
-			container.add_child(d)
-			world._decor_nodes.append(d)
+			_spawn_ground_decor_tile(chunk, container, seed, tx, ty)
+
+
+func _spawn_ground_decor_tile(chunk: RefCounted, container: Node2D, seed: int, tx: int, ty: int) -> void:
+	var tile: Dictionary = WorldGen.reg.tile_def(chunk.tile_id(tx, ty))
+	var tname: String = WorldGen.reg.tile_order[chunk.tile_id(tx, ty)]
+	if chunk.elev.size() > 0 and chunk.elev[ty * WG.CHUNK_TILES + tx] > 0:
+		return
+	if bool(tile.get("water", false)) or not bool(tile.get("walkable", true)):
+		return
+	if tname in ["sand", "sand_dune", "shallow", "rock", "cobble", "snow", "gravel", "savanna_grass", "jungle_loam", "boreal_moss", "badland_clay"]:
+		return
+	var r := WG.r01(seed, chunk.cx * 251 + tx, chunk.cy * 263 + ty, 201)
+	var biome_id := _tile_biome_id(chunk, tx, ty)
+	var b_idx: int = chunk.biome_at(tx, ty)
+	var parent_id: String = WorldGen.reg.parent_biome_id(b_idx) if b_idx != 255 else biome_id
+	var near_water := _tile_near_water(chunk, tx, ty)
+	var chance := _decor_chance(biome_id, parent_id, near_water)
+	if r > chance:
+		return
+	var d: Node2D = WorldDecor.new()
+	d.variant = int(WG.hash_i(seed, chunk.cx * 97 + tx, chunk.cy * 101 + ty, 202) % 1000)
+	var kroll := WG.r01(seed, chunk.cx * 97 + tx, chunk.cy * 101 + ty, 205)
+	d.kind = _pick_decor_kind(biome_id, near_water, kroll)
+	var jitter := Vector2(
+		(WG.r01(seed, tx, ty, 203) - 0.5) * WG.TILE * 0.28,
+		(WG.r01(seed, tx, ty, 204) - 0.5) * WG.TILE * 0.14)
+	d.position = chunk.tile_world(tx, ty) + jitter
+	container.add_child(d)
+	world._decor_nodes.append(d)
 
 
 func _spawn_water_decor(chunk: RefCounted, container: Node2D) -> void:
