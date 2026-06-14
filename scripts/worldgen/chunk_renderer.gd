@@ -159,6 +159,10 @@ static func _draw_chunk(canvas: CanvasItem, p_chunk: RefCounted, reg: RefCounted
 		elif tile_name == "frozen_grass":
 			_draw_frozen_grass(canvas, item.x, item.y, top, accent, oy)
 		_draw_surface_borders(canvas, p_chunk, reg, lx, ly, item.x, item.y, top, water, oy)
+		# Crisp rim on the plateau lip (drawn last so the tile can't soften it) so
+		# the eye reads flat-top -> edge -> drop instead of white-next-to-white.
+		if elev > 0:
+			_draw_cliff_edges(canvas, p_chunk, lx, ly, item.x, item.y, elev, top, oy)
 
 
 ## Beveled vertical risers on the two camera-facing edges (SE toward +x, SW
@@ -178,6 +182,34 @@ static func _draw_risers(canvas: CanvasItem, p_chunk: RefCounted, lx: int, ly: i
 	# (away from the sun) darker still.
 	_draw_one_riser(canvas, e, s, elev - _elev_at(p_chunk, lx + 1, ly), PixelPalette.shade(top, 0.62))
 	_draw_one_riser(canvas, s, w, elev - _elev_at(p_chunk, lx, ly + 1), PixelPalette.shade(top, 0.42))
+
+
+## Thin separating treatment along the top of a cliff: a snow overhang highlight
+## (on bright/snow tops) just inside the surface, then a crisp 1px dark contour
+## right on the lip. Only the camera-facing edges that actually drop get one.
+static func _draw_cliff_edges(canvas: CanvasItem, p_chunk: RefCounted, lx: int, ly: int, gtx: int, gty: int, elev: int, top: Color, oy: float) -> void:
+	var center := WG.tile_to_world(gtx, gty)
+	var cx := center.x
+	var cy := center.y + oy
+	var hw := WG.ISO_HW + TILE_OVERLAP
+	var hh := WG.ISO_HH + TILE_OVERLAP * 0.5
+	var e := Vector2(cx + hw, cy)
+	var s := Vector2(cx, cy + hh)
+	var w := Vector2(cx - hw, cy)
+	var snowy := top.get_luminance() > 0.62
+	if elev - _elev_at(p_chunk, lx + 1, ly) > 0:
+		_edge_line(canvas, e, s, top, snowy)
+	if elev - _elev_at(p_chunk, lx, ly + 1) > 0:
+		_edge_line(canvas, s, w, top, snowy)
+
+
+static func _edge_line(canvas: CanvasItem, a: Vector2, b: Vector2, top: Color, snowy: bool) -> void:
+	if snowy:
+		# Snow overhang: a bright lip hanging just over the drop.
+		var up := Vector2(0.0, -float(PixelPalette.PX))
+		canvas.draw_line(a + up, b + up, PixelPalette.shade(top, 1.22), float(PixelPalette.PX))
+	# Crisp dark contour exactly on the edge.
+	canvas.draw_line(a, b, PixelPalette.shade(top, 0.5), float(PixelPalette.PX))
 
 
 static func _draw_one_riser(canvas: CanvasItem, a: Vector2, b: Vector2, drop_steps: int, face: Color) -> void:
