@@ -29,8 +29,8 @@ func _run() -> void:
 
 	var samples: Array = [
 		{"name": "spawn z0.95", "chunk": Vector2i(0, 0), "zoom": 0.95},
-		{"name": "spawn z1.40", "chunk": Vector2i(0, 0), "zoom": 1.40},
-		{"name": "north_peaks z0.85", "chunk": Vector2i(-3, -24), "zoom": 0.85},
+		{"name": "spawn z0.60", "chunk": Vector2i(0, 0), "zoom": 0.60},
+		{"name": "spawn z0.45", "chunk": Vector2i(0, 0), "zoom": 0.45},
 	]
 	print("\n=== PERF PROBE ===")
 	for s: Dictionary in samples:

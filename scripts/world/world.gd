@@ -17,6 +17,7 @@ const WorldVisualController := preload("res://scripts/world/world_visual_control
 const WorldAmbience := preload("res://scripts/world/world_ambience.gd")
 const BiomeDebugOverlay := preload("res://scripts/world/biome_debug_overlay.gd")
 const ClickMarkerNode := preload("res://scripts/ui/click_marker_node.gd")
+const PerfLogger := preload("res://scripts/world/perf_logger.gd")
 
 # --- public state (tests, HUD) ---
 var entities: Array = []
@@ -43,6 +44,7 @@ var _camera: Camera2D
 var _ambient: CanvasModulate
 var _ambience: Node2D
 var _biome_debug: Node2D
+var _perf_logger: Node
 
 # --- controllers ---
 var _entity_spawner: RefCounted
@@ -100,6 +102,11 @@ func _build_scene() -> void:
 	chunk_manager.chunk_loaded.connect(_entity_spawner.on_chunk_loaded)
 	chunk_manager.chunk_unloaded.connect(_entity_spawner.on_chunk_unloaded)
 
+	_perf_logger = PerfLogger.new()
+	_perf_logger.name = "PerfLogger"
+	_perf_logger.setup(self)
+	add_child(_perf_logger)
+
 	_entities_layer = Node2D.new()
 	_entities_layer.name = "Entities"
 	_entities_layer.y_sort_enabled = true
@@ -153,12 +160,24 @@ func _connect_events() -> void:
 
 
 func _process(delta: float) -> void:
+	var t0 := Time.get_ticks_usec()
 	chunk_manager.update_center(player.position)
+	var t1 := Time.get_ticks_usec()
 	_update_stream_radius()
+	var t2 := Time.get_ticks_usec()
 	_path_ctrl.process_tick()
+	var t3 := Time.get_ticks_usec()
 	_visual_ctrl.process_tick(delta)
+	var t4 := Time.get_ticks_usec()
 	_input_ctrl.update_hover()
+	var t5 := Time.get_ticks_usec()
 	_activity_ctrl.process_tick(delta)
+	var t6 := Time.get_ticks_usec()
+	if _perf_logger != null:
+		_perf_logger.record(delta, {
+			"chunk": t1 - t0, "stream": t2 - t1, "path": t3 - t2,
+			"visual": t4 - t3, "hover": t5 - t4, "activity": t6 - t5,
+		})
 
 
 ## Scale the streaming radii to the camera so terrain + entities always fill the
