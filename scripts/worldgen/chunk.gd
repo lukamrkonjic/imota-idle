@@ -22,8 +22,8 @@ var collision := PackedByteArray() # 1 = blocked by a solid structure (entities 
                                    # block tiles by themselves); water/walls already
                                    # block via tile flags. Derived from `structures`.
 var elev := PackedByteArray()      # terraced terrain elevation in steps, 0 = flat.
-                                   # Non-zero only on mountain rock/snow tiles, so the
-                                   # renderer never raises water or walkable ground.
+                                   # Low steps can be walkable foothills; tall peaks
+                                   # are blocked by tile flags / reachability limits.
 var zone: Dictionary = {}
 var safe := false                 # campsite/village chunk: no monster spawns
 var sites: Array = []

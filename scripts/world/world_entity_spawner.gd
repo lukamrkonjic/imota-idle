@@ -22,6 +22,7 @@ func on_chunk_loaded(chunk: RefCounted) -> void:
 	var container := Node2D.new()
 	container.name = "E_" + chunk.key().replace(":", "_").replace("-", "m")
 	container.y_sort_enabled = true
+	container.modulate.a = 0.0
 	world._entities_layer.add_child(container)
 	world._chunk_containers[chunk.key()] = container
 
@@ -44,6 +45,7 @@ func on_chunk_loaded(chunk: RefCounted) -> void:
 			return not la
 		return a.position.distance_squared_to(world.player.position) < b.position.distance_squared_to(world.player.position))
 	world._path_ctrl.mark_path_dirty()
+	_fade_in(container)
 
 
 func on_chunk_unloaded(chunk: RefCounted) -> void:
@@ -83,6 +85,8 @@ func _spawn_ground_decor(chunk: RefCounted, container: Node2D) -> void:
 		for tx: int in range(WG.CHUNK_TILES):
 			var tile: Dictionary = WorldGen.reg.tile_def(chunk.tile_id(tx, ty))
 			var tname: String = WorldGen.reg.tile_order[chunk.tile_id(tx, ty)]
+			if chunk.elev.size() > 0 and chunk.elev[ty * WG.CHUNK_TILES + tx] > 0:
+				continue
 			if bool(tile.get("water", false)) or not bool(tile.get("walkable", true)):
 				continue
 			if tname in ["sand", "sand_dune", "shallow", "rock", "cobble", "snow", "gravel", "savanna_grass", "jungle_loam", "boreal_moss", "badland_clay"]:
@@ -370,3 +374,10 @@ static func tier_color(level: int) -> Color:
 		if level >= threshold:
 			idx += 1
 	return PixelPalette.enrich_entity(colors[idx])
+
+
+func _fade_in(container: CanvasItem) -> void:
+	var tw := container.create_tween()
+	tw.set_trans(Tween.TRANS_SINE)
+	tw.set_ease(Tween.EASE_OUT)
+	tw.tween_property(container, "modulate:a", 1.0, 0.34)

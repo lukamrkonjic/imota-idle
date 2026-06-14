@@ -99,6 +99,9 @@ func generate_natural(cx: int, cy: int) -> RefCounted:
 func _place_mountains(chunk: RefCounted) -> void:
 	var t_peak := int(reg.tile_index.get("peak_rock", -1))
 	var t_snow := int(reg.tile_index.get("peak_snow", -1))
+	var t_rock := int(reg.tile_index.get("rock", -1))
+	var t_gravel := int(reg.tile_index.get("gravel", t_rock))
+	var t_snow_floor := int(reg.tile_index.get("snow", t_rock))
 	if t_peak < 0:
 		return
 	var b_rh := int(reg.biome_index.get("rocky_hills", 0))
@@ -117,11 +120,14 @@ func _place_mountains(chunk: RefCounted) -> void:
 				continue
 			var i := Chunk.idx(tx, ty)
 			if bool(reg.tile_def(chunk.tiles[i]).get("water", false)):
+				chunk.elev[i] = 0
 				continue
 			chunk.elev[i] = e
-			# Snow caps the tall/cold peaks; everything else rocky. Both peak tiles
-			# are non-walkable (collision), so raised terrain is always impassable.
-			var snowy: bool = classifier.mountain_level(float(gtx), float(gty)) == 3
-			chunk.tiles[i] = t_snow if (snowy and t_snow >= 0) else t_peak
+			var level: int = classifier.mountain_level(float(gtx), float(gty))
+			var snowy: bool = level == 3 or (level == 1 and e >= WG.MAX_REACHABLE_ELEV - 3)
+			if level >= 2:
+				chunk.tiles[i] = t_snow if (snowy and t_snow >= 0) else t_peak
+			else:
+				chunk.tiles[i] = t_snow_floor if (snowy and t_snow_floor >= 0) else (t_gravel if e <= 2 and t_gravel >= 0 else t_rock)
 			chunk.biomes_t[i] = b_alp if snowy else b_rh
 			chunk.parent_biomes_t[i] = chunk.biomes_t[i]

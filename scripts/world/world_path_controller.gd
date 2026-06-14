@@ -51,6 +51,7 @@ func stop_walking() -> void:
 
 func walk_to_pos(target: Vector2) -> bool:
 	var tile := WG.world_to_tile(target)
+	var direct_ground_click: bool = world.pending_action.is_empty()
 	if path_finder.in_region(tile):
 		var lock := int(path_finder.lock_req_at(tile))
 		if lock > 0:
@@ -60,6 +61,11 @@ func walk_to_pos(target: Vector2) -> bool:
 			world.player.play_no()
 			world.pending_action = {}
 			world.auto_task = {}
+			return false
+		if direct_ground_click and not path_finder.has_reachable_tile(tile):
+			EventBus.combat_log.emit("[color=#444]You can't reach that.[/color]")
+			world.player.play_no()
+			world.pending_action = {}
 			return false
 		_has_long_target = false
 	else:
@@ -75,7 +81,8 @@ func walk_to_pos(target: Vector2) -> bool:
 		_has_long_target = true
 		_repath_budget = 200
 		target = _clamp_to_region(target)
-	var path := PackedVector2Array(path_finder.find_path(world.player.position, target))
+	var snap_target: bool = _has_long_target or not direct_ground_click
+	var path := PackedVector2Array(path_finder.find_path(world.player.position, target, snap_target))
 	if path.is_empty():
 		EventBus.combat_log.emit("[color=#444]You can't reach that.[/color]")
 		world.player.play_no()

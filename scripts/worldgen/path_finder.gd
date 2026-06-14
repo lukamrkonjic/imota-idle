@@ -56,7 +56,8 @@ func rebuild(chunks: Array, reg: RefCounted, entry_level: int) -> void:
 		for ty: int in WG.CHUNK_TILES:
 			for tx: int in WG.CHUNK_TILES:
 				var td: Dictionary = reg.tile_def(c.tile_id(tx, ty))
-				if not td["walkable"] or td["hazard"] or c.is_blocked(tx, ty):
+				if not bool(td.get("walkable", false)) or bool(td.get("water", false)) \
+						or bool(td.get("hazard", false)) or c.is_blocked(tx, ty):
 					continue
 				var e: int = c.elev[ty * WG.CHUNK_TILES + tx] if has_elev else 0
 				if e > WG.MAX_REACHABLE_ELEV:
@@ -99,20 +100,27 @@ func in_region(tile: Vector2i) -> bool:
 	return not _ids.is_empty() and region.has_point(tile)
 
 
+func has_reachable_tile(tile: Vector2i) -> bool:
+	return _ids.has(tile)
+
+
 ## Why is this tile unreachable? Returns the lock level req, or 0.
 func lock_req_at(tile: Vector2i) -> int:
 	var c := WG.tile_to_chunk(tile)
 	return int(locked_chunks.get("%d:%d" % [c.x, c.y], 0))
 
 
-## Path between world positions; both ends snap to the nearest reachable tile.
+## Path between world positions. The start always snaps defensively to the
+## player's current tile; callers can require the target to be exact for plain
+## ground clicks, or allow snapping for entity interactions.
 ## Returns world-space waypoints (tile centers), empty if unreachable.
-func find_path(from_world: Vector2, to_world: Vector2) -> PackedVector2Array:
+func find_path(from_world: Vector2, to_world: Vector2, snap_target: bool = true) -> PackedVector2Array:
 	var out := PackedVector2Array()
 	if _ids.is_empty():
 		return out
 	var from_id := _nearest_id(WG.world_to_tile(from_world))
-	var to_id := _nearest_id(WG.world_to_tile(to_world))
+	var to_tile := WG.world_to_tile(to_world)
+	var to_id := _nearest_id(to_tile) if snap_target else int(_ids.get(to_tile, -1))
 	if from_id < 0 or to_id < 0:
 		return out
 	for id: int in astar.get_id_path(from_id, to_id):

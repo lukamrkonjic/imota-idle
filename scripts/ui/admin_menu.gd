@@ -98,7 +98,7 @@ func _build_biome_tab() -> void:
 	scroll.add_child(list)
 
 	var hint := Label.new()
-	hint.text = "Teleport to the nearest tile of each parent or sub-biome (from worldgen data)."
+	hint.text = "Teleport near the nearest parent or sub-biome, snapped to safe flat ground."
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.add_theme_font_size_override("font_size", UiScale.i(11))
 	hint.add_theme_color_override("font_color", Color(0.72, 0.72, 0.72))
@@ -266,7 +266,7 @@ func _build_places_tab() -> void:
 	scroll.add_child(list)
 
 	var hint := Label.new()
-	hint.text = "Hand-authored places in the fixed world — settlements, landmarks and key sites. Teleports to the exact designed tile."
+	hint.text = "Hand-authored places in the fixed world: settlements, landmarks and key sites. Teleports near the designed tile on safe flat ground."
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.add_theme_font_size_override("font_size", UiScale.i(11))
 	hint.add_theme_color_override("font_color", Color(0.72, 0.72, 0.72))
@@ -338,7 +338,6 @@ func _teleport_tile(tile: Vector2i, nice: String) -> void:
 	if world == null:
 		return
 	var pos: Vector2 = WG.tile_to_world(tile.x, tile.y)
-	pos = WorldGen.nearest_walkable_world(pos)
 	world.call("teleport_to", pos)
 	_hud.call("_push_chat", "[color=#5a3a8a]Teleported to %s.[/color]" % nice)
 	_popup.hide()

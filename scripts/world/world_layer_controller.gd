@@ -2,8 +2,6 @@ extends RefCounted
 class_name WorldLayerController
 ## Cave/surface layer switching, obelisks, and teleport.
 
-const WG := preload("res://scripts/worldgen/wg.gd")
-
 var world: Node2D
 
 
@@ -64,7 +62,7 @@ func teleport_to(pos: Vector2) -> void:
 	world.auto_task = {}
 	if world.current_layer != 0:
 		switch_layer(0)
-	world.player.position = WorldGen.nearest_walkable_world(pos + Vector2(0, WG.TILE))
+	world.player.position = WorldGen.nearest_admin_teleport_world(pos)
 	world.chunk_manager.update_center(world.player.position)
 	world._path_ctrl.rebuild()
 	EventBus.combat_log.emit("[color=#5a3a8a]You teleport.[/color]")

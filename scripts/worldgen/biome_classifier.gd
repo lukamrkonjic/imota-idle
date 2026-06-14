@@ -171,13 +171,9 @@ func geo(tx: float, ty: float) -> Dictionary:
 	}
 
 
-## Mountain elevation at a tile: 0 none, 1 foothill (walkable rock), 2 rock peak
-## (impassable), 3 snow peak (impassable). Ranges sit in a northern highland belt
-## plus occasional spines; ridged noise carves ridgelines with gaps (passes), so
-## a cluster reads as a range with valleys and walkable passes between peaks.
-## Continuous mountain elevation 0..~1.2 (0 = no mountain here). The ridged noise
-## carves ridgelines; gated to the northern highland belt or a range spine. Used
-## both to classify tiles and to find ridge crests for placing massif art.
+## Continuous mountain mass 0..~1.2 (0 = no mountain here). The field is broader
+## than the visible ridge crest so mountains have foothills and hidden back-side
+## depth instead of a tall front face sitting beside flat walkable tiles.
 func mountain_field(tx: float, ty: float) -> float:
 	if not _finite:
 		return 0.0
@@ -185,14 +181,29 @@ func mountain_field(tx: float, ty: float) -> float:
 	var nn: float = g["n"]
 	var dd: float = g["d"]
 	var range_mask := _mtn_range.get_noise_2d(tx, ty) * 0.5 + 0.5     # 0..1
-	# Mountains belong to the northern highlands, or wherever a strong range
-	# spine pushes through; never in the safe central hub or out at sea.
-	var north_belt := nn > 0.22 and dd > 0.32 and dd < 0.88
-	var spine := range_mask > 0.74
-	if not (north_belt or spine) or dd < 0.26:
+	if dd < 0.24:
+		return 0.0
+	var shore := coast_sink(tx, ty)
+	if shore > 0.88:
+		return 0.0
+	# Smooth range gates create shoulders and foothills on every side of the
+	# crest, so the hidden/back side of an isometric mountain has real depth.
+	var north_belt := smoothstep(0.16, 0.42, nn) \
+		* smoothstep(0.28, 0.46, dd) \
+		* (1.0 - smoothstep(0.86, 1.06, dd))
+	var spine := smoothstep(0.58, 0.82, range_mask) \
+		* smoothstep(0.30, 0.48, dd) \
+		* (1.0 - smoothstep(0.90, 1.08, dd))
+	var gate: float = clampf(maxf(north_belt, spine), 0.0, 1.0)
+	if gate <= 0.01:
 		return 0.0
 	var ridged := 1.0 - absf(_mtn_ridge.get_noise_2d(tx, ty))          # ~0..1, peaks ~1
-	return ridged * (0.62 + range_mask * 0.6)
+	var ridge := smoothstep(0.42, 0.92, ridged)
+	var shoulder := smoothstep(0.50, 0.76, range_mask)
+	var macro := _height_macro.get_noise_2d(tx * 0.7, ty * 0.7) * 0.5 + 0.5
+	var mass := gate * (0.22 + shoulder * 0.34 + ridge * 0.48 + macro * 0.16)
+	mass *= 1.0 - smoothstep(0.18, 0.76, shore)
+	return clampf(mass, 0.0, 1.20)
 
 
 ## Discrete terrain elevation in steps (0 = flat lowland). The mountains ARE this
@@ -201,37 +212,55 @@ func mountain_field(tx: float, ty: float) -> float:
 ## all impassable) so elevation is non-zero only on rock the player cannot stand
 ## on; lowlands, valleys, hub and settlements stay flat (entities assume flat
 ## ground). Each step is drawn raised by WG.ELEV_STEP_PX with a bevel riser.
-const ELEV_MAX_STEPS := 80
-const ELEV_BAND := 4        # snap heights to bands so terraces are wide (walkable)
-                            # and cliff faces are tall and continuous, not 1-tile
-                            # staircases
+## Smoothed heightfield used by elevation_steps(). Neighbour samples give the
+## ridge physical shoulders on all sides, not just a thin visible crest.
+func mountain_height_field(tx: float, ty: float) -> float:
+	var total := mountain_field(tx, ty) * 4.0
+	var weight := 4.0
+	for off: Vector2 in [Vector2(2, 0), Vector2(-2, 0), Vector2(0, 2), Vector2(0, -2)]:
+		total += mountain_field(tx + off.x, ty + off.y) * 1.4
+		weight += 1.4
+	for off: Vector2 in [Vector2(4, 0), Vector2(-4, 0), Vector2(0, 4), Vector2(0, -4),
+			Vector2(3, 3), Vector2(-3, 3), Vector2(3, -3), Vector2(-3, -3)]:
+		total += mountain_field(tx + off.x, ty + off.y) * 0.55
+		weight += 0.55
+	return clampf(total / weight, 0.0, 1.20)
+
+
+const ELEV_MAX_STEPS := 42
+const ELEV_FOOT_THRESHOLD := 0.18
+const ELEV_PEAK_THRESHOLD := 0.92
+const ELEV_BAND := 1
 func elevation_steps(tx: float, ty: float) -> int:
 	if not _finite:
 		return 0
-	var mf := mountain_field(tx, ty)
-	if mf < 0.70:
+	var mh := mountain_height_field(tx, ty)
+	if mh < ELEV_FOOT_THRESHOLD:
 		return 0
 	# Steep exponent so foothills stay low but the cold alpine ridges (high mf)
 	# climb to a towering height; quantise into bands for big readable terraces.
-	var raw := pow((mf - 0.70) / 0.54, 1.35) * float(ELEV_MAX_STEPS)
+	var shaped := smoothstep(ELEV_FOOT_THRESHOLD, ELEV_PEAK_THRESHOLD, mh)
+	var raw := pow(shaped, 1.18) * float(ELEV_MAX_STEPS)
 	# Slope down toward the sea using the SMOOTH coastline. (The old version keyed
 	# off the fine height noise, which fluctuates everywhere and randomly flattened
 	# inland mountains to elevation 0 — letting the player walk straight up peaks.)
 	# Inland: full height. Approaching the shore: tapers to 0.
-	raw *= 1.0 - smoothstep(0.0, 0.55, coast_sink(tx, ty))
-	return int(round(raw / float(ELEV_BAND))) * ELEV_BAND
+	raw *= 1.0 - smoothstep(0.10, 0.70, coast_sink(tx, ty))
+	var steps := int(round(raw / float(ELEV_BAND))) * ELEV_BAND
+	return clampi(steps, 0, ELEV_MAX_STEPS)
 
 
 ## Mountain elevation at a tile: 0 none, 1 foothill (walkable rock), 2 rock peak
 ## (impassable), 3 snow peak (impassable).
 func mountain_level(tx: float, ty: float) -> int:
-	var v := mountain_field(tx, ty)
-	if v < 0.70:
+	var e := elevation_steps(tx, ty)
+	if e <= 0:
 		return 0
 	var g: Dictionary = geo(tx, ty)
-	if v > 0.90 and (float(g["n"]) > 0.42 or float(g["d"]) > 0.62):
+	if e > WG.MAX_REACHABLE_ELEV and e >= int(float(ELEV_MAX_STEPS) * 0.58) \
+			and (float(g["n"]) > 0.36 or float(g["d"]) > 0.62):
 		return 3                                                       # snow cap
-	if v > 0.80:
+	if e > WG.MAX_REACHABLE_ELEV:
 		return 2                                                       # rock peak (impassable)
 	return 1                                                           # foothill
 

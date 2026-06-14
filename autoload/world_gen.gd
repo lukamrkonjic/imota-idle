@@ -214,7 +214,11 @@ func is_walkable_world(pos: Vector2, layer: int = 0) -> bool:
 		var t := WG.world_to_tile(pos)
 		var c := WG.tile_to_chunk(t)
 		var chunk: RefCounted = get_chunk(0, c.x, c.y)
-		if chunk.is_blocked(t.x - c.x * WG.CHUNK_TILES, t.y - c.y * WG.CHUNK_TILES):
+		var lx: int = t.x - c.x * WG.CHUNK_TILES
+		var ly: int = t.y - c.y * WG.CHUNK_TILES
+		if chunk.elev.size() > 0 and chunk.elev[ly * WG.CHUNK_TILES + lx] > WG.MAX_REACHABLE_ELEV:
+			return false
+		if chunk.is_blocked(lx, ly):
 			return false
 	return true
 
@@ -240,9 +244,18 @@ func is_water_world(pos: Vector2, layer: int = 0) -> bool:
 	return not td.is_empty() and bool(td.get("water", false))
 
 
-## Dry land with no water on the four cardinals — avoids river/lake shore spawns.
-func is_spawn_floor(pos: Vector2, layer: int = 0) -> bool:
+## Safe admin landing: walkable dry ground at elevation 0 on the surface.
+func is_admin_teleport_floor(pos: Vector2, layer: int = 0) -> bool:
 	if not is_walkable_world(pos, layer):
+		return false
+	if layer == 0 and elevation_at(pos, layer) != 0:
+		return false
+	return true
+
+
+## Dry flat land with no water on the four cardinals. Avoids river/lake shore spawns.
+func is_spawn_floor(pos: Vector2, layer: int = 0) -> bool:
+	if not is_admin_teleport_floor(pos, layer):
 		return false
 	var t := WG.world_to_tile(pos)
 	for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
@@ -254,6 +267,13 @@ func is_spawn_floor(pos: Vector2, layer: int = 0) -> bool:
 ## Spiral outward from preferred until a walkable tile center is found.
 func nearest_walkable_world(preferred: Vector2, layer: int = 0, max_rings: int = 16) -> Vector2:
 	var found: Vector2 = _spiral_tile(preferred, layer, max_rings, is_walkable_world)
+	return found if found != Vector2.INF else _fallback_home_spawn(layer)
+
+
+## Admin/world teleports should never land on mountain terraces. Search wider
+## than click walking because biome/place jumps can target cliffs or peaks.
+func nearest_admin_teleport_world(preferred: Vector2, layer: int = 0, max_rings: int = 128) -> Vector2:
+	var found: Vector2 = _spiral_tile(preferred, layer, max_rings, is_admin_teleport_floor)
 	return found if found != Vector2.INF else _fallback_home_spawn(layer)
 
 

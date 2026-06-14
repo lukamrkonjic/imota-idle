@@ -120,23 +120,14 @@ func _update_zone_and_biome() -> void:
 
 
 func _update_darkness() -> void:
-	if world.current_layer < 0:
+	if _darkness != null:
 		_darkness.visible = false
+	if world.current_layer < 0:
 		if world.unexplored_backdrop != null:
 			world.unexplored_backdrop.visible = false
 		return
 	if world.unexplored_backdrop != null:
 		world.unexplored_backdrop.visible = true
-	_darkness.visible = true
-	var vp := world.get_viewport().get_visible_rect().size
-	if vp == _darkness_vp:
-		return
-	_darkness_vp = vp
-	var mat: ShaderMaterial = _darkness.material
-	mat.set_shader_parameter("center", vp * 0.5)
-	mat.set_shader_parameter("radius", minf(vp.x, vp.y) * 0.62)
-	mat.set_shader_parameter("softness", minf(vp.x, vp.y) * 0.28)
-	mat.set_shader_parameter("max_alpha", 0.34)
 
 
 func _update_visibility_budget(delta: float) -> void:
@@ -150,7 +141,13 @@ func _update_visibility_budget(delta: float) -> void:
 	var margin := WG.CHUNK_SIZE * 0.35
 	var rect := Rect2(world._camera.global_position - world_size * 0.5 - Vector2(margin, margin), world_size + Vector2(margin * 2.0, margin * 2.0))
 	for key: String in world._chunk_containers.keys():
-		world._chunk_containers[key].visible = true
+		var container: Node2D = world._chunk_containers[key]
+		var parts: PackedStringArray = key.split(":")
+		if parts.size() == 3:
+			var chunk_rect := WG.chunk_aabb(int(parts[1]), int(parts[2])).grow(WG.CHUNK_SIZE * 0.75)
+			container.visible = chunk_rect.intersects(rect)
+		else:
+			container.visible = true
 	var show_decor: bool = zoom >= 0.84
 	for d: Node2D in world._decor_nodes:
 		if not is_instance_valid(d):

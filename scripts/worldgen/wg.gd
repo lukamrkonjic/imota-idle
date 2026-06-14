@@ -10,16 +10,18 @@ const BLOCK_RISE := 6.0                    # vertical extrusion for solid blocks
 const ELEV_STEP_PX := 8.0                  # screen px a terrain raises per elevation step
 const MAX_REACHABLE_ELEV := 15             # player can climb up to this elevation; higher
                                            # rock/snow is unreachable (routed around)
-const MAX_CLIMB_STEP := 2                  # biggest single-step elevation change the player
-                                           # can hop up; isolated spikes beyond it are sheer
+const MAX_CLIMB_STEP := 1                  # biggest single-step elevation change the player
+                                           # can hop up; Minecraft-style one-block steps
 const CHUNK_TILES := 16                    # tiles per chunk side
 const CHUNK_SIZE := TILE * float(CHUNK_TILES)  # legacy ortho estimate; use chunk_aabb()
 const ZONE_CELL := 6                       # zone Voronoi cell size, in chunks
-const VIEW_RADIUS := 2                     # chunks kept loaded around the player.
-                                           # Baked chunks load instantly (no noise),
-                                           # so travel is seamless without widening
-                                           # the ring (which would just spawn more
-                                           # entities and cost frame time).
+const VIEW_RADIUS := 5                     # terrain chunks kept rendered around the player.
+                                           # This is visual-only; entities/pathfinding use
+                                           # ACTIVE_RADIUS so a wide view does not multiply
+                                           # gameplay nodes or path graph rebuild cost.
+const ACTIVE_RADIUS := 2                   # chunks with spawned entities + navigation nodes.
+const DETAIL_RADIUS := 3                   # full-detail terrain radius; farther rendered as
+                                           # cheap visual LOD to keep the wide view smooth.
 const SITE_SEARCH_RADIUS := 14             # chunks scanned for auto-path targets
 
 

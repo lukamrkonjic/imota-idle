@@ -15,7 +15,7 @@ const REDRAW_INTERVAL := 0.55
 const MOVE_THRESHOLD := WG.CHUNK_SIZE * WG.CHUNK_SIZE * 0.9
 
 var camera: Camera2D
-var fade_alpha := 0.34
+var fade_alpha := 0.16
 var _last_center := Vector2.INF
 var _last_zoom := 0.0
 var _redraw_cooldown := 0.0
@@ -63,7 +63,7 @@ func _draw() -> void:
 			var tile_id: int = int(weights[0][0])
 			var col := ChunkRenderer.tile_color(WorldGen.reg, tile_id)
 			var is_ocean := str(biome.get("id", "")) == "ocean"
-			col = col.lerp(Color(0.22, 0.27, 0.23) if not is_ocean else Color(0.18, 0.20, 0.28), 0.72)
+			col = col.lerp(Color(0.38, 0.41, 0.36) if not is_ocean else Color(0.34, 0.39, 0.48), 0.38)
 			col.a = fade_alpha
 			var hw := WG.ISO_HW * 0.45
 			var hh := WG.ISO_HH * 0.45

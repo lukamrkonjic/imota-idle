@@ -9,7 +9,7 @@ const Chunk := preload("res://scripts/worldgen/chunk.gd")
 const SaveMigration := preload("res://autoload/save_migration.gd")
 
 ## Bump when generation logic changes; stale explored snapshots regenerate.
-const GENERATOR_VERSION := 11
+const GENERATOR_VERSION := 13
 
 var world_seed: int = 0
 var obelisks: Dictionary = {}       # chunk_key -> {name, x, y}
@@ -151,6 +151,9 @@ func _serialize_chunk(chunk: RefCounted) -> Dictionary:
 	var coll: Array = []
 	for b: int in chunk.collision:
 		coll.append(b)
+	var elev: Array = []
+	for b: int in chunk.elev:
+		elev.append(b)
 	var zone: Dictionary = chunk.zone.duplicate(true)
 	if zone.get("site_chunk") is Vector2i:
 		zone["site_chunk"] = _vec2i_to_json(zone["site_chunk"])
@@ -168,6 +171,7 @@ func _serialize_chunk(chunk: RefCounted) -> Dictionary:
 		"parentBiomes": parents,
 		"subBiomes": subs,
 		"collision": coll,
+		"elev": elev,
 		"zone": zone,
 		"safe": chunk.safe,
 		"sites": _deep_copy_array(chunk.sites),
@@ -195,6 +199,9 @@ func _deserialize_chunk(data: Dictionary) -> RefCounted:
 	if data.has("collision"):
 		for i: int in data["collision"].size():
 			chunk.collision[i] = int(data["collision"][i])
+	if data.has("elev"):
+		for i: int in data["elev"].size():
+			chunk.elev[i] = int(data["elev"][i])
 	chunk.zone = data.get("zone", {}).duplicate(true)
 	if chunk.zone.has("site_chunk"):
 		chunk.zone["site_chunk"] = _json_to_vec2i(chunk.zone["site_chunk"])

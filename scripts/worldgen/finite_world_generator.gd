@@ -34,6 +34,8 @@ var _t_water: int
 var _t_shallow: int
 var _t_sand: int
 var _t_deep: int
+var _b_ocean: int
+var _b_beach: int
 
 # threading
 var _results: Dictionary = {}
@@ -53,6 +55,8 @@ func setup(p_reg: RefCounted, p_seed: int) -> void:
 	_t_shallow = int(reg.tile_index.get("shallow", 0))
 	_t_sand = int(reg.tile_index.get("sand", 0))
 	_t_deep = int(reg.tile_index.get("deep_water", 0))
+	_b_ocean = int(reg.biome_index.get("ocean", 255))
+	_b_beach = int(reg.biome_index.get("beach", _b_ocean))
 	overrides = _build_overrides()
 
 
@@ -110,16 +114,16 @@ static func apply_structure_collision(chunk: RefCounted) -> void:
 					chunk.collision[Chunk.idx(x, y)] = 1
 
 
-## Default authored spawn: the safe central hub, nudged SLIGHTLY off-centre (a bit
-## south) so players naturally expand outward in every direction rather than
-## sitting dead-centre. Still well inside the hub. Callers may override.
+## Default authored spawn: the safe central hub, nudged slightly off-centre (a
+## little south) so players naturally expand without starting across rivers from
+## the home camp. Keep this measured in tiles, not continent-scale chunks.
 func default_spawn_tile() -> Vector2i:
 	var c := Vector2i(
 		bounds.position.x + bounds.size.x / 2,
 		bounds.position.y + bounds.size.y / 2)
 	var cx := c.x * WG.CHUNK_TILES + WG.CHUNK_TILES / 2
 	var cy := c.y * WG.CHUNK_TILES + WG.CHUNK_TILES / 2
-	var off := int(float(mini(bounds.size.x, bounds.size.y)) * WG.CHUNK_TILES * 0.5 * 0.10)
+	var off := clampi(int(round(float(WG.CHUNK_TILES) * 0.65)), 4, WG.CHUNK_TILES)
 	return Vector2i(cx, cy + off)
 
 
@@ -245,7 +249,10 @@ func _apply_overrides(chunk: RefCounted) -> void:
 		for lx: int in WG.CHUNK_TILES:
 			var key := Vector2i(bx + lx, by + ly)
 			if overrides.has(key):
-				chunk.tiles[Chunk.idx(lx, ly)] = int(overrides[key])
+				var i := Chunk.idx(lx, ly)
+				chunk.tiles[i] = int(overrides[key])
+				if chunk.elev.size() > i:
+					chunk.elev[i] = 0
 
 
 func _apply_coastline(chunk: RefCounted, cx: int, cy: int) -> void:
@@ -253,12 +260,65 @@ func _apply_coastline(chunk: RefCounted, cx: int, cy: int) -> void:
 	var ring: int = min(
 		min(cx - b.position.x, b.end.x - 1 - cx),
 		min(cy - b.position.y, b.end.y - 1 - cy))
-	if ring > 3:
+	if ring > 4:
 		return
-	var tid := _t_deep
-	if ring == 2:
-		tid = _t_shallow
-	elif ring == 3:
-		tid = _t_sand
-	for i: int in chunk.tiles.size():
-		chunk.tiles[i] = tid
+
+	var min_tx: int = b.position.x * WG.CHUNK_TILES
+	var min_ty: int = b.position.y * WG.CHUNK_TILES
+	var max_tx: int = b.end.x * WG.CHUNK_TILES - 1
+	var max_ty: int = b.end.y * WG.CHUNK_TILES - 1
+	var base_tx: int = cx * WG.CHUNK_TILES
+	var base_ty: int = cy * WG.CHUNK_TILES
+	for ly: int in WG.CHUNK_TILES:
+		for lx: int in WG.CHUNK_TILES:
+			var gtx: int = base_tx + lx
+			var gty: int = base_ty + ly
+			var edge: float = float(min(
+				min(gtx - min_tx, max_tx - gtx),
+				min(gty - min_ty, max_ty - gty)))
+			var coast_width: float = lerpf(8.0, 38.0, _edge_noise(gtx, gty))
+			var i := Chunk.idx(lx, ly)
+			if edge < coast_width:
+				var depth: float = edge / maxf(coast_width, 1.0)
+				var tid: int = _t_deep if depth < 0.24 else (_t_water if depth < 0.72 else _t_shallow)
+				_set_coast_tile(chunk, i, tid, _b_ocean)
+			elif edge < coast_width + 2.0:
+				var td: Dictionary = reg.tile_def(chunk.tiles[i])
+				if bool(td.get("walkable", false)) and not bool(td.get("water", false)) and not bool(td.get("hazard", false)):
+					_set_coast_tile(chunk, i, _t_sand, _b_beach)
+
+
+func _set_coast_tile(chunk: RefCounted, i: int, tid: int, biome_idx: int) -> void:
+	chunk.tiles[i] = tid
+	if biome_idx != 255:
+		chunk.biomes_t[i] = biome_idx
+		chunk.parent_biomes_t[i] = biome_idx
+		chunk.sub_biomes_t[i] = 255
+	if chunk.elev.size() > i:
+		chunk.elev[i] = 0
+	if chunk.collision.size() > i:
+		chunk.collision[i] = 0
+
+
+func _edge_noise(gtx: int, gty: int) -> float:
+	var coarse := _smooth_hash_noise(gtx, gty, 30.0, 2401)
+	var fine := _smooth_hash_noise(gtx + 173, gty - 91, 11.0, 2402)
+	return clampf(coarse * 0.76 + fine * 0.24, 0.0, 1.0)
+
+
+func _smooth_hash_noise(gtx: int, gty: int, scale: float, salt: int) -> float:
+	var x: float = float(gtx) / scale
+	var y: float = float(gty) / scale
+	var x0 := floori(x)
+	var y0 := floori(y)
+	var fx := _smooth_frac(x - float(x0))
+	var fy := _smooth_frac(y - float(y0))
+	var n00 := WG.r01(seed, x0, y0, salt)
+	var n10 := WG.r01(seed, x0 + 1, y0, salt)
+	var n01 := WG.r01(seed, x0, y0 + 1, salt)
+	var n11 := WG.r01(seed, x0 + 1, y0 + 1, salt)
+	return lerpf(lerpf(n00, n10, fx), lerpf(n01, n11, fx), fy)
+
+
+func _smooth_frac(v: float) -> float:
+	return v * v * (3.0 - 2.0 * v)

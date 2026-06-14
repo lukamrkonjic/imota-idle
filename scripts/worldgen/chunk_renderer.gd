@@ -20,18 +20,30 @@ const CORNERS: Array = [
 	[Vector2i(0, 1), Vector2i(1, 0), 2],
 	[Vector2i(0, 1), Vector2i(-1, 0), 3],
 ]
+const DETAIL_LOW := 0
+const DETAIL_FULL := 1
 
 var chunk: RefCounted
+var detail_level := DETAIL_FULL
 var _placeholder: Color = Color(0.25, 0.35, 0.22)
 
 
-func _init(p_chunk: RefCounted, avg_color: Color) -> void:
+func _init(p_chunk: RefCounted, avg_color: Color, p_detail_level: int = DETAIL_FULL) -> void:
 	chunk = p_chunk
 	_placeholder = avg_color
+	detail_level = p_detail_level
 	# Order ground chunks back-to-front by isometric depth so a raised chunk's
 	# terrain risers can never poke through the flat chunk in front of it. Kept
 	# well below entities (which y-sort around z 0+) so ground stays underneath.
 	z_index = -1000 + p_chunk.cx + p_chunk.cy
+
+
+func set_detail_level(p_detail_level: int) -> void:
+	var next: int = clampi(p_detail_level, DETAIL_LOW, DETAIL_FULL)
+	if detail_level == next:
+		return
+	detail_level = next
+	queue_redraw()
 
 
 ## Terrain elevation (in steps) for a tile, read from the chunk's baked per-tile
@@ -80,6 +92,8 @@ func _draw() -> void:
 	var reg: RefCounted = WorldGen.reg if WorldGen != null else null
 	if reg == null:
 		_draw_placeholder()
+	elif detail_level <= DETAIL_LOW:
+		_draw_chunk_lod(self, chunk, reg)
 	else:
 		_draw_chunk(self, chunk, reg)
 
@@ -120,49 +134,97 @@ static func _resolve_colors(reg: RefCounted, p_chunk: RefCounted, lx: int, ly: i
 static func _draw_chunk(canvas: CanvasItem, p_chunk: RefCounted, reg: RefCounted) -> void:
 	var base_tx: int = p_chunk.cx * WG.CHUNK_TILES
 	var base_ty: int = p_chunk.cy * WG.CHUNK_TILES
-	var order: Array = []
-	for ty: int in WG.CHUNK_TILES:
-		for tx: int in WG.CHUNK_TILES:
-			order.append(Vector3i(base_tx + tx, base_ty + ty, p_chunk.tile_id(tx, ty)))
-	order.sort_custom(func(a: Vector3i, b: Vector3i) -> bool:
-		return (a.x + a.y) < (b.x + b.y))
-	for item: Vector3i in order:
-		var tile_name: String = _tile_name(reg, item.z)
-		var td: Dictionary = reg.tile_def(item.z)
-		var cols: Array = td["colors"]
-		var lx: int = item.x - base_tx
-		var ly: int = item.y - base_ty
-		var resolved: Array = _resolve_colors(reg, p_chunk, lx, ly, tile_name, cols)
-		var top: Color = resolved[0]
-		var accent: Color = resolved[1]
-		var water := bool(td.get("water", false))
-		var soft := tile_name in ["sand", "sand_dune", "snow", "marsh", "mud", "frozen_grass", "savanna_grass", "jungle_loam", "boreal_moss", "badland_clay", "gravel"]
-		if tile_name == "frozen_grass":
-			top = PixelPalette.hex(0xD8E0DC)
-			accent = PixelPalette.hex(0x8A9478)
-		var elev := _elev_at(p_chunk, lx, ly)
-		var oy := -float(elev) * WG.ELEV_STEP_PX
-		# Cast shadow: darken ground that taller terrain toward the sun shades. This
-		# is the key depth cue — a peak throws a visible shadow onto the land below.
-		if not water:
-			var sh := _terrain_shadow(p_chunk, lx, ly, elev)
-			if sh > 0.0:
-				top = PixelPalette.shade(top, 1.0 - sh)
-				accent = PixelPalette.shade(accent, 1.0 - sh)
-		# Beveled risers down to the lower neighbours toward the camera first, then
-		# the raised top so the top edge sits cleanly on the wall.
-		if elev > 0:
-			_draw_risers(canvas, p_chunk, lx, ly, item.x, item.y, elev, top, oy)
-		_draw_flat_tile(canvas, item.x, item.y, top, water, soft, oy)
-		if not water and not soft:
-			_draw_tile_speckles(canvas, item.x, item.y, top, accent, oy)
-		elif tile_name == "frozen_grass":
-			_draw_frozen_grass(canvas, item.x, item.y, top, accent, oy)
-		_draw_surface_borders(canvas, p_chunk, reg, lx, ly, item.x, item.y, top, water, oy)
-		# Crisp rim on the plateau lip (drawn last so the tile can't soften it) so
-		# the eye reads flat-top -> edge -> drop instead of white-next-to-white.
-		if elev > 0:
-			_draw_cliff_edges(canvas, p_chunk, lx, ly, item.x, item.y, elev, top, oy)
+	for diag: int in range(0, WG.CHUNK_TILES * 2 - 1):
+		var tx0: int = maxi(0, diag - (WG.CHUNK_TILES - 1))
+		var tx1: int = mini(WG.CHUNK_TILES - 1, diag)
+		for tx: int in range(tx0, tx1 + 1):
+			var ty: int = diag - tx
+			var tile_id: int = p_chunk.tile_id(tx, ty)
+			var tile_name: String = _tile_name(reg, tile_id)
+			var td: Dictionary = reg.tile_def(tile_id)
+			_draw_full_tile(canvas, p_chunk, reg, tx, ty, base_tx + tx, base_ty + ty, tile_name, td)
+
+
+static func _draw_full_tile(
+		canvas: CanvasItem,
+		p_chunk: RefCounted,
+		reg: RefCounted,
+		lx: int,
+		ly: int,
+		gtx: int,
+		gty: int,
+		tile_name: String,
+		td: Dictionary) -> void:
+	var cols: Array = td["colors"]
+	var resolved: Array = _resolve_colors(reg, p_chunk, lx, ly, tile_name, cols)
+	var top: Color = resolved[0]
+	var accent: Color = resolved[1]
+	var water := bool(td.get("water", false))
+	var soft := tile_name in ["sand", "sand_dune", "snow", "marsh", "mud", "frozen_grass", "savanna_grass", "jungle_loam", "boreal_moss", "badland_clay", "gravel"]
+	if tile_name == "frozen_grass":
+		top = PixelPalette.hex(0xD8E0DC)
+		accent = PixelPalette.hex(0x8A9478)
+	var elev := _elev_at(p_chunk, lx, ly)
+	var oy := -float(elev) * WG.ELEV_STEP_PX
+	if not water:
+		var sh := _terrain_shadow(p_chunk, lx, ly, elev)
+		if sh > 0.0:
+			top = PixelPalette.shade(top, 1.0 - sh)
+			accent = PixelPalette.shade(accent, 1.0 - sh)
+	if elev > 0:
+		_draw_risers(canvas, p_chunk, lx, ly, gtx, gty, elev, top, oy)
+	_draw_flat_tile(canvas, gtx, gty, top, water, soft, oy)
+	if not water and not soft:
+		_draw_tile_speckles(canvas, gtx, gty, top, accent, oy)
+	elif tile_name == "frozen_grass":
+		_draw_frozen_grass(canvas, gtx, gty, top, accent, oy)
+	_draw_surface_borders(canvas, p_chunk, reg, lx, ly, gtx, gty, top, water, oy)
+	if elev > 0:
+		_draw_cliff_edges(canvas, p_chunk, lx, ly, gtx, gty, elev, top, oy)
+
+
+static func _draw_chunk_lod(canvas: CanvasItem, p_chunk: RefCounted, reg: RefCounted) -> void:
+	var base_tx: int = p_chunk.cx * WG.CHUNK_TILES
+	var base_ty: int = p_chunk.cy * WG.CHUNK_TILES
+	for diag: int in range(0, WG.CHUNK_TILES * 2 - 1):
+		var tx0: int = maxi(0, diag - (WG.CHUNK_TILES - 1))
+		var tx1: int = mini(WG.CHUNK_TILES - 1, diag)
+		for tx: int in range(tx0, tx1 + 1):
+			var ty: int = diag - tx
+			var tile_id: int = p_chunk.tile_id(tx, ty)
+			var tile_name: String = _tile_name(reg, tile_id)
+			var td: Dictionary = reg.tile_def(tile_id)
+			var cols: Array = td["colors"]
+			var top := PixelPalette.enrich_tile(tile_name, Color(cols[0]))
+			var water := bool(td.get("water", false))
+			var elev: int = _local_elev(p_chunk, tx, ty)
+			var oy := -float(elev) * WG.ELEV_STEP_PX
+			var gtx: int = base_tx + tx
+			var gty: int = base_ty + ty
+			if elev > 0:
+				_draw_lod_risers(canvas, p_chunk, tx, ty, gtx, gty, elev, top, oy)
+			_draw_flat_tile(canvas, gtx, gty, top, water, true, oy)
+
+
+static func _local_elev(p_chunk: RefCounted, lx: int, ly: int) -> int:
+	if lx < 0 or ly < 0 or lx >= WG.CHUNK_TILES or ly >= WG.CHUNK_TILES:
+		return 0
+	if p_chunk.elev.size() == 0:
+		return 0
+	return p_chunk.elev[Chunk.idx(lx, ly)]
+
+
+static func _draw_lod_risers(canvas: CanvasItem, p_chunk: RefCounted, lx: int, ly: int, gtx: int, gty: int, elev: int, top: Color, oy: float) -> void:
+	var center := WG.tile_to_world(gtx, gty)
+	var cx := center.x
+	var cy := center.y + oy
+	var hw := WG.ISO_HW + TILE_OVERLAP
+	var hh := WG.ISO_HH + TILE_OVERLAP * 0.5
+	var e := Vector2(cx + hw, cy)
+	var s := Vector2(cx, cy + hh)
+	var w := Vector2(cx - hw, cy)
+	_draw_one_riser(canvas, e, s, elev - _local_elev(p_chunk, lx + 1, ly), PixelPalette.shade(top, 0.58))
+	_draw_one_riser(canvas, s, w, elev - _local_elev(p_chunk, lx, ly + 1), PixelPalette.shade(top, 0.40))
 
 
 ## Beveled vertical risers on the two camera-facing edges (SE toward +x, SW
@@ -307,7 +369,10 @@ static func _resolve(p_chunk: RefCounted, lx: int, ly: int) -> Array:
 	var gtx: int = p_chunk.cx * WG.CHUNK_TILES + lx
 	var gty: int = p_chunk.cy * WG.CHUNK_TILES + ly
 	var c := WG.tile_to_chunk(Vector2i(gtx, gty))
-	var nc: RefCounted = WorldGen.get_chunk(p_chunk.layer, c.x, c.y)
+	var key := WG.key(p_chunk.layer, c.x, c.y)
+	if not WorldGen.chunks.has(key):
+		return []
+	var nc: RefCounted = WorldGen.chunks[key]
 	return [nc, gtx - c.x * WG.CHUNK_TILES, gty - c.y * WG.CHUNK_TILES]
 
 

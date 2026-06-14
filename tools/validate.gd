@@ -3,6 +3,9 @@ extends Node
 const ValidateContent := preload("res://tools/validate_content.gd")
 const ContentId := preload("res://scripts/content/content_id.gd")
 const SaveMigration := preload("res://autoload/save_migration.gd")
+const WG := preload("res://scripts/worldgen/wg.gd")
+const Chunk := preload("res://scripts/worldgen/chunk.gd")
+const PathFinder := preload("res://scripts/worldgen/path_finder.gd")
 ##   godot --headless --path C:/Dev/bloobs-godot res://tools/validate.tscn
 ## Drives the sims with synthetic delta time, so it completes in milliseconds.
 
@@ -315,7 +318,9 @@ func phase5_world() -> void:
 
 	check(world.get("player") != null, "player avatar exists")
 	var loaded: Array = world.get("chunk_manager").call("loaded_chunks")
-	check(loaded.size() == 25, "5x5 chunks loaded around spawn (%d)" % loaded.size())
+	check(loaded.size() == 25, "5x5 gameplay chunks active around spawn (%d)" % loaded.size())
+	var terrain_count: int = int(world.get("chunk_manager").call("terrain_chunk_count"))
+	check(terrain_count >= 49, "wide terrain ring starts loaded (%d chunks)" % terrain_count)
 	var entities: Array = world.get("entities")
 	check(entities.size() > 30, "world entities spawned from chunk data (%d)" % entities.size())
 
@@ -393,18 +398,19 @@ func phase5_world() -> void:
 func phase6_worldgen() -> void:
 	print("== Phase 6: procedural world generation ==")
 	# Determinism: identical seed -> identical chunk.
+	var proc_chunk := Vector2i(14, 12)  # Tanglewild is fixed:false, so it stays procedural.
 	WorldGen.reset(4242)
-	var a: RefCounted = WorldGen.get_chunk(0, 2, 3)
+	var a: RefCounted = WorldGen.get_chunk(0, proc_chunk.x, proc_chunk.y)
 	var a_tiles: PackedByteArray = a.tiles.duplicate()
 	var a_sites: int = a.sites.size()
 	var a_first := "" if a.sites.is_empty() else str(a.sites[0]["node"])
 	WorldGen.reset(4242)
-	var b: RefCounted = WorldGen.get_chunk(0, 2, 3)
+	var b: RefCounted = WorldGen.get_chunk(0, proc_chunk.x, proc_chunk.y)
 	check(b.tiles == a_tiles, "same seed regenerates identical tiles")
 	check(b.sites.size() == a_sites and (b.sites.is_empty() or str(b.sites[0]["node"]) == a_first),
 		"same seed regenerates identical sites")
 	WorldGen.reset(4243)
-	var c: RefCounted = WorldGen.get_chunk(0, 2, 3)
+	var c: RefCounted = WorldGen.get_chunk(0, proc_chunk.x, proc_chunk.y)
 	check(c.tiles != a_tiles, "different seed yields different terrain")
 
 	WorldGen.reset(WorldGen.DEFAULT_SEED)
@@ -418,12 +424,64 @@ func phase6_worldgen() -> void:
 	check(bool(camp.get("respawn", false)) and home.safe, "home campsite is a safe respawn point")
 	var spawn := WorldGen.spawn_position()
 	check(WorldGen.is_spawn_floor(spawn), "player spawn is on dry flat ground (not water or shore)")
+	if WorldGen.reg.spec.active and WorldGen.reg.spec.finite:
+		var finite_bounds: Rect2i = WorldGen.reg.spec.bounds
+		var top_edge: RefCounted = WorldGen.get_chunk(0,
+			finite_bounds.position.x + finite_bounds.size.x / 2,
+			finite_bounds.position.y + 3)
+		var sand_id: int = int(WorldGen.reg.tile_index["sand"])
+		var sand_count := 0
+		for tid: int in top_edge.tiles:
+			if tid == sand_id:
+				sand_count += 1
+		check(sand_count < int(float(top_edge.tiles.size()) * 0.80),
+			"finite coastline avoids all-sand square edge chunks (%d/%d sand)" % [sand_count, top_edge.tiles.size()])
 	var has_bank := false
 	for part: Dictionary in camp.get("parts", []):
 		if str(part.get("station", "")) == "bank":
 			has_bank = true
 	check(has_bank, "home campsite includes a bank chest")
 	check(WorldGen.find_nearest_station(0, Vector2.ZERO, "bank").size() > 0, "find_nearest_station locates a bank")
+
+	# Terrain pathing: water is never a node, one elevation step is climbable,
+	# and a two-step cliff edge is not.
+	var pf_chunk: RefCounted = Chunk.new()
+	pf_chunk.setup(0, 200, 200)
+	pf_chunk.zone = {"req": 1}
+	pf_chunk.tiles.fill(int(WorldGen.reg.tile_index["grass"]))
+	pf_chunk.tiles[Chunk.idx(1, 0)] = int(WorldGen.reg.tile_index["shallow"])
+	pf_chunk.elev[Chunk.idx(0, 1)] = 1
+	pf_chunk.elev[Chunk.idx(0, 2)] = 3
+	var pf := PathFinder.new()
+	pf.rebuild([pf_chunk], WorldGen.reg, 1)
+	var base := Vector2i(pf_chunk.cx, pf_chunk.cy) * WG.CHUNK_TILES
+	check(not pf.has_reachable_tile(base + Vector2i(1, 0)), "pathfinder rejects shallow water nodes")
+	var climb_one := pf.find_path(
+		WG.tile_to_world(base.x, base.y),
+		WG.tile_to_world(base.x, base.y + 1),
+		false)
+	check(not climb_one.is_empty(), "pathfinder allows one-step elevation climbs")
+	var climb_two := pf.find_path(
+		WG.tile_to_world(base.x, base.y + 1),
+		WG.tile_to_world(base.x, base.y + 2),
+		false)
+	check(climb_two.is_empty(), "pathfinder rejects two-step cliff climbs")
+
+	# Admin teleports are allowed to target authored/biome tiles that happen to
+	# be on raised mountain terrain, but the final landing tile must be flat.
+	var admin_chunk: RefCounted = Chunk.new()
+	admin_chunk.setup(0, 230, 230)
+	admin_chunk.zone = {"req": 1}
+	admin_chunk.tiles.fill(int(WorldGen.reg.tile_index["grass"]))
+	admin_chunk.elev.fill(5)
+	admin_chunk.elev[Chunk.idx(4, 3)] = 0
+	WorldGen.chunks[admin_chunk.key()] = admin_chunk
+	var raised_admin_target: Vector2 = admin_chunk.tile_world(3, 3)
+	var flat_admin_landing: Vector2 = WorldGen.nearest_admin_teleport_world(raised_admin_target, 0, 4)
+	check(not WorldGen.is_admin_teleport_floor(raised_admin_target), "admin landing rejects raised walkable terraces")
+	check(WorldGen.is_admin_teleport_floor(flat_admin_landing)
+		and WorldGen.elevation_at(flat_admin_landing) == 0,
+		"admin teleport snaps to zero-elevation walkable ground")
 
 	# Zone scaling: home zone is level 1, far zones are far harder.
 	var home_zone: Dictionary = WorldGen.generator.zone_map.zone_for_chunk(0, 0)
@@ -529,20 +587,22 @@ func phase6_worldgen() -> void:
 func phase6_chunk_snapshots() -> void:
 	print("== Phase 6b: chunk snapshot preservation ==")
 	WorldGen.reset(9999)
-	var chunk_a: RefCounted = WorldGen.get_chunk(0, 3, 4)
+	var chunk_a: RefCounted = WorldGen.get_chunk(0, 14, 12)
 	var tiles_a: PackedByteArray = chunk_a.tiles.duplicate()
+	var elev_a: PackedByteArray = chunk_a.elev.duplicate()
 	var sites_a: int = chunk_a.sites.size()
 	WorldGen.snapshot_chunk_if_needed(chunk_a)
 	check(WorldGen.store.has_chunk_snapshot(chunk_a.key()), "snapshot saved for explored chunk")
 	WorldGen.chunks.clear()
 	WorldGen.generator.setup(WorldGen.reg, 8888)
-	var chunk_b: RefCounted = WorldGen.get_chunk(0, 3, 4)
+	var chunk_b: RefCounted = WorldGen.get_chunk(0, 14, 12)
 	check(chunk_b.tiles == tiles_a, "snapshot restores identical tiles after seed change")
+	check(chunk_b.elev == elev_a, "snapshot restores identical elevation after seed change")
 	check(chunk_b.sites.size() == sites_a, "snapshot restores site count")
-	var unvisited: RefCounted = WorldGen.get_chunk(0, 40, 40)
+	var unvisited: RefCounted = WorldGen.get_chunk(0, 15, 12)
 	WorldGen.chunks.clear()
 	WorldGen.generator.setup(WorldGen.reg, 7777)
-	var unvisited_b: RefCounted = WorldGen.get_chunk(0, 40, 40)
+	var unvisited_b: RefCounted = WorldGen.get_chunk(0, 15, 12)
 	check(not WorldGen.store.has_chunk_snapshot(unvisited.key()), "unvisited chunk has no snapshot")
 	check(unvisited_b.tiles != unvisited.tiles or unvisited_b.sites.size() != unvisited.sites.size(),
 		"unvisited chunk regenerates with new generator (no snapshot)")
@@ -553,7 +613,7 @@ func phase6_chunk_snapshots() -> void:
 	var trip: Variant = JSON.parse_string(JSON.stringify(WorldGen.store.chunk_snapshots))
 	WorldGen.store.chunk_snapshots = trip
 	WorldGen.chunks.clear()
-	var chunk_c: RefCounted = WorldGen.get_chunk(0, 3, 4)
+	var chunk_c: RefCounted = WorldGen.get_chunk(0, 14, 12)
 	check(chunk_c.tiles == tiles_a, "snapshot survives JSON disk round-trip")
 	var home_c: RefCounted = WorldGen.get_chunk(0, 0, 0)
 	var anchors_typed: bool = home_c.pois.size() > 0
