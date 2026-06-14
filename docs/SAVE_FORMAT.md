@@ -4,26 +4,49 @@
 
 Managed by `SaveManager` + `GameState`. Autosaves every 30s and on quit.
 
-### Schema version 2 (current)
+### Schema version 3 (current)
 
 ```json
 {
-  "schemaVersion": 2,
-  "gameVersion": "0.2.0",
+  "schemaVersion": 3,
+  "gameVersion": "0.3.0",
   "skills": { "<skill_id>": { "xp": 0.0, "level": 1 } },
-  "inventory": [{ "id": "item.logs", "qty": 5 }],
-  "bank": { "item.logs": 20 },
-  "equipment": { "Axe": "item.bronze_axe", "Weapon": "item.bronze_sword" },
+  "inventory": [{ "id": "item.1042", "qty": 5 }],
+  "bank": { "item.1042": 20 },
+  "equipment": { "Axe": "item.1311", "Weapon": "item.1327" },
   "gold": 0,
   "current_hp": 10,
   "savedAt": 1710000000.0,
   "activity": {
     "kind": "gather",
     "skill": "woodcutting",
-    "node_id": "node.woodcutting.regular_tree"
+    "node_id": "node.1023"
   }
 }
 ```
+
+### Opaque numeric ids + the id registry (Phase 0)
+
+**Decision:** content ids are opaque, frozen, OSRS-style numbers behind a type prefix
+(`item.1042`, `enemy.1009`, `node.1023`, `recipe.1187`) — **never** derived from the
+display name. **Why:** the old scheme slugged the name (`item.suncoil_logs`), so the
+IP-rename pass (Phase 3) would have changed every id and broken live saves. **Consequence:**
+display names are now pure presentation and rename freely; the id is the permanent contract.
+
+- `data/id_registry.json` is the record of truth: it maps each content's *legacy slug id*
+  (the old name-derived id, what live v2 saves hold) → its frozen numeric id, plus a `next`
+  counter per kind. `scripts/content/id_registry.gd` mints through it.
+- The importer (`tools/import_bloobs_data.gd`) and the one-shot `tools/stamp_ids.gd` both
+  mint via the registry, so **re-imports preserve every existing assignment** and only mint
+  ids for genuinely new content. Ids are never reused after a removal.
+- Data files (`items.json`, …) carry an explicit `id` per entry; recipes/drops/nodes still
+  cross-reference items by **name** and resolve to ids at load, keeping data human-readable.
+
+### Schema version 2 (legacy)
+
+Inventory/bank/equipment held **name-derived slug ids** (`item.logs`). `data/content_aliases.json`
+maps every old slug id → its numeric id, and `_migrate_v2_to_v3` re-resolves all id-bearing
+save fields. Proven by `tools/validate.tscn` (zero "unknown item" loss).
 
 Activity kinds:
 

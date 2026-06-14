@@ -10,6 +10,13 @@ extends SceneTree
 const EXPORT_DIR := "C:/Dev/aldenfall/data/bloobs-export"
 const OUT_DIR := "res://data"
 
+const ContentId := preload("res://scripts/content/content_id.gd")
+const IdRegistry := preload("res://scripts/content/id_registry.gd")
+
+# Mints/preserves opaque numeric ids; re-imports keep every existing assignment
+# and only mint for genuinely new content. See scripts/content/id_registry.gd.
+var _reg: IdRegistry
+
 # Per-action XP for gather nodes is scene-embedded in Unity (Trees.xpOnChop et
 # al) and absent from the export — see docs/DATA_GAPS.md. Calibrated against
 # the code default (25 XP at level 1).
@@ -20,6 +27,7 @@ static func gather_xp_for_level(level: int) -> int:
 func _init() -> void:
 	var t0 := Time.get_ticks_msec()
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
+	_reg = IdRegistry.load_or_new()
 	import_xp_table()
 	var items := import_items()
 	import_enemies()
@@ -27,12 +35,36 @@ func _init() -> void:
 	# recipe entry carries the output item's stats, so recipes also feed the
 	# item index.
 	import_recipes(items)
+	for name: String in items:
+		items[name]["id"] = _reg.mint("items", ContentId.item_id(name))
 	write_json("items.json", items)
 	print("items (incl. recipe outputs): %d" % items.size())
 	import_gather_nodes()
 	write_shop_stock(items)
+	_reg.save()
+	_merge_aliases()
 	print("Import finished in %d ms" % (Time.get_ticks_msec() - t0))
 	quit(0)
+
+
+## Merge the registry's slug -> numeric maps into content_aliases.json so live
+## saves holding old slug ids resolve to the frozen numeric ids on load.
+func _merge_aliases() -> void:
+	var path := OUT_DIR + "/content_aliases.json"
+	var aliases: Dictionary = {}
+	if FileAccess.file_exists(path):
+		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+		if parsed is Dictionary:
+			aliases = parsed
+	var minted: Dictionary = _reg.to_aliases()
+	for bucket: String in minted:
+		if not aliases.has(bucket):
+			aliases[bucket] = {}
+		for slug: String in minted[bucket]:
+			aliases[bucket][slug] = minted[bucket][slug]
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	f.store_string(JSON.stringify(aliases, "  ", false))
+	f.close()
 
 
 func read_json(path: String) -> Variant:
@@ -186,6 +218,8 @@ func import_enemies() -> void:
 			"isBoss": f.get("isBoss", "False") == "True",
 			"drops": parse_drops(f.get("Drops", "")),
 		}
+	for name: String in enemies:
+		enemies[name]["id"] = _reg.mint("enemies", ContentId.enemy_id(name))
 	write_json("enemies.json", enemies)
 	print("enemies: %d" % enemies.size())
 
@@ -242,6 +276,9 @@ func import_recipes(items: Dictionary) -> void:
 		var key := skill + "/" + rname
 		if not recipes.has(key):
 			recipes[key] = recipe
+	for key: String in recipes:
+		var r: Dictionary = recipes[key]
+		r["id"] = _reg.mint("recipes", ContentId.recipe_id(str(r["skill"]), str(r["name"])))
 	write_json("recipes.json", recipes)
 	print("recipes: %d" % recipes.size())
 
@@ -292,6 +329,8 @@ func import_gather_nodes() -> void:
 	for skill: String in nodes:
 		var arr: Array = nodes[skill]
 		arr.sort_custom(func(a, b): return a["level"] < b["level"])
+		for node: Dictionary in arr:
+			node["id"] = _reg.mint("nodes", ContentId.node_id(skill, str(node["name"])))
 	write_json("gather_nodes.json", nodes)
 	for skill: String in nodes:
 		print("gather %s: %d nodes" % [skill, nodes[skill].size()])

@@ -75,9 +75,13 @@ func phase0_data() -> void:
 		check(chicken["drops"].size() > 0, "Chickens drop table parsed (%d entries)" % chicken["drops"].size())
 	check(not DataRegistry.get_item("Bronze Sword").is_empty(), "recipe-defined gear in item index (Bronze Sword)")
 	check(DataRegistry.gather_nodes["woodcutting"].size() >= 19, "tree list parsed (%d trees)" % DataRegistry.gather_nodes["woodcutting"].size())
-	check(DataRegistry.resolve_item_id("Logs") == ContentId.item_id("Logs"), "item id: Logs")
-	check(DataRegistry.resolve_node_id("woodcutting", "Regular Tree") == ContentId.node_id("woodcutting", "Regular Tree"), "node id: Regular Tree")
-	check(DataRegistry.resolve_enemy_id("Chickens") == ContentId.enemy_id("Chickens"), "enemy id: Chickens")
+	# Ids are opaque numeric (item.1042), not name-derived; the legacy slug id
+	# (what live saves hold) aliases to the same numeric id.
+	var logs_id := DataRegistry.resolve_item_id("Logs")
+	check(logs_id.begins_with("item.") and logs_id.trim_prefix("item.").is_valid_int(), "item id is opaque numeric (%s)" % logs_id)
+	check(DataRegistry.resolve_item_id(ContentId.item_id("Logs")) == logs_id, "legacy item slug aliases to numeric id")
+	check(DataRegistry.resolve_node_id("woodcutting", ContentId.node_id("woodcutting", "Regular Tree")) == DataRegistry.resolve_node_id("woodcutting", "Regular Tree"), "legacy node slug aliases to numeric id")
+	check(DataRegistry.resolve_enemy_id(ContentId.enemy_id("Chickens")) == DataRegistry.resolve_enemy_id("Chickens"), "legacy enemy slug aliases to numeric id")
 
 
 func phase0_content_schema() -> void:
@@ -96,8 +100,15 @@ func phase0_content_schema() -> void:
 func phase0_stable_ids() -> void:
 	print("== Phase 0c: stable id indexes ==")
 	check(DataRegistry.items_by_id.size() == DataRegistry.items.size(), "items_by_id indexed")
-	check(DataRegistry.items_by_id.has(ContentId.item_id("Oak Logs")), "items_by_id has Oak Logs")
-	check(DataRegistry.nodes_by_id.has(ContentId.node_id("woodcutting", "Oak Tree")), "nodes_by_id has Oak Tree")
+	check(DataRegistry.items_by_id.has(DataRegistry.resolve_item_id("Oak Logs")), "items_by_id has Oak Logs")
+	check(DataRegistry.nodes_by_id.has(DataRegistry.resolve_node_id("woodcutting", "Oak Tree")), "nodes_by_id has Oak Tree")
+	# Every item carries an explicit, opaque, frozen numeric id (no name-slug ids).
+	var bad_ids := 0
+	for name: String in DataRegistry.items:
+		var id: String = str(DataRegistry.items[name].get("id", ""))
+		if not (id.begins_with("item.") and id.trim_prefix("item.").is_valid_int()):
+			bad_ids += 1
+	check(bad_ids == 0, "all items carry opaque numeric ids (%d bad)" % bad_ids)
 
 
 func phase1_gathering() -> void:
@@ -208,10 +219,34 @@ func phase3_save_migration() -> void:
 	check(GameState.count_item("Logs") == 5, "legacy name save loads")
 	check(int(GameState.bank.get(DataRegistry.resolve_item_id("Logs"), 0)) == 10, "legacy bank loads")
 
+	# v2 -> v3: a previous-release save holds the old *slug* ids; every one must
+	# migrate to its opaque numeric id with zero "unknown item" loss.
+	var logs_slug := ContentId.item_id("Logs")
+	var oak_slug := ContentId.item_id("Oak Logs")
+	var axe_slug := ContentId.item_id("Bronze Axe")
+	var v2 := {
+		"schemaVersion": 2,
+		"skills": GameState.skills.duplicate(true),
+		"inventory": [{"id": logs_slug, "qty": 7}, {"id": oak_slug, "qty": 3}],
+		"bank": {logs_slug: 10},
+		"equipment": {"Axe": axe_slug},
+		"gold": 0,
+		"current_hp": 10,
+		"activity": {"kind": "gather", "skill": "woodcutting", "node_id": ContentId.node_id("woodcutting", "Regular Tree")},
+	}
+	var v3 := SaveMigration.migrate_game_save(v2)
+	check(int(v3["schemaVersion"]) == SaveMigration.CURRENT_SCHEMA, "v2 save bumped to current schema")
+	var logs_num := DataRegistry.resolve_item_id("Logs")
+	check(v3["inventory"][0]["id"] == logs_num and int(v3["inventory"][0]["qty"]) == 7, "v3 inventory slug->numeric")
+	check(v3["inventory"].size() == 2, "v3 inventory loses no stacks")
+	check(v3["bank"].has(logs_num), "v3 bank slug->numeric")
+	check(v3["equipment"]["Axe"] == DataRegistry.resolve_item_id("Bronze Axe"), "v3 equipment slug->numeric")
+	check(v3["activity"]["node_id"] == DataRegistry.resolve_node_id("woodcutting", "Regular Tree"), "v3 activity node slug->numeric")
+
 
 func phase3_rename_alias() -> void:
 	print("== Phase 3c: rename alias resolution ==")
-	var alias_id := ContentId.item_id("Logs")
+	var alias_id := DataRegistry.resolve_item_id("Logs")
 	DataRegistry.aliases["items"]["Legacy Log Stack"] = alias_id
 	check(DataRegistry.resolve_item_id("Legacy Log Stack") == alias_id, "alias resolves renamed display name")
 	check(not DataRegistry.get_item("Legacy Log Stack").is_empty(), "alias lookup returns item")
