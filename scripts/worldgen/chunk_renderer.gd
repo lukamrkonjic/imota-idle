@@ -184,9 +184,10 @@ static func _draw_risers(canvas: CanvasItem, p_chunk: RefCounted, lx: int, ly: i
 	_draw_one_riser(canvas, s, w, elev - _elev_at(p_chunk, lx, ly + 1), PixelPalette.shade(top, 0.42))
 
 
-## Thin separating treatment along the top of a cliff: a snow overhang highlight
-## (on bright/snow tops) just inside the surface, then a crisp 1px dark contour
-## right on the lip. Only the camera-facing edges that actually drop get one.
+## Black beveled rim on the UPPER (top-surface) side of a cliff lip — the same
+## shadow/contact bevel used between biomes, so the plateau edge reads as a
+## distinct dark edge against the tile rather than white-next-to-white. Only the
+## camera-facing edges that actually drop get one.
 static func _draw_cliff_edges(canvas: CanvasItem, p_chunk: RefCounted, lx: int, ly: int, gtx: int, gty: int, elev: int, top: Color, oy: float) -> void:
 	var center := WG.tile_to_world(gtx, gty)
 	var cx := center.x
@@ -196,20 +197,23 @@ static func _draw_cliff_edges(canvas: CanvasItem, p_chunk: RefCounted, lx: int, 
 	var e := Vector2(cx + hw, cy)
 	var s := Vector2(cx, cy + hh)
 	var w := Vector2(cx - hw, cy)
-	var snowy := top.get_luminance() > 0.62
 	if elev - _elev_at(p_chunk, lx + 1, ly) > 0:
-		_edge_line(canvas, e, s, top, snowy)
+		_edge_line(canvas, e, s)
 	if elev - _elev_at(p_chunk, lx, ly + 1) > 0:
-		_edge_line(canvas, s, w, top, snowy)
+		_edge_line(canvas, s, w)
 
 
-static func _edge_line(canvas: CanvasItem, a: Vector2, b: Vector2, top: Color, snowy: bool) -> void:
-	if snowy:
-		# Snow overhang: a bright lip hanging just over the drop.
-		var up := Vector2(0.0, -float(PixelPalette.PX))
-		canvas.draw_line(a + up, b + up, PixelPalette.shade(top, 1.22), float(PixelPalette.PX))
-	# Crisp dark contour exactly on the edge.
-	canvas.draw_line(a, b, PixelPalette.shade(top, 0.5), float(PixelPalette.PX))
+static func _edge_line(canvas: CanvasItem, a: Vector2, b: Vector2) -> void:
+	# A dark band sitting just inside the top surface (upper side of the lip),
+	# matching the biome-boundary bevel look but stronger since it marks a cliff.
+	var up := Vector2(0.0, -float(PixelPalette.PX))
+	var shadow := PixelPalette.pal("shadow")
+	shadow.a = 0.55
+	canvas.draw_colored_polygon(PackedVector2Array([a, b, b + up, a + up]), shadow)
+	# A crisp near-black contour right on the lip itself.
+	shadow.a = 0.7
+	canvas.draw_colored_polygon(PackedVector2Array([
+		a, b, b + up * 0.4, a + up * 0.4]), shadow)
 
 
 static func _draw_one_riser(canvas: CanvasItem, a: Vector2, b: Vector2, drop_steps: int, face: Color) -> void:
