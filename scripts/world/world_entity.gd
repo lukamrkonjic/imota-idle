@@ -68,6 +68,11 @@ var highlight_outline := false:
 
 var _t := 0.0
 var _font: Font
+var _animated := false
+var _anim_accum := 0.0
+# Ambient/idle/limb animation only needs ~30 redraws/sec; movement is a transform
+# change (always smooth) so this is imperceptible but cuts redraw work hugely.
+const ANIM_DT := 1.0 / 30.0
 
 const OUTLINE_OFFSETS: Array[Vector2] = [
 	Vector2(-2.0, 0.0), Vector2(2.0, 0.0), Vector2(0.0, -2.0), Vector2(0.0, 2.0),
@@ -78,12 +83,29 @@ const OUTLINE_OFFSETS: Array[Vector2] = [
 func _ready() -> void:
 	_font = ThemeDB.fallback_font
 	_t = float(variant % 100) * 0.13
-	set_process(kind in ANIMATED_KINDS)
+	_animated = kind in ANIMATED_KINDS
+	_sync_processing()
 	queue_redraw()
+
+
+# Off-screen (chunk-culled) animated entities cost nothing: when the chunk
+# container's visibility toggles, every child gets this notification, so we stop
+# ticking/redrawing things the player cannot see and resume when they reappear.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_VISIBILITY_CHANGED:
+		_sync_processing()
+
+
+func _sync_processing() -> void:
+	set_process(_animated and is_visible_in_tree())
 
 
 func _process(delta: float) -> void:
 	_t += delta
+	_anim_accum += delta
+	if _anim_accum < ANIM_DT:
+		return
+	_anim_accum = 0.0
 	queue_redraw()
 
 

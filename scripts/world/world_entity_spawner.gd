@@ -38,12 +38,20 @@ func on_chunk_loaded(chunk: RefCounted) -> void:
 		_spawn_poi_part(chunk, {}, part, container)
 	for m: Dictionary in chunk.monsters:
 		_spawn_monster(chunk, m, container)
-	world.entities.sort_custom(func(a: Node2D, b: Node2D) -> bool:
-		var la := _entity_locked_for_sort(a)
-		var lb := _entity_locked_for_sort(b)
-		if la != lb:
-			return not la
-		return a.position.distance_squared_to(world.player.position) < b.position.distance_squared_to(world.player.position))
+	# Decorate-sort-undecorate: the lock test calls WorldGen.zone_at (a spatial
+	# lookup), so compute it ONCE per entity instead of twice per comparison.
+	var pp: Vector2 = world.player.position
+	var keyed: Array = []
+	keyed.resize(world.entities.size())
+	for i: int in world.entities.size():
+		var e: Node2D = world.entities[i]
+		keyed[i] = [e, _entity_locked_for_sort(e), e.position.distance_squared_to(pp)]
+	keyed.sort_custom(func(a: Array, b: Array) -> bool:
+		if a[1] != b[1]:
+			return not a[1]
+		return a[2] < b[2])
+	for i: int in keyed.size():
+		world.entities[i] = keyed[i][0]
 	world._path_ctrl.mark_path_dirty()
 	_fade_in(container)
 
@@ -56,6 +64,7 @@ func on_chunk_unloaded(chunk: RefCounted) -> void:
 			world.entities.erase(e)
 			world._decor_nodes.erase(e)
 			world._water_decor_nodes.erase(e)
+			world._roofed_entities.erase(e)
 			if e == world.hovered_entity:
 				world.hovered_entity = null
 			if e == world.combat_target_entity:
@@ -346,6 +355,8 @@ func _spawn_poi_part(chunk: RefCounted, poi: Dictionary, part: Dictionary, conta
 				e.action = {"type": "landmark", "label": e.label}
 	container.add_child(e)
 	world.entities.append(e)
+	if kind == "house" or kind == "building":
+		world._roofed_entities.append(e)
 
 
 func _spawn_monster(chunk: RefCounted, m: Dictionary, container: Node2D) -> void:

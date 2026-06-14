@@ -37,6 +37,7 @@ var _chunk_containers: Dictionary = {}
 var _site_entities: Dictionary = {}
 var _decor_nodes: Array = []
 var _water_decor_nodes: Array = []
+var _roofed_entities: Array = []  # houses/buildings only — for per-frame roof fade
 var _click_fx_layer: Node2D
 var _camera: Camera2D
 var _ambient: CanvasModulate

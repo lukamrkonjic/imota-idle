@@ -165,14 +165,8 @@ func _update_house_roofs(delta: float) -> void:
 	if world.current_layer != 0:
 		return
 	var pp: Vector2 = world.player.position
-	for e: Node2D in world.entities:
-		var radius := 0.0
-		if e.kind == "house":
-			radius = 58.0
-		elif e.kind == "building":
-			radius = maxf(90.0, float(e.display_size) * float(WG.ISO_HW) * 1.05)
-		else:
-			continue
+	for e: Node2D in world._roofed_entities:
+		var radius := 58.0 if e.kind == "house" else maxf(90.0, float(e.display_size) * float(WG.ISO_HW) * 1.05)
 		var target := 0.0 if pp.distance_to(e.position) < radius else 1.0
 		if not is_equal_approx(e.roof_alpha, target):
 			e.roof_alpha = move_toward(e.roof_alpha, target, delta * 4.5)
