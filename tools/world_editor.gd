@@ -92,6 +92,7 @@ var _show_collision := false
 var _show_biomes := false
 var _show_danger := false
 var _show_walk := false
+var _show_elevation := false
 
 var _panning := false
 var _painting := false
@@ -625,8 +626,9 @@ func _refresh_history_buttons() -> void:
 
 func _draw_overlay(c: CanvasItem) -> void:
 	var zoom: float = _cam.zoom.x
-	if _show_collision or _show_biomes or _show_danger or _show_walk:
+	if _show_collision or _show_biomes or _show_danger or _show_walk or _show_elevation:
 		var view := _view_rect_tiles()
+		var classifier: RefCounted = WorldGen.generator.classifier
 		for key: String in _chunks:
 			var chunk: RefCounted = _chunks[key]
 			var bx: int = chunk.cx * WG.CHUNK_TILES
@@ -636,10 +638,10 @@ func _draw_overlay(c: CanvasItem) -> void:
 				continue
 			if _show_danger:
 				# One translucent tint per chunk by distance-from-centre danger.
-				var d: float = WorldGen.generator.classifier.danger01(float(bx + 8), float(by + 8))
+				var d: float = classifier.danger01(float(bx + 8), float(by + 8))
 				c.draw_rect(Rect2(float(bx - _min_tx), float(by - _min_ty), WG.CHUNK_TILES, WG.CHUNK_TILES),
 					Color(d, 1.0 - d, 0.15, 0.22))
-			if _show_collision or _show_biomes or _show_walk:
+			if _show_collision or _show_biomes or _show_walk or _show_elevation:
 				for ly: int in WG.CHUNK_TILES:
 					for lx: int in WG.CHUNK_TILES:
 						var px := float(bx + lx - _min_tx)
@@ -654,6 +656,10 @@ func _draw_overlay(c: CanvasItem) -> void:
 							var bidx: int = chunk.biome_at(lx, ly)
 							if bidx != 255 and bidx < _reg.biomes.size():
 								c.draw_rect(Rect2(px, py, 1.0, 1.0), _biome_tint(bidx))
+						if _show_elevation:
+							var elev: int = classifier.elevation_steps(float(bx + lx), float(by + ly))
+							if elev > 0:
+								c.draw_rect(Rect2(px, py, 1.0, 1.0), _elev_tint(float(elev) / 40.0))
 	if _show_structs:
 		var view := _view_rect_tiles()
 		for key: String in _chunks:
@@ -681,6 +687,19 @@ func _draw_overlay(c: CanvasItem) -> void:
 		if _sel_stamp < stamps.size():
 			var sr := float(int(stamps[_sel_stamp].get("radius", 3)))
 			c.draw_arc(ct, sr + 0.5, 0.0, TAU, 24, Color(0.5, 1.0, 0.6, 0.9), 1.0 / zoom)
+
+
+## Height ramp for the elevation overlay: low rock green -> brown -> snow white,
+## brighter/whiter the taller the terraced terrain (t is steps / max steps).
+func _elev_tint(t: float) -> Color:
+	t = clampf(t, 0.0, 1.0)
+	var col: Color
+	if t < 0.6:
+		col = Color(0.20, 0.55, 0.25).lerp(Color(0.72, 0.55, 0.30), t / 0.6)
+	else:
+		col = Color(0.72, 0.55, 0.30).lerp(Color(0.97, 0.97, 1.0), (t - 0.6) / 0.4)
+	col.a = 0.55
+	return col
 
 
 ## Deterministic translucent tint per biome index for the biome overlay.
@@ -775,6 +794,7 @@ func _build_ui() -> void:
 	_overlay_check(lb, "Biome tint", _show_biomes, func(on: bool) -> void: _show_biomes = on)
 	_overlay_check(lb, "Danger/level", _show_danger, func(on: bool) -> void: _show_danger = on)
 	_overlay_check(lb, "Walkability", _show_walk, func(on: bool) -> void: _show_walk = on)
+	_overlay_check(lb, "Elevation", _show_elevation, func(on: bool) -> void: _show_elevation = on)
 
 	var sep := HSeparator.new()
 	lb.add_child(sep)
