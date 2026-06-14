@@ -689,16 +689,27 @@ func _draw_overlay(c: CanvasItem) -> void:
 			c.draw_arc(ct, sr + 0.5, 0.0, TAU, 24, Color(0.5, 1.0, 0.6, 0.9), 1.0 / zoom)
 
 
-## Height ramp for the elevation overlay: low rock green -> brown -> snow white,
-## brighter/whiter the taller the terraced terrain (t is steps / max steps).
+## High-contrast height heat ramp for the elevation overlay: a vivid
+## blue -> cyan -> green -> yellow -> orange -> red -> white gradient so each
+## elevation band reads clearly (t is steps / max steps).
+static var _ELEV_RAMP: Array[Color] = [
+	Color(0.10, 0.20, 0.95),   # lowest  - deep blue
+	Color(0.00, 0.80, 0.95),   # cyan
+	Color(0.15, 0.90, 0.20),   # green
+	Color(0.95, 0.95, 0.10),   # yellow
+	Color(0.98, 0.55, 0.05),   # orange
+	Color(0.95, 0.10, 0.10),   # red
+	Color(1.00, 1.00, 1.00),   # highest - white peaks
+]
 func _elev_tint(t: float) -> Color:
-	t = clampf(t, 0.0, 1.0)
+	t = clampf(t, 0.0, 1.0) * float(_ELEV_RAMP.size() - 1)
+	var i := int(t)
 	var col: Color
-	if t < 0.6:
-		col = Color(0.20, 0.55, 0.25).lerp(Color(0.72, 0.55, 0.30), t / 0.6)
+	if i >= _ELEV_RAMP.size() - 1:
+		col = _ELEV_RAMP[_ELEV_RAMP.size() - 1]
 	else:
-		col = Color(0.72, 0.55, 0.30).lerp(Color(0.97, 0.97, 1.0), (t - 0.6) / 0.4)
-	col.a = 0.55
+		col = _ELEV_RAMP[i].lerp(_ELEV_RAMP[i + 1], t - float(i))
+	col.a = 0.85
 	return col
 
 
