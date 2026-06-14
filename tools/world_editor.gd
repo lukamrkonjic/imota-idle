@@ -24,10 +24,11 @@ const Chunk := preload("res://scripts/worldgen/chunk.gd")
 const BakedWorldStore := preload("res://scripts/worldgen/baked_world_store.gd")
 const FiniteWorldGenerator := preload("res://scripts/worldgen/finite_world_generator.gd")
 const StampLibrary := preload("res://scripts/worldgen/stamp_library.gd")
+const PlaceablePreview := preload("res://tools/placeable_preview.gd")
 
 const OUT_DIR := "res://data/world/baked/"
 
-enum Tool { PAN, BIOME, TERRAIN, STAMP, STRUCTURE, ERASE, SPAWN }
+enum Tool { PAN, BIOME, TERRAIN, STAMP, STRUCTURE, ERASE, SPAWN, CREATURE }
 
 const TERRAIN := [
 	["grass", "Grass"], ["grass_dark", "Dark grass"], ["dirt", "Dirt path"],
@@ -82,6 +83,7 @@ var _sel_biome := ""
 var _sel_terrain := "grass"
 var _sel_struct := 0
 var _sel_stamp := 0
+var _sel_creature := ""
 var _stamp_variant := 0
 var _stamp_rot := 0
 var _stamp_flip := false
@@ -116,6 +118,8 @@ var _erase_biomes_check: CheckBox
 var _undo_btn: Button
 var _redo_btn: Button
 var _busy := false
+var _preview: PlaceablePreview
+var _reroll_btn: Button
 
 
 func _ready() -> void:
@@ -135,6 +139,9 @@ func _ready() -> void:
 	_h = _bounds.size.y * WG.CHUNK_TILES
 	if _sel_biome.is_empty():
 		_sel_biome = str(WorldGen.list_surface_biomes()[0]["id"])
+	if _sel_creature.is_empty():
+		_sel_creature = "Chickens" if DataRegistry.enemies.has("Chickens") \
+			else (str(DataRegistry.enemies.keys()[0]) if not DataRegistry.enemies.is_empty() else "")
 	RenderingServer.set_default_clear_color(Color(0.08, 0.09, 0.11))
 	_load_world()
 	_build_view()
@@ -242,6 +249,7 @@ func _handle_key(event: InputEventKey) -> void:
 		KEY_5: _set_tool(Tool.STRUCTURE)
 		KEY_6: _set_tool(Tool.ERASE)
 		KEY_7: _set_tool(Tool.SPAWN)
+		KEY_8: _set_tool(Tool.CREATURE)
 
 
 func _zoom_at(factor: float) -> void:
@@ -772,7 +780,7 @@ func _build_ui() -> void:
 	_header(lb, "Tools")
 	for ts: Array in [[Tool.PAN, "1 Pan/View"], [Tool.BIOME, "2 Biome"], [Tool.TERRAIN, "3 Terrain"],
 			[Tool.STAMP, "4 Stamp"], [Tool.STRUCTURE, "5 Structure"], [Tool.ERASE, "6 Erase"],
-			[Tool.SPAWN, "7 Set Spawn"]]:
+			[Tool.SPAWN, "7 Set Spawn"], [Tool.CREATURE, "8 Creatures"]]:
 		var b := Button.new()
 		b.text = str(ts[1])
 		b.toggle_mode = true
@@ -827,6 +835,41 @@ func _build_ui() -> void:
 	hint.add_theme_font_size_override("font_size", 9)
 	hint.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55))
 	lb.add_child(hint)
+
+	_build_preview_panel()
+
+
+## Showcase turntable, docked to the right edge (the left column is full). Shows
+## the currently selected biome / tile / structure / creature with the real game
+## art, spinning on an iso tile. Updated by _update_preview() on every selection.
+func _build_preview_panel() -> void:
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _panel(Color(0.13, 0.13, 0.16)))
+	panel.anchor_left = 1.0
+	panel.anchor_right = 1.0
+	panel.offset_left = -204.0
+	panel.offset_right = -8.0
+	panel.offset_top = 50.0
+	_track_ui_hover(panel)
+	_hud.add_child(panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 4)
+	panel.add_child(box)
+	_header(box, "Preview")
+	_preview = PlaceablePreview.new()
+	_preview.reg = _reg
+	box.add_child(_preview)
+	_reroll_btn = Button.new()
+	_reroll_btn.text = "🎲 Re-roll variant"
+	_reroll_btn.pressed.connect(func() -> void: _preview.reroll())
+	box.add_child(_reroll_btn)
+	var tip := Label.new()
+	tip.text = "Spinning showcase of the selected item."
+	tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tip.custom_minimum_size = Vector2(188, 0)
+	tip.add_theme_font_size_override("font_size", 9)
+	tip.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55))
+	box.add_child(tip)
 
 
 func _toolbar_button(parent: Control, text: String, cb: Callable) -> Button:
@@ -903,12 +946,61 @@ func _refresh_palette() -> void:
 				var ii := i
 				_choice(str(STRUCTURES[i][0]), str(i), _sel_struct == i,
 					func(_id: String) -> void: _sel_struct = ii)
+		Tool.CREATURE:
+			_header(_palette_box, "Creatures (preview)")
+			_note("Browse the bestiary art. Creatures are placed by world generation, not painted.")
+			for e: Dictionary in _creature_list():
+				var nm := str(e["name"])
+				_choice("%s  ·  Lv%d" % [nm, int(e["level"])], nm, _sel_creature == nm,
+					func(id: String) -> void: _sel_creature = id)
 		Tool.SPAWN:
 			_note("Click a walkable tile to set the player spawn. Current: (%d, %d)" % [_spawn_tile.x, _spawn_tile.y])
 		Tool.ERASE:
 			_note("Brush to remove placed structures & monsters. Tick 'Erase biomes too' to also restore generated terrain.")
 		_:
 			_note("Right-drag to pan, wheel to zoom. Pick a tool to edit.")
+	_update_preview()
+
+
+## Bestiary entries sorted by level then name, for the creature preview browser.
+func _creature_list() -> Array:
+	var out: Array = []
+	for nm: String in DataRegistry.enemies:
+		out.append({"name": nm, "level": int(DataRegistry.enemies[nm].get("level", 1))})
+	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		if int(a["level"]) != int(b["level"]):
+			return int(a["level"]) < int(b["level"])
+		return str(a["name"]) < str(b["name"]))
+	return out
+
+
+## Drive the showcase turntable from the current tool + selection.
+func _update_preview() -> void:
+	if _preview == null:
+		return
+	match _tool:
+		Tool.BIOME:
+			_preview.show_biome(_sel_biome)
+		Tool.TERRAIN:
+			var label := _sel_terrain
+			for e: Array in TERRAIN:
+				if str(e[0]) == _sel_terrain:
+					label = str(e[1])
+			_preview.show_terrain(_sel_terrain, label)
+		Tool.STRUCTURE:
+			var entry: Array = STRUCTURES[_sel_struct]
+			_preview.show_structure((entry[1] as Dictionary), str(entry[0]))
+		Tool.STAMP:
+			var stamps: Array = StampLibrary.all()
+			if _sel_stamp < stamps.size():
+				_preview.show_stamp(stamps[_sel_stamp], str(stamps[_sel_stamp]["name"]))
+		Tool.CREATURE:
+			if _sel_creature.is_empty():
+				_preview.show_empty("No creatures in the bestiary")
+			else:
+				_preview.show_creature(_sel_creature)
+		_:
+			_preview.show_empty("Pick a paint/place tool to preview")
 
 
 func _header(parent: Control, text: String) -> void:
