@@ -14,10 +14,12 @@ const ShadowProjector := preload("res://scripts/world/art/core/shadow_projector.
 const WG := preload("res://scripts/worldgen/wg.gd")
 
 
-# Deliberately squat: height tracks width so the form reads as a chunky rock
-# mass, not a spike (footprint half-width is foot*16, so height ~= width).
+# Height grows super-linearly with the footprint so small crests are chunky hills
+# while a big-footprint crest becomes a towering, grand peak (~10x the small ones)
+# — but width tracks foot too, so even the giant stays a broad rock mass not a
+# needle.
 static func height_for(foot: float, variant: int) -> float:
-	return 24.0 + foot * 8.0 + float(variant % 3) * 5.0
+	return 16.0 + foot * foot * 0.95 + float(variant % 3) * 5.0
 
 
 static func _ext(foot: float) -> Vector2:

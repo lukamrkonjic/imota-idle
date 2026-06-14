@@ -27,7 +27,19 @@ var _placeholder: Color = Color(0.25, 0.35, 0.22)
 func _init(p_chunk: RefCounted, avg_color: Color) -> void:
 	chunk = p_chunk
 	_placeholder = avg_color
-	z_index = -100
+	# Order ground chunks back-to-front by isometric depth so a raised chunk's
+	# terrain risers can never poke through the flat chunk in front of it. Kept
+	# well below entities (which y-sort around z 0+) so ground stays underneath.
+	z_index = -1000 + p_chunk.cx + p_chunk.cy
+
+
+## Terrain elevation (in steps) at a global tile — a deterministic function of the
+## seeded classifier, so baked and live chunks agree and seams line up. 0 anywhere
+## the classifier is absent or outside the mountain belt.
+static func _elev(gtx: int, gty: int) -> int:
+	if WorldGen == null or WorldGen.generator == null or WorldGen.generator.classifier == null:
+		return 0
+	return WorldGen.generator.classifier.elevation_steps(float(gtx), float(gty))
 
 
 func _ready() -> void:
@@ -104,16 +116,58 @@ static func _draw_chunk(canvas: CanvasItem, p_chunk: RefCounted, reg: RefCounted
 		if tile_name == "frozen_grass":
 			top = PixelPalette.hex(0xD8E0DC)
 			accent = PixelPalette.hex(0x8A9478)
-		_draw_flat_tile(canvas, item.x, item.y, top, water, soft)
+		var elev := _elev(item.x, item.y)
+		var oy := -float(elev) * WG.ELEV_STEP_PX
+		# Beveled risers down to the lower neighbours toward the camera first, then
+		# the raised top so the top edge sits cleanly on the wall.
+		if elev > 0:
+			_draw_risers(canvas, item.x, item.y, elev, top, oy)
+		_draw_flat_tile(canvas, item.x, item.y, top, water, soft, oy)
 		if not water and not soft:
-			_draw_tile_speckles(canvas, item.x, item.y, top, accent)
+			_draw_tile_speckles(canvas, item.x, item.y, top, accent, oy)
 		elif tile_name == "frozen_grass":
-			_draw_frozen_grass(canvas, item.x, item.y, top, accent)
-		_draw_surface_borders(canvas, p_chunk, reg, lx, ly, item.x, item.y, top, water)
+			_draw_frozen_grass(canvas, item.x, item.y, top, accent, oy)
+		_draw_surface_borders(canvas, p_chunk, reg, lx, ly, item.x, item.y, top, water, oy)
 
 
-static func _draw_flat_tile(canvas: CanvasItem, gtx: int, gty: int, top: Color, water: bool, soft: bool) -> void:
+## Beveled vertical risers on the two camera-facing edges (SE toward +x, SW
+## toward +y), one per elevation step the tile stands above that neighbour, so a
+## hillside reads as terraced ground with the same bevel used between biomes.
+static func _draw_risers(canvas: CanvasItem, gtx: int, gty: int, elev: int, top: Color, oy: float) -> void:
 	var center := WG.tile_to_world(gtx, gty)
+	var cx := center.x
+	var cy := center.y + oy
+	var hw := WG.ISO_HW + TILE_OVERLAP
+	var hh := WG.ISO_HH + TILE_OVERLAP * 0.5
+	var e := Vector2(cx + hw, cy)
+	var s := Vector2(cx, cy + hh)
+	var w := Vector2(cx - hw, cy)
+	# SE wall faces down-right (toward the upper-right sun -> lit); SW is shadowed.
+	_draw_one_riser(canvas, e, s, elev - _elev(gtx + 1, gty), PixelPalette.shade(top, 0.82))
+	_draw_one_riser(canvas, s, w, elev - _elev(gtx, gty + 1), PixelPalette.shade(top, 0.58))
+
+
+static func _draw_one_riser(canvas: CanvasItem, a: Vector2, b: Vector2, drop_steps: int, face: Color) -> void:
+	if drop_steps <= 0:
+		return
+	var h := float(drop_steps) * WG.ELEV_STEP_PX
+	var down := Vector2(0.0, h)
+	canvas.draw_colored_polygon(PackedVector2Array([a, b, b + down, a + down]), face)
+	# Strata lines every step give the cliff its terraced read.
+	var line := PixelPalette.shade(face, 0.7)
+	line.a = 0.5
+	for s: int in range(1, drop_steps):
+		var dy := Vector2(0.0, float(s) * WG.ELEV_STEP_PX)
+		canvas.draw_line(a + dy, b + dy, line, 1.0)
+	# Contact highlight along the top lip — the bevel signature.
+	var lip := PixelPalette.shade(face, 1.4)
+	lip.a = 0.6
+	canvas.draw_line(a, b, lip, 1.0)
+
+
+static func _draw_flat_tile(canvas: CanvasItem, gtx: int, gty: int, top: Color, water: bool, soft: bool, oy: float = 0.0) -> void:
+	var center := WG.tile_to_world(gtx, gty)
+	center.y += oy
 	var hw := WG.ISO_HW + TILE_OVERLAP
 	var hh := WG.ISO_HH + TILE_OVERLAP * 0.5
 	var face := top.lightened(0.03) if water else top
@@ -135,11 +189,13 @@ static func _draw_tile_speckles(
 		gtx: int,
 		gty: int,
 		top: Color,
-		accent: Color) -> void:
+		accent: Color,
+		oy: float = 0.0) -> void:
 	var seed: int = WG.hash_i(WorldGen.store.world_seed, gtx, gty, 41)
 	if seed % 3 == 0:
 		return
 	var center := WG.tile_to_world(gtx, gty)
+	center.y += oy
 	var px := float(PixelPalette.PX)
 	var rx := (WG.r01(seed, 0, 0, 0) - 0.5) * WG.ISO_HW * 0.9
 	var ry := (WG.r01(seed, 0, 1, 0) - 0.5) * WG.ISO_HH * 1.0
@@ -147,9 +203,10 @@ static func _draw_tile_speckles(
 	PixelDraw.px_rect(canvas, center.x + rx, center.y + ry, px, px, col, 0.22)
 
 
-static func _draw_frozen_grass(canvas: CanvasItem, gtx: int, gty: int, _top: Color, accent: Color) -> void:
+static func _draw_frozen_grass(canvas: CanvasItem, gtx: int, gty: int, _top: Color, accent: Color, oy: float = 0.0) -> void:
 	var ice := PixelPalette.hex(0xD8E0DC)
 	var center := WG.tile_to_world(gtx, gty)
+	center.y += oy
 	var px := float(PixelPalette.PX)
 	var seed: int = WG.hash_i(WorldGen.store.world_seed, gtx, gty, 44)
 	for i: int in 3:
@@ -237,7 +294,8 @@ static func _draw_surface_borders(
 		gtx: int,
 		gty: int,
 		top: Color,
-		water: bool) -> void:
+		water: bool,
+		oy: float = 0.0) -> void:
 	var my_parent: int = p_chunk.parent_biome_at(lx, ly)
 	if my_parent == 255:
 		return
@@ -245,7 +303,7 @@ static func _draw_surface_borders(
 	var my_cat: int = _surface_category(reg, p_chunk.tile_id(lx, ly))
 	var center := WG.tile_to_world(gtx, gty)
 	var cx := center.x
-	var cy := center.y
+	var cy := center.y + oy
 	var hw := WG.ISO_HW
 	var hh := WG.ISO_HH
 	for n: Array in CARDINAL:

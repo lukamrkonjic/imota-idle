@@ -46,6 +46,8 @@ func _run() -> void:
 		{"name": "eastvale_spawn", "chunk": Vector2i(0, 0), "zoom": 0.95},
 		{"name": "north_peaks", "chunk": Vector2i(-3, -24), "zoom": 0.85},
 		{"name": "north_peaks2", "chunk": Vector2i(6, -22), "zoom": 0.85},
+		{"name": "grand_north", "chunk": Vector2i(0, -32), "zoom": 0.42},
+		{"name": "grand_north2", "chunk": Vector2i(-10, -30), "zoom": 0.5},
 	]
 	if spec != null and spec.active:
 		for a: Dictionary in spec.anchors:

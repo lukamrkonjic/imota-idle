@@ -315,6 +315,11 @@ func _spawn_poi_part(chunk: RefCounted, poi: Dictionary, part: Dictionary, conta
 			e.display_size = float(part.get("foot", 2))
 			e.mountain_snow = float(part.get("snow", 0.0))
 			e.variant = absi(hash("mtn" + chunk.key() + str(part["tx"]) + ":" + str(part["ty"]))) % 1000
+			# Sit the massif on top of its raised ground so its base meets the
+			# terraced terrain instead of floating below it.
+			var gtx: int = chunk.cx * WG.CHUNK_TILES + int(part["tx"])
+			var gty: int = chunk.cy * WG.CHUNK_TILES + int(part["ty"])
+			e.position.y -= float(WorldGen.generator.classifier.elevation_steps(float(gtx), float(gty))) * WG.ELEV_STEP_PX
 		"city_wall":
 			e.variant = int(part.get("piece", 0))
 		"city_prop":

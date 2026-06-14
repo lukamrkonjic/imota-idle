@@ -127,7 +127,11 @@ func _place_mountains(chunk: RefCounted) -> void:
 				# mountain field) so the range reads as a few big rock massifs with
 				# bare rock slopes and passes between, not a dense field of cones.
 				if _is_ridge_crest(gtx, gty):
-					var foot: int = 5 + int(WG.hash_i(world_seed, gtx, gty, 71) % 3)
+					# Footprint scales with field strength: lesser crests are modest
+					# hills, the dominant crest of a range towers (a grand peak).
+					var mf: float = classifier.mountain_field(float(gtx), float(gty))
+					var foot: int = clampi(5 + int((mf - 0.84) * 34.0), 5, 16)
+					foot += int(WG.hash_i(world_seed, gtx, gty, 71) % 2)
 					chunk.structures.append({
 						"kind": "mountain", "tx": tx, "ty": ty, "foot": foot,
 						"snow": 1.0 if ml == 3 else 0.0})
