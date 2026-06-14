@@ -20,14 +20,15 @@ func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(_out)
 
 	var reg: RefCounted = WorldGen.reg
+	DisplayServer.window_set_size(Vector2i(1140, 1040))
 	var layer := CanvasLayer.new()
 	add_child(layer)
 	var bg := ColorRect.new()
 	bg.color = Color(0.12, 0.12, 0.15)
-	bg.size = Vector2(768, 580)
+	bg.size = Vector2(1140, 1040)
 	layer.add_child(bg)
 	var grid := GridContainer.new()
-	grid.columns = 4
+	grid.columns = 6
 	grid.position = Vector2(8, 8)
 	grid.add_theme_constant_override("h_separation", 4)
 	grid.add_theme_constant_override("v_separation", 4)
@@ -40,21 +41,37 @@ func _ready() -> void:
 		enemy_name = DataRegistry.enemies.keys()[0]
 
 	var jobs: Array = [
-		func(p: PlaceablePreview) -> void: p.show_biome("forest"),
-		func(p: PlaceablePreview) -> void: p.show_biome("desert"),
-		func(p: PlaceablePreview) -> void: p.show_biome(sub_id),
-		func(p: PlaceablePreview) -> void: p.show_terrain("water", "Water"),
 		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "house"}, "House"),
 		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "building", "foot": 7}, "Hall"),
 		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "fountain", "label": "Fountain"}, "Fountain"),
 		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "obelisk"}, "Obelisk"),
-		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "city_prop", "prop": "lamp"}, "Lamp post"),
-		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "tent"}, "Tent"),
-		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "ruin_arch", "label": "Ruins"}, "Broken arch"),
-		func(p: PlaceablePreview) -> void: p.show_creature(enemy_name),
-		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "city_prop", "prop": "well"}, "Well"),
-		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "broken_statue", "label": "Statue"}, "Statue"),
+		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "altar", "label": "Altar"}, "Altar"),
+		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "anvil"}, "Anvil"),
 		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "chest"}, "Chest"),
+		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "stall"}, "Stall"),
+		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "tent"}, "Tent"),
+		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "sign"}, "Sign"),
+		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "lantern"}, "Lantern"),
+		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "campfire"}, "Campfire"),
+		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "bridge"}, "Bridge"),
+		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "city_wall", "piece": 0}, "Wall"),
+		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "city_wall", "piece": 1}, "Gate"),
+		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "city_wall", "piece": 2}, "Tower"),
+		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "mammoth", "label": "Mammoth"}, "Mammoth"),
+		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "city_prop", "prop": "lamp"}, "Lamp post"),
+		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "city_prop", "prop": "well"}, "Well"),
+		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "city_prop", "prop": "crate"}, "Crate"),
+		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "city_prop", "prop": "barrel"}, "Barrel"),
+		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "city_prop", "prop": "flowerbox"}, "Flowerbox"),
+		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "city_prop", "prop": "cart"}, "Cart"),
+		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "ruin_arch", "label": "Ruins"}, "Broken arch"),
+		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "broken_statue", "label": "Statue"}, "Statue"),
+		func(p: PlaceablePreview) -> void: p.show_structure({"kind": "ruin_pillar", "label": "Pillar"}, "Pillar"),
+		func(p: PlaceablePreview) -> void: p.show_biome("forest"),
+		func(p: PlaceablePreview) -> void: p.show_biome("desert"),
+		func(p: PlaceablePreview) -> void: p.show_biome(sub_id),
+		func(p: PlaceablePreview) -> void: p.show_terrain("water", "Water"),
+		func(p: PlaceablePreview) -> void: p.show_creature(enemy_name),
 		func(p: PlaceablePreview) -> void:
 			var stamps: Array = StampLibrary.all()
 			if not stamps.is_empty():

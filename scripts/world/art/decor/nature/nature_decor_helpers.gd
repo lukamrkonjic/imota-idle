@@ -76,6 +76,14 @@ static func shadow(canvas: CanvasItem, w: float, alpha: float, tint: Color) -> v
 	r(canvas, -w * 0.5, -1.0, w, 2.0, Color8(14, 22, 18), alpha, tint)
 
 
+## An isometric solid block in decor art-pixel space (coords ×PX), tint-aware.
+## Use this for man-made wooden/stone clutter so it reads as real volume like the
+## world structures, rather than a flat billboard.
+static func iso(canvas: CanvasItem, cx: float, cy: float, hw: float, hh: float, h: float, base: Color, tint: Color) -> void:
+	var px := float(PixelPalette.PX)
+	PixelDraw.iso_block_tex(canvas, cx * px, cy * px, hw * px, hh * px, h * px, _tinted(base, tint))
+
+
 static func blob(canvas: CanvasItem, cx: float, cy: float, rx: float, ry: float, color: Color, alpha: float, tint: Color) -> void:
 	var iy0 := int(floor(-ry))
 	var iy1 := int(ceil(ry))
@@ -252,10 +260,11 @@ static func fence(canvas: CanvasItem, variant: int, posts: int, tint: Color) -> 
 	var spacing := 7.0
 	var total_w := float(posts - 1) * spacing + 4.0
 	shadow(canvas, total_w, 0.08, tint)
+	# posts as small iso blocks
 	for i: int in range(posts):
-		var x := -total_w * 0.5 + float(i) * spacing
-		r(canvas, x, -18.0, 3.0, 18.0, bark_dark(), 0.95, tint)
-		r(canvas, x + 1.0, -17.0, 1.0, 15.0, bark_hi(), 0.45, tint)
+		var x := -total_w * 0.5 + float(i) * spacing + 1.5
+		iso(canvas, x, 0.0, 1.5, 0.75, 18.0, bark_mid(), tint)
+	# two horizontal rails spanning the run
 	r(canvas, -total_w * 0.5, -13.0, total_w, 3.0, bark_dark(), 0.90, tint)
 	r(canvas, -total_w * 0.5, -6.0, total_w, 3.0, bark_mid(), 0.90, tint)
 
@@ -273,31 +282,29 @@ static func ladder(canvas: CanvasItem, variant: int, height: float, tint: Color)
 static func planks(canvas: CanvasItem, variant: int, count: int, tint: Color) -> void:
 	var total := float(count) * 5.0
 	shadow(canvas, total, 0.08, tint)
+	# planks leaning as a stack — each a thin iso block
 	for i: int in range(count):
-		var x := -total * 0.5 + float(i) * 5.0
+		var x := -total * 0.5 + float(i) * 5.0 + 2.0
 		var h := 18.0 + float((i + variant) % 3) * 2.0
-		r(canvas, x, -h, 4.0, h, bark_dark(), 0.95, tint)
-		r(canvas, x + 1.0, -h + 1.0, 2.0, h - 2.0, bark_mid(), 0.85, tint)
+		iso(canvas, x, 0.0, 2.0, 1.0, h, bark_mid(), tint)
 
 
 static func log_pile(canvas: CanvasItem, variant: int, tint: Color) -> void:
 	shadow(canvas, 34.0, 0.12, tint)
+	# stacked cordwood — each log a short iso block, back rows higher
 	for row: int in range(3):
 		for i: int in range(5 - row):
-			var x := -15.0 + float(i) * 7.0 + float(row) * 3.5
-			var y := -4.0 - float(row) * 5.0
-			r(canvas, x, y - 4.0, 7.0, 4.0, bark_dark(), 0.95, tint)
-			r(canvas, x + 1.0, y - 3.0, 5.0, 2.0, bark_mid(), 0.90, tint)
-			r(canvas, x, y - 4.0, 1.0, 4.0, bark_hi(), 0.45, tint)
+			var x := -15.0 + float(i) * 7.0 + float(row) * 3.5 + 3.5
+			var y := -float(row) * 4.0
+			iso(canvas, x, y, 3.5, 1.75, 5.0, bark_mid() if (i + row) % 2 == 0 else bark_dark(), tint)
 
 
 static func chest(canvas: CanvasItem, variant: int, tint: Color) -> void:
 	shadow(canvas, 18.0, 0.10, tint)
-	r(canvas, -9.0, -11.0, 18.0, 10.0, bark_dark(), 0.96, tint)
-	r(canvas, -7.0, -9.0, 14.0, 7.0, bark_mid(), 0.94, tint)
-	r(canvas, -8.0, -14.0, 16.0, 5.0, bark_dark(), 0.96, tint)
-	r(canvas, -6.0, -13.0, 12.0, 3.0, bark_hi(), 0.55, tint)
-	r(canvas, -1.0, -9.0, 2.0, 4.0, Color8(220, 175, 69), 0.95, tint)
+	# coffer + lid as iso blocks, brass lock on the lit face
+	iso(canvas, 0.0, 0.0, 9.0, 4.5, 8.0, bark_mid(), tint)
+	iso(canvas, 0.0, -8.0, 9.5, 4.75, 4.0, bark_hi(), tint)
+	r(canvas, 3.0, -7.0, 2.0, 4.0, Color8(220, 175, 69), 0.95, tint)
 
 
 static func banner(canvas: CanvasItem, variant: int, tint: Color) -> void:
@@ -312,10 +319,12 @@ static func banner(canvas: CanvasItem, variant: int, tint: Color) -> void:
 
 static func well(canvas: CanvasItem, variant: int, tint: Color) -> void:
 	shadow(canvas, 30.0, 0.14, tint)
-	blob(canvas, 0.0, -8.0, 14.0, 7.0, stone_dark(), 0.95, tint)
-	blob(canvas, 0.0, -9.0, 11.0, 4.0, stone_mid(), 0.90, tint)
-	r(canvas, -12.0, -29.0, 3.0, 22.0, bark_dark(), 0.95, tint)
-	r(canvas, 9.0, -29.0, 3.0, 22.0, bark_dark(), 0.95, tint)
+	# stone curb as a low iso ring with a dark shaft inside
+	iso(canvas, 0.0, 0.0, 13.0, 6.5, 6.0, stone_mid(), tint)
+	r(canvas, -7.0, -9.0, 14.0, 4.0, Color8(20, 22, 26), 0.95, tint)
+	# roof posts as iso blocks + a cap board
+	iso(canvas, -10.5, -2.0, 1.5, 0.75, 22.0, bark_dark(), tint)
+	iso(canvas, 10.5, -2.0, 1.5, 0.75, 22.0, bark_dark(), tint)
 	r(canvas, -13.0, -31.0, 26.0, 3.0, bark_mid(), 0.95, tint)
 	r(canvas, -8.0, -36.0, 16.0, 5.0, Color8(122, 83, 52), 0.90, tint)
 

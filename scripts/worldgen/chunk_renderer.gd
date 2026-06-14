@@ -14,12 +14,6 @@ const CARDINAL: Array = [
 	[Vector2i(0, 1), 3],
 	[Vector2i(-1, 0), 0],
 ]
-const CORNERS: Array = [
-	[Vector2i(0, -1), Vector2i(-1, 0), 0],
-	[Vector2i(0, -1), Vector2i(1, 0), 1],
-	[Vector2i(0, 1), Vector2i(1, 0), 2],
-	[Vector2i(0, 1), Vector2i(-1, 0), 3],
-]
 const DETAIL_LOW := 0
 const DETAIL_FULL := 1
 
@@ -445,20 +439,10 @@ static func _draw_surface_borders(
 		if not _needs_bevel(reg, my_parent, n_parent, my_biome, n_biome, my_cat, n_cat):
 			continue
 		_draw_edge_inset(canvas, cx, cy, hw, hh, edge, top, water)
-	for corner: Array in CORNERS:
-		var a: Vector2i = corner[0]
-		var b: Vector2i = corner[1]
-		var corner_id: int = corner[2]
-		var pa: int = _parent_at(p_chunk, lx + a.x, ly + a.y)
-		var pb: int = _parent_at(p_chunk, lx + b.x, ly + b.y)
-		var ba: int = _biome_idx_at(p_chunk, lx + a.x, ly + a.y)
-		var bb: int = _biome_idx_at(p_chunk, lx + b.x, ly + b.y)
-		var ca: int = _surface_category(reg, _tile_id_at(p_chunk, lx + a.x, ly + a.y))
-		var cb: int = _surface_category(reg, _tile_id_at(p_chunk, lx + b.x, ly + b.y))
-		var edge_a := _needs_bevel(reg, my_parent, pa, my_biome, ba, my_cat, ca)
-		var edge_b := _needs_bevel(reg, my_parent, pb, my_biome, bb, my_cat, cb)
-		if edge_a and edge_b:
-			_draw_beveled_corner(canvas, cx, cy, hw, hh, corner_id, top, water)
+	# No corner treatment: floor tiles keep sharp diamond corners. Chamfering the
+	# diamond tips (an earlier "beveled corner") made sand and other surface-change
+	# tiles read as rounded. Only the straight edge insets above mark a shoreline /
+	# surface change, so every tile silhouette stays crisp like the grass/wheat tiles.
 
 
 static func _draw_edge_inset(
@@ -485,44 +469,6 @@ static func _draw_edge_inset(
 	contact.a = 0.42
 	canvas.draw_colored_polygon(PackedVector2Array([
 		a, b, b + Vector2(0.0, px * 0.5), a + Vector2(0.0, px * 0.5)]), contact)
-
-
-static func _draw_beveled_corner(
-		canvas: CanvasItem,
-		cx: float,
-		cy: float,
-		hw: float,
-		hh: float,
-		corner: int,
-		top: Color,
-		water: bool) -> void:
-	var bevel := 0.20
-	var tip := Vector2.ZERO
-	var p1 := Vector2.ZERO
-	var p2 := Vector2.ZERO
-	match corner:
-		0:
-			tip = Vector2(cx, cy - hh)
-			p1 = tip.lerp(Vector2(cx - hw, cy), bevel)
-			p2 = tip.lerp(Vector2(cx + hw, cy), bevel)
-		1:
-			tip = Vector2(cx + hw, cy)
-			p1 = tip.lerp(Vector2(cx, cy - hh), bevel)
-			p2 = tip.lerp(Vector2(cx, cy + hh), bevel)
-		2:
-			tip = Vector2(cx, cy + hh)
-			p1 = tip.lerp(Vector2(cx + hw, cy), bevel)
-			p2 = tip.lerp(Vector2(cx - hw, cy), bevel)
-		_:
-			tip = Vector2(cx - hw, cy)
-			p1 = tip.lerp(Vector2(cx, cy + hh), bevel)
-			p2 = tip.lerp(Vector2(cx, cy - hh), bevel)
-	var shadow := PixelPalette.pal("shadow")
-	shadow.a = 0.42 if water else 0.36
-	canvas.draw_colored_polygon(PackedVector2Array([tip, p1, p2]), shadow)
-	var contact := PixelPalette.shade(top, 0.70)
-	contact.a = 0.50
-	canvas.draw_line(p1, p2, contact, 1.1)
 
 
 static func _edge_points(cx: float, cy: float, hw: float, hh: float, edge: int) -> PackedVector2Array:

@@ -26,6 +26,6 @@ static func draw(canvas: CanvasItem, variant: int = 0) -> void:
 		var bh: float = HEIGHTS[(i + variant) % HEIGHTS.size()]
 		var p := start + step * float(i)
 		var base := stone if i % 2 == 0 else PixelPalette.shade(stone, 0.9)
-		PixelDraw.iso_block(canvas, p.x, p.y, hw, hh, bh, base)
+		PixelDraw.iso_block_tex(canvas, p.x, p.y, hw, hh, bh, base)
 		# moss along the lit top edge of the course
 		PixelDraw.px_rect(canvas, p.x - 1.0, p.y - bh - 1.0, hw, 2.0, moss, 0.5)

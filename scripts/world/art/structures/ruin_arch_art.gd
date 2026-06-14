@@ -27,7 +27,7 @@ static func draw(canvas: CanvasItem, variant: int = 0) -> void:
 	else:
 		# far column snapped short; lintel breaks off in mid-air
 		_column(canvas, 14.0, -4.0, 40.0, stone)
-		PixelDraw.iso_block(canvas, 12.0, -h, 8.0, 4.0, 7.0, PixelPalette.shade(stone, 0.72))
+		PixelDraw.iso_block_tex(canvas, 12.0, -h, 8.0, 4.0, 7.0, PixelPalette.shade(stone, 0.72))
 	# overgrowth: moss band + hanging vines down the tall column
 	PixelDraw.px_rect(canvas, -27.0, -h * 0.55, 12.0, 6.0, moss, 0.5)
 	PixelDraw.px_rect(canvas, -16.0, -h + 8.0, 2.0, 20.0, vine, 0.5)
@@ -37,10 +37,10 @@ static func draw(canvas: CanvasItem, variant: int = 0) -> void:
 static func _column(canvas: CanvasItem, x: float, z: float, h: float, stone: Color) -> void:
 	# z nudges the screen-y of the base so the two columns sit at slightly
 	# different isometric depths (far column a touch higher up the screen).
-	PixelDraw.iso_block(canvas, x, z, 10.0, 5.0, 8.0, PixelPalette.shade(stone, 0.9))   # base
-	PixelDraw.iso_block(canvas, x, z - 8.0, 7.0, 3.5, h - 8.0, stone)                    # shaft
+	PixelDraw.iso_block_tex(canvas, x, z, 10.0, 5.0, 8.0, PixelPalette.shade(stone, 0.9))   # base
+	PixelDraw.iso_block_tex(canvas, x, z - 8.0, 7.0, 3.5, h - 8.0, stone)                    # shaft
 
 
 static func _lintel(canvas: CanvasItem, x: float, half: float, top_y: float, stone: Color) -> void:
 	# A short horizontal beam: a wide, shallow iso block sitting at the top.
-	PixelDraw.iso_block(canvas, x + half * 0.5, top_y - 3.0, half, half * 0.5, 9.0, PixelPalette.shade(stone, 1.0))
+	PixelDraw.iso_block_tex(canvas, x + half * 0.5, top_y - 3.0, half, half * 0.5, 9.0, PixelPalette.shade(stone, 1.0))

@@ -67,6 +67,91 @@ static func iso_block(canvas: CanvasItem, cx: float, cy: float, hw: float, hh: f
 		PixelPalette.shade(base, light + 0.12), PixelPalette.shade(base, light), PixelPalette.shade(base, shade))
 
 
+# --- Face-space painting (pixel-art texture on iso faces) ------------------
+# A vertical face is the parallelogram swept from base edge a->b up by height h.
+# `u` runs 0..1 along a->b; `v` runs 0..1 from the base (0) to the top (1). These
+# let props paint masonry courses, planks, panels and dithering ONTO an iso face
+# so it reads as chunky hand-drawn pixel art instead of a flat smooth polygon —
+# matching the terrain dither and the tree/canopy texturing.
+const _BAYER := [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
+
+
+static func iso_face_pt(a: Vector2, b: Vector2, h: float, u: float, v: float) -> Vector2:
+	return a.lerp(b, u) - Vector2(0.0, h * v)
+
+
+static func iso_face_quad(canvas: CanvasItem, a: Vector2, b: Vector2, h: float, u0: float, u1: float, v0: float, v1: float, col: Color, alpha: float = 1.0) -> void:
+	canvas.draw_colored_polygon(PackedVector2Array([
+		iso_face_pt(a, b, h, u0, v0), iso_face_pt(a, b, h, u1, v0),
+		iso_face_pt(a, b, h, u1, v1), iso_face_pt(a, b, h, u0, v1),
+	]), SilhouetteDraw.ink(col, alpha))
+
+
+## Ordered-dither one face into chunky pixel cells around `base` — a couple of
+## tones, PX-sized, skewed with the face. The cheap way to give any iso solid the
+## dithered pixel-grain the rest of the world has.
+static func iso_face_dither(canvas: CanvasItem, a: Vector2, b: Vector2, h: float, base: Color, salt: int = 0) -> void:
+	var face_len := a.distance_to(b)
+	var cols := maxi(2, int(round(face_len / float(PixelPalette.PX))))
+	var rows := maxi(2, int(round(h / float(PixelPalette.PX))))
+	var lo := PixelPalette.shade(base, 0.9)
+	var hi := PixelPalette.shade(base, 1.08)
+	for r: int in rows:
+		for c: int in cols:
+			var b4: int = _BAYER[(r % 4) * 4 + ((c + salt) % 4)]
+			var u0 := float(c) / float(cols)
+			var u1 := float(c + 1) / float(cols)
+			var v0 := float(r) / float(rows)
+			var v1 := float(r + 1) / float(rows)
+			if b4 < 5:
+				iso_face_quad(canvas, a, b, h, u0, u1, v0, v1, lo, 0.45)
+			elif b4 > 11:
+				iso_face_quad(canvas, a, b, h, u0, u1, v0, v1, hi, 0.30)
+
+
+## Ordered-dither a TRIANGULAR face (base edge ba->bb up to `apex`) into chunky
+## pixel cells — the pyramid-face equivalent of iso_face_dither, for tents/roofs.
+static func iso_tri_dither(canvas: CanvasItem, ba: Vector2, bb: Vector2, apex: Vector2, base: Color, salt: int = 0) -> void:
+	var rows := maxi(3, int(ba.lerp(bb, 0.5).distance_to(apex) / (float(PixelPalette.PX) * 1.6)))
+	var lo := PixelPalette.shade(base, 0.86)
+	var hi := PixelPalette.shade(base, 1.12)
+	for r: int in rows:
+		var t0 := float(r) / float(rows)
+		var t1 := float(r + 1) / float(rows)
+		var a0 := ba.lerp(apex, t0)
+		var b0 := bb.lerp(apex, t0)
+		var a1 := ba.lerp(apex, t1)
+		var b1 := bb.lerp(apex, t1)
+		var cols := maxi(1, int(a0.distance_to(b0) / float(PixelPalette.PX)))
+		for c: int in cols:
+			var b4: int = _BAYER[(r % 4) * 4 + ((c + salt) % 4)]
+			var u0 := float(c) / float(cols)
+			var u1 := float(c + 1) / float(cols)
+			if b4 < 6:
+				canvas.draw_colored_polygon(PackedVector2Array([
+					a0.lerp(b0, u0), a0.lerp(b0, u1), a1.lerp(b1, u1), a1.lerp(b1, u0)]),
+					SilhouetteDraw.ink(lo, 0.5))
+			elif b4 > 10:
+				canvas.draw_colored_polygon(PackedVector2Array([
+					a0.lerp(b0, u0), a0.lerp(b0, u1), a1.lerp(b1, u1), a1.lerp(b1, u0)]),
+					SilhouetteDraw.ink(hi, 0.34))
+
+
+## The three silhouette base points of an iso block (right, front, left).
+static func iso_corners(cx: float, cy: float, hw: float, hh: float) -> Array:
+	return [Vector2(cx + hw, cy), Vector2(cx, cy + hh), Vector2(cx - hw, cy)]
+
+
+## An iso block with dithered faces — the pixel-art default for solid props. Same
+## signature spirit as iso_block, plus a `salt` so neighbouring blocks dither
+## differently.
+static func iso_block_tex(canvas: CanvasItem, cx: float, cy: float, hw: float, hh: float, h: float, base: Color, salt: int = 0, light: float = 1.18, shade: float = 0.62) -> void:
+	iso_block(canvas, cx, cy, hw, hh, h, base, light, shade)
+	var c := iso_corners(cx, cy, hw, hh)
+	iso_face_dither(canvas, c[0], c[1], h, PixelPalette.shade(base, light), salt)      # SE lit
+	iso_face_dither(canvas, c[1], c[2], h, PixelPalette.shade(base, shade), salt + 2)  # SW shadow
+
+
 # --- Directional ground shadows -------------------------------------------
 # These three helpers are the whole game's shadow API: every prop, character,
 # tree and structure casts through one of them, so routing them through the

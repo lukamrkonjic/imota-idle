@@ -9,7 +9,8 @@ static func draw(canvas: CanvasItem, t: float) -> void:
 	PixelDraw.draw_foot_shadow(canvas, 22.0, 3.0, 0.3, 8.0)
 	for i: int in 7:
 		var a := float(i) / 7.0 * TAU
-		PixelDraw.px_rect(canvas, cos(a) * 18.0 - 3.0, sin(a) * 5.0 - 2.0, 6.0, 5.0,
+		# ring stones as little iso blocks around the fire pit
+		PixelDraw.iso_block_tex(canvas, cos(a) * 18.0, sin(a) * 9.0, 4.0, 2.0, 4.0,
 			PixelPalette.pal("stone_a") if i % 2 == 1 else PixelPalette.pal("stone_b"))
 	var px := float(PixelPalette.PX)
 	for log: Array in [[Vector2(-12, -2), Vector2(12, -6), PixelPalette.pal("trunk_a")], [Vector2(-12, -6), Vector2(12, -2), PixelPalette.pal("trunk_b")]]:

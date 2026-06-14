@@ -1,24 +1,34 @@
 extends RefCounted
 class_name ChestArt
+## A treasure chest built as an isometric box with pixel-art wood texture: a
+## dithered coffer + overhanging lid, iron straps wrapping the faces, a vertical
+## plank seam and a gold lock. `depleted` greys it to spent stone.
 
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 const PixelDraw := preload("res://scripts/world/art/core/pixel_draw.gd")
 
 
 static func draw(canvas: CanvasItem, size: float, color: Color, depleted: bool) -> void:
-	PixelDraw.draw_foot_shadow(canvas, size * 0.52, 4.0, 0.3, size * 0.42)
-	var w := PixelPalette.snap(size * 0.72)
-	var h := PixelPalette.snap(size * 0.48)
+	var hw := size * 0.46
+	var hh := hw * 0.5
+	var body_h := size * 0.30
+	var lid_h := size * 0.16
+	PixelDraw.draw_foot_shadow(canvas, hw + 4.0, hh + 1.0, 0.3, body_h + lid_h)
 	var c := PixelPalette.pal("stone_b") if depleted else color
+	var iron := PixelPalette.shade(PixelPalette.pal("stone_b"), 0.5)
 	var px := float(PixelPalette.PX)
-	PixelDraw.px_rect(canvas, -w, -h, w * 2.0, h, c)
-	PixelDraw.px_rect(canvas, w - px * 2.0, -h + px, px * 2.0, h - px, PixelPalette.shade(c, 0.72))
-	PixelDraw.px_rect(canvas, -w, -h, px * 2.0, h, PixelPalette.shade(c, 1.1))
-	PixelDraw.px_rect(canvas, -w, -h, w * 2.0, px * 3.0, PixelPalette.shade(c, 1.08))
-	PixelDraw.px_rect(canvas, -w, -h * 0.55, w * 2.0, px * 2.0, PixelPalette.pal("trunk_b"))
-	PixelDraw.px_rect(canvas, -w, -h * 0.15, w * 2.0, px * 2.0, PixelPalette.pal("trunk_b"))
+	# dithered wooden coffer + overhanging lid
+	PixelDraw.iso_block_tex(canvas, 0.0, 0.0, hw, hh, body_h, c, 0)
+	PixelDraw.iso_block_tex(canvas, 0.0, -body_h, hw + 1.0, hh + 0.5, lid_h, PixelPalette.shade(c, 1.06), 2)
+	var cr := PixelDraw.iso_corners(0.0, 0.0, hw, hh)
+	# iron straps + plank seams on the coffer faces
+	for face: Array in [[cr[0], cr[1]], [cr[1], cr[2]]]:
+		var a: Vector2 = face[0]
+		var b: Vector2 = face[1]
+		PixelDraw.iso_face_quad(canvas, a, b, body_h, 0.0, 1.0, 0.16, 0.30, iron, 0.85)
+		PixelDraw.iso_face_quad(canvas, a, b, body_h, 0.0, 1.0, 0.66, 0.80, iron, 0.85)
+		PixelDraw.iso_face_quad(canvas, a, b, body_h, 0.48, 0.52, 0.0, 1.0, PixelPalette.shade(c, 0.72), 0.5)
 	if not depleted:
-		PixelDraw.px_rect(canvas, -px * 3.0, -h * 0.42, px * 6.0, px * 4.0, PixelPalette.pal("gold"))
-		PixelDraw.px_rect(canvas, -px, -h * 0.38, px * 2.0, px * 2.0, PixelPalette.pal("trunk_b"))
-
-
+		# gold lock plate on the front seam
+		PixelDraw.px_rect(canvas, -px, -body_h * 0.5, px * 2.0, px * 2.5, PixelPalette.pal("gold"))
+		PixelDraw.px_rect(canvas, 0.0, -body_h * 0.5 + px, px, px, PixelPalette.pal("trunk_b"))

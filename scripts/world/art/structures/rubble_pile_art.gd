@@ -28,7 +28,7 @@ static func draw(canvas: CanvasItem, variant: int = 0) -> void:
 	for i: int in order.size():
 		var b: Array = order[i]
 		var shade := 0.84 + 0.12 * float(i % 3)
-		PixelDraw.iso_block(canvas, float(b[0]) * s, float(b[1]) * s,
+		PixelDraw.iso_block_tex(canvas, float(b[0]) * s, float(b[1]) * s,
 			float(b[2]) * s, float(b[2]) * 0.5 * s, float(b[3]) * s, PixelPalette.shade(stone, shade))
 	# moss crest on the tallest central block
 	PixelDraw.px_rect(canvas, -6.0 * s, -13.0 * s, 11.0 * s, 2.0, moss, 0.5)
