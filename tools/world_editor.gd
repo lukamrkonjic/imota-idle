@@ -656,8 +656,8 @@ func _draw_overlay(c: CanvasItem) -> void:
 							var bidx: int = chunk.biome_at(lx, ly)
 							if bidx != 255 and bidx < _reg.biomes.size():
 								c.draw_rect(Rect2(px, py, 1.0, 1.0), _biome_tint(bidx))
-						if _show_elevation:
-							var elev: int = classifier.elevation_steps(float(bx + lx), float(by + ly))
+						if _show_elevation and chunk.elev.size() > 0:
+							var elev: int = chunk.elev[Chunk.idx(lx, ly)]
 							if elev > 0:
 								c.draw_rect(Rect2(px, py, 1.0, 1.0), _elev_tint(float(elev) / 40.0))
 	if _show_structs:
@@ -1088,6 +1088,7 @@ func _save() -> void:
 			"p": BakedWorldStore.encode(chunk.parent_biomes_t),
 			"s": BakedWorldStore.encode(chunk.sub_biomes_t),
 			"k": BakedWorldStore.encode(chunk.collision),
+			"e": BakedWorldStore.encode(chunk.elev),
 			"zone": chunk.zone.duplicate(true),
 			"safe": chunk.safe,
 			"sites": chunk.sites.duplicate(true),

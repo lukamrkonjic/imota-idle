@@ -98,6 +98,7 @@ func _encode_chunk(chunk: RefCounted) -> Dictionary:
 		"p": BakedWorldStore.encode(chunk.parent_biomes_t),
 		"s": BakedWorldStore.encode(chunk.sub_biomes_t),
 		"k": BakedWorldStore.encode(chunk.collision),
+		"e": BakedWorldStore.encode(chunk.elev),
 		"zone": chunk.zone.duplicate(true),
 		"safe": chunk.safe,
 		"sites": chunk.sites.duplicate(true),

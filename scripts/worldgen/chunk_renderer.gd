@@ -33,13 +33,17 @@ func _init(p_chunk: RefCounted, avg_color: Color) -> void:
 	z_index = -1000 + p_chunk.cx + p_chunk.cy
 
 
-## Terrain elevation (in steps) at a global tile — a deterministic function of the
-## seeded classifier, so baked and live chunks agree and seams line up. 0 anywhere
-## the classifier is absent or outside the mountain belt.
-static func _elev(gtx: int, gty: int) -> int:
-	if WorldGen == null or WorldGen.generator == null or WorldGen.generator.classifier == null:
+## Terrain elevation (in steps) for a tile, read from the chunk's baked per-tile
+## elevation — zero on water and all non-mountain ground. Resolves across chunk
+## seams (like _tile_id_at) so risers line up between chunks.
+static func _elev_at(p_chunk: RefCounted, lx: int, ly: int) -> int:
+	var n := _resolve(p_chunk, lx, ly)
+	if n.is_empty():
 		return 0
-	return WorldGen.generator.classifier.elevation_steps(float(gtx), float(gty))
+	var c: RefCounted = n[0]
+	if c.elev.size() == 0:
+		return 0
+	return c.elev[Chunk.idx(n[1], n[2])]
 
 
 func _ready() -> void:
@@ -116,12 +120,12 @@ static func _draw_chunk(canvas: CanvasItem, p_chunk: RefCounted, reg: RefCounted
 		if tile_name == "frozen_grass":
 			top = PixelPalette.hex(0xD8E0DC)
 			accent = PixelPalette.hex(0x8A9478)
-		var elev := _elev(item.x, item.y)
+		var elev := _elev_at(p_chunk, lx, ly)
 		var oy := -float(elev) * WG.ELEV_STEP_PX
 		# Beveled risers down to the lower neighbours toward the camera first, then
 		# the raised top so the top edge sits cleanly on the wall.
 		if elev > 0:
-			_draw_risers(canvas, item.x, item.y, elev, top, oy)
+			_draw_risers(canvas, p_chunk, lx, ly, item.x, item.y, elev, top, oy)
 		_draw_flat_tile(canvas, item.x, item.y, top, water, soft, oy)
 		if not water and not soft:
 			_draw_tile_speckles(canvas, item.x, item.y, top, accent, oy)
@@ -133,7 +137,7 @@ static func _draw_chunk(canvas: CanvasItem, p_chunk: RefCounted, reg: RefCounted
 ## Beveled vertical risers on the two camera-facing edges (SE toward +x, SW
 ## toward +y), one per elevation step the tile stands above that neighbour, so a
 ## hillside reads as terraced ground with the same bevel used between biomes.
-static func _draw_risers(canvas: CanvasItem, gtx: int, gty: int, elev: int, top: Color, oy: float) -> void:
+static func _draw_risers(canvas: CanvasItem, p_chunk: RefCounted, lx: int, ly: int, gtx: int, gty: int, elev: int, top: Color, oy: float) -> void:
 	var center := WG.tile_to_world(gtx, gty)
 	var cx := center.x
 	var cy := center.y + oy
@@ -143,8 +147,8 @@ static func _draw_risers(canvas: CanvasItem, gtx: int, gty: int, elev: int, top:
 	var s := Vector2(cx, cy + hh)
 	var w := Vector2(cx - hw, cy)
 	# SE wall faces down-right (toward the upper-right sun -> lit); SW is shadowed.
-	_draw_one_riser(canvas, e, s, elev - _elev(gtx + 1, gty), PixelPalette.shade(top, 0.82))
-	_draw_one_riser(canvas, s, w, elev - _elev(gtx, gty + 1), PixelPalette.shade(top, 0.58))
+	_draw_one_riser(canvas, e, s, elev - _elev_at(p_chunk, lx + 1, ly), PixelPalette.shade(top, 0.82))
+	_draw_one_riser(canvas, s, w, elev - _elev_at(p_chunk, lx, ly + 1), PixelPalette.shade(top, 0.58))
 
 
 static func _draw_one_riser(canvas: CanvasItem, a: Vector2, b: Vector2, drop_steps: int, face: Color) -> void:

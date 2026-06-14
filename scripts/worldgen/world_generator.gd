@@ -114,9 +114,11 @@ func _place_mountains(chunk: RefCounted) -> void:
 			var i := Chunk.idx(tx, ty)
 			if bool(reg.tile_def(chunk.tiles[i]).get("water", false)):
 				continue
-			# The mountain IS the terraced elevation (see classifier.elevation_steps)
-			# plus impassable rocky tiles — no sprites. Snow caps the tall/cold
-			# peaks; everything rocky reads as a Vintage-Story / Minecraft massif.
+			# The mountain IS the terraced elevation (baked per tile here) plus
+			# impassable rocky tiles — no sprites. Snow caps the tall/cold peaks;
+			# everything rocky reads as a Vintage-Story / Minecraft massif. Water and
+			# non-mountain tiles are skipped above, so their elevation stays 0.
 			chunk.tiles[i] = t_snow if (ml == 3 and t_snow >= 0) else t_peak
 			chunk.biomes_t[i] = b_alp if ml == 3 else b_rh
 			chunk.parent_biomes_t[i] = chunk.biomes_t[i]
+			chunk.elev[i] = clampi(classifier.elevation_steps(float(gtx), float(gty)), 0, 255)

@@ -21,6 +21,9 @@ var sub_biomes_t := PackedByteArray() # 255 = none
 var collision := PackedByteArray() # 1 = blocked by a solid structure (entities don't
                                    # block tiles by themselves); water/walls already
                                    # block via tile flags. Derived from `structures`.
+var elev := PackedByteArray()      # terraced terrain elevation in steps, 0 = flat.
+                                   # Non-zero only on mountain rock/snow tiles, so the
+                                   # renderer never raises water or walkable ground.
 var zone: Dictionary = {}
 var safe := false                 # campsite/village chunk: no monster spawns
 var sites: Array = []
@@ -39,10 +42,12 @@ func setup(p_layer: int, p_cx: int, p_cy: int) -> void:
 	parent_biomes_t.resize(WG.CHUNK_TILES * WG.CHUNK_TILES)
 	sub_biomes_t.resize(WG.CHUNK_TILES * WG.CHUNK_TILES)
 	collision.resize(WG.CHUNK_TILES * WG.CHUNK_TILES)
+	elev.resize(WG.CHUNK_TILES * WG.CHUNK_TILES)
 	biomes_t.fill(255)
 	parent_biomes_t.fill(255)
 	sub_biomes_t.fill(255)
 	collision.fill(0)
+	elev.fill(0)
 
 
 func key() -> String:

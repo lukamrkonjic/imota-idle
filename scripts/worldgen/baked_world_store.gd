@@ -83,6 +83,8 @@ func build_chunk(cx: int, cy: int) -> RefCounted:
 	chunk.sub_biomes_t = _decode(e.get("s", ""))
 	if e.has("k"):                       # collision layer (older bakes lack it)
 		chunk.collision = _decode(e.get("k", ""))
+	if e.has("e"):                       # terrain elevation (older bakes lack it)
+		chunk.elev = _decode(e.get("e", ""))
 	chunk.zone = (e.get("zone", {}) as Dictionary).duplicate(true)
 	chunk.safe = bool(e.get("safe", false))
 	chunk.sites = (e.get("sites", []) as Array).duplicate(true)
