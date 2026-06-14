@@ -21,7 +21,11 @@ const VIEW_RADIUS := 8                     # terrain chunks kept rendered around
                                            # gameplay nodes or path graph rebuild cost. Each
                                            # chunk is now a single baked sprite (1 draw call),
                                            # so a wide radius is cheap — see ChunkRenderer.
-const ACTIVE_RADIUS := 2                   # chunks with spawned entities + navigation nodes.
+const ACTIVE_RADIUS := 3                   # chunks with spawned entities + navigation nodes.
+                                           # Must exceed the on-screen radius at normal zoom so
+                                           # houses/ore/monsters spawn & despawn OFF camera, not
+                                           # popping in view. Nav rebuild is debounced so the
+                                           # wider active ring does not hitch on chunk crossings.
 const DETAIL_RADIUS := 3                   # full-detail terrain radius; farther rendered as
                                            # cheap visual LOD to keep the wide view smooth.
 const SITE_SEARCH_RADIUS := 14             # chunks scanned for auto-path targets

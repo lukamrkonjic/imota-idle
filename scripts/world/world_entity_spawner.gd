@@ -34,7 +34,8 @@ func on_chunk_loaded(chunk: RefCounted, immediate: bool = false) -> void:
 	# Initial fill (and anything that must be ready this frame) spawns
 	# synchronously; chunks streamed in as the player walks are spread across a
 	# few frames so a chunk crossing never spikes the frame. The container stays
-	# invisible until finalize, then fades in — so nothing pops in half-built.
+	# invisible until finalize, then is shown instantly (no fade) — and it loads
+	# off camera (ACTIVE_RADIUS), so it is never seen popping in half-built.
 	if immediate:
 		_spawn_chunk_contents(chunk, container)
 		_finalize_chunk(chunk, container)
@@ -469,8 +470,3 @@ static func tier_color(level: int) -> Color:
 	return PixelPalette.enrich_entity(colors[idx])
 
 
-func _fade_in(container: CanvasItem) -> void:
-	var tw := container.create_tween()
-	tw.set_trans(Tween.TRANS_SINE)
-	tw.set_ease(Tween.EASE_OUT)
-	tw.tween_property(container, "modulate:a", 1.0, 0.34)

@@ -14,6 +14,12 @@ var _long_target := Vector2.ZERO
 var _has_long_target := false
 var _repath_budget := 0
 var _needs_rebuild := true
+var _dirty_time := 0.0
+# A chunk crossing activates several chunks over successive frames, each marking
+# the nav graph dirty. Without debouncing, the full A* rebuild ran every one of
+# those frames — the ~2s walking hitch. Wait until the activations settle, then
+# rebuild once.
+const REBUILD_DEBOUNCE := 0.25
 
 
 func setup(w: Node2D) -> void:
@@ -22,14 +28,16 @@ func setup(w: Node2D) -> void:
 
 func mark_path_dirty() -> void:
 	_needs_rebuild = true
+	_dirty_time = Time.get_ticks_msec() / 1000.0
 
 
 func on_level_up() -> void:
 	_needs_rebuild = true
+	_dirty_time = Time.get_ticks_msec() / 1000.0
 
 
 func process_tick() -> void:
-	if _needs_rebuild:
+	if _needs_rebuild and (Time.get_ticks_msec() / 1000.0 - _dirty_time) >= REBUILD_DEBOUNCE:
 		rebuild()
 
 
@@ -50,6 +58,10 @@ func stop_walking() -> void:
 
 
 func walk_to_pos(target: Vector2) -> bool:
+	# A real path request must use a current graph, so flush any debounced rebuild
+	# now rather than waiting out REBUILD_DEBOUNCE.
+	if _needs_rebuild:
+		rebuild()
 	var tile := WG.world_to_tile(target)
 	var direct_ground_click: bool = world.pending_action.is_empty()
 	if path_finder.in_region(tile):
