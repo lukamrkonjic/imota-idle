@@ -25,10 +25,21 @@ Skip verify/play only for documentation-only edits or when the user asks not to.
 
 See `README.md` for architecture and data import commands.
 
-## Authoring world art
+## Design & decisions — read before building
 
-Before drawing or adding any prop / house / structure / decor, read
-`docs/ART_GUIDE.md` — the procedural isometric pixel-art conventions (origin at
-the foot, 2:1 `iso_block` solids, upper-right sun, shared palette, shadow
-helpers) and the end-to-end steps to register a new placeable. The ruin pillar
-(`scripts/world/art/structures/ruin_pillar_art.gd`) is the reference example.
+`docs/DESIGN.md` is the entry point: the game's pillars (OSRS-style skills on the
+Bloobs content lineage, a stronger idle layer, one-sim/dumb-UI, a living
+expandable world) and an index to every decision doc. Before working in an area,
+read its doc so new work reinforces the existing decisions:
+
+- **World shape / geography / expansion** → `docs/WORLD_DESIGN.md` (tile-built,
+  living non-circular continent, radial progression, seamless content growth).
+- **Drawing/adding props, houses, structures, decor** → `docs/ART_GUIDE.md`
+  (origin at the foot, 2:1 `iso_block` solids, upper-right sun, shared palette,
+  shadow helpers, registration chain). The ruin pillar
+  (`scripts/world/art/structures/ruin_pillar_art.gd`) is the reference example.
+- **World generation internals** → `docs/WORLDGEN_GUIDE.md`; **shadows** →
+  `docs/SHADOWS.md`; **content/data** → `docs/CONTENT_GUIDE.md`.
+
+When you make a load-bearing decision in one of these areas, record it in the
+relevant doc (decision → why → consequence), the way the existing entries are.
