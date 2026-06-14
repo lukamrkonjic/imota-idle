@@ -29,6 +29,9 @@ var _no_t := -1.0
 
 
 func _ready() -> void:
+	# Draw above other entities and terrain so the player is never hidden behind
+	# a tall cliff or a prop that y-sorts in front of him (kept below click FX/UI).
+	z_index = 200
 	EventBus.equipment_changed.connect(func() -> void: queue_redraw())
 	EventBus.activity_started.connect(func(_kind: String, _label: String) -> void: queue_redraw())
 	EventBus.activity_stopped.connect(func(_reason: String) -> void: queue_redraw())

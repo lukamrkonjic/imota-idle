@@ -193,8 +193,9 @@ func mountain_field(tx: float, ty: float) -> float:
 ## on; lowlands, valleys, hub and settlements stay flat (entities assume flat
 ## ground). Each step is drawn raised by WG.ELEV_STEP_PX with a bevel riser.
 const ELEV_MAX_STEPS := 80
-const ELEV_BAND := 3        # snap heights to bands so terraces are wide and cliff
-                            # faces are tall and continuous, not 1-tile staircases
+const ELEV_BAND := 4        # snap heights to bands so terraces are wide (walkable)
+                            # and cliff faces are tall and continuous, not 1-tile
+                            # staircases
 func elevation_steps(tx: float, ty: float) -> int:
 	if not _finite:
 		return 0
@@ -204,6 +205,11 @@ func elevation_steps(tx: float, ty: float) -> int:
 	# Steep exponent so foothills stay low but the cold alpine ridges (high mf)
 	# climb to a towering height; quantise into bands for big readable terraces.
 	var raw := pow((mf - 0.70) / 0.54, 1.35) * float(ELEV_MAX_STEPS)
+	# Slope down toward the sea: fade elevation as the land height approaches sea
+	# level so coastal mountains taper to the shore instead of dropping as a sheer
+	# cliff into the water (also smooths the rim where mountains meet lowland).
+	var land_h := _apply_continent(tx, ty, _height.get_noise_2d(tx, ty) * 0.5 + 0.5)
+	raw *= smoothstep(0.30, 0.54, land_h)
 	return int(round(raw / float(ELEV_BAND))) * ELEV_BAND
 
 

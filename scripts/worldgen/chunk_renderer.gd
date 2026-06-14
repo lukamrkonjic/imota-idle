@@ -160,16 +160,11 @@ static func _draw_one_riser(canvas: CanvasItem, a: Vector2, b: Vector2, drop_ste
 	var down := Vector2(0.0, h)
 	# Solid cliff face (no per-step strata — those just read as noise).
 	canvas.draw_colored_polygon(PackedVector2Array([a, b, b + down, a + down]), face)
-	# Dark contour + ambient occlusion right under the plateau lip — this is the
-	# single strongest cue separating "walkable top" from "vertical cliff".
-	var lip := minf(h, 4.0)
+	# A subtle darker band under the plateau lip separates "walkable top" from
+	# "vertical cliff" without a heavy black line.
+	var lip := minf(h, 2.0)
 	canvas.draw_colored_polygon(PackedVector2Array([
-		a, b, b + Vector2(0.0, lip), a + Vector2(0.0, lip)]), PixelPalette.shade(face, 0.4))
-	# Contact shadow grounding the foot of the cliff into the lower surface.
-	var foot := minf(h * 0.5, 4.0)
-	canvas.draw_colored_polygon(PackedVector2Array([
-		a + down - Vector2(0.0, foot), b + down - Vector2(0.0, foot), b + down, a + down]),
-		PixelPalette.shade(face, 0.66))
+		a, b, b + Vector2(0.0, lip), a + Vector2(0.0, lip)]), PixelPalette.shade(face, 0.78))
 
 
 static func _draw_flat_tile(canvas: CanvasItem, gtx: int, gty: int, top: Color, water: bool, soft: bool, oy: float = 0.0) -> void:
