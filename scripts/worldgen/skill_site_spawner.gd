@@ -428,6 +428,8 @@ func _tile_ok(chunk: RefCounted, occupied: Dictionary, t: Vector2i, water_edge: 
 		return false
 	if occupied.has(Chunk.idx(t.x, t.y)):
 		return false
+	if chunk.elev.size() > 0 and chunk.elev[Chunk.idx(t.x, t.y)] > 0:
+		return false   # no gather nodes on the raised mountain rock
 	var td: Dictionary = _tile_def_at(chunk, t.x, t.y)
 	if td.is_empty() or not td["walkable"] or td["water"] or td["hazard"]:
 		return false

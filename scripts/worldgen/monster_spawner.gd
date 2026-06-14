@@ -58,6 +58,8 @@ func _pick_tile(chunk: RefCounted, occupied: Dictionary, salt: int) -> Vector2i:
 		var ty := 1 + WG.hash_i(world_seed, chunk.cx, chunk.cy * 13 + salt, 111 + attempt + chunk.layer * 7) % (WG.CHUNK_TILES - 2)
 		if occupied.has(Chunk.idx(tx, ty)):
 			continue
+		if chunk.elev.size() > 0 and chunk.elev[Chunk.idx(tx, ty)] > 0:
+			continue   # keep wildlife off the raised mountain rock
 		var td: Dictionary = reg.tile_def(chunk.tile_id(tx, ty))
 		if td["walkable"] and not td["water"] and not td["hazard"]:
 			return Vector2i(tx, ty)

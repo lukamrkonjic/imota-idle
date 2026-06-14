@@ -45,11 +45,34 @@ func rebuild(chunks: Array, reg: RefCounted, entry_level: int) -> void:
 				locked_chunks[key] = req
 				_fill_solid(base)
 				continue
+			var has_elev: bool = c.elev.size() > 0
 			for ty: int in WG.CHUNK_TILES:
 				for tx: int in WG.CHUNK_TILES:
 					var td: Dictionary = reg.tile_def(c.tile_id(tx, ty))
-					if not td["walkable"] or td["hazard"] or c.is_blocked(tx, ty):
+					var solid: bool = not td["walkable"] or td["hazard"] or c.is_blocked(tx, ty)
+					if not solid and has_elev:
+						var e: int = c.elev[ty * WG.CHUNK_TILES + tx]
+						# Too high to climb, or an isolated sheer spike with no
+						# gentle neighbour to step from -> unreachable.
+						if e > WG.MAX_REACHABLE_ELEV or (e > 0 and _is_sheer(c, tx, ty, e)):
+							solid = true
+					if solid:
 						grid.set_point_solid(base + Vector2i(tx, ty), true)
+
+
+## True when no in-chunk orthogonal neighbour is within one climbable step of
+## this tile's elevation — i.e. a sheer pinnacle/pit the player can't step onto.
+## (Edge tiles whose neighbours fall outside the chunk are treated as reachable
+## to avoid false sheer faces at chunk seams.)
+func _is_sheer(c: RefCounted, tx: int, ty: int, e: int) -> bool:
+	for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		var nx: int = tx + d.x
+		var ny: int = ty + d.y
+		if nx < 0 or ny < 0 or nx >= WG.CHUNK_TILES or ny >= WG.CHUNK_TILES:
+			return false
+		if absi(int(c.elev[ny * WG.CHUNK_TILES + nx]) - e) <= WG.MAX_CLIMB_STEP:
+			return false
+	return true
 
 
 func _fill_solid(base: Vector2i) -> void:

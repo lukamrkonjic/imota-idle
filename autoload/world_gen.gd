@@ -219,6 +219,22 @@ func is_walkable_world(pos: Vector2, layer: int = 0) -> bool:
 	return true
 
 
+## Terraced terrain elevation (in steps) under a world position — 0 on flat
+## ground/water, rising over mountains. Drives the player's visual height so it
+## reads clearly when he is up on a slope versus down in a valley.
+func elevation_at(pos: Vector2, layer: int = 0) -> int:
+	if layer != 0:
+		return 0
+	var t := WG.world_to_tile(pos)
+	var c := WG.tile_to_chunk(t)
+	var chunk: RefCounted = get_chunk(0, c.x, c.y)
+	if chunk == null or chunk.elev.size() == 0:
+		return 0
+	var lx: int = t.x - c.x * WG.CHUNK_TILES
+	var ly: int = t.y - c.y * WG.CHUNK_TILES
+	return chunk.elev[ly * WG.CHUNK_TILES + lx]
+
+
 func is_water_world(pos: Vector2, layer: int = 0) -> bool:
 	var td: Dictionary = _tile_def_at_world(pos, layer)
 	return not td.is_empty() and bool(td.get("water", false))

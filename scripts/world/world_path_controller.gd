@@ -57,6 +57,7 @@ func walk_to_pos(target: Vector2) -> bool:
 			var zone: Dictionary = WorldGen.zone_at(target)
 			EventBus.combat_log.emit("[color=#a01010]You need level %d to enter %s.[/color]" % [
 				int(zone["req"]), str(zone["name"])])
+			world.player.play_no()
 			world.pending_action = {}
 			world.auto_task = {}
 			return false
@@ -66,6 +67,7 @@ func walk_to_pos(target: Vector2) -> bool:
 		if int(zone["req"]) > WorldGen.player_entry_level():
 			EventBus.combat_log.emit("[color=#a01010]You need level %d to enter %s.[/color]" % [
 				int(zone["req"]), str(zone["name"])])
+			world.player.play_no()
 			world.pending_action = {}
 			world.auto_task = {}
 			return false
@@ -76,6 +78,7 @@ func walk_to_pos(target: Vector2) -> bool:
 	var path := PackedVector2Array(path_finder.find_path(world.player.position, target))
 	if path.is_empty():
 		EventBus.combat_log.emit("[color=#444]You can't reach that.[/color]")
+		world.player.play_no()
 		world.pending_action = {}
 		return false
 	if not world.pending_action.is_empty() and not _has_long_target and path.size() >= 2:

@@ -8,6 +8,10 @@ const ISO_HW := TILE * 0.5                 # half-width of top diamond face
 const ISO_HH := TILE * 0.25                # half-height (2:1 isometric ratio)
 const BLOCK_RISE := 6.0                    # vertical extrusion for solid blocks
 const ELEV_STEP_PX := 6.0                  # screen px a terrain raises per elevation step
+const MAX_REACHABLE_ELEV := 14             # player can climb up to this elevation; higher
+                                           # rock/snow is unreachable (routed around)
+const MAX_CLIMB_STEP := 3                  # biggest single-step elevation change the player
+                                           # can hop up; isolated spikes beyond it are sheer
 const CHUNK_TILES := 16                    # tiles per chunk side
 const CHUNK_SIZE := TILE * float(CHUNK_TILES)  # legacy ortho estimate; use chunk_aabb()
 const ZONE_CELL := 6                       # zone Voronoi cell size, in chunks

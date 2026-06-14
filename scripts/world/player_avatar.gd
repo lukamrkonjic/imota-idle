@@ -4,10 +4,14 @@ extends Node2D
 
 const IsoSprites := preload("res://scripts/world/art/iso_sprites.gd")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
+const WG := preload("res://scripts/worldgen/wg.gd")
 
 signal arrived
 
 const SPEED := 230.0
+const JUMP_DUR := 0.26   # one hop when stepping up a large elevation change
+const JUMP_AMP := 9.0
+const NO_DUR := 0.5      # head-shake "can't go there" wobble
 
 var walk_target := Vector2.ZERO
 var walking := false
@@ -16,6 +20,12 @@ var facing := 1
 var _t := 0.0
 var _fish_cast_local := Vector2.ZERO
 var _fish_casting := false
+# Terrain-elevation follow: the avatar rides the terraced ground height so it is
+# clear when he is up on a slope versus down on flat land.
+var _vis_y := 0.0          # smoothed vertical draw offset (px, negative = up)
+var _prev_elev := -9999
+var _jump_t := -1.0
+var _no_t := -1.0
 
 
 func _ready() -> void:
@@ -37,7 +47,46 @@ func _process(delta: float) -> void:
 			arrived.emit()
 		else:
 			position += to_target.normalized() * step
+	_update_elevation(delta)
 	queue_redraw()
+
+
+## Ride the terraced terrain height. Snaps on the first frame / teleport, then
+## smoothly eases as the player crosses tiles; a big step up triggers a hop.
+func _update_elevation(delta: float) -> void:
+	var elev: int = WorldGen.elevation_at(position) if WorldGen != null else 0
+	if _prev_elev == -9999:
+		_prev_elev = elev
+		_vis_y = -float(elev) * WG.ELEV_STEP_PX
+	if walking and elev - _prev_elev >= 2 and _jump_t < 0.0:
+		_jump_t = 0.0
+	_prev_elev = elev
+	_vis_y = lerpf(_vis_y, -float(elev) * WG.ELEV_STEP_PX, clampf(delta * 12.0, 0.0, 1.0))
+	if _jump_t >= 0.0:
+		_jump_t += delta
+		if _jump_t >= JUMP_DUR:
+			_jump_t = -1.0
+	if _no_t >= 0.0:
+		_no_t += delta
+		if _no_t >= NO_DUR:
+			_no_t = -1.0
+
+
+## Play a left-right-left head-shake to signal "you can't go there".
+func play_no() -> void:
+	if _no_t < 0.0:
+		_no_t = 0.0
+	queue_redraw()
+
+
+func _visual_offset() -> Vector2:
+	var jy := 0.0
+	if _jump_t >= 0.0:
+		jy = -sin(PI * (_jump_t / JUMP_DUR)) * JUMP_AMP
+	var nx := 0.0
+	if _no_t >= 0.0:
+		nx = sin(_no_t * TAU * 3.0) * 4.0 * (1.0 - _no_t / NO_DUR)
+	return Vector2(nx, _vis_y + jy)
 
 
 func walk_to(target: Vector2) -> void:
@@ -92,6 +141,7 @@ func _mode() -> String:
 
 
 func _draw() -> void:
+	draw_set_transform(_visual_offset(), 0.0, Vector2.ONE)
 	var cast_local := _fish_cast_local if _fish_casting else Vector2.ZERO
 	IsoSprites.draw_player(
 		self, PixelPalette.pal("skin_a"), PixelPalette.pal("outfit_a"),

@@ -192,7 +192,7 @@ func mountain_field(tx: float, ty: float) -> float:
 ## all impassable) so elevation is non-zero only on rock the player cannot stand
 ## on; lowlands, valleys, hub and settlements stay flat (entities assume flat
 ## ground). Each step is drawn raised by WG.ELEV_STEP_PX with a bevel riser.
-const ELEV_MAX_STEPS := 60
+const ELEV_MAX_STEPS := 100
 func elevation_steps(tx: float, ty: float) -> int:
 	if not _finite:
 		return 0
