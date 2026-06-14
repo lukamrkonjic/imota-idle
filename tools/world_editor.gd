@@ -659,7 +659,8 @@ func _draw_overlay(c: CanvasItem) -> void:
 						if _show_elevation and chunk.elev.size() > 0:
 							var elev: int = chunk.elev[Chunk.idx(lx, ly)]
 							if elev > 0:
-								c.draw_rect(Rect2(px, py, 1.0, 1.0), _elev_tint(float(elev) / 40.0))
+								c.draw_rect(Rect2(px, py, 1.0, 1.0),
+									_elev_tint(float(elev) / float(classifier.ELEV_MAX_STEPS)))
 	if _show_structs:
 		var view := _view_rect_tiles()
 		for key: String in _chunks:

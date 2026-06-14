@@ -185,6 +185,8 @@ func _apply(chunk: RefCounted, plan: StructurePlan, spec: Dictionary, occupied: 
 			var cur: Dictionary = reg.tile_def(chunk.tile_id(lx, ly))
 			if bool(cur.get("water", false)) or bool(cur.get("hazard", false)):
 				continue
+			if chunk.elev.size() > 0 and chunk.elev[Chunk.idx(lx, ly)] > 0:
+				continue   # never carve a man-made footprint into raised mountain terrain
 			chunk.tiles[Chunk.idx(lx, ly)] = tid
 			if city:
 				occupied[Chunk.idx(lx, ly)] = true
@@ -193,9 +195,12 @@ func _apply(chunk: RefCounted, plan: StructurePlan, spec: Dictionary, occupied: 
 		var ly: int = int(p["ty"]) - by
 		if lx < 0 or ly < 0 or lx >= WG.CHUNK_TILES or ly >= WG.CHUNK_TILES:
 			continue
-		# Never place a structure on water or hazard — keep buildings on land.
+		# Never place a structure on water, hazard, or raised mountain terrain —
+		# keep buildings and ruins on flat, walkable land.
 		var under: Dictionary = reg.tile_def(chunk.tile_id(lx, ly))
 		if bool(under.get("water", false)) or bool(under.get("hazard", false)):
+			continue
+		if chunk.elev.size() > 0 and chunk.elev[Chunk.idx(lx, ly)] > 0:
 			continue
 		var local := p.duplicate()
 		local["tx"] = lx
