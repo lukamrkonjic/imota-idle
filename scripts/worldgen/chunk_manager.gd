@@ -169,6 +169,19 @@ func _detail_for(coords: Vector2i) -> int:
 	return ChunkRenderer.DETAIL_FULL if _within_radius(coords, _center, detail_radius) else ChunkRenderer.DETAIL_LOW
 
 
+## Frustum-cull the terrain renderers to the camera view (with a generous
+## per-chunk margin so a chunk becomes visible just before it scrolls on screen
+## and stays until it is fully off screen). Without this, every loaded terrain
+## chunk in the wide stream radius is drawn every frame even far off screen.
+func set_view_rect(rect: Rect2) -> void:
+	for key: String in _renderers.keys():
+		var coord := _coord_from_key(key)
+		if coord == Vector2i(999999, 999999):
+			continue
+		var aabb := WG.chunk_aabb(coord.x, coord.y).grow(WG.CHUNK_SIZE * 0.6)
+		_renderers[key].visible = aabb.intersects(rect)
+
+
 func _update_renderer_detail() -> void:
 	for key: String in _renderers.keys():
 		var coord := _coord_from_key(key)

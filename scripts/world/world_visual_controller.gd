@@ -58,6 +58,9 @@ func process_tick(delta: float) -> void:
 	_xp_float_cooldown = maxf(_xp_float_cooldown - delta, 0.0)
 	TreeArt.advance_wind(delta)
 	_cached_visible_rect = _visible_world_rect()
+	# Cheap (a handful of AABB tests) and done every frame so terrain shows/hides
+	# right at the view edge with no late pop when panning or walking fast.
+	world.chunk_manager.set_view_rect(_cached_visible_rect)
 	if world.current_layer == 0:
 		_wind_redraw_accum += delta
 		if _wind_redraw_accum >= 0.12:
@@ -138,7 +141,7 @@ func _update_visibility_budget(delta: float) -> void:
 	var vp := world.get_viewport().get_visible_rect().size
 	var zoom: float = world._camera.zoom.x
 	var world_size: Vector2 = vp / zoom
-	var margin := WG.CHUNK_SIZE * 0.35
+	var margin := WG.CHUNK_SIZE * 0.5
 	var rect := Rect2(world._camera.global_position - world_size * 0.5 - Vector2(margin, margin), world_size + Vector2(margin * 2.0, margin * 2.0))
 	for key: String in world._chunk_containers.keys():
 		var container: Node2D = world._chunk_containers[key]
@@ -176,7 +179,7 @@ func _visible_world_rect() -> Rect2:
 	var vp := world.get_viewport().get_visible_rect().size
 	var zoom: float = world._camera.zoom.x
 	var world_size: Vector2 = vp / zoom
-	var margin := WG.CHUNK_SIZE * 0.35
+	var margin := WG.CHUNK_SIZE * 0.5
 	return Rect2(
 		world._camera.global_position - world_size * 0.5 - Vector2(margin, margin),
 		world_size + Vector2(margin * 2.0, margin * 2.0))
