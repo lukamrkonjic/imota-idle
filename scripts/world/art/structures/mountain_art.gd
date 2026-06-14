@@ -1,14 +1,12 @@
 extends RefCounted
 class_name MountainArt
-## A detailed isometric mountain massif: a faceted rock pyramid with shaded
-## faces (lit from the upper-right to match the world sun), carved striations, a
-## smaller shoulder peak for a ridgeline feel, and a snow cap on the tall/cold
-## ones. Drawn big — it rises well above its footprint so a cluster of these
-## reads as a mountain range with valleys and passes between them.
+## A chunky isometric ROCK MASSIF: a broad rounded base of bedrock and boulders
+## rising to one blunt, flat-topped summit flanked by a couple of lower rocky
+## shoulders — wide rather than tall, faceted, lit from the upper-right with
+## shadowed left faces, horizontal rock strata and dark crevices. Snow caps the
+## tall/cold crowns. A few of these on a ridge crest read as a mountain range.
 ##
-## `foot`    footprint in tiles (~2-4).
-## `variant` seeds height, lean, shoulder peak, striations, snow line.
-## `snow`    0..1 snow coverage (1 = white-capped alpine peak).
+## `foot` footprint in tiles; `variant` seeds the layout; `snow` 0..1.
 
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 const PixelDraw := preload("res://scripts/world/art/core/pixel_draw.gd")
@@ -16,83 +14,98 @@ const ShadowProjector := preload("res://scripts/world/art/core/shadow_projector.
 const WG := preload("res://scripts/worldgen/wg.gd")
 
 
+# Deliberately squat: height tracks width so the form reads as a chunky rock
+# mass, not a spike (footprint half-width is foot*16, so height ~= width).
 static func height_for(foot: float, variant: int) -> float:
-	return 50.0 + foot * 18.0 + float(variant % 3) * 16.0
+	return 24.0 + foot * 8.0 + float(variant % 3) * 5.0
 
 
 static func _ext(foot: float) -> Vector2:
 	return Vector2(foot * float(WG.ISO_HW), foot * float(WG.ISO_HH))
 
 
-static func _tri(canvas: CanvasItem, a: Vector2, b: Vector2, c: Vector2, col: Color) -> void:
-	canvas.draw_colored_polygon(PackedVector2Array([a, b, c]), col)
+static func _rock() -> Color:
+	return PixelPalette.pal("stone_b").lerp(PixelPalette.pal("trunk_b"), 0.10)
 
 
 static func draw(canvas: CanvasItem, foot: float, variant: int, snow: float = 0.0) -> void:
 	var e := _ext(foot)
-	var w := Vector2(-e.x, 0.0)
-	var n := Vector2(0.0, -e.y)
-	var ee := Vector2(e.x, 0.0)
-	var s := Vector2(0.0, e.y)
 	var h := height_for(foot, variant)
-	var lean := (WG.r01(variant, 3, 1, 7) - 0.5) * e.x * 0.5
-	var apex := Vector2(lean, -h)
+	ShadowProjector.cast_silhouette(
+		canvas, PackedVector2Array([Vector2(-e.x, 0), Vector2(0, -e.y), Vector2(e.x, 0), Vector2(0, e.y)]), h, 0.5)
 
-	ShadowProjector.cast_silhouette(canvas, PackedVector2Array([w, n, ee, s]), h, 0.5)
+	var rk := _rock()
+	_scree(canvas, e, rk, variant)
+	# Lower rocky shoulders first (behind), then the main blunt summit on top.
+	var shoulders := 1 + variant % 2
+	for i: int in shoulders:
+		var side := -1.0 if (i % 2 == 0) else 1.0
+		var off := Vector2(side * e.x * (0.34 + 0.12 * WG.r01(variant, i, 4, 5)), e.y * 0.16)
+		_summit(canvas, e, off, h * (0.5 + 0.12 * WG.r01(variant, i, 6, 3)),
+			e.x * (0.42 + 0.1 * WG.r01(variant, i, 7, 2)), rk, variant * 7 + i + 1, snow)
+	_summit(canvas, e, Vector2(0, -e.y * 0.1), h, e.x * 0.62, rk, variant, snow)
 
-	# optional shoulder peak behind/beside the main one (drawn first, so it sits behind)
-	if variant % 3 != 0:
-		var sx := e.x * (0.42 if variant % 2 == 0 else -0.42)
-		_peak(canvas, Vector2(sx, 0.0), foot * 0.62, h * 0.66, variant + 11, snow * 0.85)
 
-	_peak(canvas, Vector2.ZERO, foot, h, variant, snow, apex)
+# Boulder/scree apron — grounds the massif so it sits in the terrain.
+static func _scree(canvas: CanvasItem, e: Vector2, rk: Color, variant: int) -> void:
+	var n := 8 + variant % 4
+	for i: int in n:
+		var ang := TAU * float(i) / float(n) + WG.r01(variant, i, 7, 2)
+		var rad := e.x * (0.55 + 0.45 * WG.r01(variant, i, 8, 4))
+		var bx := cos(ang) * rad
+		var by := sin(ang) * rad * 0.5 + e.y * 0.42
+		var r := maxf(e.x * 0.2, 5.0) * (0.7 + 0.6 * WG.r01(variant, i, 9, 6))
+		PixelDraw.px_blob(canvas, bx, by, r, r * 0.58, PixelPalette.shade(rk, 0.7))
+		PixelDraw.px_blob(canvas, bx, by - r * 0.28, r * 0.7, r * 0.4, PixelPalette.shade(rk, 1.02))
+		PixelDraw.px_blob(canvas, bx - r * 0.2, by - r * 0.4, r * 0.32, r * 0.2, PixelPalette.shade(rk, 1.3), 0.85)
 
 
-static func _peak(canvas: CanvasItem, off: Vector2, foot: float, h: float, variant: int,
-		snow: float, apex_override := Vector2.INF) -> void:
-	var e := _ext(foot)
-	var w := off + Vector2(-e.x, 0.0)
-	var n := off + Vector2(0.0, -e.y)
-	var ee := off + Vector2(e.x, 0.0)
-	var s := off + Vector2(0.0, e.y)
-	var apex: Vector2 = (off + Vector2(0.0, -h)) if apex_override == Vector2.INF else apex_override
+# One blunt, flat-topped rock mass: a wide base sweeping to a short horizontal
+# crown (not a point). Split into a shadowed left face and a lit right face, with
+# horizontal rock strata, a couple of crevices and an optional snow cap.
+static func _summit(canvas: CanvasItem, e: Vector2, center: Vector2, h: float, hw: float, rk: Color, salt: int, snow: float) -> void:
+	var lean := (WG.r01(salt, 1, 2, 3) - 0.5) * hw * 0.3
+	var base_y := center.y + hw * 0.16
+	var bl := center + Vector2(-hw, base_y - center.y)
+	var br := center + Vector2(hw, base_y - center.y)
+	var cw := hw * 0.34                                   # blunt crown half-width
+	var cl := center + Vector2(lean - cw, -h)
+	var cr := center + Vector2(lean + cw, -h)
+	var bc := center + Vector2(0.0, base_y - center.y)    # base centre
+	var tc := center + Vector2(lean, -h)                  # crown centre
 
-	var rock := PixelPalette.pal("stone_b")
-	# Four faces, shaded by the upper-right sun: NE brightest, SW darkest.
-	var f_ne := PixelPalette.shade(rock, 1.22)   # n->e (back-right)
-	var f_nw := PixelPalette.shade(rock, 0.98)   # w->n (back-left)
-	var f_se := PixelPalette.shade(rock, 0.80)   # e->s (front-right)
-	var f_sw := PixelPalette.shade(rock, 0.62)   # s->w (front-left)
-	_tri(canvas, n, ee, apex, f_ne)
-	_tri(canvas, w, n, apex, f_nw)
-	_tri(canvas, ee, s, apex, f_se)
-	_tri(canvas, s, w, apex, f_sw)
+	var lit := PixelPalette.shade(rk, 1.22)
+	var mid := PixelPalette.shade(rk, 0.95)
+	var dark := PixelPalette.shade(rk, 0.6)
+	# shoulders of the slope (back faces) give it girth
+	canvas.draw_colored_polygon(PackedVector2Array([bl, cl, tc, bc]), dark)         # left / shadow
+	canvas.draw_colored_polygon(PackedVector2Array([bc, tc, cr, br]), lit)          # right / lit
+	# blunt crown top facet (catches the most light)
+	var tb := tc + Vector2(0.0, -hw * 0.05)
+	canvas.draw_colored_polygon(PackedVector2Array([cl, tb, cr, tc]), PixelPalette.shade(rk, 1.36))
 
-	# carved striations: faint lines following the slopes on the front faces
-	var line := PixelPalette.shade(rock, 0.5)
-	line.a = 0.4
-	for i: int in range(1, 4):
-		var t := float(i) / 4.0
-		canvas.draw_line(s.lerp(apex, t), w.lerp(apex, t), line, 1.0)
-		canvas.draw_line(s.lerp(apex, t), ee.lerp(apex, t), PixelPalette.shade(rock, 0.7) * Color(1, 1, 1, 0.5), 1.0)
-	# a couple of lit rock highlights near the ridge
-	var hi := PixelPalette.shade(rock, 1.4)
-	canvas.draw_line(n.lerp(apex, 0.15), apex, hi, 1.5)
+	# horizontal rock strata across both faces
+	var strata := PixelPalette.shade(rk, 0.74)
+	strata.a = 0.5
+	for s: int in 3:
+		var t := 0.28 + 0.22 * float(s)
+		var ll := bl.lerp(cl, t)
+		var rr := br.lerp(cr, t)
+		canvas.draw_line(ll, bc.lerp(tc, t), strata, 1.0)
+		canvas.draw_line(bc.lerp(tc, t), rr, strata, 1.0)
+	# central ridge highlight + a crevice
+	canvas.draw_line(bc, tc, PixelPalette.shade(rk, 1.5) * Color(1, 1, 1, 0.7), 1.5)
+	var crev := PixelPalette.shade(rk, 0.42)
+	crev.a = 0.55
+	canvas.draw_line(bl.lerp(cl, 0.2), tc.lerp(cr, 0.4), crev, 1.0)
 
-	# snow cap — a smaller bright pyramid from a jagged snow line up to the apex
-	if snow > 0.02:
-		var line_t := clampf(1.0 - snow * 0.6, 0.30, 0.85)   # more snow => lower line
-		var rw := w.lerp(apex, line_t)
-		var rn := n.lerp(apex, line_t)
-		var re := ee.lerp(apex, line_t)
-		var rs := s.lerp(apex, line_t)
-		# ragged drips down the front faces
-		var d := PixelPalette.snap(6.0)
-		rs += Vector2(0.0, d * (1.0 + WG.r01(variant, 5, 2, 9)))
-		var snow_c := PixelPalette.pal("snow_a")
-		_tri(canvas, rn, re, apex, snow_c)
-		_tri(canvas, rw, rn, apex, PixelPalette.shade(snow_c, 0.94))
-		_tri(canvas, re, rs, apex, PixelPalette.shade(snow_c, 0.86))
-		_tri(canvas, rs, rw, apex, PixelPalette.shade(snow_c, 0.80))
-		# bright cap tip
-		PixelDraw.px_diamond(canvas, apex.x, apex.y + 2.0, 4.0, 2.0, PixelPalette.shade(snow_c, 1.05))
+	# snow cap — clean cap from the snow line up over the blunt crown
+	if snow > 0.02 and h > 26.0:
+		var t := clampf(0.58 - snow * 0.18, 0.4, 0.68)
+		var sc := PixelPalette.pal("snow_a")
+		var sl := bl.lerp(cl, t)
+		var sr := br.lerp(cr, t)
+		var sm := bc.lerp(tc, t)
+		canvas.draw_colored_polygon(PackedVector2Array([sm, tc, cr, sr]), sc)
+		canvas.draw_colored_polygon(PackedVector2Array([sl, cl, tc, sm]), PixelPalette.shade(sc, 0.84))
+		canvas.draw_colored_polygon(PackedVector2Array([cl, tb, cr, tc]), sc)

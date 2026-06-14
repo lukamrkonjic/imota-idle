@@ -614,7 +614,16 @@ func _try_close_front_popup() -> bool:
 func _unhandled_input(event: InputEvent) -> void:
 	if not event is InputEventKey or not event.pressed or event.echo:
 		return
+	if event.keycode == KEY_M:
+		if world_map != null:
+			world_map.toggle()
+			get_viewport().set_input_as_handled()
+		return
 	if event.keycode != KEY_ESCAPE:
+		return
+	if world_map != null and world_map.visible:        # Esc closes the map first
+		world_map.visible = false
+		get_viewport().set_input_as_handled()
 		return
 	if _try_close_front_popup():
 		get_viewport().set_input_as_handled()

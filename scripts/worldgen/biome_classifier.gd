@@ -166,9 +166,12 @@ func geo(tx: float, ty: float) -> Dictionary:
 ## (impassable), 3 snow peak (impassable). Ranges sit in a northern highland belt
 ## plus occasional spines; ridged noise carves ridgelines with gaps (passes), so
 ## a cluster reads as a range with valleys and walkable passes between peaks.
-func mountain_level(tx: float, ty: float) -> int:
+## Continuous mountain elevation 0..~1.2 (0 = no mountain here). The ridged noise
+## carves ridgelines; gated to the northern highland belt or a range spine. Used
+## both to classify tiles and to find ridge crests for placing massif art.
+func mountain_field(tx: float, ty: float) -> float:
 	if not _finite:
-		return 0
+		return 0.0
 	var g: Dictionary = geo(tx, ty)
 	var nn: float = g["n"]
 	var dd: float = g["d"]
@@ -178,12 +181,19 @@ func mountain_level(tx: float, ty: float) -> int:
 	var north_belt := nn > 0.22 and dd > 0.32 and dd < 0.88
 	var spine := range_mask > 0.74
 	if not (north_belt or spine) or dd < 0.26:
-		return 0
+		return 0.0
 	var ridged := 1.0 - absf(_mtn_ridge.get_noise_2d(tx, ty))          # ~0..1, peaks ~1
-	var v := ridged * (0.62 + range_mask * 0.6)
+	return ridged * (0.62 + range_mask * 0.6)
+
+
+## Mountain elevation at a tile: 0 none, 1 foothill (walkable rock), 2 rock peak
+## (impassable), 3 snow peak (impassable).
+func mountain_level(tx: float, ty: float) -> int:
+	var v := mountain_field(tx, ty)
 	if v < 0.70:
 		return 0
-	if v > 0.90 and (nn > 0.42 or dd > 0.62):
+	var g: Dictionary = geo(tx, ty)
+	if v > 0.90 and (float(g["n"]) > 0.42 or float(g["d"]) > 0.62):
 		return 3                                                       # snow cap
 	if v > 0.80:
 		return 2                                                       # rock peak (impassable)

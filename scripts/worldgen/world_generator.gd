@@ -123,8 +123,30 @@ func _place_mountains(chunk: RefCounted) -> void:
 				chunk.tiles[i] = t_snow if (ml == 3 and t_snow >= 0) else t_peak
 				chunk.biomes_t[i] = b_alp if ml == 3 else b_rh
 				chunk.parent_biomes_t[i] = chunk.biomes_t[i]
-				if gtx % 4 == 0 and gty % 4 == 0:
-					var foot: int = 3 + int(WG.hash_i(world_seed, gtx, gty, 71) % 3)
+				# Drop a massif sprite only on a ridge CREST (a local maximum of the
+				# mountain field) so the range reads as a few big rock massifs with
+				# bare rock slopes and passes between, not a dense field of cones.
+				if _is_ridge_crest(gtx, gty):
+					var foot: int = 5 + int(WG.hash_i(world_seed, gtx, gty, 71) % 3)
 					chunk.structures.append({
 						"kind": "mountain", "tx": tx, "ty": ty, "foot": foot,
 						"snow": 1.0 if ml == 3 else 0.0})
+
+
+## True when (gtx,gty) is a strict local maximum of the mountain field within a
+## radius-3 neighbourhood and prominent enough to deserve a massif. Ties broken by
+## a hash so a flat crest still yields exactly one sprite.
+func _is_ridge_crest(gtx: int, gty: int) -> bool:
+	var v: float = classifier.mountain_field(float(gtx), float(gty))
+	if v < 0.84:
+		return false
+	for dy: int in range(-3, 4):
+		for dx: int in range(-3, 4):
+			if dx == 0 and dy == 0:
+				continue
+			var nv: float = classifier.mountain_field(float(gtx + dx), float(gty + dy))
+			if nv > v:
+				return false
+			if nv == v and (WG.hash_i(world_seed, gtx + dx, gty + dy, 3) > WG.hash_i(world_seed, gtx, gty, 3)):
+				return false
+	return true

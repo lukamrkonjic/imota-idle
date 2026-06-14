@@ -30,6 +30,13 @@ var _tasks: Dictionary = {}       # task id -> chunk key
 var _results: Dictionary = {}     # chunk key -> Image (worker -> main handoff)
 var _results_mutex := Mutex.new()
 
+# Incremental streaming: after the initial fill, new chunks are queued and loaded
+# a few per frame instead of all at once on the crossing frame. This trades a
+# slightly slower fill for no frame hiccup when the player walks into a new area.
+const LOADS_PER_FRAME := 1
+var _load_queue: Array = []       # Array[Vector2i], nearest-first
+var _queued: Dictionary = {}      # "cx:cy" -> true (dedupe what's already queued)
+
 
 func loaded_chunks() -> Array:
 	return _chunks.values()
@@ -52,6 +59,8 @@ func set_layer(new_layer: int) -> void:
 func clear_all() -> void:
 	for key: String in _renderers.keys():
 		_unload(key)
+	_load_queue.clear()
+	_queued.clear()
 	_center = Vector2i(2000000, 2000000)
 
 
@@ -60,14 +69,25 @@ func update_center(world_pos: Vector2) -> void:
 	var c := WG.world_to_chunk(world_pos)
 	if c == _center:
 		return
+	# The very first centering loads its whole ring synchronously (a one-time
+	# load cost), so the player never sees a blank world at spawn. Every later
+	# crossing streams new chunks in over several frames to avoid a hiccup.
+	var first_fill: bool = _center.x == 2000000
 	_center = c
 	var needed: Dictionary = {}
 	for dy: int in range(-view_radius, view_radius + 1):
 		for dx: int in range(-view_radius, view_radius + 1):
 			needed["%d:%d" % [c.x + dx, c.y + dy]] = Vector2i(c.x + dx, c.y + dy)
 	for key: String in needed:
-		if not _renderers.has(key):
+		if _renderers.has(key) or _queued.has(key):
+			continue
+		if first_fill:
 			_load(needed[key])
+		else:
+			_load_queue.append(needed[key])
+			_queued[key] = true
+	if not _load_queue.is_empty():
+		_load_queue.sort_custom(_closer_to_center)
 	for key: String in _renderers.keys():
 		if not needed.has(key):
 			var parts: PackedStringArray = key.split(":")
@@ -97,8 +117,26 @@ func _load(coords: Vector2i) -> void:
 	chunk_loaded.emit(chunk)
 
 
+func _closer_to_center(a: Vector2i, b: Vector2i) -> bool:
+	var da := absi(a.x - _center.x) + absi(a.y - _center.y)
+	var db := absi(b.x - _center.x) + absi(b.y - _center.y)
+	return da < db
+
+
 func _process(_delta: float) -> void:
-	pass
+	# Stream queued chunks in a few per frame; skip any that are already loaded
+	# or that the player has since walked out of range of.
+	var budget := LOADS_PER_FRAME
+	while budget > 0 and not _load_queue.is_empty():
+		var coord: Vector2i = _load_queue.pop_front()
+		var key := "%d:%d" % [coord.x, coord.y]
+		_queued.erase(key)
+		if _renderers.has(key):
+			continue
+		if absi(coord.x - _center.x) > view_radius or absi(coord.y - _center.y) > view_radius:
+			continue
+		_load(coord)
+		budget -= 1
 
 
 func _unload(key: String) -> void:
