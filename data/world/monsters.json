@@ -27,6 +27,7 @@
     { "match": "(?i)toxic|poison|bog|blight|pestilence|virulent|bloat|rot|carrion|carcass|oozing|leech|emerald viper|bloodmoss", "biomes": ["swamp"] },
     { "match": "(?i)fire giant|magma|ash|ember|demon|imp", "biomes": ["volcanic"] },
     { "match": "(?i)hill giant|fog giant|cyclops|golem|ancient fighter|veinwatcher", "biomes": ["rocky_hills"] },
+    { "match": "(?i)mole", "biomes": ["forest", "plains"], "caveLayers": [-1] },
     { "match": "(?i)bat|spider|skitter|widow|crawler|shrieker|devourer|eye", "biomes": ["forest", "rocky_hills"], "caveLayers": [-1] },
     { "match": "(?i)skelet|zombie|undead|bone|bony|cadaver|shambler|walker|corpse|grave|ossified|revenant|wight|ghost|ghast|dusty", "biomes": ["swamp", "plains"], "caveLayers": [-2] },
     { "match": "(?i)dragon|wyvern|drake|maw|vermithrax|vaerthrax", "biomes": ["volcanic", "rocky_hills", "dense_forest"] },

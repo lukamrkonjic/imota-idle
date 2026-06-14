@@ -19,6 +19,8 @@
     "sand":         { "colors": ["d9c277", "c17b5c"], "walkable": true,  "water": false },
     "grass":        { "colors": ["596e47", "647551"], "walkable": true,  "water": false },
     "grass_dark":   { "colors": ["4e6044", "596e47"], "walkable": true,  "water": false },
+    "wheat":        { "colors": ["d9c277", "b8923f"], "walkable": true,  "water": false },
+    "wheat_ripe":   { "colors": ["e6c463", "c8a24a"], "walkable": true,  "water": false },
     "dirt":         { "colors": ["c17b5c", "85444a"], "walkable": true,  "water": false },
     "mud":          { "colors": ["4a363c", "38453a"], "walkable": true,  "water": false },
     "marsh":        { "colors": ["596e47", "38453a"], "walkable": true,  "water": false },
@@ -107,6 +109,14 @@
       "tint": "9ba15f", "music": "forest",
       "skillWeights": { "woodcutting": 3.0, "foraging": 1.4, "mining": 0.4, "fishing": 0.4 },
       "siteDensity": 1.2, "monsterDensity": 0.55
+    },
+    {
+      "id": "wheatfield", "name": "Farmland", "priority": 95,
+      "when": { "heightMin": 2.0 },
+      "tiles": { "wheat": 0.6, "wheat_ripe": 0.34, "dirt": 0.06 },
+      "tint": "e6c463", "music": "plains",
+      "skillWeights": { "foraging": 2.2, "woodcutting": 0.4, "fishing": 0.4, "mining": 0.2 },
+      "siteDensity": 1.0, "monsterDensity": 0.35
     },
     {
       "id": "plains", "name": "Plains", "priority": 0,

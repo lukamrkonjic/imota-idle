@@ -79,9 +79,22 @@ func fields(tx: float, ty: float) -> Vector3:
 	return Vector3(h, m, t)
 
 
-## Index into reg.biomes for the biome at a tile position.
+## Index into reg.biomes for the biome at a tile position. Authored regions
+## (WorldSpec) force their biome here; everywhere else falls back to the noise
+## classifier, so the procedural world is unchanged.
 func biome_idx(tx: float, ty: float) -> int:
-	return classify(fields(tx, ty))
+	var forced := region_biome_idx(tx, ty)
+	return forced if forced >= 0 else classify(fields(tx, ty))
+
+
+## Authored biome index forced by a WorldSpec region at this tile, or -1.
+func region_biome_idx(tx: float, ty: float) -> int:
+	if reg.spec == null or not reg.spec.active:
+		return -1
+	var bid := str(reg.spec.biome_for_tile(tx, ty))
+	if bid.is_empty():
+		return -1
+	return int(reg.biome_index.get(bid, -1))
 
 
 ## Data-driven classification: highest-priority biome whose ranges all match.

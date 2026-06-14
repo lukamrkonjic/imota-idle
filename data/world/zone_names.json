@@ -13,6 +13,10 @@
     "adjectives": ["Golden", "Windswept", "Sunny", "Verdant", "Rolling", "Wandering", "Open", "Bright"],
     "nouns": ["Meadows", "Fields", "Steppe", "Downs", "Flats", "Prairie", "Pastures", "Plains"]
   },
+  "wheatfield": {
+    "adjectives": ["Golden", "Ripe", "Harvest", "Sunlit", "Amber", "Tilled", "Bountiful", "Furrowed"],
+    "nouns": ["Fields", "Furrows", "Granary", "Croft", "Acres", "Farmstead", "Harvestlands", "Wolds"]
+  },
   "forest": {
     "adjectives": ["Whispering", "Mossy", "Green", "Shaded", "Autumn", "Singing", "Dappled", "Owlish"],
     "nouns": ["Woods", "Grove", "Thicket", "Glade", "Forest", "Copse", "Timberland", "Greenwood"]

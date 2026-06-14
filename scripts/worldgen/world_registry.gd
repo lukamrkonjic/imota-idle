@@ -36,6 +36,10 @@ var zone_words: Dictionary = {}
 var gen_rules: Dictionary = {}          # generation_rules.json (elevation, resources, roads)
 var anchor_types: Array = []            # anchors.json types
 
+# --- authored layer (AI World Director / WorldSpec) ---
+const WorldSpec := preload("res://scripts/worldgen/world_spec.gd")
+var spec: RefCounted = WorldSpec.new()  # active WorldSpec, or inactive (procedural)
+
 
 func load_all() -> void:
 	var biome_doc := _read("biomes.json")
@@ -61,6 +65,11 @@ func load_all() -> void:
 
 	gen_rules = _read("generation_rules.json")
 	anchor_types = _read("anchors.json").get("types", [])
+
+	# Authored layer: forces named, biome-separated regions and fixed-placement
+	# settlements/landmarks/dungeons on top of the procedural world. Inactive
+	# (procedural-only) when data/world/worldspec/ is absent or disabled.
+	spec.load_active()
 
 
 func _read(name: String) -> Dictionary:

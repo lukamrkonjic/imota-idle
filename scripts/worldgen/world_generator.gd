@@ -56,7 +56,10 @@ func generate(layer: int, cx: int, cy: int, above_chunk: RefCounted = null) -> R
 		for tx: int in n:
 			var gx := float(cx * n + tx)
 			var f: Vector3 = classifier.fields(gx, gy)
-			var b: int = classifier.classify(f)
+			# Authored regions force their biome; the rest stays procedural.
+			var b: int = classifier.region_biome_idx(gx, gy)
+			if b < 0:
+				b = classifier.classify(f)
 			var i := Chunk.idx(tx, ty)
 			chunk.biomes_t[i] = b
 			chunk.elev_t[i] = elevation.level_from_height(f.x, gx, gy)

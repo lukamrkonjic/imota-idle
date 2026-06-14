@@ -1,0 +1,11 @@
+{
+  "_doc": [
+    "Selects the active WorldSpec for the AI World Director / Compiler.",
+    "Consumed by scripts/worldgen/world_spec.gd (loaded via WorldRegistry).",
+    "Set enabled=false to fall back to the pure procedural world. 'active' is the",
+    "file name (without .json) under data/world/worldspec/ to load.",
+    "See docs/AI_WORLD_AUTHORING.md."
+  ],
+  "enabled": true,
+  "active": "medieval"
+}

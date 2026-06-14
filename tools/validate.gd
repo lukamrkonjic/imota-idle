@@ -50,7 +50,7 @@ func check(cond: bool, label: String) -> void:
 func phase0_data() -> void:
 	print("== Phase 0: data registry ==")
 	check(DataRegistry.items.size() > 1000, "items loaded (%d)" % DataRegistry.items.size())
-	check(DataRegistry.enemies.size() == 118, "enemies loaded (%d)" % DataRegistry.enemies.size())
+	check(DataRegistry.enemies.size() == 120, "enemies loaded (%d)" % DataRegistry.enemies.size())
 	# 1009 raw recipe assets minus ~94 input-less placeholder stubs and ~160
 	# duplicate-name variants leaves 775 real recipes.
 	check(DataRegistry.recipes.size() == 775, "recipes loaded (%d)" % DataRegistry.recipes.size())

@@ -62,6 +62,13 @@ func zone_for_chunk(cx: int, cy: int) -> Dictionary:
 	var ck := "%d:%d" % [cx, cy]
 	if _chunk_zone.has(ck):
 		return _chunk_zone[ck]
+	# Authored regions (WorldSpec) own the zone identity where present: fixed
+	# name (pops on entry), entry-level requirement and forced biome.
+	if reg.spec != null and reg.spec.active:
+		var az: Dictionary = reg.spec.zone_for_chunk(cx, cy)
+		if not az.is_empty():
+			_chunk_zone[ck] = az
+			return az
 	var cell := _nearest_cell(Vector2(float(cx) + 0.5, float(cy) + 0.5))
 	var z := _zone(cell.x, cell.y)
 	_chunk_zone[ck] = z

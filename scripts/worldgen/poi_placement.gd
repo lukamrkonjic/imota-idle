@@ -40,6 +40,9 @@ func place(chunk: RefCounted, occupied: Dictionary) -> void:
 		var hub_def: Dictionary = reg.pois.get(hub_type, {}).duplicate(true)
 		hub_def["label"] = str(hub.get("label", hub_def.get("label", hub_type)))
 		hub_def.erase("biomes")  # the planner already picked this cell's biome
+		# Authored anchors may pin a specific boss (e.g. Amaruq at the ruins).
+		if not str(hub.get("boss", "")).is_empty():
+			hub_def["bossName"] = str(hub["boss"])
 		if majors < 1 and _try_place(chunk, hub_type, hub_def, occupied):
 			majors += 1
 	for type: String in reg.pois:
@@ -160,7 +163,7 @@ func _try_place(chunk: RefCounted, type: String, def: Dictionary, occupied: Dict
 		if raw.has("color"):
 			part["color"] = str(raw["color"])
 		if bool(raw.get("boss", false)):
-			var boss := _pick_boss(chunk)
+			var boss := _pick_boss_for(chunk, str(def.get("bossName", "")))
 			if boss.is_empty():
 				continue
 			part["boss_name"] = str(boss["name"])
@@ -229,6 +232,20 @@ func _pick_variant(chunk: RefCounted, anchor: Vector2i, variants: Array) -> Dict
 		return {}
 	var roll := WG.hash_i(world_seed, chunk.cx, chunk.cy, 53) % fitting.size()
 	return fitting[roll]
+
+
+## Boss for a lair: an explicitly pinned bestiary boss (authored) if it exists,
+## otherwise the boss whose level best fits this zone.
+func _pick_boss_for(chunk: RefCounted, pinned: String) -> Dictionary:
+	if not pinned.is_empty():
+		for b: Dictionary in reg.boss_list:
+			if str(b["name"]) == pinned:
+				return b
+		var e: Dictionary = DataRegistry.get_enemy(pinned)
+		if not e.is_empty():
+			return {"name": str(e.get("name", pinned)), "level": int(e.get("level", 1)),
+				"biomes": []}
+	return _pick_boss(chunk)
 
 
 ## Boss whose level best fits this zone (prefer biome natives).

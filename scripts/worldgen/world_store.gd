@@ -10,7 +10,7 @@ const SaveMigration := preload("res://autoload/save_migration.gd")
 
 ## Bump when generation logic changes; stale explored snapshots regenerate.
 ## v2: elevation levels, anchor hubs, road corridors.
-const GENERATOR_VERSION := 2
+const GENERATOR_VERSION := 3
 
 var world_seed: int = 0
 var obelisks: Dictionary = {}       # chunk_key -> {name, x, y}

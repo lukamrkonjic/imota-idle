@@ -91,6 +91,13 @@ func anchor_for_chunk(cx: int, cy: int) -> Dictionary:
 	var key := "%d:%d" % [cx, cy]
 	if _chunk_cache.has(key):
 		return _chunk_cache[key]
+	# Authored anchors (WorldSpec) pin settlements / landmarks / dungeons to an
+	# exact chunk and take precedence over the procedural ring planner.
+	if reg.spec != null and reg.spec.active:
+		var sa: Dictionary = reg.spec.anchor_for_chunk(cx, cy)
+		if not sa.is_empty():
+			_chunk_cache[key] = sa
+			return sa
 	var base_z := floori(float(cx) / WG.ZONE_CELL)
 	var base_zy := floori(float(cy) / WG.ZONE_CELL)
 	var found: Dictionary = {}
@@ -103,10 +110,13 @@ func anchor_for_chunk(cx: int, cy: int) -> Dictionary:
 	return found
 
 
-## All planned anchors within PLAN_RINGS of home (debug overlay, tests).
+## All planned anchors within PLAN_RINGS of home (debug overlay, tests), plus
+## any authored anchors from the active WorldSpec.
 func planned_anchors() -> Array:
 	var home: Vector2i = zone_map.home_cell()
 	var out: Array = []
+	if reg.spec != null and reg.spec.active:
+		out.append_array(reg.spec.planned_anchors())
 	for zy: int in range(home.y - PLAN_RINGS, home.y + PLAN_RINGS + 1):
 		for zx: int in range(home.x - PLAN_RINGS, home.x + PLAN_RINGS + 1):
 			var a := anchor_for_cell(zx, zy)
@@ -130,6 +140,13 @@ func road_segments() -> Array:
 	_roads_ready = true
 	if _road_byte < 0:
 		return _road_segments
+	# Authored routes (WorldSpec) replace the procedural home->hub corridors with
+	# a deliberate, limited set of primary roads between named anchors.
+	if reg.spec != null and reg.spec.active:
+		var authored: Array = reg.spec.road_segments_tiles(world_seed)
+		if not authored.is_empty():
+			_road_segments = authored
+			return _road_segments
 	var home_tile := Vector2(float(WG.CHUNK_TILES) * 0.5, float(WG.CHUNK_TILES) * 0.5)
 	var hubs: Array = []
 	for a: Dictionary in planned_anchors():

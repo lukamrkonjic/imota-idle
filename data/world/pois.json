@@ -205,6 +205,53 @@
         { "id": "meteor", "label": "Crashed Meteor", "kind": "meteor", "biomes": ["plains", "desert", "volcanic", "rocky_hills"] },
         { "id": "frozen_mammoth", "label": "Frozen Mammoth", "kind": "mammoth", "biomes": ["tundra"] }
       ]
+    },
+    "capital_city": {
+      "placement": { "mode": "anchor" },
+      "label": "Capital City", "safe": true,
+      "minimapColor": "ffd24a",
+      "parts": [
+        { "kind": "sign", "label": "City Gate", "dx": 0, "dy": 4 },
+        { "kind": "obelisk", "label": "Crown Obelisk", "dx": 0, "dy": -4 },
+        { "kind": "chest", "station": "bank", "label": "Royal Bank", "dx": -3, "dy": 0 },
+        { "kind": "sign", "station": "shop", "label": "Royal Exchange", "dx": 3, "dy": 0 },
+        { "kind": "anvil", "station": "anvil", "label": "Royal Forge", "dx": -1, "dy": -2 },
+        { "kind": "campfire", "station": "range", "label": "Royal Kitchens", "dx": 1, "dy": -2 },
+        { "kind": "tent", "station": "herbology", "label": "Court Apothecary", "dx": -3, "dy": -2, "color": "4A7A3A" },
+        { "kind": "tent", "station": "imbuing", "label": "Enchanter's Hall", "dx": 3, "dy": -2, "color": "4A4A9A" },
+        { "kind": "tent", "station": "crafting", "label": "Artisans' Row", "dx": -3, "dy": 2, "color": "6A4A8A" },
+        { "kind": "tent", "station": "fletching", "label": "Royal Bowyer", "dx": 3, "dy": 2, "color": "3A6A4A" },
+        { "kind": "stall", "hook": "thieving", "label": "Grand Market", "hookMessage": "Thieving from stalls is coming soon.", "dx": 0, "dy": 2 },
+        { "kind": "lantern", "label": "City Lantern", "dx": -1, "dy": 4 },
+        { "kind": "lantern", "label": "City Lantern", "dx": 1, "dy": 4 }
+      ]
+    },
+    "great_ruins": {
+      "placement": { "mode": "anchor" },
+      "label": "Great Ruins",
+      "minimapColor": "c8c2b0",
+      "clusterSites": 3, "clusterSkill": "foraging",
+      "parts": [
+        { "kind": "ruin_tower", "label": "Ruined Keep", "dx": 0, "dy": 0 },
+        { "kind": "ruin_wall", "label": "Shattered Rampart", "dx": 3, "dy": 1 },
+        { "kind": "ruin_wall", "label": "Shattered Rampart", "dx": -3, "dy": 1 },
+        { "kind": "ruin_pillar", "label": "Toppled Pillar", "dx": 3, "dy": -2 },
+        { "kind": "ruin_stone", "label": "Warden's Stone", "dx": -3, "dy": -2 },
+        { "kind": "sign", "label": "Beware: Beastmaster", "dx": 0, "dy": 4 },
+        { "kind": "enemy", "boss": true, "dx": 0, "dy": -3 }
+      ]
+    },
+    "mole_dungeon": {
+      "placement": { "mode": "anchor" },
+      "label": "Burrow Dungeon",
+      "minimapColor": "8a6a48",
+      "parts": [
+        { "kind": "cave", "label": "Burrow Entrance", "dx": 0, "dy": 0 },
+        { "kind": "sign", "label": "The Molehollow", "dx": 0, "dy": 3 },
+        { "kind": "ruin_stone", "label": "Spoil Heap", "dx": 3, "dy": 1 },
+        { "kind": "ruin_stone", "label": "Spoil Heap", "dx": -3, "dy": 1 },
+        { "kind": "enemy", "boss": true, "dx": 0, "dy": -3 }
+      ]
     }
   }
 }
