@@ -270,7 +270,7 @@
         "595f68",
         "474c54"
       ],
-      "walkable": true,
+      "walkable": false,
       "water": false
     },
     "peak_snow": {

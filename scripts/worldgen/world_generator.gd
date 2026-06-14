@@ -108,17 +108,20 @@ func _place_mountains(chunk: RefCounted) -> void:
 		for tx: int in n:
 			var gtx: int = chunk.cx * n + tx
 			var gty: int = chunk.cy * n + ty
-			var ml: int = classifier.mountain_level(float(gtx), float(gty))
-			if ml == 0:
+			# ELEVATION IS THE SINGLE SOURCE OF TRUTH: a tile is a mountain (raised
+			# impassable rock/snow) iff it has elevation. Anything that rounds to 0
+			# stays normal flat walkable terrain — so there are no flat-but-rocky
+			# "peak" tiles the player can stroll onto.
+			var e: int = clampi(classifier.elevation_steps(float(gtx), float(gty)), 0, 255)
+			if e <= 0:
 				continue
 			var i := Chunk.idx(tx, ty)
 			if bool(reg.tile_def(chunk.tiles[i]).get("water", false)):
 				continue
-			# The mountain IS the terraced elevation (baked per tile here) plus
-			# impassable rocky tiles — no sprites. Snow caps the tall/cold peaks;
-			# everything rocky reads as a Vintage-Story / Minecraft massif. Water and
-			# non-mountain tiles are skipped above, so their elevation stays 0.
-			chunk.tiles[i] = t_snow if (ml == 3 and t_snow >= 0) else t_peak
-			chunk.biomes_t[i] = b_alp if ml == 3 else b_rh
+			chunk.elev[i] = e
+			# Snow caps the tall/cold peaks; everything else rocky. Both peak tiles
+			# are non-walkable (collision), so raised terrain is always impassable.
+			var snowy: bool = classifier.mountain_level(float(gtx), float(gty)) == 3
+			chunk.tiles[i] = t_snow if (snowy and t_snow >= 0) else t_peak
+			chunk.biomes_t[i] = b_alp if snowy else b_rh
 			chunk.parent_biomes_t[i] = chunk.biomes_t[i]
-			chunk.elev[i] = clampi(classifier.elevation_steps(float(gtx), float(gty)), 0, 255)
