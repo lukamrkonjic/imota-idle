@@ -154,10 +154,29 @@ func _connect_events() -> void:
 
 func _process(delta: float) -> void:
 	chunk_manager.update_center(player.position)
+	_update_stream_radius()
 	_path_ctrl.process_tick()
 	_visual_ctrl.process_tick(delta)
 	_input_ctrl.update_hover()
 	_activity_ctrl.process_tick(delta)
+
+
+## Scale the streaming radii to the camera so terrain + entities always fill the
+## view (plus a margin for off-screen pop-in) at any zoom, then shrink back in
+## when zoomed close so we don't keep a huge ring loaded needlessly.
+func _update_stream_radius() -> void:
+	var zoom: float = _camera.zoom.x
+	if zoom <= 0.0:
+		return
+	var vp: Vector2 = get_viewport().get_visible_rect().size
+	# Half-extent of the view in world units, converted to chunk distance in the
+	# isometric basis (a chunk spans CHUNK_TILES*ISO_HW in x, *ISO_HH in y).
+	var wx: float = vp.x / zoom * 0.5
+	var wy: float = vp.y / zoom * 0.5
+	var span_x: float = float(WG.CHUNK_TILES) * WG.ISO_HW
+	var span_y: float = float(WG.CHUNK_TILES) * WG.ISO_HH
+	var r: int = ceili((wx / span_x + wy / span_y) * 0.5)
+	chunk_manager.set_radii(r + 2, r + 1)
 
 
 func _unhandled_input(event: InputEvent) -> void:

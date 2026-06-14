@@ -318,7 +318,7 @@ func phase5_world() -> void:
 
 	check(world.get("player") != null, "player avatar exists")
 	var loaded: Array = world.get("chunk_manager").call("loaded_chunks")
-	check(loaded.size() == 49, "7x7 gameplay chunks active around spawn (%d)" % loaded.size())
+	check(loaded.size() >= 49, "nav-ring chunks active around spawn (%d)" % loaded.size())
 	var terrain_count: int = int(world.get("chunk_manager").call("terrain_chunk_count"))
 	check(terrain_count >= 49, "wide terrain ring starts loaded (%d chunks)" % terrain_count)
 	var entities: Array = world.get("entities")

@@ -141,7 +141,7 @@ func _update_visibility_budget(delta: float) -> void:
 	var vp := world.get_viewport().get_visible_rect().size
 	var zoom: float = world._camera.zoom.x
 	var world_size: Vector2 = vp / zoom
-	var margin := WG.CHUNK_SIZE * 0.5
+	var margin := WG.CHUNK_SIZE * 0.4
 	var rect := Rect2(world._camera.global_position - world_size * 0.5 - Vector2(margin, margin), world_size + Vector2(margin * 2.0, margin * 2.0))
 	for key: String in world._chunk_containers.keys():
 		var container: Node2D = world._chunk_containers[key]
@@ -179,7 +179,7 @@ func _visible_world_rect() -> Rect2:
 	var vp := world.get_viewport().get_visible_rect().size
 	var zoom: float = world._camera.zoom.x
 	var world_size: Vector2 = vp / zoom
-	var margin := WG.CHUNK_SIZE * 0.5
+	var margin := WG.CHUNK_SIZE * 0.4
 	return Rect2(
 		world._camera.global_position - world_size * 0.5 - Vector2(margin, margin),
 		world_size + Vector2(margin * 2.0, margin * 2.0))

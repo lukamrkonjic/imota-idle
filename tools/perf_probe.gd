@@ -71,6 +71,8 @@ func _probe(s: Dictionary) -> void:
 	print(JSON.stringify({
 		"sample": s["name"],
 		"fps": fps,
+		"view_r": _world.chunk_manager.get("view_radius"),
+		"active_r": _world.chunk_manager.get("active_radius"),
 		"draw_calls": draw_calls,
 		"primitives": prims,
 		"objects": objs,

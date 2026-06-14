@@ -22,6 +22,38 @@
 
 ---
 
+## 0.5 Content & save stability (Steam Early Access — crucial)
+
+Imota ships in Early Access with **live player saves**. No content change may corrupt or
+silently delete an existing save. This is a release blocker, not a nice-to-have. The full
+operational rule lives in `AGENTS.md` ("Save-game safety"); the rationale:
+
+- **Saves store stable `id` + quantity only** — inventory `[{"id","qty"}]`, bank keyed by
+  id, equipment slot→id. **Stats are never stored**; they re-read from `data/*.json` each
+  load. So stats/drops/recipe-I/O/XP/yields are **always free to rebalance**.
+- **The id is the contract.** Once an id ships, it is permanent. Display names
+  (`displayName`) are presentation-only and change freely — this is what makes the IP
+  rename pass (§7) safe.
+- **Id scheme: opaque stable numbers, OSRS-style** (e.g. `item.1001`), assigned **once via
+  a persistent id registry**, never derived from the name, never reused after removal. The
+  importer preserves existing assignments and only mints ids for new content. Authoring
+  cross-references (recipes/drops/nodes by name) and `displayName` sit on top and resolve
+  to ids at load, so data files stay human-readable.
+- **Today's footgun:** ids are currently *derived from names* (`ContentId.slug` →
+  `item.suncoil_logs`) because data files lack explicit `id` fields. A bare rename would
+  change the id and break saves. **Fix before any renaming:** (1) mint a frozen numeric id
+  for every existing item/enemy/node/recipe into an id registry + the data files; (2) ship
+  a `save_migration.gd` step mapping the old slug-ids in live EA saves → the new numeric
+  ids (with `content_aliases.json` entries), proven by a load test in `tools/validate.tscn`.
+  This decouples id from name permanently *and* protects current players.
+- **Changing or removing an id** requires both a `data/content_aliases.json` mapping and a
+  `autoload/save_migration.gd` migration (bump `CURRENT_SCHEMA`), proven by a check in
+  `tools/validate.tscn`. Never rename/remove an id bare.
+- **Acceptance gate:** loading a previous-version save must produce **zero** "unknown
+  item / dropped from inventory" warnings.
+
+---
+
 ## 1. XP & leveling
 
 - Base: the **OSRS experience formula** —
@@ -245,3 +277,203 @@ by diffing content gated at `new_level` for that skill.
 - Home skill for leftover Bloobs `imbuing` / `soulbinding` recipes.
 - Whether dialogs show a single "next unlock" teaser or hide everything locked.
 - Final boss/content rename table (full list).
+
+---
+---
+
+# Part II — Systems the core loop needs around it
+
+> Part I is the moment-to-moment loop. Part II is everything that gives the game depth,
+> goals, and a reason to keep idling. Each item is tagged **[MVP]** (build with the core)
+> or **[Later]** (design now, implement after launch). Adapt every OSRS system to the
+> **semi-idle** frame — if it can't "set it and it keeps running / auto-resolves," redesign it.
+
+## 12. Combat depth
+
+- **Combat styles & XP routing [MVP].** The chosen weapon style decides which skill gets
+  the per-hit XP (OSRS model):
+  - Melee: **Accurate→Attack, Aggressive→Strength, Defensive→Defence, Controlled→split**.
+  - Ranged: **Accurate→Ranged, Rapid→Ranged (faster), Longrange→Ranged+Defence**.
+  - Magic: spell-based→**Magic** (+Defence on defensive cast).
+  - Hitpoints always gains a share. A style selector lives in the combat UI; the auto-loop
+    just keeps the selected style.
+- **Weapon attack speed [MVP, decision].** Currently a flat 3 s. OSRS weapons have
+  per-weapon tick speeds (daggers fast, mauls slow). Recommend **per-weapon `attackSpeed`
+  (in ticks)** so weapon choice is a real trade-off; fall back to a default if data lacks it.
+- **Auto-eat [MVP — essential for idle].** In the combat loop, when HP drops below a
+  configurable threshold (e.g. 50%), automatically eat the best available food from
+  inventory. Without this, idle combat is just "fight until death." Expose the threshold in
+  settings. If no food remains and HP is critical → **retreat/stop** instead of dying
+  (configurable).
+- **Combat potions [MVP].** Alchemy-made potions give **timed stat boosts** (attack/strength/
+  defence/ranged/magic, HP restore, etc.). Auto-drink option for idle (re-sip when the boost
+  expires while food/potions remain).
+- **Prayer in combat [MVP].** Prayer points drain over time while prayers are active;
+  protection prayers reduce/negate enemy damage of a style; offensive prayers boost accuracy/
+  damage; **Protect Item** prevents the on-death equipment loss (§12 death handling). Recharge
+  at an altar. Auto-manage option for idle (toggle prayers, stop when out of points). See §16
+  for how Prayer is *trained*.
+- **Auto-retaliate [MVP].** Always on in the idle loop.
+- **Special attacks [Later].** Spec/energy bar, weapon-specific specials.
+- **Death handling [MVP — decided].** No offline. On death → respawn at a fixed point, full
+  HP. **Item loss: pick one random *equipment slot* and destroy whatever is in it** — armor,
+  weapon, cape, ammunition/tablets, equipped food/consumable, etc. If the chosen slot is
+  **empty, nothing is lost.** If the **Protect Item** prayer (see §12 Prayer / §16) is
+  active, nothing is lost. Only equipped items are at risk — loose inventory is safe. This
+  keeps stakes real without gutting a full loadout, and makes Protect Item a meaningful
+  prayer choice for risky idle combat.
+- **Combat level [MVP].** Derived display stat (OSRS formula over att/str/def/hp/range/magic/
+  prayer). Use it for area/monster soft-gating and UI.
+- **Drop mechanics [MVP].** Per-enemy table with tiers: **always** (bones, ashes),
+  **common/uncommon/rare**, and a shared **rare drop table** for high-value rolls.
+  **Tertiary rolls** independent of the main table: pets, clue scrolls, resource bonuses.
+  Show drop-rate on hover where known.
+
+## 13. Quests
+
+- **Quest system [MVP-lite, then expand].** A quest = ordered **objectives** + **requirements**
+  (skill levels, items, prior quests, combat/quest-point thresholds, area access) +
+  **rewards** (XP lamps, items, coins, unlocks, new areas, skill/feature unlocks). Track a
+  **Quest Points** total used as a gate elsewhere.
+- **Idle adaptation.** Objectives are mostly "reach skill X", "gather/craft N of Y", "kill
+  N of Z", "reach area W" — things the idle loop can **auto-progress** and tick off, plus
+  occasional click-to-advance story beats. Avoid OSRS-style manual puzzle steps that can't idle.
+- **Quest log UI:** active/completed/available filtered by met requirements; locked quests
+  hidden or shown as "?" per the spoiler rule (§3c). Quests can **unlock skills, areas,
+  shops, monsters, recipes**.
+
+## 14. Achievement Diaries / Task lists [Later, design now]
+
+- Per-**region** tiered task sets (**Easy/Medium/Hard/Elite**) — e.g. "Train Mining to 30 in
+  the Northern Hills," "Kill the regional boss." Completing a tier grants **permanent perks**
+  (XP/rate boosts, better drops, travel discounts in that region). Strong long-term idle goals.
+
+## 15. Collection Log & Achievements [MVP-lite]
+
+- **Collection Log:** auto-records every unique item/resource/drop obtained, grouped by
+  source (each monster, each gather node, each boss). Tracks **completion %** and grants
+  cosmetic/perk milestones. Big retention driver for idle games.
+- **Achievements/Milestones:** total-level/total-XP milestones, "first 99," boss kill counts,
+  etc., with notifications.
+
+## 16. Defining the new / changed skills' loops
+
+Each skill needs a concrete "set it and it runs" loop:
+
+- **Prayer [MVP].** Bury bones / offer at an altar → XP (auto-consume bones from inventory as
+  an activity). Levels unlock prayers usable in combat (§12). Bones come from combat (§6).
+- **Alchemy [MVP].** Potion recipes via `RecipeSim` (inputs from Foraging/Farming herbs +
+  secondaries) → timed brew → potion output + XP, auto-repeat. Also home for **High Alchemy**
+  (item → Coins) tying the skill to the economy. Houses ex-`herbology` recipes.
+- **Farming [MVP — decided].** Plant seed in a **plot** → grows over many ticks →
+  auto-harvest yield + XP. **Growth runs in the background while the player does any other
+  activity** (gather/fight/craft) — it advances on the global tick, so it respects the
+  no-offline rule (no growth while the game is closed) yet gives a genuine passive layer.
+  Plot count is tunable (start small, expand via unlocks). Seed sources: Foraging/Hunter/
+  shops. A dedicated **FarmingSim** runs independently of the single-active-activity manager
+  (§21) since it's the one background system.
+- **Hunter [MVP/Later].** Auto-track/trap a chosen creature type in its zone → products
+  (for Crafting/Cooking). Same intent-gated auto-nav as gathering (§3a).
+- **Agility [decision].** Idle role is unclear in OSRS terms. Recommend: an **auto-run
+  course** activity (loop a circuit for XP) that also raises a passive **run-energy / movement-
+  speed** stat speeding all auto-navigation — making it a meta-skill that improves idle
+  efficiency. Confirm.
+
+## 17. World, travel & areas [MVP]
+
+- **Regions/areas** with **unlock gating** (by quest, combat level, or skill level). New areas
+  hold higher-tier nodes, monsters, and bosses. Difficulty radiates outward.
+- **Fast travel / teleports** between unlocked hubs (idle games shouldn't make you watch long
+  walks). Bank icon by minimap (§3d). World map + minimap with discovered/undiscovered areas.
+- **Locality is mandatory:** every node and monster type has fixed spawn zones so "nearest of
+  type" auto-nav works (§4, §5).
+
+## 18. Economy & shops [MVP]
+
+- **Coins**, NPC **shops** (buy tools/supplies/seeds; sell-back at reduced value), and
+  **High Alchemy** (§16) as the item→coins sink. **No Grand Exchange** (single-player) — use
+  fixed NPC shop stock + the tool ladder already in `data/tools.json`. Item values and stack
+  rules from data. Consider a simple **sell-all junk** convenience.
+
+## 19. Items, inventory & equipment systems [MVP]
+
+- **Stackable vs non-stackable** items; equipment requirements (already in data).
+- **Equipment loadout presets [MVP]** — quick-swap sets (skilling tools vs combat gear) so the
+  idle loop can switch automatically when the player changes intent. High value for a bot-style
+  game.
+- **Bank:** tabs, search, deposit-all, withdraw-X, total value. Auto-deposit on bank trips.
+- **Item quality/rarity tiers** for display/loot juice.
+- **Skilling/combat gear XP bonuses** already exist (`bonusXp`) — surface them; optionally add
+  OSRS-style **skilling outfits** (full-set bonus) [Later].
+
+## 20. Pets & cosmetics [Later, hooks now]
+
+- **Pets:** rare tertiary rolls while skilling/fighting bosses (Bloobs has pet data). Cosmetic
+  follower + small perk. **Skill capes** at 99 (cosmetic + minor perk). Add the drop hooks now,
+  flesh out later.
+
+## 21. Idle automation framework [MVP — the backbone]
+
+A single **Activity/Task manager** owns the current intent and drives everything:
+- One active activity at a time (gather / combat / craft / prayer / farming background).
+- Built-in automations: **auto-walk, auto-gather-switch, auto-loot, auto-bank-when-full,
+  auto-eat, auto-sip-potion, auto-retaliate.**
+- **Stop conditions** (with reasons surfaced to the player): AFK timeout (→ Rested XP),
+  death, global depletion with no respawn, inventory full + no reachable bank, out of inputs/
+  food/prayer.
+- **Notifications/log:** level-ups, rare drops, task complete, death, inventory full, AFK
+  start/end, quest progress. This is the player's primary feedback while idling.
+
+## 22. Feedback & game feel [MVP]
+
+- Level-up dialog/chat + confetti + jingle (§9). **Rare-drop banner + distinct sound.**
+  Floating XP drops, combat hitsplats, gather/craft progress on the player. **Settings** for
+  sound volume, which notifications fire, AFK threshold, auto-eat threshold, confirmation
+  prompts.
+
+## 23. Onboarding [MVP-lite]
+
+- Starter kit (already defined). A short **guided first session**: open skill list → pick first
+  tree → watch auto-gather → first level-up → first craft → first fight. Teaches the
+  intent-gating without a wall of text.
+
+## 24. Persistence — new save fields [MVP]
+
+Saves must cover everything above: quests + quest points, achievement diaries, collection log,
+achievements/milestones, prayer state, **farming plots (with in-progress growth timers)**,
+rested-XP pool, unlocked areas/teleports, equipment loadout presets, settings, statistics
+(XP/hr, kill counts, drops). Version + migrate (`save_migration.gd`).
+
+## 25. Statistics & analytics [Later]
+
+- Per-skill XP/hr, time played, kills per monster, items gathered, coins earned, drop logs.
+  Feeds the collection log and player goal-setting; also useful for balancing `S` and rates.
+
+---
+
+## Updated build order (insert after Part I step 12)
+
+13. **Idle automation framework (§21)** — the task manager + auto-eat/auto-bank/auto-loot;
+    everything else plugs into it.
+14. **Combat depth (§12)** — styles/XP routing, attack speed, auto-eat, potions, prayer hooks,
+    death handling, combat level.
+15. **New-skill loops (§16)** — Prayer, Alchemy (+High Alch), Farming plots, Hunter, Agility.
+16. **Economy & shops (§18)**, **loadout presets (§19)**, **bank upgrades**.
+17. **World/areas & travel (§17)** — region gating + teleports.
+18. **Quests (§13)**, then **Collection Log/Achievements (§15)**.
+19. **Feedback/juice (§22)**, **onboarding (§23)**, **stats (§25)**.
+20. **Achievement Diaries (§14)**, **Pets/capes (§20)** as post-launch depth.
+21. Extend `tools/validate.tscn` for each new system; extend `save_migration.gd`.
+
+## Added open decisions
+
+- Respawn point location(s) per area. *(Item-loss policy decided: random equipped slot,
+  empty = safe, Protect Item negates — §12.)*
+- Per-weapon attack speeds vs keeping a flat interval.
+- Auto-eat / auto-potion default thresholds.
+- Farming: starting plot count + unlock cadence. *(Background-growth-while-busy decided: yes
+  — §16.)*
+- Agility's idle role (recommend run-energy meta-skill + auto-course).
+- High Alchemy rate/value formula.
+- Whether quests gate skills/areas hard, or only grant bonuses.
+- Hardcore/Ironman mode existence.

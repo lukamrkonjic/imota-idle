@@ -15,17 +15,18 @@ const MAX_CLIMB_STEP := 1                  # biggest single-step elevation chang
 const CHUNK_TILES := 16                    # tiles per chunk side
 const CHUNK_SIZE := TILE * float(CHUNK_TILES)  # legacy ortho estimate; use chunk_aabb()
 const ZONE_CELL := 6                       # zone Voronoi cell size, in chunks
-const VIEW_RADIUS := 8                     # terrain chunks kept rendered around the player.
-                                           # This is visual-only; entities/pathfinding use
-                                           # ACTIVE_RADIUS so a wide view does not multiply
-                                           # gameplay nodes or path graph rebuild cost. Each
-                                           # chunk is now a single baked sprite (1 draw call),
-                                           # so a wide radius is cheap — see ChunkRenderer.
-const ACTIVE_RADIUS := 3                   # chunks with spawned entities + navigation nodes.
-                                           # Must exceed the on-screen radius at normal zoom so
-                                           # houses/ore/monsters spawn & despawn OFF camera, not
-                                           # popping in view. Nav rebuild is debounced so the
-                                           # wider active ring does not hitch on chunk crossings.
+# Streaming radii are ZOOM-AWARE: the world scales them up as the camera zooms
+# out so terrain + entities always fill the view with a margin, and back down when
+# zoomed in. These are the MIN (most zoomed-in) values; MAX_* cap the worst case.
+const VIEW_RADIUS := 6                     # min terrain chunks rendered (baked sprite, 1 draw
+                                           # call each, so a wide ring is cheap).
+const MAX_VIEW_RADIUS := 10
+const ACTIVE_RADIUS := 4                   # min chunks with spawned entities (houses/ore/etc).
+const MAX_ACTIVE_RADIUS := 7               # cap so an extreme zoom-out can't spawn a runaway
+                                           # number of entity nodes.
+const NAV_RADIUS := 3                      # chunks of A* nav graph around the player. Decoupled
+                                           # from (and much smaller than) the entity ring so the
+                                           # debounced rebuild stays cheap no matter the zoom.
 const DETAIL_RADIUS := 3                   # full-detail terrain radius; farther rendered as
                                            # cheap visual LOD to keep the wide view smooth.
 const SITE_SEARCH_RADIUS := 14             # chunks scanned for auto-path targets

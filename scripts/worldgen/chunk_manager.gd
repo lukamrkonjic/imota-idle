@@ -12,6 +12,7 @@ const ChunkRenderer := preload("res://scripts/worldgen/chunk_renderer.gd")
 var layer := 0
 var view_radius := WG.VIEW_RADIUS
 var active_radius := WG.ACTIVE_RADIUS
+var nav_radius := WG.NAV_RADIUS
 var detail_radius := WG.DETAIL_RADIUS
 var unload_radius := WG.VIEW_RADIUS + 2
 # WorkerThreadPool bakes can leave Godot with a non-zero process exit during
@@ -32,10 +33,10 @@ var _results_mutex := Mutex.new()
 # Incremental streaming: after the initial fill, new chunks are queued and loaded
 # a few per frame instead of all at once on the crossing frame. This trades a
 # slightly slower fill for no frame hiccup when the player walks into a new area.
-const LOADS_PER_FRAME := 2
+const LOADS_PER_FRAME := 3
 const LOAD_TIME_BUDGET_USEC := 2600
-const ACTIVATIONS_PER_FRAME := 1
-const DEACTIVATIONS_PER_FRAME := 3
+const ACTIVATIONS_PER_FRAME := 3
+const DEACTIVATIONS_PER_FRAME := 4
 const TERRAIN_REDRAWS_PER_FRAME := 3
 var _load_queue: Array = []       # Array[Vector2i], nearest-first
 var _queued: Dictionary = {}      # "cx:cy" -> true (dedupe what's already queued)
@@ -51,10 +52,13 @@ var _queued_deactivate: Dictionary = {}
 
 ## Gameplay-active chunks only. Pathfinding/entities intentionally stay on this
 ## smaller set even though more terrain chunks are rendered in the distance.
+## Active chunks the NAV graph should cover — only the small ring around the
+## player, not the (possibly large, zoom-driven) entity ring. Keeps the A*
+## rebuild cheap regardless of how far out entities/terrain stream.
 func loaded_chunks() -> Array:
 	var out: Array = []
 	for key: String in _active.keys():
-		if _chunks.has(key):
+		if _chunks.has(key) and _within_radius(_coord_from_key(key), _center, nav_radius):
 			out.append(_chunks[key])
 	return out
 
@@ -99,6 +103,26 @@ func update_center(world_pos: Vector2) -> void:
 	# synchronously. Farther visual chunks stream in over following frames.
 	var first_fill: bool = _center.x == 2000000
 	_center = c
+	_refresh(first_fill)
+
+
+## Zoom-aware streaming: the world recomputes these every frame from the camera
+## zoom so the loaded ring always covers the view (plus margin). Re-streams when
+## the radius grows and unloads when it shrinks.
+func set_radii(p_view: int, p_active: int) -> void:
+	var v := clampi(p_view, WG.VIEW_RADIUS, WG.MAX_VIEW_RADIUS)
+	var a := clampi(p_active, WG.ACTIVE_RADIUS, mini(WG.MAX_ACTIVE_RADIUS, v - 1))
+	if v == view_radius and a == active_radius:
+		return
+	view_radius = v
+	active_radius = a
+	unload_radius = view_radius + 2
+	if _center.x != 2000000:
+		_refresh(false)
+
+
+func _refresh(first_fill: bool) -> void:
+	var c := _center
 	var needed: Dictionary = {}
 	for dy: int in range(-view_radius, view_radius + 1):
 		for dx: int in range(-view_radius, view_radius + 1):
@@ -178,7 +202,7 @@ func set_view_rect(rect: Rect2) -> void:
 		var coord := _coord_from_key(key)
 		if coord == Vector2i(999999, 999999):
 			continue
-		var aabb := WG.chunk_aabb(coord.x, coord.y).grow(WG.CHUNK_SIZE * 0.6)
+		var aabb := WG.chunk_aabb(coord.x, coord.y).grow(WG.CHUNK_SIZE * 0.5)
 		_renderers[key].visible = aabb.intersects(rect)
 
 
