@@ -10,16 +10,10 @@ class_name EntitySpriteCache
 ## count. Lazy by default; prewarm(...) can bake a known set up-front (e.g. on a
 ## loading screen before entering a fully-generated zone like a mine).
 
+const BakeQueue := preload("res://scripts/world/bake_queue.gd")
+
 var _cache: Dictionary = {}     # key:String -> {"tex":Texture2D, "offset":Vector2}
 var _pending: Dictionary = {}   # key:String -> Array[Callable] (redraw callbacks)
-
-
-## A throwaway node that paints the entity art into the bake SubViewport.
-class _Baker extends Node2D:
-	var painter: Callable
-	func _draw() -> void:
-		if painter.is_valid():
-			painter.call(self)
 
 
 ## Ready texture entry for `key`, or an empty dict if it still needs baking.
@@ -41,37 +35,27 @@ func request(key: String, bounds: Rect2, painter: Callable, on_ready: Callable) 
 			_pending[key].append(on_ready)
 		return
 	_pending[key] = [on_ready] if on_ready.is_valid() else []
-	_bake(key, bounds, painter)
-
-
-## Bake a batch of (key, bounds, painter) up-front without waiting per-entity.
-## Intended for a loading screen ahead of a generated zone.
-func prewarm(jobs: Array) -> void:
-	for j: Dictionary in jobs:
-		request(str(j["key"]), j["bounds"], j["painter"], Callable())
-
-
-func _bake(key: String, bounds: Rect2, painter: Callable) -> void:
-	var size := Vector2i(maxi(1, ceili(bounds.size.x)), maxi(1, ceili(bounds.size.y)))
-	var vp := SubViewport.new()
-	vp.size = size
-	vp.transparent_bg = true
-	vp.disable_3d = true
-	vp.msaa_2d = Viewport.MSAA_DISABLED
-	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
-	var baker := _Baker.new()
-	baker.position = -bounds.position
-	baker.painter = painter
-	vp.add_child(baker)
-	add_child(vp)
-	await RenderingServer.frame_post_draw
-	if not is_inside_tree():
+	if BakeQueue.instance == null:
 		return
-	var img := vp.get_texture().get_image()
-	if img != null and img.get_width() > 0:
-		_cache[key] = {"tex": ImageTexture.create_from_image(img), "offset": bounds.position}
-	vp.queue_free()
+	BakeQueue.instance.enqueue(
+		Vector2i(ceili(bounds.size.x), ceili(bounds.size.y)),
+		-bounds.position,
+		painter,  # bound to the entity: invalid (and skipped) if it frees first
+		func(tex: Texture2D) -> void: _on_baked(key, bounds.position, tex),
+		func() -> bool: return not _cache.has(key),
+		func() -> void: _pending.erase(key))  # skipped -> allow a live entity to re-request
+
+
+func _on_baked(key: String, offset: Vector2, tex: Texture2D) -> void:
+	_cache[key] = {"tex": tex, "offset": offset}
 	for cb: Callable in _pending.get(key, []):
 		if cb.is_valid():
 			cb.call()
 	_pending.erase(key)
+
+
+## Bake a batch of (key, bounds, painter) up-front (still throttled through the
+## BakeQueue). Intended for a loading screen ahead of a generated zone.
+func prewarm(jobs: Array) -> void:
+	for j: Dictionary in jobs:
+		request(str(j["key"]), j["bounds"], j["painter"], Callable())

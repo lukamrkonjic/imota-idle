@@ -6,6 +6,7 @@ const Chunk := preload("res://scripts/worldgen/chunk.gd")
 const PixelDraw := preload("res://scripts/world/art/core/pixel_draw.gd")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 const WorldLighting := preload("res://scripts/world/art/core/world_lighting.gd")
+const BakeQueue := preload("res://scripts/world/bake_queue.gd")
 
 # Tiles are drawn slightly larger than their cell so neighbours overlap and hide
 # the hairline between diamonds.
@@ -22,20 +23,13 @@ const DETAIL_FULL := 1
 var chunk: RefCounted
 var detail_level := DETAIL_FULL
 var _placeholder: Color = Color(0.25, 0.35, 0.22)
-# The chunk's vector art is rasterised ONCE into this texture (1 draw call) and
-# then blitted every frame, instead of re-submitting ~300 per-tile polygons that
-# never batch. This is the whole performance fix — see _start_bake().
+# The chunk's ~300 per-tile polygons are rendered ONCE into a kept-alive
+# SubViewport, and we draw that viewport's texture (1 draw call) every frame. We
+# deliberately do NOT get_image() it: that readback stalls the CPU on the GPU and,
+# because terrain streams a new chunk constantly while moving, was the walking
+# hitch. The ViewportTexture is GPU-resident — no stall, ever.
 var _baked: Texture2D = null
 var _bake_offset := Vector2.ZERO
-
-
-## A throwaway Node2D that paints the chunk into a SubViewport so we can capture
-## it as a texture. Holds a Callable so it can reach the renderer's draw helpers.
-class _ChunkBaker extends Node2D:
-	var paint_cb: Callable
-	func _draw() -> void:
-		if paint_cb.is_valid():
-			paint_cb.call(self)
 
 
 func _init(p_chunk: RefCounted, avg_color: Color, p_detail_level: int = DETAIL_FULL) -> void:
@@ -98,44 +92,40 @@ func _draw() -> void:
 		draw_texture(_baked, _bake_offset)
 		return
 	# Until the bake lands, show one cheap flat diamond in the chunk's average
-	# colour (1 draw call) rather than the full per-tile art or a black gap.
+	# colour (1 draw call) rather than the full per-tile art or a gap.
 	var center := WG.tile_to_world(chunk.cx * WG.CHUNK_TILES + 8, chunk.cy * WG.CHUNK_TILES + 8)
 	PixelDraw.px_diamond(self, center.x, center.y,
 		float(WG.CHUNK_TILES) * WG.ISO_HW, float(WG.CHUNK_TILES) * WG.ISO_HH, _placeholder)
 
 
-## Rasterise this chunk's full vector art once into a texture via a SubViewport,
-## then blit it from _draw(). Concurrency is capped so a wave of new chunks does
-## not spin up dozens of viewports on one frame.
+## Render this chunk's art once through the shared, throttled BakeQueue so the
+## get_image() readbacks (one per chunk) don't all hit the same frame while
+## terrain streams in during movement. Bound methods so a freed chunk is skipped.
 func _start_bake() -> void:
 	var reg: RefCounted = WorldGen.reg if WorldGen != null else null
-	if reg == null:
+	if reg == null or BakeQueue.instance == null:
 		return
 	var bounds := _world_bounds()
-	var vp := SubViewport.new()
-	vp.size = Vector2i(ceili(bounds.size.x), ceili(bounds.size.y))
-	vp.transparent_bg = true
-	vp.disable_3d = true
-	# No anti-aliasing: AA'd diamond edges become semi-transparent and, at the
-	# chunk border, blend into the dark backdrop as a gray hairline seam (worst on
-	# bright snow). Hard edges abut cleanly between adjacent chunk textures.
-	vp.msaa_2d = Viewport.MSAA_DISABLED
-	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
-	var baker := _ChunkBaker.new()
-	baker.position = -bounds.position
-	baker.paint_cb = func(canvas: CanvasItem) -> void:
+	_bake_offset = bounds.position
+	BakeQueue.instance.enqueue(
+		Vector2i(ceili(bounds.size.x), ceili(bounds.size.y)),
+		-bounds.position,
+		_bake_paint, _on_baked_tex, _bake_needed)
+
+
+func _bake_paint(canvas: CanvasItem) -> void:
+	var reg: RefCounted = WorldGen.reg if WorldGen != null else null
+	if reg != null:
 		paint_into(canvas, chunk, reg)
-	vp.add_child(baker)
-	add_child(vp)
-	await RenderingServer.frame_post_draw
-	if not is_instance_valid(self) or not is_inside_tree():
-		return
-	var img := vp.get_texture().get_image()
-	if img != null and img.get_width() > 0:
-		_baked = ImageTexture.create_from_image(img)
-		_bake_offset = bounds.position
-		queue_redraw()
-	vp.queue_free()
+
+
+func _on_baked_tex(tex: Texture2D) -> void:
+	_baked = tex
+	queue_redraw()
+
+
+func _bake_needed() -> bool:
+	return is_inside_tree() and _baked == null
 
 
 ## World-space bounding box of everything this chunk draws (tile diamonds plus

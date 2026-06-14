@@ -35,7 +35,42 @@ func _run() -> void:
 	print("\n=== PERF PROBE ===")
 	for s: Dictionary in samples:
 		await _probe(s)
+	await _walk_test(0.45)
+	await _walk_test(0.95)
 	get_tree().quit(0)
+
+
+## The real stress: keep MOVING (new chunks/entities stream + bake every frame)
+## and report the worst frame, since the bake-readback hitch only shows in motion.
+func _walk_test(zoom: float) -> void:
+	var cam: Camera2D = _world.get("_camera")
+	if cam != null:
+		cam.zoom = Vector2(zoom, zoom)
+		cam.reset_smoothing()
+	var pos := WG.tile_to_world(8, 8)
+	_world.player.position = pos
+	_world.chunk_manager.update_center(pos)
+	for i: int in 60:
+		await get_tree().process_frame
+	# Walk a straight line at a realistic running pace (~0.015 chunk/frame).
+	var worst_ms := 0.0
+	var jank := 0
+	var frames := 400
+	for i: int in frames:
+		pos += Vector2(WG.CHUNK_SIZE * 0.015, WG.CHUNK_SIZE * 0.008)
+		_world.player.position = pos
+		await get_tree().process_frame
+		var ms := Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+		worst_ms = maxf(worst_ms, ms)
+		if ms > 33.0:
+			jank += 1
+	print(JSON.stringify({
+		"walk_zoom": zoom,
+		"worst_proc_ms": snappedf(worst_ms, 0.1),
+		"jank_frames_over_33ms": jank,
+		"of_frames": frames,
+		"view_r": _world.chunk_manager.get("view_radius"),
+	}))
 
 
 func _probe(s: Dictionary) -> void:
