@@ -52,3 +52,6 @@ Formula provenance and the few unrecoverable values are documented in
   sectored entity placement (camp plaza, gather sectors, enemies east, lake in
   the fishing sector), and OSRS-style HUD. Same sims as the Melvor UI —
   `scenes/main.tscn` remains for headless UI smoke tests.
+
+Run the game: Godot...win64.exe --path C:\Dev\imota-idle
+Run the editor: Godot...win64.exe --path C:\Dev\imota-idle res://tools/world_editor.tscn
