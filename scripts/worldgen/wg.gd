@@ -15,10 +15,12 @@ const MAX_CLIMB_STEP := 1                  # biggest single-step elevation chang
 const CHUNK_TILES := 16                    # tiles per chunk side
 const CHUNK_SIZE := TILE * float(CHUNK_TILES)  # legacy ortho estimate; use chunk_aabb()
 const ZONE_CELL := 6                       # zone Voronoi cell size, in chunks
-const VIEW_RADIUS := 5                     # terrain chunks kept rendered around the player.
+const VIEW_RADIUS := 8                     # terrain chunks kept rendered around the player.
                                            # This is visual-only; entities/pathfinding use
                                            # ACTIVE_RADIUS so a wide view does not multiply
-                                           # gameplay nodes or path graph rebuild cost.
+                                           # gameplay nodes or path graph rebuild cost. Each
+                                           # chunk is now a single baked sprite (1 draw call),
+                                           # so a wide radius is cheap — see ChunkRenderer.
 const ACTIVE_RADIUS := 2                   # chunks with spawned entities + navigation nodes.
 const DETAIL_RADIUS := 3                   # full-detail terrain radius; farther rendered as
                                            # cheap visual LOD to keep the wide view smooth.

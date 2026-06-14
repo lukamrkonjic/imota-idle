@@ -139,10 +139,10 @@ func _load(coords: Vector2i, immediate_active: bool = false) -> void:
 	var avg := ChunkRenderer.tile_color(WorldGen.reg, chunk.tile_id(WG.CHUNK_TILES / 2, WG.CHUNK_TILES / 2))
 	var renderer: Node2D = ChunkRenderer.new(chunk, avg, _detail_for(coords))
 	renderer.name = "Chunk_" + key.replace(":", "_").replace("-", "m")
-	renderer.modulate.a = 0.0
+	# No fade: terrain loads well outside the view (large radius), so it is simply
+	# present when it scrolls on screen — fading introduced the visible "pop".
 	add_child(renderer)
 	_renderers[key] = renderer
-	_fade_in(renderer, 0.30)
 	_redraw_loaded_neighbors(coords)
 	if _within_radius(coords, _center, active_radius):
 		if immediate_active:

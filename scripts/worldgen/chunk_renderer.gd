@@ -20,6 +20,20 @@ const DETAIL_FULL := 1
 var chunk: RefCounted
 var detail_level := DETAIL_FULL
 var _placeholder: Color = Color(0.25, 0.35, 0.22)
+# The chunk's vector art is rasterised ONCE into this texture (1 draw call) and
+# then blitted every frame, instead of re-submitting ~300 per-tile polygons that
+# never batch. This is the whole performance fix — see _start_bake().
+var _baked: Texture2D = null
+var _bake_offset := Vector2.ZERO
+
+
+## A throwaway Node2D that paints the chunk into a SubViewport so we can capture
+## it as a texture. Holds a Callable so it can reach the renderer's draw helpers.
+class _ChunkBaker extends Node2D:
+	var paint_cb: Callable
+	func _draw() -> void:
+		if paint_cb.is_valid():
+			paint_cb.call(self)
 
 
 func _init(p_chunk: RefCounted, avg_color: Color, p_detail_level: int = DETAIL_FULL) -> void:
@@ -33,11 +47,9 @@ func _init(p_chunk: RefCounted, avg_color: Color, p_detail_level: int = DETAIL_F
 
 
 func set_detail_level(p_detail_level: int) -> void:
-	var next: int = clampi(p_detail_level, DETAIL_LOW, DETAIL_FULL)
-	if detail_level == next:
-		return
-	detail_level = next
-	queue_redraw()
+	# Detail no longer affects the per-frame cost (the chunk is one baked sprite
+	# regardless), so we always bake full detail and this is just bookkeeping.
+	detail_level = clampi(p_detail_level, DETAIL_LOW, DETAIL_FULL)
 
 
 ## Terrain elevation (in steps) for a tile, read from the chunk's baked per-tile
@@ -73,23 +85,79 @@ static func _terrain_shadow(p_chunk: RefCounted, lx: int, ly: int, e: int) -> fl
 
 
 func _ready() -> void:
-	# A window/viewport resize makes the engine drop this CanvasItem's cached
-	# draw commands and re-issue _draw. An earlier "draw once then freeze"
-	# guard turned that re-issue into a blank, so the ground went black on
-	# resize while entities (which redraw on signals) stayed. Redraw fully on
-	# every _draw, and force one on resize so the ground is never left blank.
-	get_viewport().size_changed.connect(queue_redraw)
-	queue_redraw()
+	# Keep the baked terrain crisp (it is pixel art); without this the blit
+	# would be linear-filtered and blurry when the camera zooms in.
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_start_bake()
 
 
 func _draw() -> void:
+	if _baked != null:
+		draw_texture(_baked, _bake_offset)
+		return
+	# Until the bake lands, show one cheap flat diamond in the chunk's average
+	# colour (1 draw call) rather than the full per-tile art or a black gap.
+	var center := WG.tile_to_world(chunk.cx * WG.CHUNK_TILES + 8, chunk.cy * WG.CHUNK_TILES + 8)
+	PixelDraw.px_diamond(self, center.x, center.y,
+		float(WG.CHUNK_TILES) * WG.ISO_HW, float(WG.CHUNK_TILES) * WG.ISO_HH, _placeholder)
+
+
+## Rasterise this chunk's full vector art once into a texture via a SubViewport,
+## then blit it from _draw(). Concurrency is capped so a wave of new chunks does
+## not spin up dozens of viewports on one frame.
+func _start_bake() -> void:
 	var reg: RefCounted = WorldGen.reg if WorldGen != null else null
 	if reg == null:
-		_draw_placeholder()
-	elif detail_level <= DETAIL_LOW:
-		_draw_chunk_lod(self, chunk, reg)
-	else:
-		_draw_chunk(self, chunk, reg)
+		return
+	var bounds := _world_bounds()
+	var vp := SubViewport.new()
+	vp.size = Vector2i(ceili(bounds.size.x), ceili(bounds.size.y))
+	vp.transparent_bg = true
+	vp.disable_3d = true
+	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	var baker := _ChunkBaker.new()
+	baker.position = -bounds.position
+	baker.paint_cb = func(canvas: CanvasItem) -> void:
+		paint_into(canvas, chunk, reg)
+	vp.add_child(baker)
+	add_child(vp)
+	await RenderingServer.frame_post_draw
+	if not is_instance_valid(self) or not is_inside_tree():
+		return
+	var img := vp.get_texture().get_image()
+	if img != null and img.get_width() > 0:
+		_baked = ImageTexture.create_from_image(img)
+		_bake_offset = bounds.position
+		queue_redraw()
+	vp.queue_free()
+
+
+## World-space bounding box of everything this chunk draws (tile diamonds plus
+## any elevation lift/risers), padded a little, so the bake viewport is sized to
+## hold the whole chunk.
+func _world_bounds() -> Rect2:
+	var base_tx: int = chunk.cx * WG.CHUNK_TILES
+	var base_ty: int = chunk.cy * WG.CHUNK_TILES
+	var hw := WG.ISO_HW + TILE_OVERLAP
+	var hh := WG.ISO_HH + TILE_OVERLAP * 0.5
+	var minp := Vector2(INF, INF)
+	var maxp := Vector2(-INF, -INF)
+	for ty: int in WG.CHUNK_TILES:
+		for tx: int in WG.CHUNK_TILES:
+			var center := WG.tile_to_world(base_tx + tx, base_ty + ty)
+			var elev := _local_elev(chunk, tx, ty)
+			var oy := -float(elev) * WG.ELEV_STEP_PX
+			minp.x = minf(minp.x, center.x - hw)
+			maxp.x = maxf(maxp.x, center.x + hw)
+			minp.y = minf(minp.y, center.y + oy - hh)  # top surface (lifted up)
+			maxp.y = maxf(maxp.y, center.y + hh)        # base/riser foot
+	return Rect2(minp, maxp - minp).grow(4.0)
+
+
+## The full chunk paint, used by the bake viewport (and reusable anywhere a
+## one-shot render of the chunk is needed).
+static func paint_into(canvas: CanvasItem, p_chunk: RefCounted, reg: RefCounted) -> void:
+	_draw_chunk(canvas, p_chunk, reg)
 
 
 func _draw_placeholder() -> void:

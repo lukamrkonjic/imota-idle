@@ -100,7 +100,7 @@ func _spawn_chunk_streamed(chunk: RefCounted, container: Node2D) -> void:
 
 ## The chunk is still the live container for its key (not unloaded/replaced
 ## while we were yielding). Guards every resume point in the streamed spawn.
-func _still_loading(key: String, container: Node2D) -> bool:
+func _still_loading(key: String, container: Variant) -> bool:
 	return is_instance_valid(container) and world._chunk_containers.get(key) == container
 
 
@@ -120,7 +120,10 @@ func _finalize_chunk(_chunk: RefCounted, container: Node2D) -> void:
 	for i: int in keyed.size():
 		world.entities[i] = keyed[i][0]
 	world._path_ctrl.mark_path_dirty()
-	_fade_in(container)
+	# Reveal the chunk only once it is fully built (it was kept invisible during
+	# the streamed spawn) — no fade, so props simply appear, never pop in one by
+	# one. It is loaded outside the view, so the reveal happens off screen.
+	container.modulate.a = 1.0
 
 
 func on_chunk_unloaded(chunk: RefCounted) -> void:
