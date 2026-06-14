@@ -137,10 +137,19 @@ func danger01(tx: float, ty: float) -> float:
 func _apply_continent(tx: float, ty: float, h: float) -> float:
 	if not _finite:
 		return h
+	return h - coast_sink(tx, ty) * 0.75
+
+
+## Smooth 0..1 "how close to / past the shore" factor — 0 well inland, rising to
+## 1 out past the organic coastline. Drives the continent sink AND the coastal
+## elevation taper, so both follow the same shore. Deliberately uses only the
+## low-frequency coast noise + radial distance (NOT the fine height field), so it
+## varies smoothly across the map.
+func coast_sink(tx: float, ty: float) -> float:
 	var d := norm_dist(tx, ty)
 	var coast := _coast.get_noise_2d(tx, ty) * 0.5 + 0.5      # 0..1
 	var edge := 0.62 + coast * 0.46                            # land ends ~0.62..1.08 of radius
-	return h - smoothstep(edge, edge + 0.22, d) * 0.75
+	return smoothstep(edge, edge + 0.22, d)
 
 
 ## Compass direction from the continent centre as a unit-ish bias, plus a region
@@ -205,11 +214,11 @@ func elevation_steps(tx: float, ty: float) -> int:
 	# Steep exponent so foothills stay low but the cold alpine ridges (high mf)
 	# climb to a towering height; quantise into bands for big readable terraces.
 	var raw := pow((mf - 0.70) / 0.54, 1.35) * float(ELEV_MAX_STEPS)
-	# Slope down toward the sea: fade elevation as the land height approaches sea
-	# level so coastal mountains taper to the shore instead of dropping as a sheer
-	# cliff into the water (also smooths the rim where mountains meet lowland).
-	var land_h := _apply_continent(tx, ty, _height.get_noise_2d(tx, ty) * 0.5 + 0.5)
-	raw *= smoothstep(0.30, 0.54, land_h)
+	# Slope down toward the sea using the SMOOTH coastline. (The old version keyed
+	# off the fine height noise, which fluctuates everywhere and randomly flattened
+	# inland mountains to elevation 0 — letting the player walk straight up peaks.)
+	# Inland: full height. Approaching the shore: tapers to 0.
+	raw *= 1.0 - smoothstep(0.0, 0.55, coast_sink(tx, ty))
 	return int(round(raw / float(ELEV_BAND))) * ELEV_BAND
 
 
