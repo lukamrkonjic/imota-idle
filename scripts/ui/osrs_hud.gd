@@ -17,11 +17,11 @@ const WorldMapPanel := preload("res://scripts/ui/world_map_panel.gd")
 
 const SKILL_ABBREV := {
 	"attack": "Atk", "strength": "Str", "defence": "Def", "hitpoints": "HP",
-	"ranged": "Rng", "magic": "Mag", "devotion": "Dev", "beastmastery": "BM",
+	"ranged": "Rng", "magic": "Mag", "prayer": "Pray", "slayer": "Slay",
 	"woodcutting": "WC", "mining": "Min", "fishing": "Fsh", "foraging": "For",
-	"thieving": "Thv", "dexterity": "Dex", "tracking": "Trk", "homesteading": "Hms",
+	"thieving": "Thv", "hunter": "Hunt", "farming": "Farm",
 	"cooking": "Cook", "smithing": "Smth", "firemaking": "FM", "fletching": "Flt",
-	"crafting": "Crft", "herbology": "Herb", "imbuing": "Imb", "soulbinding": "Soul",
+	"crafting": "Crft", "alchemy": "Alch", "agility": "Agi",
 }
 
 var world: Node2D = null
@@ -899,7 +899,7 @@ func open_skill_guide(skill: String) -> void:
 
 	if not any:
 		var lbl := Label.new()
-		if skill in ["attack", "strength", "defence", "hitpoints", "ranged", "magic", "devotion", "beastmastery"]:
+		if skill in ["attack", "strength", "defence", "hitpoints", "ranged", "magic", "prayer", "slayer"]:
 			lbl.text = "Train %s by fighting monsters in the world.\nHigher-level zones hold stronger foes." % skill.capitalize()
 		else:
 			lbl.text = "%s sites appear in the world as you explore.\n(This skill's sim is still on the roadmap.)" % skill.capitalize()

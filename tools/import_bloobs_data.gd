@@ -12,6 +12,7 @@ const OUT_DIR := "res://data"
 
 const ContentId := preload("res://scripts/content/content_id.gd")
 const IdRegistry := preload("res://scripts/content/id_registry.gd")
+const SkillRemap := preload("res://scripts/content/skill_remap.gd")
 
 # Mints/preserves opaque numeric ids; re-imports keep every existing assignment
 # and only mint for genuinely new content. See scripts/content/id_registry.gd.
@@ -36,7 +37,10 @@ func _init() -> void:
 	# item index.
 	import_recipes(items)
 	for name: String in items:
+		# Mint the id from the original name slug, then remap skill keys (spec §2).
 		items[name]["id"] = _reg.mint("items", ContentId.item_id(name))
+		for field: String in ["reqs", "bonusXp"]:
+			items[name][field] = _remap_skill_keys(items[name].get(field, {}))
 	write_json("items.json", items)
 	print("items (incl. recipe outputs): %d" % items.size())
 	import_gather_nodes()
@@ -65,6 +69,16 @@ func _merge_aliases() -> void:
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	f.store_string(JSON.stringify(aliases, "  ", false))
 	f.close()
+
+
+## Remaps the skill keys of a reqs/bonusXp dict to the Imota roster, summing when
+## two old skills fold into one (imbuing+soulbinding -> crafting).
+func _remap_skill_keys(src: Dictionary) -> Dictionary:
+	var dst := {}
+	for skill: String in src:
+		var ns := SkillRemap.to_new(skill)
+		dst[ns] = src[skill] if not dst.has(ns) else dst[ns] + src[skill]
+	return dst
 
 
 func read_json(path: String) -> Variant:
@@ -276,10 +290,17 @@ func import_recipes(items: Dictionary) -> void:
 		var key := skill + "/" + rname
 		if not recipes.has(key):
 			recipes[key] = recipe
+	# Mint each id from the ORIGINAL Bloobs skill slug (stable across re-imports),
+	# then remap the skill field + re-key to the Imota roster (spec §2).
+	var remapped := {}
 	for key: String in recipes:
 		var r: Dictionary = recipes[key]
 		r["id"] = _reg.mint("recipes", ContentId.recipe_id(str(r["skill"]), str(r["name"])))
-	write_json("recipes.json", recipes)
+		r["skill"] = SkillRemap.to_new(str(r["skill"]))
+		var new_key: String = str(r["skill"]) + "/" + str(r["name"])
+		if not remapped.has(new_key):
+			remapped[new_key] = r
+	write_json("recipes.json", remapped)
 	print("recipes: %d" % recipes.size())
 
 

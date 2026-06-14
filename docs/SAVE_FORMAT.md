@@ -4,12 +4,12 @@
 
 Managed by `SaveManager` + `GameState`. Autosaves every 30s and on quit.
 
-### Schema version 4 (current)
+### Schema version 5 (current)
 
 ```json
 {
-  "schemaVersion": 4,
-  "gameVersion": "0.4.0",
+  "schemaVersion": 5,
+  "gameVersion": "0.5.0",
   "skills": { "<skill_id>": { "xp": 0.0, "level": 1 } },
   "inventory": [{ "id": "item.1042", "qty": 5 }],
   "bank": { "item.1042": 20 },
@@ -41,6 +41,15 @@ display names are now pure presentation and rename freely; the id is the permane
   ids for genuinely new content. Ids are never reused after a removal.
 - Data files (`items.json`, …) carry an explicit `id` per entry; recipes/drops/nodes still
   cross-reference items by **name** and resolve to ids at load, keeping data human-readable.
+
+### Schema version 4 → 5 (skill roster, Phase 2)
+
+`_migrate_v4_to_v5` rewrites Bloobs skill keys in the `skills` dict to the OSRS-style roster
+via `SkillRemap` (devotion→prayer, tracking→hunter, dexterity→agility, homesteading→farming,
+herbology→alchemy, beastmastery→slayer; imbuing+soulbinding fold into crafting). XP/levels are
+preserved and folded skills **sum** their XP, so no progress is lost. `SkillRemap` is the single
+source of truth, also used by `tools/remap_skills.gd` (data) and the importer (which mints ids
+from the original Bloobs slug, then writes the new skill name — keeping the id registry stable).
 
 ### Schema version 3 → 4 (currency rename, Phase 1)
 

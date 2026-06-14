@@ -37,8 +37,9 @@ func start_combat(enemy_name: String, p_train_skill: String = "attack") -> bool:
 	var e := DataRegistry.get_enemy(enemy_name)
 	if e.is_empty():
 		return false
-	if int(e["beastMasteryReq"]) > GameState.level("beastmastery"):
-		EventBus.combat_log.emit("Beast Mastery level %d required for %s" % [e["beastMasteryReq"], enemy_name])
+	# Bloobs beastMasteryReq is now the per-enemy Slayer requirement (spec §5).
+	if int(e["beastMasteryReq"]) > GameState.level("slayer"):
+		EventBus.combat_log.emit("Slayer level %d required for %s" % [e["beastMasteryReq"], enemy_name])
 		return false
 	stop("switching")
 	TickSim.stop("switching")
@@ -216,7 +217,7 @@ func _on_enemy_killed() -> void:
 	# XP from the bestiary data (equals BasicEnemy.RecalculateStats output).
 	GameState.add_xp(train_skill, float(enemy["combatXp"]))
 	GameState.add_xp("hitpoints", float(enemy["hitpointsXp"]))
-	GameState.add_xp("beastmastery", float(enemy["beastMasteryXp"]))
+	GameState.add_xp("slayer", float(enemy["beastMasteryXp"]))
 	_roll_drops()
 	EventBus.enemy_killed.emit(enemy["name"])
 	respawning = true

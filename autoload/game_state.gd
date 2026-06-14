@@ -4,13 +4,17 @@ extends Node
 const SaveMigration := preload("res://autoload/save_migration.gd")
 ## All mutation goes through methods here so EventBus signals stay accurate.
 
+# OSRS-style 22-skill roster (Imota spec §2). Bloobs skill keys are migrated to
+# these via SkillRemap (devotion->prayer, tracking->hunter, dexterity->agility,
+# homesteading->farming, herbology->alchemy, beastmastery->slayer; imbuing/
+# soulbinding fold into crafting). foraging stays (gathering only).
 const SKILLS := [
 	"attack", "strength", "defence", "hitpoints", "ranged", "magic",
-	"devotion", "beastmastery",
-	"woodcutting", "mining", "fishing", "foraging", "thieving", "dexterity",
-	"tracking", "homesteading",
-	"cooking", "smithing", "firemaking", "fletching", "crafting", "herbology",
-	"imbuing", "soulbinding",
+	"prayer", "slayer",
+	"woodcutting", "mining", "fishing", "foraging", "thieving", "hunter",
+	"farming",
+	"cooking", "smithing", "firemaking", "fletching", "crafting", "alchemy",
+	"agility",
 ]
 
 # OSRS-style fixed 28-slot inventory (Imota spec §0). Was a Bloobs-shaped 24.

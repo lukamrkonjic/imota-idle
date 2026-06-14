@@ -2,8 +2,10 @@ extends RefCounted
 class_name SaveMigration
 ## Migrates save dictionaries between schema versions.
 
-const CURRENT_SCHEMA := 4
-const CURRENT_GAME_VERSION := "0.4.0"
+const SkillRemap := preload("res://scripts/content/skill_remap.gd")
+
+const CURRENT_SCHEMA := 5
+const CURRENT_GAME_VERSION := "0.5.0"
 
 
 static func migrate_game_save(data: Dictionary) -> Dictionary:
@@ -17,8 +19,30 @@ static func migrate_game_save(data: Dictionary) -> Dictionary:
 		out = _migrate_v2_to_v3(out)
 	if version < 4:
 		out = _migrate_v3_to_v4(out)
+	if version < 5:
+		out = _migrate_v4_to_v5(out)
 	out["schemaVersion"] = CURRENT_SCHEMA
 	out["gameVersion"] = CURRENT_GAME_VERSION
+	return out
+
+
+## v5 rewrites Bloobs skill keys to the OSRS-style roster (spec §2). XP/levels
+## are preserved; skills that fold together (imbuing+soulbinding->crafting,
+## beastmastery->slayer) sum their XP so no progress is lost.
+static func _migrate_v4_to_v5(data: Dictionary) -> Dictionary:
+	var out := data.duplicate(true)
+	var old_skills: Dictionary = out.get("skills", {})
+	var new_skills := {}
+	for key: String in old_skills:
+		var nk := SkillRemap.to_new(key)
+		var entry: Dictionary = old_skills[key]
+		if new_skills.has(nk):
+			# Fold: combine XP and re-derive the level from the merged XP.
+			var merged_xp := float(new_skills[nk].get("xp", 0.0)) + float(entry.get("xp", 0.0))
+			new_skills[nk] = {"xp": merged_xp, "level": DataRegistry.level_for_xp(merged_xp)}
+		else:
+			new_skills[nk] = {"xp": float(entry.get("xp", 0.0)), "level": int(entry.get("level", 1))}
+	out["skills"] = new_skills
 	return out
 
 

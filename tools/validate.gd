@@ -3,6 +3,7 @@ extends Node
 const ValidateContent := preload("res://tools/validate_content.gd")
 const ContentId := preload("res://scripts/content/content_id.gd")
 const SaveMigration := preload("res://autoload/save_migration.gd")
+const SkillRemap := preload("res://scripts/content/skill_remap.gd")
 const WG := preload("res://scripts/worldgen/wg.gd")
 const Chunk := preload("res://scripts/worldgen/chunk.gd")
 const PathFinder := preload("res://scripts/worldgen/path_finder.gd")
@@ -21,6 +22,7 @@ func _ready() -> void:
 	phase0_data()
 	phase0_content_schema()
 	phase0_stable_ids()
+	phase2_skill_roster()
 	phase1_gathering()
 	phase1_inventory_bank_equipment()
 	phase2_combat()
@@ -111,6 +113,44 @@ func phase0_stable_ids() -> void:
 		if not (id.begins_with("item.") and id.trim_prefix("item.").is_valid_int()):
 			bad_ids += 1
 	check(bad_ids == 0, "all items carry opaque numeric ids (%d bad)" % bad_ids)
+
+
+func phase2_skill_roster() -> void:
+	print("== Phase 2: skill roster + migration ==")
+	check(GameState.SKILLS.size() == 22, "22 skills in roster (got %d)" % GameState.SKILLS.size())
+	for s: String in ["prayer", "slayer", "hunter", "farming", "alchemy", "agility"]:
+		check(GameState.SKILLS.has(s), "roster includes %s" % s)
+	for s: String in ["devotion", "beastmastery", "tracking", "dexterity", "homesteading", "herbology", "imbuing", "soulbinding"]:
+		check(not GameState.SKILLS.has(s), "roster drops Bloobs skill %s" % s)
+	# Recipes were re-homed: no recipe keeps a Bloobs skill key.
+	var bad_recipe_skills := 0
+	for key: String in DataRegistry.recipes:
+		if SkillRemap.MAP.has(str(DataRegistry.recipes[key]["skill"])):
+			bad_recipe_skills += 1
+	check(bad_recipe_skills == 0, "no recipe keeps a Bloobs skill key (%d)" % bad_recipe_skills)
+
+	# Migration: an old save's skill XP maps to the new keys; folds sum (no loss).
+	var legacy := {
+		"schemaVersion": 4,
+		"skills": {
+			"devotion": {"xp": 500.0, "level": 5},
+			"beastmastery": {"xp": 1000.0, "level": 8},
+			"herbology": {"xp": 300.0, "level": 4},
+			"crafting": {"xp": 100.0, "level": 2},
+			"imbuing": {"xp": 50.0, "level": 1},
+			"soulbinding": {"xp": 25.0, "level": 1},
+			"woodcutting": {"xp": 5000.0, "level": 20},
+		},
+		"inventory": [], "bank": {}, "equipment": {}, "coins": 0, "current_hp": 10,
+	}
+	var m := SaveMigration.migrate_game_save(legacy)
+	var sk: Dictionary = m["skills"]
+	check(absf(float(sk["prayer"]["xp"]) - 500.0) < 0.01, "devotion XP -> prayer")
+	check(absf(float(sk["slayer"]["xp"]) - 1000.0) < 0.01, "beastmastery XP -> slayer")
+	check(absf(float(sk["alchemy"]["xp"]) - 300.0) < 0.01, "herbology XP -> alchemy")
+	check(absf(float(sk["crafting"]["xp"]) - 175.0) < 0.01, "crafting + imbuing + soulbinding folded (got %.0f)" % float(sk["crafting"]["xp"]))
+	check(absf(float(sk["woodcutting"]["xp"]) - 5000.0) < 0.01, "surviving skill XP preserved")
+	check(not sk.has("devotion") and not sk.has("imbuing"), "no Bloobs skill keys remain in migrated save")
 
 
 func phase1_gathering() -> void:

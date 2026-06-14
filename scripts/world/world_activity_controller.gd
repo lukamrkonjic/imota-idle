@@ -9,8 +9,8 @@ const STATION_OPEN := {
 	"bank": "bank", "shop": "shop",
 	"campfire": "cooking", "range": "cooking", "anvil": "smithing",
 	"crafting": "crafting", "fletching": "fletching",
-	"herbology": "herbology", "imbuing": "imbuing",
-	"devotion": "devotion", "altar": "devotion", "soul_altar": "soulbinding",
+	"herbology": "alchemy", "imbuing": "crafting",
+	"devotion": "prayer", "altar": "prayer", "soul_altar": "crafting",
 }
 
 const AGGRO_INTERVAL := 0.5

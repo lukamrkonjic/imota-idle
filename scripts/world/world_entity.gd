@@ -383,9 +383,9 @@ func tooltip_content() -> Dictionary:
 				var style := str(enemy.get("style", ""))
 				if not style.is_empty():
 					details.append("Style: %s" % style)
-				var bm_req := int(enemy.get("beastMasteryReq", 0))
-				if bm_req > 0:
-					details.append("Beastmastery req: %d" % bm_req)
+				var slayer_req := int(enemy.get("beastMasteryReq", 0))
+				if slayer_req > 0:
+					details.append("Slayer req: %d" % slayer_req)
 				var drops: Array = enemy.get("drops", [])
 				if not drops.is_empty():
 					var drop_bits: PackedStringArray = []
@@ -415,7 +415,7 @@ func tooltip_content() -> Dictionary:
 				"fire":
 					details.append("Cook food and burn logs")
 				"altar":
-					details.append("Pray for devotion bonuses")
+					details.append("Pray for Prayer bonuses")
 		"descend":
 			subtitle = ""
 			details.append("Leads deeper underground")

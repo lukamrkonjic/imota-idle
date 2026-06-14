@@ -26,10 +26,10 @@ const TIER_COLORS: Array[Color] = [
 
 const GATHER_SKILLS := ["woodcutting", "mining", "fishing", "foraging"]
 const GATHER_ICON := {"woodcutting": "tree", "mining": "rock", "fishing": "fish", "foraging": "bush"}
-const CRAFT_SKILLS := ["cooking", "smithing", "crafting", "fletching", "herbology", "devotion", "imbuing"]
+const CRAFT_SKILLS := ["cooking", "smithing", "crafting", "fletching", "alchemy", "prayer"]
 const CRAFT_ICON := {
 	"cooking": "pot", "smithing": "anvil", "crafting": "gem", "fletching": "bow",
-	"herbology": "flask", "devotion": "candle", "imbuing": "rune",
+	"alchemy": "flask", "prayer": "candle",
 }
 const STYLE_ICON := {"melee": "sword", "range": "bow", "mage": "staff"}
 
@@ -371,14 +371,14 @@ func _build_picker() -> Control:
 		var drop_names: PackedStringArray = []
 		for d: Dictionary in e["drops"]:
 			drop_names.append(str(d["item"]))
-		btn.tooltip_text = "%s — HP %d, hits %.0f every %.1fs\nBM req: %d\nDrops: %s" % [
+		btn.tooltip_text = "%s — HP %d, hits %.0f every %.1fs\nSlayer req: %d\nDrops: %s" % [
 			e["name"], int(e["maxHealth"]), float(e["damage"]), float(e["cooldown"]),
 			int(e["beastMasteryReq"]), ", ".join(drop_names)]
 		var enemy_name: String = e["name"]
 		btn.pressed.connect(func() -> void:
 			CombatSim.start_combat(enemy_name, train_select.get_item_text(train_select.selected).to_lower()))
-		var bm_req: int = int(e["beastMasteryReq"])
-		_register_req(btn, func() -> bool: return GameState.level("beastmastery") >= bm_req)
+		var slayer_req: int = int(e["beastMasteryReq"])
+		_register_req(btn, func() -> bool: return GameState.level("slayer") >= slayer_req)
 		combat_flow.add_child(btn)
 
 	for skill: String in CRAFT_SKILLS:
