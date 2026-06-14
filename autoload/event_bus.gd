@@ -6,7 +6,7 @@ signal level_up(skill: String, new_level: int)
 signal inventory_changed
 signal bank_changed
 signal equipment_changed
-signal gold_changed(new_amount: int)
+signal coins_changed(new_amount: int)
 signal hp_changed(current: int, max_hp: int)
 
 signal activity_started(kind: String, label: String)

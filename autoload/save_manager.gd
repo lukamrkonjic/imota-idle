@@ -6,8 +6,6 @@ const SaveMigration := preload("res://autoload/save_migration.gd")
 
 const SAVE_PATH := "user://save.json"
 const AUTOSAVE_INTERVAL := 30.0
-const OFFLINE_CAP_SECONDS := 12.0 * 3600.0
-const OFFLINE_STEP := 0.5
 
 var _autosave_timer := 0.0
 var suppress := false  # headless tests set this so they never touch the save
@@ -100,31 +98,6 @@ func load_game() -> void:
 			var recipe := DataRegistry.get_recipe(str(activity["skill"]), recipe_ref)
 			if not recipe.is_empty():
 				RecipeSim.start_craft(str(activity["skill"]), str(recipe["name"]))
-	_apply_offline_progress(float(parsed.get("savedAt", 0.0)))
+	# No offline progress: the sims never fast-forward time the player was away.
+	# `savedAt` is still written for the AFK / Rested-XP system (spec §8).
 	EventBus.game_loaded.emit()
-
-
-## Fast-forward the active activity by the time spent away (capped). The sims
-## stop themselves on full inventory / missing inputs / player death, exactly
-## as they would have live.
-func _apply_offline_progress(saved_at: float) -> void:
-	if saved_at <= 0.0:
-		return
-	var elapsed := minf(Time.get_unix_time_from_system() - saved_at, OFFLINE_CAP_SECONDS)
-	if elapsed < 10.0:
-		return
-	var hp_before := GameState.current_hp
-	var steps := int(elapsed / OFFLINE_STEP)
-	for i: int in steps:
-		if TickSim.active:
-			TickSim.advance(OFFLINE_STEP)
-		elif CombatSim.active:
-			CombatSim.advance(OFFLINE_STEP)
-		elif RecipeSim.active:
-			RecipeSim.advance(OFFLINE_STEP)
-		else:
-			break
-	# Out-of-combat regen would have been ticking too.
-	if not CombatSim.active and GameState.current_hp < GameState.max_hp():
-		GameState.set_hp(maxi(GameState.current_hp, hp_before))
-	EventBus.combat_log.emit("Welcome back! %.1f hours of progress applied." % (elapsed / 3600.0))

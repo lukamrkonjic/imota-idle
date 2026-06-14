@@ -36,7 +36,7 @@ const STYLE_ICON := {"melee": "sword", "range": "bow", "mage": "staff"}
 var skill_rows: Dictionary = {}    # skill -> {"level": Label, "bar": ProgressBar}
 var req_buttons: Array = []        # [{button, check: Callable}] re-enabled on level up
 
-var gold_label: Label
+var coins_label: Label
 var hp_bar: ProgressBar
 var hp_label: Label
 var slots_label: Label
@@ -64,7 +64,7 @@ func _ready() -> void:
 	eb.inventory_changed.connect(_refresh_inventory)
 	eb.bank_changed.connect(_refresh_bank)
 	eb.equipment_changed.connect(_refresh_equipment)
-	eb.gold_changed.connect(func(_g: int) -> void: _refresh_top_bar())
+	eb.coins_changed.connect(func(_g: int) -> void: _refresh_top_bar())
 	eb.hp_changed.connect(func(_c: int, _m: int) -> void: _refresh_top_bar())
 	eb.activity_started.connect(_on_activity_started)
 	eb.activity_stopped.connect(_on_activity_stopped)
@@ -139,8 +139,8 @@ func _build_top_bar() -> Control:
 	title.add_theme_font_size_override("font_size", 22)
 	bar.add_child(title)
 
-	gold_label = Label.new()
-	bar.add_child(gold_label)
+	coins_label = Label.new()
+	bar.add_child(coins_label)
 
 	hp_label = Label.new()
 	bar.add_child(hp_label)
@@ -311,15 +311,15 @@ func _build_right_tabs() -> Control:
 		lbl.text = "%s (Lvl %d)" % [t["name"], int(t["level"])]
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		lbl.clip_text = true
-		lbl.tooltip_text = "Tool power %d — sells for %d gold" % [int(t["progress"]), int(t["value"])]
+		lbl.tooltip_text = "Tool power %d — sells for %d coins" % [int(t["progress"]), int(t["value"])]
 		row.add_child(lbl)
 		var tool_name: String = t["name"]
 		var price: int = int(t["value"])
-		row.add_child(_mini_button("Buy %dg" % price, func() -> void:
+		row.add_child(_mini_button("Buy (%d)" % price, func() -> void:
 			if GameState.buy_item(tool_name, 1):
 				_push_feed("[color=#8c8]Bought %s.[/color]" % tool_name)
 			else:
-				_push_feed("[color=#e55]Can't afford %s (%d gold).[/color]" % [tool_name, price])))
+				_push_feed("[color=#e55]Can't afford %s (%d coins).[/color]" % [tool_name, price])))
 		shop_list.add_child(row)
 	tabs.add_child(shop_scroll)
 	return tabs
@@ -464,7 +464,7 @@ func _refresh_all() -> void:
 
 
 func _refresh_top_bar() -> void:
-	gold_label.text = "Gold: %d" % GameState.gold
+	coins_label.text = "Coins: %d" % GameState.coins
 	hp_label.text = "HP %d/%d" % [GameState.current_hp, GameState.max_hp()]
 	hp_bar.max_value = GameState.max_hp()
 	hp_bar.value = GameState.current_hp

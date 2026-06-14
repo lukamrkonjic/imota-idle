@@ -1,5 +1,5 @@
 extends Node
-## Player state: skill XP/levels, inventory, bank, equipment, gold, HP.
+## Player state: skill XP/levels, inventory, bank, equipment, coins, HP.
 
 const SaveMigration := preload("res://autoload/save_migration.gd")
 ## All mutation goes through methods here so EventBus signals stay accurate.
@@ -13,9 +13,8 @@ const SKILLS := [
 	"imbuing", "soulbinding",
 ]
 
-# InventorySystem.baseInventorySize + unlock slots; base size approximated
-# (exact base not in export) — see docs/DATA_GAPS.md.
-const BASE_INVENTORY_SLOTS := 24
+# OSRS-style fixed 28-slot inventory (Imota spec §0). Was a Bloobs-shaped 24.
+const BASE_INVENTORY_SLOTS := 28
 
 const EQUIPMENT_SLOTS := [
 	"Helm", "Body", "Boots", "Weapon", "Shield", "Ring", "Gloves", "Cape",
@@ -26,7 +25,7 @@ var skills: Dictionary = {}      # skill -> {"xp": float, "level": int}
 var inventory: Array = []        # [{ "id": String, "qty": int }] stacked by stable item id
 var bank: Dictionary = {}        # item id -> qty
 var equipment: Dictionary = {}   # slot -> item id
-var gold: int = 0
+var coins: int = 0
 var current_hp: int = 10
 
 var _hp_regen_timer := 0.0
@@ -46,7 +45,7 @@ func reset_state() -> void:
 	inventory = []
 	bank = {}
 	equipment = {}
-	gold = 0
+	coins = 0
 	# Starter kit: the Bronze tool set (real smithing-recipe items from the
 	# export). Bronze Sword needs Attack 3 — it waits in the inventory; until
 	# then the player fights unarmed (damage = 1 + Strength level).
@@ -184,26 +183,26 @@ func withdraw(item_name_or_id: String, qty: int) -> void:
 		EventBus.bank_changed.emit()
 
 
-# ------------------------------------------------------------------ gold ----
+# ----------------------------------------------------------------- coins ----
 
-func add_gold(amount: int) -> void:
-	gold = maxi(0, gold + amount)
-	EventBus.gold_changed.emit(gold)
+func add_coins(amount: int) -> void:
+	coins = maxi(0, coins + amount)
+	EventBus.coins_changed.emit(coins)
 
 
 func sell_item(item_name: String, qty: int) -> void:
 	qty = mini(qty, count_item(item_name))
 	if qty > 0 and remove_item(item_name, qty):
-		add_gold(DataRegistry.item_value(item_name) * qty)
+		add_coins(DataRegistry.item_value(item_name) * qty)
 
 
 func buy_item(item_name: String, qty: int) -> bool:
 	var cost := DataRegistry.item_value(item_name) * qty
-	if gold < cost:
+	if coins < cost:
 		return false
 	if add_item(item_name, qty) != qty:
 		return false
-	add_gold(-cost)
+	add_coins(-cost)
 	return true
 
 
@@ -370,7 +369,7 @@ func to_save_dict() -> Dictionary:
 		"inventory": inventory.duplicate(true),
 		"bank": bank.duplicate(true),
 		"equipment": equipment.duplicate(true),
-		"gold": gold,
+		"coins": coins,
 		"current_hp": current_hp,
 	}
 
@@ -401,10 +400,10 @@ func from_save_dict(d: Dictionary) -> void:
 		var item_id := DataRegistry.resolve_item_id(str(saved_eq[k]))
 		if not item_id.is_empty():
 			equipment[k] = item_id
-	gold = int(d.get("gold", 0))
+	coins = int(d.get("coins", d.get("gold", 0)))
 	current_hp = clampi(int(d.get("current_hp", max_hp())), 1, max_hp())
 	EventBus.inventory_changed.emit()
 	EventBus.bank_changed.emit()
 	EventBus.equipment_changed.emit()
-	EventBus.gold_changed.emit(gold)
+	EventBus.coins_changed.emit(coins)
 	EventBus.hp_changed.emit(current_hp, max_hp())

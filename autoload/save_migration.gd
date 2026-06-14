@@ -2,8 +2,8 @@ extends RefCounted
 class_name SaveMigration
 ## Migrates save dictionaries between schema versions.
 
-const CURRENT_SCHEMA := 3
-const CURRENT_GAME_VERSION := "0.3.0"
+const CURRENT_SCHEMA := 4
+const CURRENT_GAME_VERSION := "0.4.0"
 
 
 static func migrate_game_save(data: Dictionary) -> Dictionary:
@@ -15,8 +15,19 @@ static func migrate_game_save(data: Dictionary) -> Dictionary:
 		out = _migrate_v1_to_v2(out)
 	if version < 3:
 		out = _migrate_v2_to_v3(out)
+	if version < 4:
+		out = _migrate_v3_to_v4(out)
 	out["schemaVersion"] = CURRENT_SCHEMA
 	out["gameVersion"] = CURRENT_GAME_VERSION
+	return out
+
+
+## v4 renames the currency field gold -> coins (Imota spec §0). Pure field rename.
+static func _migrate_v3_to_v4(data: Dictionary) -> Dictionary:
+	var out := data.duplicate(true)
+	if out.has("gold") and not out.has("coins"):
+		out["coins"] = int(out["gold"])
+	out.erase("gold")
 	return out
 
 

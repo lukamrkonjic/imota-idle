@@ -4,17 +4,17 @@
 
 Managed by `SaveManager` + `GameState`. Autosaves every 30s and on quit.
 
-### Schema version 3 (current)
+### Schema version 4 (current)
 
 ```json
 {
-  "schemaVersion": 3,
-  "gameVersion": "0.3.0",
+  "schemaVersion": 4,
+  "gameVersion": "0.4.0",
   "skills": { "<skill_id>": { "xp": 0.0, "level": 1 } },
   "inventory": [{ "id": "item.1042", "qty": 5 }],
   "bank": { "item.1042": 20 },
   "equipment": { "Axe": "item.1311", "Weapon": "item.1327" },
-  "gold": 0,
+  "coins": 0,
   "current_hp": 10,
   "savedAt": 1710000000.0,
   "activity": {
@@ -41,6 +41,14 @@ display names are now pure presentation and rename freely; the id is the permane
   ids for genuinely new content. Ids are never reused after a removal.
 - Data files (`items.json`, …) carry an explicit `id` per entry; recipes/drops/nodes still
   cross-reference items by **name** and resolve to ids at load, keeping data human-readable.
+
+### Schema version 3 → 4 (currency rename, Phase 1)
+
+The currency field `gold` was renamed to `coins` (Imota spec §0). `_migrate_v3_to_v4` copies
+`gold` → `coins` and drops the old key; `GameState.from_save_dict` also reads `coins` with a
+`gold` fallback. Other Phase 1 mechanical changes (inventory 24→28, XP table regenerated from
+the OSRS formula × `S=1.25` to a level-99 cap, and **offline progress removed entirely**) do
+not change the save shape — stats/curves re-read from `data/*.json` at load.
 
 ### Schema version 2 (legacy)
 

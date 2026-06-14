@@ -58,7 +58,9 @@ func phase0_data() -> void:
 	check(DataRegistry.recipes.size() == 775, "recipes loaded (%d)" % DataRegistry.recipes.size())
 	var logs := DataRegistry.get_item("Logs")
 	check(not logs.is_empty(), "item lookup by name: Logs")
-	check(DataRegistry.xp_for_level(2) == 83, "XP for level 2 == 83 (got %d)" % DataRegistry.xp_for_level(2))
+	# OSRS xp(2)=83, slowed by S=1.25 -> 104. Cap is 99 (was Bloobs 1000).
+	check(DataRegistry.xp_for_level(2) == 104, "XP for level 2 == 104 (OSRS x1.25) (got %d)" % DataRegistry.xp_for_level(2))
+	check(DataRegistry.max_level == 99, "level cap is 99 (got %d)" % DataRegistry.max_level)
 	print("  info XP for level 50 = %d" % DataRegistry.xp_for_level(50))
 	check(DataRegistry.xp_for_level(50) > DataRegistry.xp_for_level(49), "XP table monotonic at 50")
 	check(DataRegistry.level_for_xp(float(DataRegistry.xp_for_level(50))) == 50, "level_for_xp inverts xp_for_level")
@@ -186,7 +188,7 @@ func phase3_save_roundtrip() -> void:
 	GameState.add_xp("woodcutting", 5000.0)
 	GameState.add_item("Logs", 42)
 	GameState.deposit("Logs", 20)
-	GameState.add_gold(1234)
+	GameState.add_coins(1234)
 	var snapshot := GameState.to_save_dict()
 	var json_trip: Dictionary = JSON.parse_string(JSON.stringify(snapshot))
 	GameState.reset_state()
@@ -194,9 +196,11 @@ func phase3_save_roundtrip() -> void:
 	check(GameState.level("woodcutting") == DataRegistry.level_for_xp(5000.0), "skill level survives save")
 	check(GameState.count_item("Logs") == 22, "inventory survives save (got %d)" % GameState.count_item("Logs"))
 	check(int(GameState.bank.get(DataRegistry.resolve_item_id("Logs"), 0)) == 20, "bank survives save")
-	check(GameState.gold == 1234, "gold survives save")
+	check(GameState.coins == 1234, "coins survive save")
+	check(snapshot.has("coins") and not snapshot.has("gold"), "save dict uses coins field, not gold")
 	check(GameState.equipment.get("Axe", "") == DataRegistry.resolve_item_id("Bronze Axe"), "equipment survives save")
-	check(int(snapshot.get("schemaVersion", 0)) >= 2, "save dict includes schemaVersion")
+	check(int(snapshot.get("schemaVersion", 0)) >= 4, "save dict includes schemaVersion")
+	check(GameState.BASE_INVENTORY_SLOTS == 28, "inventory is 28 slots")
 
 
 func phase3_save_migration() -> void:
@@ -285,26 +289,32 @@ func phase3_recipes() -> void:
 
 
 func phase4_food_shop_offline() -> void:
-	print("== Phase 4: food / shop / offline ==")
+	print("== Phase 4: food / shop / no-offline / coins migration ==")
 	GameState.reset_state()
 	GameState.set_hp(5)
 	GameState.add_item("Shrimp", 2)
 	check(GameState.eat("Shrimp"), "eating cooked food works")
 	check(GameState.current_hp == 8, "Shrimp heals 3 (hp=%d)" % GameState.current_hp)
-	GameState.add_gold(300)
+	GameState.add_coins(300)
 	check(GameState.buy_item("Iron Axe", 1), "shop purchase works")
-	check(GameState.gold == 300 - DataRegistry.item_value("Iron Axe"), "gold deducted (%d left)" % GameState.gold)
-	check(not GameState.buy_item("Sunwrought Axe", 1), "purchase blocked without gold")
-	# Offline progress: 1 simulated hour of woodcutting while away.
+	check(GameState.coins == 300 - DataRegistry.item_value("Iron Axe"), "coins deducted (%d left)" % GameState.coins)
+	check(not GameState.buy_item("Sunwrought Axe", 1), "purchase blocked without coins")
+
+	# Offline progress is removed: loading a save never fast-forwards time away.
+	check(not SaveManager.has_method("_apply_offline_progress"), "offline progress removed from SaveManager")
+
+	# v3 (or older) save carrying the legacy 'gold' field migrates to 'coins'.
+	var legacy_gold := {
+		"schemaVersion": 3,
+		"skills": GameState.skills.duplicate(true),
+		"inventory": [], "bank": {}, "equipment": {},
+		"gold": 777, "current_hp": 10,
+	}
+	var migrated := SaveMigration.migrate_game_save(legacy_gold)
+	check(int(migrated.get("coins", -1)) == 777 and not migrated.has("gold"), "gold field migrates to coins")
 	GameState.reset_state()
-	TickSim.start_gather("woodcutting", "Regular Tree")
-	SaveManager._apply_offline_progress(Time.get_unix_time_from_system() - 3600.0)
-	# 1h at level 1 ramps chop speed slightly as levels rise; expect roughly
-	# 3600 / 1.495 / 4 ≈ 600 logs, allow a wide band.
-	var logs := GameState.count_item("Logs")
-	check(logs > 500 and logs < 700, "offline hour yields ~600 logs (got %d)" % logs)
-	check(GameState.level("woodcutting") > 10, "offline XP levelled woodcutting (lvl %d)" % GameState.level("woodcutting"))
-	TickSim.stop()
+	GameState.from_save_dict(legacy_gold)
+	check(GameState.coins == 777, "legacy gold save loads as coins")
 
 
 func phase3_ui_smoke() -> void:

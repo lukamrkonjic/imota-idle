@@ -20,7 +20,7 @@ var nodes_by_id: Dictionary = {}     # node id -> node dict
 
 var tools: Dictionary = {}
 var xp_required: Array = []
-var max_level: int = 1000
+var max_level: int = 99
 
 var recipes_by_skill: Dictionary = {}
 var food_hp: Dictionary = {}       # item id -> hp restored
@@ -48,7 +48,7 @@ func load_all() -> void:
 	tools = _read("tools.json")
 	var xp: Dictionary = _read("xp_table.json")
 	xp_required = xp.get("xpRequired", [])
-	max_level = int(xp.get("maxLevel", 1000))
+	max_level = int(xp.get("maxLevel", 99))
 	_index_items()
 	_index_enemies()
 	_index_gather_nodes()

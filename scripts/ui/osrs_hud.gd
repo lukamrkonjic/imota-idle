@@ -38,7 +38,7 @@ var equip_list: VBoxContainer
 var skill_cells: Dictionary = {}  # skill -> Label
 var train_select: OptionButton
 var combat_info: Label
-var gold_label: Label
+var coins_label: Label
 var popup: PopupPanel
 var popup_list: VBoxContainer
 var popup_title: Label
@@ -87,7 +87,7 @@ func _ready() -> void:
 	eb.equipment_changed.connect(func() -> void:
 		_refresh_equipment()
 		_refresh_combat_info())
-	eb.gold_changed.connect(func(_g: int) -> void: _refresh_gold())
+	eb.coins_changed.connect(func(_g: int) -> void: _refresh_coins())
 	eb.hp_changed.connect(func(_c: int, _m: int) -> void: hp_orb.queue_redraw())
 	eb.activity_started.connect(func(_k: String, label: String) -> void: _push_chat("[color=#444]%s[/color]" % label))
 	eb.game_loaded.connect(_refresh_all)
@@ -518,16 +518,16 @@ func _build_minimap_cluster() -> void:
 	hp_orb.size = hp_orb.custom_minimum_size
 	cluster.add_child(hp_orb)
 
-	gold_label = Label.new()
-	gold_label.position = UiScale.v2(Vector2(0, 58))
-	gold_label.custom_minimum_size = UiScale.v2(Vector2(56, 22))
-	gold_label.size = gold_label.custom_minimum_size
-	gold_label.add_theme_font_size_override("font_size", UiScale.i(12))
-	gold_label.add_theme_color_override("font_color", Color(1, 0.85, 0.3))
-	gold_label.add_theme_color_override("font_shadow_color", Color.BLACK)
-	gold_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	gold_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	cluster.add_child(gold_label)
+	coins_label = Label.new()
+	coins_label.position = UiScale.v2(Vector2(0, 58))
+	coins_label.custom_minimum_size = UiScale.v2(Vector2(84, 22))
+	coins_label.size = coins_label.custom_minimum_size
+	coins_label.add_theme_font_size_override("font_size", UiScale.i(12))
+	coins_label.add_theme_color_override("font_color", Color(1, 0.85, 0.3))
+	coins_label.add_theme_color_override("font_shadow_color", Color.BLACK)
+	coins_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	coins_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cluster.add_child(coins_label)
 
 	var map_panel := MinimapPanel.new()
 	map_panel.setup(self)
@@ -963,7 +963,7 @@ func open_bank() -> void:
 
 
 func open_shop() -> void:
-	_open_popup("Tool Shop â€” %d gold" % GameState.gold)
+	_open_popup("Tool Shop â€” %d coins" % GameState.coins)
 	var stock: Array = DataRegistry.tools.values()
 	stock.sort_custom(func(a, b):
 		if int(a["level"]) != int(b["level"]):
@@ -977,7 +977,7 @@ func open_shop() -> void:
 		lbl.clip_text = true
 		row.add_child(lbl)
 		var buy := Button.new()
-		buy.text = "%dg" % int(t["value"])
+		buy.text = "%d" % int(t["value"])
 		var tool_name: String = t["name"]
 		buy.pressed.connect(func() -> void:
 			if GameState.buy_item(tool_name, 1):
@@ -996,12 +996,12 @@ func _refresh_all() -> void:
 	_refresh_inventory()
 	_refresh_equipment()
 	_refresh_combat_info()
-	_refresh_gold()
+	_refresh_coins()
 	hp_orb.queue_redraw()
 
 
-func _refresh_gold() -> void:
-	gold_label.text = "%d gp" % GameState.gold
+func _refresh_coins() -> void:
+	coins_label.text = "%d coins" % GameState.coins
 
 
 func _refresh_skills() -> void:

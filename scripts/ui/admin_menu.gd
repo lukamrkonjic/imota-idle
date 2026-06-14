@@ -456,8 +456,8 @@ func _build_misc_tab() -> void:
 
 	_add_misc_button(box, "Full heal", func() -> void:
 		GameState.set_hp(GameState.max_hp()))
-	_add_misc_button(box, "+1,000 gold", func() -> void:
-		GameState.add_gold(1000))
+	_add_misc_button(box, "+1,000 coins", func() -> void:
+		GameState.add_coins(1000))
 	_add_misc_button(box, "Deposit inventory → bank", func() -> void:
 		GameState.deposit_all())
 	_add_misc_button(box, "Teleport to spawn", func() -> void:
