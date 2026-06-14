@@ -1,10 +1,10 @@
 extends SubViewportContainer
 class_name PlaceablePreview
-## A small "showcase turntable" for the world editor: pick a biome, micro-biome,
-## terrain tile, structure, house, prop or creature in the sidebar and this panel
-## renders ONE example of it with the real in-game pixel art, slowly spinning on
-## an isometric tile so you can read its silhouette before placing it. Anything
-## that is randomly generated on placement (variants, roof colours, decor scatter)
+## A small showcase for the world editor: pick a biome, micro-biome, terrain
+## tile, structure, house, prop or creature in the sidebar and this panel renders
+## ONE example of it with the real in-game pixel art, standing on a static
+## isometric tile so you can read its silhouette before placing it. Anything that
+## is randomly generated on placement (variants, roof colours, decor scatter)
 ## just gets one rolled instance; the 🎲 button in the editor re-rolls it.
 ##
 ## It reuses the actual art path (WorldEntity / WorldDecor / IsoSprites), so the
@@ -27,9 +27,8 @@ var _vp: SubViewport
 var _disc: _Turntable          # spins: the ground tile + planted/orbiting decor
 var _upright: Node2D            # fixed: structures / creatures / gather nodes stand here
 var _overlay: _Caption         # fixed: caption text at the bottom
-var _origin := Vector2(float(VIEW.x) * 0.5, float(VIEW.y) * 0.62)
-var _planted: Array[Node2D] = []   # decor that orbits with the disc but stays upright
-var _spin := 0.0
+var _origin := Vector2(float(VIEW.x) * 0.5, float(VIEW.y) * 0.60)
+var _planted: Array[Node2D] = []   # this biome's scattered ground clutter
 var _variant := 0
 var _reshow := Callable()       # re-runs the current selection (for re-roll)
 
@@ -58,15 +57,6 @@ func _ready() -> void:
 	_vp.add_child(_overlay)
 
 	show_empty("Pick something to preview")
-
-
-func _process(delta: float) -> void:
-	_spin += delta * 0.7
-	_disc.rotation = _spin
-	# Keep planted decor upright while it orbits with the spinning tile.
-	for d: Node2D in _planted:
-		if is_instance_valid(d):
-			d.rotation = -_spin
 
 
 # ──────────────────────────────── public API ────────────────────────────────
@@ -306,7 +296,7 @@ func _scatter_biome_decor(biome_id: String, _idx: int) -> void:
 		if absf(u) + absf(v) > 1.0:
 			u *= 0.5
 			v *= 0.5
-		d.position = Vector2(u * 36.0, v * 18.0)
+		d.position = Vector2(u * 54.0, v * 27.0)
 		_disc.add_child(d)
 		_planted.append(d)
 
@@ -317,9 +307,9 @@ class _Turntable:
 	extends Node2D
 
 	const PixelDraw := preload("res://scripts/world/art/core/pixel_draw.gd")
-	const HW := 48.0
-	const HH := 24.0
-	const DEPTH := 9.0
+	const HW := 70.0
+	const HH := 35.0
+	const DEPTH := 11.0
 
 	var cols: Array = [Color(0.34, 0.46, 0.28)]
 
@@ -336,7 +326,7 @@ class _Turntable:
 		# Dither in the other ground colours so the surface isn't a flat fill.
 		var rng := RandomNumberGenerator.new()
 		rng.seed = 1337
-		for i: int in 70:
+		for i: int in 130:
 			var u := rng.randf_range(-1.0, 1.0)
 			var v := rng.randf_range(-1.0, 1.0)
 			if absf(u) + absf(v) > 0.92:

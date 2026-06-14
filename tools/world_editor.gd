@@ -119,6 +119,8 @@ var _undo_btn: Button
 var _redo_btn: Button
 var _busy := false
 var _preview: PlaceablePreview
+var _preview_panel: PanelContainer
+var _selected_choice_btn: Button
 var _reroll_btn: Button
 
 
@@ -273,6 +275,24 @@ func _process(_delta: float) -> void:
 		_img_dirty = false
 		_tex.update(_img)
 	_overlay.queue_redraw()
+	_position_preview_panel()
+
+
+## Float the preview panel just to the right of the currently selected sidebar
+## item, tracking it as the palette scrolls. Falls back beside the sidebar top
+## for tools with no list selection (Pan / Erase / Set Spawn).
+func _position_preview_panel() -> void:
+	if _preview_panel == null:
+		return
+	var vp := get_viewport_rect().size
+	var ph: float = _preview_panel.size.y
+	if _selected_choice_btn != null and is_instance_valid(_selected_choice_btn) \
+			and _selected_choice_btn.is_visible_in_tree():
+		var r := _selected_choice_btn.get_global_rect()
+		var y: float = clampf(r.position.y - 6.0, 8.0, maxf(8.0, vp.y - ph - 8.0))
+		_preview_panel.position = Vector2(r.end.x + 10.0, y)
+	else:
+		_preview_panel.position = Vector2(200.0, 60.0)
 
 
 func _tile_under_mouse() -> Vector2i:
@@ -839,22 +859,20 @@ func _build_ui() -> void:
 	_build_preview_panel()
 
 
-## Showcase turntable, docked to the right edge (the left column is full). Shows
-## the currently selected biome / tile / structure / creature with the real game
-## art, spinning on an iso tile. Updated by _update_preview() on every selection.
+## Showcase panel that floats just to the right of the selected sidebar item
+## (positioned each frame in _process). Shows the currently selected biome / tile
+## / structure / creature with the real game art on a static iso tile. Updated by
+## _update_preview() on every selection.
 func _build_preview_panel() -> void:
-	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", _panel(Color(0.13, 0.13, 0.16)))
-	panel.anchor_left = 1.0
-	panel.anchor_right = 1.0
-	panel.offset_left = -204.0
-	panel.offset_right = -8.0
-	panel.offset_top = 50.0
-	_track_ui_hover(panel)
-	_hud.add_child(panel)
+	_preview_panel = PanelContainer.new()
+	_preview_panel.add_theme_stylebox_override("panel", _panel(Color(0.13, 0.13, 0.16)))
+	_preview_panel.position = Vector2(200, 60)
+	_preview_panel.top_level = true   # position is in screen space, not the HUD layout
+	_track_ui_hover(_preview_panel)
+	_hud.add_child(_preview_panel)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 4)
-	panel.add_child(box)
+	_preview_panel.add_child(box)
 	_header(box, "Preview")
 	_preview = PlaceablePreview.new()
 	_preview.reg = _reg
@@ -863,13 +881,6 @@ func _build_preview_panel() -> void:
 	_reroll_btn.text = "🎲 Re-roll variant"
 	_reroll_btn.pressed.connect(func() -> void: _preview.reroll())
 	box.add_child(_reroll_btn)
-	var tip := Label.new()
-	tip.text = "Spinning showcase of the selected item."
-	tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	tip.custom_minimum_size = Vector2(188, 0)
-	tip.add_theme_font_size_override("font_size", 9)
-	tip.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55))
-	box.add_child(tip)
 
 
 func _toolbar_button(parent: Control, text: String, cb: Callable) -> Button:
@@ -911,6 +922,7 @@ func _set_brush(v: int) -> void:
 func _refresh_palette() -> void:
 	if _palette_box == null:
 		return
+	_selected_choice_btn = null
 	for c: Node in _palette_box.get_children():
 		c.queue_free()
 	match _tool:
@@ -1058,6 +1070,8 @@ func _choice(label: String, id: String, selected: bool, cb: Callable) -> void:
 	b.pressed.connect(func() -> void:
 		cb.call(id)
 		_refresh_palette())
+	if selected:
+		_selected_choice_btn = b
 	_palette_box.add_child(b)
 
 
