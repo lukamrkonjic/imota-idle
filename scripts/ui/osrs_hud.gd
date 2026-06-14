@@ -1248,11 +1248,17 @@ class MinimapControl extends Control:
 		var player: Node2D = hud.world.player
 		var scale := _view_scale()
 		for e: Node2D in hud.world.entities:
+			# Only interactable entities get a dot; decorative props (walls, pillars,
+			# houses, ruins) carry an empty action and would otherwise add hundreds of
+			# pointless dots + iterations every redraw.
+			var atype := str(e.action.get("type", ""))
+			if atype.is_empty():
+				continue
 			var rel := (e.position - player.position) * scale * (TILE_PX / 2.5)
 			if rel.length() > r - 5.0:
 				continue
 			var col := Color(0.9, 0.2, 0.2)
-			match str(e.action.get("type", "")):
+			match atype:
 				"gather":
 					col = {
 						"woodcutting": Color(0.3, 0.8, 0.3), "mining": Color(0.7, 0.7, 0.75),

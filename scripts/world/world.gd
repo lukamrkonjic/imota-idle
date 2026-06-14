@@ -203,6 +203,9 @@ func _update_stream_radius() -> void:
 	var span_y: float = float(WG.CHUNK_TILES) * WG.ISO_HH
 	var r: int = ceili((wx / span_x + wy / span_y) * 0.5)
 	chunk_manager.set_radii(r + 2, r + 1)
+	# Freeze entity animations when zoomed far out — the per-frame live redraw of
+	# hundreds of visible enemies/fish is the dominant cost there and invisible.
+	WorldEntity.animations_enabled = zoom >= 0.7
 
 
 func _unhandled_input(event: InputEvent) -> void:

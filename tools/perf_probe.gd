@@ -71,6 +71,7 @@ func _probe(s: Dictionary) -> void:
 	print(JSON.stringify({
 		"sample": s["name"],
 		"fps": fps,
+		"proc_ms": snappedf(Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0, 0.1),
 		"view_r": _world.chunk_manager.get("view_radius"),
 		"active_r": _world.chunk_manager.get("active_radius"),
 		"draw_calls": draw_calls,

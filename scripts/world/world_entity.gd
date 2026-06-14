@@ -80,6 +80,12 @@ var _anim_accum := 0.0
 # Ambient/idle/limb animation only needs ~30 redraws/sec; movement is a transform
 # change (always smooth) so this is imperceptible but cuts redraw work hugely.
 const ANIM_DT := 1.0 / 30.0
+## Set false by the world when zoomed far out: animated entities (enemies, fish,
+## fountains…) then stop their per-frame live redraw, which otherwise death-
+## spirals — at low fps delta exceeds ANIM_DT so every one of the hundreds of
+## visible enemies re-runs its expensive _draw every single frame. They keep
+## their last frame (imperceptible when zoomed out) and resume when zoomed in.
+static var animations_enabled := true
 
 const OUTLINE_OFFSETS: Array[Vector2] = [
 	Vector2(-2.0, 0.0), Vector2(2.0, 0.0), Vector2(0.0, -2.0), Vector2(0.0, 2.0),
@@ -109,6 +115,8 @@ func _sync_processing() -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
+	if not animations_enabled:
+		return
 	_anim_accum += delta
 	if _anim_accum < ANIM_DT:
 		return
