@@ -92,6 +92,34 @@ benefit or clear architectural purpose.
 10. **Resource background loading + shader warm-up** scene (kills first-use hitch).
 11. **LOD / distant impostors** only if profiling still shows a need.
 
+## 4b. Stage 2 concrete spec (committed port — no feature flag)
+
+Decision: **fully replace** the 2D renderer; no toggle. The branch is the rollback.
+
+**Coordinate mapping (real data hooks, confirmed):**
+- Tile (tx,ty) → 3D `Vector3(tx * S, elev * EH, ty * S)` (S = tile spacing, EH = elev
+  step height). The 2D iso projection `WG.tile_to_world` is just a 2D view of the
+  same (tx,ty); 3D uses tile coords directly as the ground grid.
+- Existing 2D entity positions (iso px) → tile coords via `WG.world_to_tile(pos)`,
+  then to 3D as above. Player position maps the same way; `Camera3D` follows it.
+- Terrain colors from `WorldGen.reg.tile_def(chunk.tile_id(tx,ty))["colors"][0]`,
+  heights from `chunk.elev`. (Same inputs the 2D `chunk_renderer` already bakes.)
+
+**Build order within Stage 2:**
+1. World scene hosts a `SubViewport` (480×270 / 640×360) with a `Node3D` world,
+   ortho `Camera3D` at the current iso angle, one key `DirectionalLight3D`, env;
+   present via full-rect nearest `TextureRect`; HUD `CanvasLayer` stays on top.
+2. `Chunk3DRenderer`: per-chunk `ArrayMesh` from `tiles`/`elev`/colors (toon_ground
+   material) — port of the existing 2D bake. Hook `chunk_manager` load/unload.
+3. Entity kind → 3D mesh library (tree/landmark_tree, rock, bush, water, node,
+   enemy, building/house, stall, tent, player) reusing the spike's authored shapes
+   as starters; one `Node3D`/`MeshInstance3D` per entity at its mapped 3D position.
+4. Input/hover/picking: keep the existing 2D logic substrate driving gameplay
+   (positions stay `Vector2` iso); pick via ground-ray or kept-invisible 2D hit
+   proxies, synced to the 3D camera framing. (Logic stays iso 2D; visuals are 3D.)
+5. Then proceed to §4 stages 4-11 (PropDefinition, per-chunk MultiMesh, wind
+   shaders, proxies, collision, threading, warm-up, LOD).
+
 ## 5. Save-safety & guardrails (unchanged, non-negotiable)
 
 - No change to save data, content/save IDs, recipes, items, enemies, nodes, drops,
