@@ -7,7 +7,10 @@ extends Node
 ## Mastery XP, roll the parsed drop table, then start the respawn timer
 ## (10s normal / 60s boss, BasicEnemy.RecalculateStats).
 
-const ATTACK_INTERVAL := 3.0
+const CombatStyles := preload("res://scripts/combat/combat_styles.gd")
+const DropRoller := preload("res://scripts/combat/drop_roller.gd")
+
+const ATTACK_INTERVAL := 3.0  # default; per-weapon speed comes from GameState.attack_interval()
 const PLAYER_BASE_CRIT := 0.01
 const PLAYER_CRIT_MULTIPLIER := 2.0
 const PLAYER_DR_CAP := 80.0  # percent; cap so high-tier gear can't zero damage
@@ -46,6 +49,7 @@ func start_combat(enemy_name: String, p_train_skill: String = "attack") -> bool:
 	RecipeSim.stop("switching")
 	enemy = e
 	train_skill = p_train_skill
+	GameState.combat_style = p_train_skill  # remember the style across sessions
 	enemy_hp = float(e["maxHealth"])
 	player_timer = 0.0
 	enemy_timer = 0.0
@@ -82,8 +86,9 @@ func advance(delta: float) -> void:
 		return
 	player_timer += delta
 	enemy_timer += delta
-	if player_timer >= ATTACK_INTERVAL:
-		player_timer -= ATTACK_INTERVAL
+	var interval := GameState.attack_interval()
+	if player_timer >= interval:
+		player_timer -= interval
 		_player_attack()
 		if not active or respawning:
 			return
@@ -92,7 +97,7 @@ func advance(delta: float) -> void:
 		enemy_timer -= cooldown
 		_enemy_attack()
 		_auto_eat()
-	EventBus.action_progress.emit(player_timer / ATTACK_INTERVAL)
+	EventBus.action_progress.emit(player_timer / interval)
 
 
 ## Idle survival: after taking a hit, eat the best food if HP fell to/below the
@@ -198,6 +203,13 @@ func _apply_player_hit() -> void:
 	# Enemy damage reduction is a flat percent from the bestiary.
 	dmg *= 1.0 - float(enemy["damageReduction"]) / 100.0
 	dmg = maxf(roundf(dmg * 10.0) / 10.0, 0.0)
+	# Per-hit XP (OSRS-style, spec §5/§12): the trained combat skill scales with
+	# damage dealt, plus a Hitpoints share. Replaces the old lump-sum on-kill XP.
+	var landed := minf(dmg, enemy_hp)  # damage past the enemy's remaining HP earns no XP
+	if landed > 0.0:
+		for t: Array in CombatStyles.xp_targets(train_skill):
+			GameState.add_xp(str(t[0]), landed * CombatStyles.XP_PER_DAMAGE * float(t[1]))
+		GameState.add_xp("hitpoints", landed * CombatStyles.HP_XP_PER_DAMAGE)
 	enemy_hp = maxf(enemy_hp - dmg, 0.0)
 	EventBus.combat_log.emit("You hit %s for %.1f%s" % [_enemy_name(), dmg, " (CRIT!)" if is_crit else ""])
 	EventBus.enemy_hp_changed.emit(enemy_hp, float(enemy["maxHealth"]))
@@ -224,9 +236,8 @@ func _enemy_attack() -> void:
 func _on_enemy_killed() -> void:
 	kills += 1
 	EventBus.combat_log.emit("%s defeated!" % _enemy_name())
-	# XP from the bestiary data (equals BasicEnemy.RecalculateStats output).
-	GameState.add_xp(train_skill, float(enemy["combatXp"]))
-	GameState.add_xp("hitpoints", float(enemy["hitpointsXp"]))
+	# Combat + Hitpoints XP are now awarded per hit (see _apply_player_hit).
+	# Slayer XP is still a per-kill reward (OSRS-style).
 	GameState.add_xp("slayer", float(enemy["beastMasteryXp"]))
 	_roll_drops()
 	EventBus.enemy_killed.emit(_enemy_name())
@@ -236,20 +247,29 @@ func _on_enemy_killed() -> void:
 
 
 func _roll_drops() -> void:
-	for drop: Dictionary in enemy["drops"]:
-		if rng.randf() <= float(drop["chance"]):
-			var qty := rng.randi_range(int(drop["min"]), int(drop["max"]))
-			if GameState.add_item(drop["item"], qty) > 0:
-				EventBus.loot_gained.emit(drop["item"], qty)
-			else:
-				EventBus.combat_log.emit("Inventory full — %s lost!" % DataRegistry.item_display_name(drop["item"]))
+	var loot: Array = DropRoller.roll(enemy["drops"], rng)
+	loot.append_array(DropRoller.roll_tertiary(enemy, rng))
+	for d: Dictionary in loot:
+		var qty := int(d["qty"])
+		if GameState.add_item(d["item"], qty) > 0:
+			EventBus.loot_gained.emit(d["item"], qty)
+		else:
+			EventBus.combat_log.emit("Inventory full — %s lost!" % DataRegistry.item_display_name(d["item"]))
 
 
+## Death (spec §12, decided): respawn full HP; destroy ONE random equipped slot
+## (empty slot = no loss; Protect Item prayer negates). Loose inventory is safe.
 func _on_player_died() -> void:
 	var killer := _enemy_name()
 	EventBus.combat_log.emit("You were defeated by %s!" % killer)
 	stop("player_died")
 	GameState.set_hp(GameState.max_hp())
+	if GameState.is_prayer_active("Protect Item"):
+		EventBus.combat_log.emit("Protect Item saved your gear.")
+	else:
+		var lost := GameState.lose_random_equipped_slot(rng)
+		if not lost.is_empty():
+			EventBus.combat_log.emit("[death] You lost your %s!" % lost)
 	EventBus.player_died.emit(killer)
 
 

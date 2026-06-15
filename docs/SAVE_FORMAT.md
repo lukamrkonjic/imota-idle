@@ -42,6 +42,13 @@ display names are now pure presentation and rename freely; the id is the permane
 - Data files (`items.json`, …) carry an explicit `id` per entry; recipes/drops/nodes still
   cross-reference items by **name** and resolve to ids at load, keeping data human-readable.
 
+### Schema version 5 → 6 (combat depth, Phase 5)
+
+`_migrate_v5_to_v6` adds the persisted `combat_style` (the trained combat skill); older saves
+default to `"attack"`. Everything else in Phase 5 is stats/behaviour re-read from data and is
+not stored: per-hit XP routing (`CombatStyles`), per-weapon `attackSpeed`, the combat-level
+derivation, `DropRoller` loot, and on-death random-equipped-slot loss (Protect Item negates).
+
 ### Schema version 4 → 5 (skill roster, Phase 2)
 
 `_migrate_v4_to_v5` rewrites Bloobs skill keys in the `skills` dict to the OSRS-style roster

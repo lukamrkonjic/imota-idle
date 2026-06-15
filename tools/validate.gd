@@ -5,6 +5,8 @@ const ContentId := preload("res://scripts/content/content_id.gd")
 const SaveMigration := preload("res://autoload/save_migration.gd")
 const SkillRemap := preload("res://scripts/content/skill_remap.gd")
 const ContentRename := preload("res://scripts/content/content_rename.gd")
+const CombatStyles := preload("res://scripts/combat/combat_styles.gd")
+const DropRoller := preload("res://scripts/combat/drop_roller.gd")
 const WG := preload("res://scripts/worldgen/wg.gd")
 const Chunk := preload("res://scripts/worldgen/chunk.gd")
 const PathFinder := preload("res://scripts/worldgen/path_finder.gd")
@@ -34,6 +36,7 @@ func _ready() -> void:
 	phase3_recipes()
 	phase4_food_shop_offline()
 	phase4_auto_eat()
+	phase5_combat_depth()
 	await phase3_ui_smoke()
 	phase6_worldgen()
 	phase6_chunk_snapshots()
@@ -198,6 +201,47 @@ func phase4_auto_eat() -> void:
 		CombatSim.stop()
 
 
+func phase5_combat_depth() -> void:
+	print("== Phase 5: combat depth ==")
+	GameState.reset_state()
+	# Combat level: OSRS formula. Fresh char = Defence 1, HP 10, rest 1.
+	# base = 0.25*(1+10+0)=2.75; melee=0.325*(1+1)=0.65 -> floor(3.4)=3.
+	check(GameState.combat_level() == 3, "combat level at start == 3 (got %d)" % GameState.combat_level())
+	GameState.add_xp("attack", float(DataRegistry.xp_for_level(40)))
+	GameState.add_xp("strength", float(DataRegistry.xp_for_level(40)))
+	check(GameState.combat_level() > 3, "combat level rises with melee stats (%d)" % GameState.combat_level())
+
+	# Per-weapon attack speed: default 3s, or the weapon's data field when present.
+	GameState.reset_state()
+	check(absf(GameState.attack_interval() - 3.0) < 0.001, "default attack interval 3s")
+	GameState.add_xp("attack", float(DataRegistry.xp_for_level(3)))
+	GameState.equip("Bronze Sword")
+	var sword := DataRegistry.get_item("Bronze Sword")
+	sword["attackSpeed"] = 2.4
+	check(absf(GameState.attack_interval() - 2.4) < 0.001, "weapon attackSpeed overrides default")
+	sword.erase("attackSpeed")  # don't leak into other tests
+
+	# Death: one random equipped slot is destroyed (Protect Item negates).
+	GameState.reset_state()  # starter equips Bronze Axe in the Axe slot only
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 99
+	var safety := 200
+	var lost := ""
+	while lost.is_empty() and safety > 0 and GameState.equipment.has("Axe"):
+		lost = GameState.lose_random_equipped_slot(rng)
+		safety -= 1
+	check(not GameState.equipment.has("Axe"), "death destroyed the equipped item")
+	GameState.reset_state()
+	GameState.active_prayers = ["Protect Item"]
+	check(GameState.is_prayer_active("Protect Item"), "Protect Item prayer registers")
+
+	# DropRoller: guaranteed entries always drop, zero-chance never.
+	var rolled: Array = DropRoller.roll([
+		{"item": "Bones", "chance": 1.0, "min": 1, "max": 1},
+		{"item": "Nothing", "chance": 0.0, "min": 1, "max": 1}], rng)
+	check(rolled.size() == 1 and str(rolled[0]["item"]) == "Bones", "DropRoller rolls guaranteed, skips impossible")
+
+
 func phase2_skill_roster() -> void:
 	print("== Phase 2: skill roster + migration ==")
 	check(GameState.SKILLS.size() == 22, "22 skills in roster (got %d)" % GameState.SKILLS.size())
@@ -293,10 +337,13 @@ func phase2_combat() -> void:
 	var e := DataRegistry.get_enemy("Chickens")
 	var atk_gain := GameState.xp("attack") - atk_xp_before
 	var hp_gain := GameState.xp("hitpoints") - hp_xp_before
-	check(absf(atk_gain - float(e["combatXp"]) * CombatSim.kills) < 0.01,
-		"attack XP == combatXp * kills (got %.0f, want %.0f)" % [atk_gain, float(e["combatXp"]) * CombatSim.kills])
-	check(absf(hp_gain - float(e["hitpointsXp"]) * CombatSim.kills) < 0.01,
-		"hitpoints XP == hitpointsXp * kills")
+	# Phase 5: XP is awarded per hit now, so the trained skill and HP both accrue
+	# in proportion to damage dealt (ratio == the style coefficients).
+	check(atk_gain > 0.0, "per-hit attack XP accrues (%.1f)" % atk_gain)
+	check(hp_gain > 0.0, "per-hit hitpoints XP accrues (%.1f)" % hp_gain)
+	var ratio := atk_gain / maxf(hp_gain, 0.001)
+	check(absf(ratio - CombatStyles.XP_PER_DAMAGE / CombatStyles.HP_XP_PER_DAMAGE) < 0.05,
+		"per-hit XP ratio matches style coefficients (got %.2f)" % ratio)
 	var got_drop := false
 	for d: Dictionary in e["drops"]:
 		if float(d["chance"]) >= 0.99 and GameState.count_item(d["item"]) >= CombatSim.kills:

@@ -411,6 +411,9 @@ func _build_combat_tab() -> Control:
 	train_select = OptionButton.new()
 	for s: String in ["Attack", "Strength", "Defence", "Ranged", "Magic"]:
 		train_select.add_item(s)
+	train_select.item_selected.connect(func(idx: int) -> void:
+		GameState.combat_style = train_select.get_item_text(idx).to_lower()
+		_refresh_combat_info())
 	train_row.add_child(train_select)
 	combat_box.add_child(train_row)
 	combat_info = Label.new()
@@ -1341,11 +1344,18 @@ func _refresh_equipment() -> void:
 
 
 func _refresh_combat_info() -> void:
-	combat_info.text = "\nMelee: +%.0f dmg, +%.0f%% acc\nRanged: +%.0f dmg, +%.0f%% acc\nMagic: +%.0f dmg, +%.0f%% acc\nDmg reduction: %.1f%%\n\nClick an enemy in the world to fight." % [
+	combat_info.text = "Combat level: %d\n\nMelee: +%.0f dmg, +%.0f%% acc\nRanged: +%.0f dmg, +%.0f%% acc\nMagic: +%.0f dmg, +%.0f%% acc\nDmg reduction: %.1f%%\n\nClick an enemy in the world to fight." % [
+		GameState.combat_level(),
 		GameState.equipment_damage(), GameState.equipment_accuracy() * 100.0,
 		GameState.equipment_range_damage(), GameState.equipment_range_accuracy() * 100.0,
 		GameState.equipment_magic_damage(), GameState.equipment_magic_accuracy() * 100.0,
 		GameState.equipment_damage_reduction()]
+	# Keep the style dropdown in sync with the persisted combat style.
+	if train_select != null:
+		for i: int in train_select.item_count:
+			if train_select.get_item_text(i).to_lower() == GameState.combat_style:
+				train_select.selected = i
+				break
 
 
 func _push_chat(line: String) -> void:

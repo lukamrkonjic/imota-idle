@@ -31,6 +31,9 @@ var bank: Dictionary = {}        # item id -> qty
 var equipment: Dictionary = {}   # slot -> item id
 var coins: int = 0
 var current_hp: int = 10
+var combat_style: String = "attack"   # trained combat skill (persisted, spec §12)
+var active_prayers: Array = []         # names of prayers toggled on (combat hooks)
+var _death_rng := RandomNumberGenerator.new()
 
 var _hp_regen_timer := 0.0
 
@@ -50,6 +53,8 @@ func reset_state() -> void:
 	bank = {}
 	equipment = {}
 	coins = 0
+	combat_style = "attack"
+	active_prayers = []
 	# Starter kit: the Bronze tool set (real smithing-recipe items from the
 	# export). Bronze Sword needs Attack 3 — it waits in the inventory; until
 	# then the player fights unarmed (damage = 1 + Strength level).
@@ -368,6 +373,53 @@ func set_hp(value: int) -> void:
 	EventBus.hp_changed.emit(current_hp, max_hp())
 
 
+# ---------------------------------------------------------------- combat ----
+
+## OSRS combat-level formula over att/str/def/hp/range/magic/prayer. Derived
+## display stat used for area/monster soft-gating (spec §12).
+func combat_level() -> int:
+	var att := float(level("attack"))
+	var stg := float(level("strength"))
+	var def := float(level("defence"))
+	var hp := float(level("hitpoints"))
+	var rng := float(level("ranged"))
+	var mag := float(level("magic"))
+	var pray := float(level("prayer"))
+	var base := 0.25 * (def + hp + floorf(pray / 2.0))
+	var melee := 0.325 * (att + stg)
+	var ranged := 0.325 * (floorf(rng / 2.0) + rng)
+	var magic := 0.325 * (floorf(mag / 2.0) + mag)
+	return int(floorf(base + maxf(melee, maxf(ranged, magic))))
+
+
+## Seconds between player attacks: the equipped weapon's `attackSpeed` if the
+## data defines one, else the default 3s (spec §12 — per-weapon speed, tunable).
+func attack_interval() -> float:
+	var wid := str(equipment.get("Weapon", ""))
+	if not wid.is_empty():
+		var spd := float(DataRegistry.get_item(wid).get("attackSpeed", 0.0))
+		if spd > 0.0:
+			return spd
+	return 3.0
+
+
+func is_prayer_active(prayer_name: String) -> bool:
+	return active_prayers.has(prayer_name)
+
+
+## On death, destroy whatever is in ONE random equipment slot (empty slot = no
+## loss). Returns the lost item's display name, or "" if nothing was lost. The
+## Protect Item prayer is checked by the caller (spec §12 death handling).
+func lose_random_equipped_slot(rng: RandomNumberGenerator = _death_rng) -> String:
+	var slot: String = EQUIPMENT_SLOTS[rng.randi() % EQUIPMENT_SLOTS.size()]
+	if not equipment.has(slot):
+		return ""
+	var id: String = str(equipment[slot])
+	equipment.erase(slot)
+	EventBus.equipment_changed.emit()
+	return DataRegistry.item_display_name(id)
+
+
 func admin_max_skill(skill: String) -> void:
 	if not skills.has(skill):
 		return
@@ -411,6 +463,7 @@ func to_save_dict() -> Dictionary:
 		"equipment": equipment.duplicate(true),
 		"coins": coins,
 		"current_hp": current_hp,
+		"combat_style": combat_style,
 	}
 
 
@@ -441,6 +494,8 @@ func from_save_dict(d: Dictionary) -> void:
 		if not item_id.is_empty():
 			equipment[k] = item_id
 	coins = int(d.get("coins", d.get("gold", 0)))
+	combat_style = str(d.get("combat_style", "attack"))
+	active_prayers = []
 	current_hp = clampi(int(d.get("current_hp", max_hp())), 1, max_hp())
 	EventBus.inventory_changed.emit()
 	EventBus.bank_changed.emit()

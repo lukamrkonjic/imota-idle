@@ -1,0 +1,5 @@
+{
+  "_comment": "Shared rare-drop table (spec §12). Placeholder — empty until tuned. 'chance' is the per-kill gate to roll this table at all; 'drops' is the weighted pool (one entry picked uniformly when the gate passes). Items reference legacy names like the per-enemy tables.",
+  "chance": 0.0,
+  "drops": []
+}
