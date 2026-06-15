@@ -505,11 +505,13 @@ func _build_prayer_tab() -> Control:
 		row.add_theme_color_override("font_color",
 			Color(0.9, 0.9, 0.8) if unlocked else Color(0.45, 0.45, 0.45))
 		box.add_child(row)
-	var note := Label.new()
-	note.text = "Bury bones to train Prayer (coming soon)."
-	note.add_theme_font_size_override("font_size", UiScale.i(10))
-	note.add_theme_color_override("font_color", Color(0.65, 0.65, 0.65))
-	box.add_child(note)
+	var bury := Button.new()
+	bury.text = "Bury all bones"
+	bury.tooltip_text = "Bury every bone in your inventory for Prayer XP"
+	bury.pressed.connect(func() -> void:
+		var n := GameState.bury_bones()
+		_push_chat("[color=#444]Buried %d bones.[/color]" % n if n > 0 else "[color=#444]No bones to bury.[/color]"))
+	box.add_child(bury)
 	return box
 
 
@@ -1001,6 +1003,10 @@ func open_recipes(skill: String) -> void:
 ## (switching nodes on depletion); recipes get a "Make" button that walks to
 ## the nearest matching station and starts crafting.
 func open_skill_guide(skill: String) -> void:
+	# Farming has its own plot panel rather than a node/recipe list.
+	if skill == "farming":
+		open_farming()
+		return
 	_open_popup("%s Guide — level %d" % [skill.capitalize(), GameState.level(skill)])
 	var lvl := GameState.level(skill)
 	var any := false
@@ -1093,6 +1099,54 @@ func open_skill_guide(skill: String) -> void:
 			lbl.text = "%s sites appear in the world as you explore.\n(This skill's sim is still on the roadmap.)" % skill.capitalize()
 		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		popup_list.add_child(lbl)
+
+
+## Farming panel: shows each plot's state and the seeds you can plant now
+## (Farming level met + seed in inventory). Background growth runs on the tick.
+func open_farming() -> void:
+	_open_popup("Farming — level %d  (%d/%d plots used)" % [
+		GameState.level("farming"), FarmingSim.ready_count(), FarmingSim.plot_count])
+	for i: int in FarmingSim.plots.size():
+		var p: Dictionary = FarmingSim.plots[i]
+		var lbl := Label.new()
+		if p.is_empty():
+			lbl.text = "Plot %d: empty" % (i + 1)
+			lbl.add_theme_color_override("font_color", Color(0.6, 0.6, 0.55))
+		else:
+			var pct := int(100.0 * float(p["age"]) / maxf(float(p["grow"]), 1.0))
+			lbl.text = "Plot %d: %s — growing %d%%" % [i + 1, DataRegistry.item_display_name(str(p["crop"])), pct]
+			lbl.add_theme_color_override("font_color", Color(0.6, 0.85, 0.45))
+		popup_list.add_child(lbl)
+	var head := Label.new()
+	head.text = "— Plant a seed —"
+	head.add_theme_color_override("font_color", Color(0.7, 0.62, 0.4))
+	popup_list.add_child(head)
+	var seeds: Array = FarmingSim.crops.keys()
+	seeds.sort_custom(func(a, b): return int(FarmingSim.crops[a].get("levelReq", 1)) < int(FarmingSim.crops[b].get("levelReq", 1)))
+	var teaser := false
+	for seed_name: String in seeds:
+		var req := int(FarmingSim.crops[seed_name].get("levelReq", 1))
+		var unlocked := GameState.level("farming") >= req
+		if not unlocked:
+			if teaser:
+				continue
+			teaser = true
+		var row := HBoxContainer.new()
+		var lbl := Label.new()
+		var have := GameState.count_item(seed_name)
+		lbl.text = "Lvl %d  %s (x%d)" % [req, DataRegistry.item_display_name(seed_name), have]
+		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lbl.add_theme_color_override("font_color", Color(0.9, 0.9, 0.8) if unlocked else Color(0.45, 0.45, 0.45))
+		row.add_child(lbl)
+		var plant := Button.new()
+		plant.text = "Plant"
+		plant.disabled = not unlocked or have <= 0
+		var sname := seed_name
+		plant.pressed.connect(func() -> void:
+			if FarmingSim.plant(sname):
+				open_farming())
+		row.add_child(plant)
+		popup_list.add_child(row)
 
 
 ## Slayer master: the bestiary gated by Slayer level (spoiler-free, spec §3c).
@@ -1307,15 +1361,21 @@ func _on_inv_slot_input(event: InputEvent, item_id: String) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
 		var menu := PopupMenu.new()
 		menu.add_item("Deposit all", 0)
-		menu.add_item("Sell all (%dg each)" % DataRegistry.item_value(item_name), 1)
+		menu.add_item("Sell all (%d each)" % DataRegistry.item_value(item_name), 1)
+		menu.add_item("High Alch (%d coins)" % int(floor(float(DataRegistry.item_value(item_id)) * GameState.HIGH_ALCH_RATE)), 2)
 		menu.id_pressed.connect(func(id: int) -> void:
 			var qty := GameState.count_item(item_name)
 			if id == 0:
 				_push_chat("[color=#444]No bank chest here â€” use the one in town.[/color]")
 				GameState.deposit(item_name, qty)
-			else:
+			elif id == 1:
 				GameState.sell_item(item_name, qty)
 				_push_chat("[color=#1a6e1a]Sold %d %s.[/color]" % [qty, item_name])
+			else:
+				if GameState.high_alch(item_id):
+					_push_chat("[color=#5a3a8a]High Alched %s.[/color]" % item_name)
+				else:
+					_push_chat("[color=#a01010]Need Magic %d to High Alch.[/color]" % GameState.HIGH_ALCH_LEVEL)
 			menu.queue_free())
 		add_child(menu)
 		menu.popup(Rect2i(Vector2i(get_viewport().get_mouse_position()), Vector2i.ZERO))

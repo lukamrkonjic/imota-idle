@@ -1,0 +1,10 @@
+{
+  "_comment": "Farming crops (spec §16). PLACEHOLDER content + numbers — seeds, crops, grow times, xp and yields are all to be tuned later. growTicks is in farming growth ticks (FarmingSim.GROW_INTERVAL seconds each). Seeds/crops reference existing item names; replace with real farm produce later.",
+  "crops": {
+    "Cotton Seed":   { "crop": "Cotton",    "growTicks": 20,  "xp": 40.0,  "yield": 3, "levelReq": 1 },
+    "Amberleaf Seed":{ "crop": "Amberleaf", "growTicks": 40,  "xp": 120.0, "yield": 3, "levelReq": 30 },
+    "Bloodmoss Seed":{ "crop": "Bloodmoss", "growTicks": 60,  "xp": 200.0, "yield": 3, "levelReq": 50 },
+    "Coldsnap Seed": { "crop": "Coldsnap",  "growTicks": 80,  "xp": 280.0, "yield": 4, "levelReq": 65 },
+    "Sunleaf Seed":  { "crop": "Sunleaf",   "growTicks": 100, "xp": 360.0, "yield": 4, "levelReq": 80 }
+  }
+}

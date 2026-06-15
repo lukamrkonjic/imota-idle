@@ -19,6 +19,7 @@ var failures := 0
 func _ready() -> void:
 	SaveManager.suppress = true
 	GameSettings.suppress = true
+	FarmingSim.suppress = true
 	WorldGen.store.suppress = true
 	WorldGen.reset(WorldGen.DEFAULT_SEED)
 	CombatSim.rng.seed = 0xB100B5
@@ -37,6 +38,7 @@ func _ready() -> void:
 	phase4_food_shop_offline()
 	phase4_auto_eat()
 	phase5_combat_depth()
+	phase6_skill_loops()
 	await phase3_ui_smoke()
 	phase6_worldgen()
 	phase6_chunk_snapshots()
@@ -240,6 +242,67 @@ func phase5_combat_depth() -> void:
 		{"item": "Bones", "chance": 1.0, "min": 1, "max": 1},
 		{"item": "Nothing", "chance": 0.0, "min": 1, "max": 1}], rng)
 	check(rolled.size() == 1 and str(rolled[0]["item"]) == "Bones", "DropRoller rolls guaranteed, skips impossible")
+
+
+func phase6_skill_loops() -> void:
+	print("== Phase 6: skill loops ==")
+
+	# Prayer: burying bones grants Prayer XP and consumes them.
+	GameState.reset_state()
+	GameState.add_item("Bones", 5)
+	var pray_before := GameState.xp("prayer")
+	var buried := GameState.bury_bones()
+	check(buried == 5, "buried all 5 bones (got %d)" % buried)
+	check(GameState.count_item("Bones") == 0, "bones consumed on bury")
+	check(GameState.xp("prayer") > pray_before, "burying bones grants Prayer XP")
+
+	# High Alchemy: gated at Magic 55, turns an item into coins + Magic XP.
+	GameState.reset_state()
+	GameState.add_item("Logs", 1)
+	check(not GameState.high_alch("Logs"), "High Alch blocked below Magic 55")
+	GameState.add_xp("magic", float(DataRegistry.xp_for_level(55)))
+	var coins_before := GameState.coins
+	var mxp_before := GameState.xp("magic")
+	check(GameState.high_alch("Logs"), "High Alch succeeds at Magic 55")
+	check(GameState.coins > coins_before, "High Alch yields coins")
+	check(GameState.xp("magic") > mxp_before, "High Alch grants Magic XP")
+	check(GameState.count_item("Logs") == 0, "High Alch consumed the item")
+
+	# Run energy (Agility meta): drains and regenerates.
+	GameState.reset_state()
+	GameState.use_run_energy(40.0)
+	check(absf(GameState.run_energy - 60.0) < 0.01, "run energy drains")
+	GameState.regen_run_energy(10.0)
+	check(GameState.run_energy > 60.0, "run energy regenerates over time")
+
+	# Farming: plant -> background growth on the tick -> auto-harvest + XP.
+	GameState.reset_state()
+	FarmingSim.reset()
+	GameState.add_item("Cotton Seed", 1)
+	check(FarmingSim.plant("Cotton Seed"), "planted a seed in a plot")
+	check(GameState.count_item("Cotton Seed") == 0, "seed consumed on plant")
+	var farm_xp_before := GameState.xp("farming")
+	# Background-while-busy: a gather runs at the same time as farming growth.
+	TickSim.start_gather("woodcutting", "Regular Tree")
+	var safety := 400  # 40s > the 20-tick (20s) Cotton grow time
+	while GameState.count_item("Cotton") == 0 and safety > 0:
+		TickSim.advance(0.1)
+		FarmingSim.advance(0.1)
+		safety -= 1
+	TickSim.stop()
+	check(GameState.count_item("Cotton") >= 3, "crop auto-harvested (got %d)" % GameState.count_item("Cotton"))
+	check(GameState.xp("farming") > farm_xp_before, "auto-harvest granted Farming XP")
+	check(GameState.count_item("Logs") > 0, "gathering ran while farming grew in the background")
+
+	# Farming save round-trip: a growing plot survives save/load.
+	FarmingSim.reset()
+	GameState.add_item("Cotton Seed", 1)
+	FarmingSim.plant("Cotton Seed")
+	var snap := FarmingSim.to_save()
+	var trip: Dictionary = JSON.parse_string(JSON.stringify(snap))
+	FarmingSim.reset()
+	FarmingSim.from_save(trip)
+	check(FarmingSim.ready_count() == 1, "in-progress plot survives save/load")
 
 
 func phase2_skill_roster() -> void:

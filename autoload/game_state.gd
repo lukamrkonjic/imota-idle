@@ -2,6 +2,7 @@ extends Node
 ## Player state: skill XP/levels, inventory, bank, equipment, coins, HP.
 
 const SaveMigration := preload("res://autoload/save_migration.gd")
+const PrayerLore := preload("res://scripts/skills/prayer_lore.gd")
 ## All mutation goes through methods here so EventBus signals stay accurate.
 
 # OSRS-style 22-skill roster (Imota spec §2). Bloobs skill keys are migrated to
@@ -33,7 +34,14 @@ var coins: int = 0
 var current_hp: int = 10
 var combat_style: String = "attack"   # trained combat skill (persisted, spec §12)
 var active_prayers: Array = []         # names of prayers toggled on (combat hooks)
+var run_energy: float = 100.0          # Agility meta-stat (spec §16); speeds auto-nav
 var _death_rng := RandomNumberGenerator.new()
+
+# High Alchemy (spec §16/§18): the item->coins magic sink. Placeholder numbers.
+const HIGH_ALCH_LEVEL := 55
+const HIGH_ALCH_RATE := 0.6
+const HIGH_ALCH_XP := 65.0
+const RUN_REGEN_PER_SEC := 0.5
 
 var _hp_regen_timer := 0.0
 
@@ -55,6 +63,7 @@ func reset_state() -> void:
 	coins = 0
 	combat_style = "attack"
 	active_prayers = []
+	run_energy = 100.0
 	# Starter kit: the Bronze tool set (real smithing-recipe items from the
 	# export). Bronze Sword needs Attack 3 — it waits in the inventory; until
 	# then the player fights unarmed (damage = 1 + Strength level).
@@ -77,6 +86,7 @@ func _process(delta: float) -> void:
 		if _hp_regen_timer >= 3.0:
 			_hp_regen_timer = 0.0
 			set_hp(current_hp + 1)
+	regen_run_energy(delta)
 
 
 # ---------------------------------------------------------------- skills ----
@@ -407,6 +417,55 @@ func is_prayer_active(prayer_name: String) -> bool:
 	return active_prayers.has(prayer_name)
 
 
+# --------------------------------------------------------- skill loops (§16) ----
+
+## Prayer: bury every bone in the inventory for Prayer XP. Returns how many were
+## buried. (The "set it and it runs" Prayer activity, spec §16.)
+func bury_bones() -> int:
+	var buried := 0
+	for stack: Dictionary in inventory.duplicate(true):
+		var id: String = str(stack["id"])
+		var item_name := str(DataRegistry.get_item(id).get("name", ""))
+		if PrayerLore.is_bone(item_name):
+			var qty := int(stack["qty"])
+			if remove_item(id, qty):
+				add_xp("prayer", PrayerLore.bone_xp(item_name) * float(qty))
+				buried += qty
+	if buried > 0:
+		EventBus.combat_log.emit("[prayer] Buried %d bones." % buried)
+	return buried
+
+
+## High Alchemy: turn one item into coins (+ Magic XP). The economy's item sink.
+func high_alch(item_name_or_id: String) -> bool:
+	if level("magic") < HIGH_ALCH_LEVEL:
+		EventBus.combat_log.emit("Magic level %d required for High Alchemy." % HIGH_ALCH_LEVEL)
+		return false
+	var id := DataRegistry.resolve_item_id(item_name_or_id)
+	if id.is_empty() or count_item(id) <= 0:
+		return false
+	if not remove_item(id, 1):
+		return false
+	add_coins(int(floor(float(DataRegistry.item_value(id)) * HIGH_ALCH_RATE)))
+	add_xp("magic", HIGH_ALCH_XP)
+	return true
+
+
+## Agility meta-stat: run energy drains while auto-navigating and regenerates
+## otherwise; higher Agility makes it last longer (wired into nav later).
+func use_run_energy(amount: float) -> void:
+	run_energy = clampf(run_energy - amount, 0.0, 100.0)
+	EventBus.run_energy_changed.emit(run_energy)
+
+
+func regen_run_energy(delta: float) -> void:
+	if run_energy >= 100.0:
+		return
+	var rate := RUN_REGEN_PER_SEC * (1.0 + float(level("agility")) * 0.01)
+	run_energy = clampf(run_energy + rate * delta, 0.0, 100.0)
+	EventBus.run_energy_changed.emit(run_energy)
+
+
 ## On death, destroy whatever is in ONE random equipment slot (empty slot = no
 ## loss). Returns the lost item's display name, or "" if nothing was lost. The
 ## Protect Item prayer is checked by the caller (spec §12 death handling).
@@ -464,6 +523,7 @@ func to_save_dict() -> Dictionary:
 		"coins": coins,
 		"current_hp": current_hp,
 		"combat_style": combat_style,
+		"run_energy": run_energy,
 	}
 
 
@@ -495,6 +555,7 @@ func from_save_dict(d: Dictionary) -> void:
 			equipment[k] = item_id
 	coins = int(d.get("coins", d.get("gold", 0)))
 	combat_style = str(d.get("combat_style", "attack"))
+	run_energy = clampf(float(d.get("run_energy", 100.0)), 0.0, 100.0)
 	active_prayers = []
 	current_hp = clampi(int(d.get("current_hp", max_hp())), 1, max_hp())
 	EventBus.inventory_changed.emit()

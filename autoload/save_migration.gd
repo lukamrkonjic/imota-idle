@@ -4,8 +4,8 @@ class_name SaveMigration
 
 const SkillRemap := preload("res://scripts/content/skill_remap.gd")
 
-const CURRENT_SCHEMA := 6
-const CURRENT_GAME_VERSION := "0.6.0"
+const CURRENT_SCHEMA := 7
+const CURRENT_GAME_VERSION := "0.7.0"
 
 
 static func migrate_game_save(data: Dictionary) -> Dictionary:
@@ -23,6 +23,8 @@ static func migrate_game_save(data: Dictionary) -> Dictionary:
 		out = _migrate_v4_to_v5(out)
 	if version < 6:
 		out = _migrate_v5_to_v6(out)
+	if version < 7:
+		out = _migrate_v6_to_v7(out)
 	out["schemaVersion"] = CURRENT_SCHEMA
 	out["gameVersion"] = CURRENT_GAME_VERSION
 	return out
@@ -34,6 +36,17 @@ static func _migrate_v5_to_v6(data: Dictionary) -> Dictionary:
 	var out := data.duplicate(true)
 	if not out.has("combat_style"):
 		out["combat_style"] = "attack"
+	return out
+
+
+## v7 (Phase 6 skill loops): add run energy + the farming block. Additive
+## defaults — older saves start with full run energy and empty plots.
+static func _migrate_v6_to_v7(data: Dictionary) -> Dictionary:
+	var out := data.duplicate(true)
+	if not out.has("run_energy"):
+		out["run_energy"] = 100.0
+	if not out.has("farming"):
+		out["farming"] = {"plotCount": 3, "plots": []}
 	return out
 
 

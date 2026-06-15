@@ -42,6 +42,15 @@ display names are now pure presentation and rename freely; the id is the permane
 - Data files (`items.json`, …) carry an explicit `id` per entry; recipes/drops/nodes still
   cross-reference items by **name** and resolve to ids at load, keeping data human-readable.
 
+### Schema version 6 → 7 (skill loops, Phase 6)
+
+`_migrate_v6_to_v7` adds `run_energy` (the Agility meta-stat, default 100) and a `farming`
+block (`{ plotCount, plots[] }`, default 3 empty plots). The `farming` block is written by
+`FarmingSim.to_save()` and restored in `SaveManager.load_game`; each plot stores its seed,
+crop, xp, yield, grow-ticks and current age, so an in-progress crop survives save/load.
+Farming growth advances on the global tick **only while the game is open** (no offline).
+Prayer (bury bones) and High Alchemy are pure actions — nothing new is persisted for them.
+
 ### Schema version 5 → 6 (combat depth, Phase 5)
 
 `_migrate_v5_to_v6` adds the persisted `combat_style` (the trained combat skill); older saves

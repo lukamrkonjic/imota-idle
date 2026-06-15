@@ -39,6 +39,7 @@ func save_game() -> void:
 	data["gameVersion"] = SaveMigration.CURRENT_GAME_VERSION
 	data["savedAt"] = Time.get_unix_time_from_system()
 	data["activity"] = _activity_dict()
+	data["farming"] = FarmingSim.to_save()
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f == null:
 		push_error("Could not write save file")
@@ -81,6 +82,7 @@ func load_game() -> void:
 		return
 	GameState.from_save_dict(parsed)
 	parsed = SaveMigration.migrate_game_save(parsed)
+	FarmingSim.from_save(parsed.get("farming", {}))
 	var activity: Dictionary = parsed.get("activity", {})
 	match activity.get("kind", ""):
 		"gather":

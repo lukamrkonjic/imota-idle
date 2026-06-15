@@ -8,6 +8,8 @@ signal bank_changed
 signal equipment_changed
 signal coins_changed(new_amount: int)
 signal hp_changed(current: int, max_hp: int)
+signal farming_changed
+signal run_energy_changed(value: float)
 
 signal activity_started(kind: String, label: String)
 signal activity_stopped(reason: String)
