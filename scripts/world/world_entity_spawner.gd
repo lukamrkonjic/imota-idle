@@ -21,8 +21,8 @@ func setup(w: Node2D) -> void:
 # Per-coroutine slice and shared frame budget for streaming a chunk's contents
 # in. Several chunk spawn coroutines can overlap while walking, so each one is
 # kept tiny and they all share a soft per-frame cap.
-const SPAWN_BUDGET_USEC := 600
-const STREAM_FRAME_BUDGET_USEC := 1800
+const SPAWN_BUDGET_USEC := 350
+const STREAM_FRAME_BUDGET_USEC := 900
 var _stream_budget_frame := -1
 var _stream_budget_used_usec := 0
 
@@ -31,7 +31,9 @@ func on_chunk_loaded(chunk: RefCounted, immediate: bool = false) -> void:
 	var container := Node2D.new()
 	container.name = "E_" + chunk.key().replace(":", "_").replace("-", "m")
 	container.y_sort_enabled = true
-	container.modulate.a = 0.0
+	container.visible = immediate
+	container.modulate.a = 1.0 if immediate else 0.0
+	container.set_meta("streaming_complete", immediate)
 	world._entities_layer.add_child(container)
 	world._chunk_containers[chunk.key()] = container
 
@@ -172,6 +174,8 @@ func _finalize_chunk(_chunk: RefCounted, container: Node2D) -> void:
 	# Reveal the chunk only once it is fully built (it was kept invisible during
 	# the streamed spawn) — no fade, so props simply appear, never pop in one by
 	# one. It is loaded outside the view, so the reveal happens off screen.
+	container.set_meta("streaming_complete", true)
+	container.visible = true
 	container.modulate.a = 1.0
 
 
@@ -217,6 +221,7 @@ func on_chunk_unloaded(chunk: RefCounted) -> void:
 			world.entities = world.entities.filter(keep)
 			world._decor_nodes = world._decor_nodes.filter(keep)
 			world._water_decor_nodes = world._water_decor_nodes.filter(keep)
+			world._visible_entities = world._visible_entities.filter(keep)
 			world._roofed_entities = world._roofed_entities.filter(keep)
 		container.queue_free()
 	world._chunk_containers.erase(key)

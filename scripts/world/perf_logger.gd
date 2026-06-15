@@ -11,11 +11,13 @@ class_name PerfLogger
 const WG := preload("res://scripts/worldgen/wg.gd")
 
 var world: Node2D
-var enabled := OS.is_debug_build()
+var enabled := false
 
 var _file: FileAccess
 var _accum := 0.0
+var _flush_accum := 0.0
 const SAMPLE_INTERVAL := 0.5
+const FLUSH_INTERVAL := 5.0
 
 # Per-subsystem time (usec) recorded by world._process each frame; averaged over
 # the sample window.
@@ -29,6 +31,7 @@ func setup(w: Node2D) -> void:
 
 
 func _ready() -> void:
+	enabled = _should_enable()
 	if not enabled:
 		return
 	var path := "user://perf_log.txt"
@@ -49,6 +52,16 @@ func _ready() -> void:
 	_file.flush()
 
 
+func _should_enable() -> bool:
+	if OS.get_environment("IMOTA_PERF_LOG") == "1":
+		return true
+	if OS.get_cmdline_args().has("--perf-log"):
+		return true
+	if ProjectSettings.has_setting("imota/debug/perf_log"):
+		return bool(ProjectSettings.get_setting("imota/debug/perf_log"))
+	return false
+
+
 ## Called by world._process with the per-subsystem microsecond timings for the
 ## frame: {"chunk":us, "stream":us, "path":us, "visual":us, "hover":us, "activity":us}.
 func record(delta: float, frame_timings: Dictionary) -> void:
@@ -62,10 +75,14 @@ func record(delta: float, frame_timings: Dictionary) -> void:
 	if _accum < SAMPLE_INTERVAL:
 		return
 	_write_sample()
+	_flush_accum += _accum
 	_accum = 0.0
 	_timings.clear()
 	_timing_frames = 0
 	_worst_frame_ms = 0.0
+	if _flush_accum >= FLUSH_INTERVAL:
+		_file.flush()
+		_flush_accum = 0.0
 
 
 func _write_sample() -> void:
@@ -157,7 +174,6 @@ func _write_sample() -> void:
 		terr_load, terr_vis, view_r, active_r, nav_r, sub, cm_sub, bake_sub,
 	]
 	_file.store_line(line)
-	_file.flush()
 
 
 func _exit_tree() -> void:

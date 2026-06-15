@@ -71,11 +71,12 @@ func process_tick(delta: float) -> void:
 			_ambience_accum = 0.0
 			if is_instance_valid(world._ambience):
 				world._ambience.queue_redraw()
-		_water_anim_accum += delta
-		if _water_anim_accum >= 0.15:
-			_water_anim_accum = 0.0
-			WaterSurfaceArt.advance_time(0.15)
-			_queue_visible_water_redraw()
+		if world._camera.zoom.x >= 0.7:
+			_water_anim_accum += delta
+			if _water_anim_accum >= 0.15:
+				_water_anim_accum = 0.0
+				WaterSurfaceArt.advance_time(0.15)
+				_queue_visible_water_redraw()
 	_update_interactable_outlines()
 	_update_zone_and_biome()
 	_update_darkness()
@@ -146,6 +147,9 @@ func _update_visibility_budget(delta: float) -> void:
 	var rect := Rect2(world._camera.global_position - world_size * 0.5 - Vector2(margin, margin), world_size + Vector2(margin * 2.0, margin * 2.0))
 	for key: String in world._chunk_containers.keys():
 		var container: Node2D = world._chunk_containers[key]
+		if container.has_meta("streaming_complete") and not bool(container.get_meta("streaming_complete")):
+			container.visible = false
+			continue
 		var parts: PackedStringArray = key.split(":")
 		if parts.size() == 3:
 			var chunk_rect := WG.chunk_aabb(int(parts[1]), int(parts[2])).grow(WG.CHUNK_SIZE * 0.75)
@@ -164,10 +168,17 @@ func _update_visibility_budget(delta: float) -> void:
 		if not is_instance_valid(d):
 			continue
 		d.visible = show_water and rect.has_point(d.global_position)
+	var visible_entities: Array = []
 	for e: Node2D in world.entities:
 		if not is_instance_valid(e):
 			continue
-		e.visible = _entity_intersects_rect(e, rect)
+		var in_view := _entity_intersects_rect(e, rect)
+		e.visible = in_view
+		if in_view:
+			visible_entities.append(e)
+		elif e.highlight_outline:
+			e.highlight_outline = false
+	world._visible_entities = visible_entities
 
 
 func _entity_intersects_rect(e: Node2D, rect: Rect2) -> bool:
@@ -203,8 +214,11 @@ func _visible_world_rect() -> Rect2:
 
 func _queue_visible_tree_redraw() -> void:
 	var rect := _cached_visible_rect if _cached_visible_rect.size != Vector2.ZERO else _visible_world_rect()
-	for e: Node2D in world.entities:
-		if e.kind != "tree" and e.kind != "landmark_tree":
+	for raw: Variant in _visible_entity_list():
+		if not is_instance_valid(raw):
+			continue
+		var e: Node2D = raw
+		if e.kind != "landmark_tree":
 			continue
 		if rect.has_point(e.position):
 			e.queue_redraw()
@@ -227,8 +241,17 @@ func _update_interactable_outlines() -> void:
 		return
 	_alt_hints_active = alt
 	var rect := _cached_visible_rect if _cached_visible_rect.size != Vector2.ZERO else _visible_world_rect()
-	for e: Node2D in world.entities:
+	for raw: Variant in _visible_entity_list():
+		if not is_instance_valid(raw):
+			continue
+		var e: Node2D = raw
 		if not e.has_method("is_interactable") or not e.call("is_interactable"):
 			e.highlight_outline = false
 			continue
 		e.highlight_outline = alt and rect.has_point(e.position)
+
+
+func _visible_entity_list() -> Array:
+	if world._visible_entities.is_empty():
+		return world.entities
+	return world._visible_entities

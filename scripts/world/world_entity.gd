@@ -248,6 +248,9 @@ func _draw_cached() -> void:
 		# Not baked yet: kick off the bake and redraw when it lands. (Shared, so a
 		# look bakes once no matter how many entities use it.)
 		sprite_cache.request(key, _sprite_bounds(), _paint_into, Callable(self, "queue_redraw"))
+		# While the bake queue is paused during movement, draw the procedural art
+		# directly so rare un-atlased looks never disappear mid-traverse.
+		_draw_sprite_to(self)
 		return
 	draw_texture(e["tex"], e["offset"])
 

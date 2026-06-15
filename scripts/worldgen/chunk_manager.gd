@@ -14,7 +14,7 @@ var layer := 0
 var view_radius := WG.VIEW_RADIUS
 var active_radius := WG.ACTIVE_RADIUS
 var nav_radius := WG.NAV_RADIUS
-var detail_radius := WG.DETAIL_RADIUS
+var detail_radius := WG.MAX_DETAIL_RADIUS
 var unload_radius := WG.VIEW_RADIUS + 2
 # WorkerThreadPool bakes can leave Godot with a non-zero process exit during
 # headless validation/shutdown even when every assertion passes. The chunk bake
@@ -23,11 +23,14 @@ var unload_radius := WG.VIEW_RADIUS + 2
 var use_threads := false
 
 var _renderers: Dictionary = {}   # "cx:cy" -> renderer node
+var _renderer_aabbs: Dictionary = {} # "cx:cy" -> expanded world bounds
 var _chunks: Dictionary = {}      # "cx:cy" -> Chunk
 var _visual_only: Dictionary = {} # "cx:cy" -> true, cheap terrain placeholder only
 var _active: Dictionary = {}      # "cx:cy" -> true, has emitted chunk_loaded
 var _seen: Dictionary = {}        # layer -> {"cx:cy": true}
 var _center := Vector2i(2000000, 2000000)
+var _last_world_pos := Vector2.INF
+var _move_dir := Vector2.ZERO
 var _tasks: Dictionary = {}       # task id -> chunk key
 var _results: Dictionary = {}     # chunk key -> Image (worker -> main handoff)
 var _results_mutex := Mutex.new()
@@ -35,17 +38,18 @@ var _results_mutex := Mutex.new()
 # Incremental streaming: after the initial fill, new chunks are queued and loaded
 # a few per frame instead of all at once on the crossing frame. This trades a
 # slightly slower fill for no frame hiccup when the player walks into a new area.
-const LOADS_PER_FRAME := 3
-const LOAD_TIME_BUDGET_USEC := 1400
-const ACTIVATIONS_PER_FRAME := 2
+const LOADS_PER_FRAME := 2
+const LOAD_TIME_BUDGET_USEC := 900
+const ACTIVATIONS_PER_FRAME := 1
 const DEACTIVATIONS_PER_FRAME := 1
 const UNLOADS_PER_FRAME := 1
 const TERRAIN_REDRAWS_PER_FRAME := 2
-const MESH_REBUILDS_PER_FRAME := 6   # worker-thread dispatches/frame (cheap; builds run off-thread)
-const MESH_REBUILD_TIME_BUDGET_USEC := 1800
+const MESH_REBUILDS_PER_FRAME := 3   # worker-thread dispatches/frame; keep CPU contention low while walking
+const MESH_REBUILD_TIME_BUDGET_USEC := 1200
 const MESH_REBUILD_IDLE_MSEC := 180
 const DETAIL_UPDATE_IDLE_MSEC := 350
 const UNLOAD_IDLE_MSEC := 500
+const REAL_CHUNK_PREFETCH_MARGIN := 1
 var _load_queue: Array = []       # Array[Vector2i], nearest-first
 var _queued: Dictionary = {}      # "cx:cy" -> true (dedupe what's already queued)
 var _unload_queue: Array[String] = []
@@ -56,6 +60,7 @@ var _redraw_queue: Array = []     # Array[String] keys, FIFO
 var _redraw_pending: Dictionary = {}  # "cx:cy" -> true (dedupe)
 var _activate_queue: Array[String] = []
 var _queued_activate: Dictionary = {}
+var _activate_queue_dirty := false
 var _deactivate_queue: Array[String] = []
 var _queued_deactivate: Dictionary = {}
 var _mesh_queue: Array[String] = []
@@ -63,6 +68,7 @@ var _queued_mesh: Dictionary = {}
 var _mesh_queue_dirty := false
 var _last_center_change_msec := 0
 var _detail_update_pending := false
+var _stream_busy := false
 const PERF_KEYS := ["load", "redraw", "mesh", "deactivate", "unload", "activate", "detail", "total"]
 var _perf_accum: Dictionary = {}
 var _perf_frames := 0
@@ -108,6 +114,7 @@ func clear_all() -> void:
 	_queued_unload.clear()
 	_activate_queue.clear()
 	_queued_activate.clear()
+	_activate_queue_dirty = false
 	_deactivate_queue.clear()
 	_queued_deactivate.clear()
 	_mesh_queue.clear()
@@ -117,10 +124,17 @@ func clear_all() -> void:
 	_active.clear()
 	_visual_only.clear()
 	_center = Vector2i(2000000, 2000000)
+	_last_world_pos = Vector2.INF
+	_move_dir = Vector2.ZERO
 
 
 ## Call whenever the player moves; loads new chunks only on chunk crossings.
 func update_center(world_pos: Vector2) -> void:
+	if _last_world_pos != Vector2.INF:
+		var delta := world_pos - _last_world_pos
+		if delta.length_squared() > 1.0:
+			_move_dir = delta.normalized()
+	_last_world_pos = world_pos
 	var c := WG.world_to_chunk(world_pos)
 	if c == _center:
 		return
@@ -143,37 +157,69 @@ func set_radii(p_view: int, p_active: int) -> void:
 	view_radius = v
 	active_radius = a
 	unload_radius = view_radius + 2
+	# Full detail now covers the whole visible ring (meshes build off-thread, so the
+	# old "tiny full radius + coarse everywhere else" is no longer needed).
+	var new_detail := mini(v, WG.MAX_DETAIL_RADIUS)
+	var detail_changed := new_detail != detail_radius
+	detail_radius = new_detail
 	if _center.x != 2000000:
 		_refresh(false)
+		if detail_changed:
+			_request_renderer_detail_update(true)
+
+
+func set_stream_busy(busy: bool) -> void:
+	_stream_busy = busy
 
 
 func _refresh(first_fill: bool) -> void:
 	var c := _center
-	var needed: Dictionary = {}
-	for dy: int in range(-view_radius, view_radius + 1):
-		for dx: int in range(-view_radius, view_radius + 1):
-			needed["%d:%d" % [c.x + dx, c.y + dy]] = Vector2i(c.x + dx, c.y + dy)
-	for key: String in needed:
+	for coord: Vector2i in _stream_coords_by_ring(c, view_radius):
+		var key := "%d:%d" % [coord.x, coord.y]
 		if _renderers.has(key) or _queued.has(key):
 			continue
-		if first_fill and _within_radius(needed[key], c, active_radius + 1):
-			_load(needed[key], true)
+		if first_fill and _within_radius(coord, c, active_radius + 1):
+			_load(coord, true)
 		else:
-			_load_queue.append(needed[key])
-			_queued[key] = true
-	if not _load_queue.is_empty():
-		_load_queue.sort_custom(_closer_to_center)
+			_queue_load_coord(coord, true)
 	for key: String in _renderers.keys():
-		if not needed.has(key):
-			var parts: PackedStringArray = key.split(":")
-			if parts.size() != 2:
-				continue
-			var dx: int = absi(int(parts[0]) - c.x)
-			var dy: int = absi(int(parts[1]) - c.y)
-			if dx > unload_radius or dy > unload_radius:
-				_queue_unload(key)
+		var coord := _coord_from_key(key)
+		if coord == Vector2i(999999, 999999):
+			continue
+		if not _within_radius(coord, c, unload_radius):
+			_queue_unload(key)
 	_request_renderer_detail_update(first_fill)
 	_sync_active_chunks()
+
+
+func _queue_load_coord(coord: Vector2i, already_priority_ordered: bool = false) -> void:
+	var key := "%d:%d" % [coord.x, coord.y]
+	if _renderers.has(key) and not _visual_only.has(key):
+		return
+	if _queued.has(key):
+		return
+	_queued[key] = true
+	_load_queue.append(coord)
+	# Center refresh walks chunks in priority order already. Keep the old sort only
+	# for the small, non-refresh queues so boundary crossings never re-sort a huge
+	# backlog.
+	if not already_priority_ordered and _load_queue.size() <= 32:
+		_load_queue.sort_custom(_closer_to_center)
+
+
+func _stream_coords_by_ring(center: Vector2i, radius: int) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	out.append(center)
+	for ring: int in range(1, radius + 1):
+		var coords: Array[Vector2i] = []
+		for dx: int in range(-ring, ring + 1):
+			coords.append(Vector2i(center.x + dx, center.y - ring))
+			coords.append(Vector2i(center.x + dx, center.y + ring))
+		for dy: int in range(-ring + 1, ring):
+			coords.append(Vector2i(center.x - ring, center.y + dy))
+			coords.append(Vector2i(center.x + ring, center.y + dy))
+		out.append_array(coords)
+	return out
 
 
 func _load(coords: Vector2i, immediate_active: bool = false) -> void:
@@ -190,15 +236,16 @@ func _load(coords: Vector2i, immediate_active: bool = false) -> void:
 		_seen[layer] = {}
 	_seen[layer][key] = true
 	var avg := ChunkRenderer.tile_color(WorldGen.reg, chunk.tile_id(WG.CHUNK_TILES / 2, WG.CHUNK_TILES / 2))
-	var detail := _detail_for(coords)
-	if not immediate_active and detail == ChunkRenderer.DETAIL_FULL and not _detail_updates_allowed():
-		detail = ChunkRenderer.DETAIL_LOW
-	var renderer: Node2D = ChunkRenderer.new(chunk, avg, detail)
+	# Load at the chunk's real detail level even while moving — the full mesh builds
+	# on a worker thread, so there's no reason to show coarse LOD during movement.
+	var renderer: Node2D = ChunkRenderer.new(chunk, avg, _detail_for(coords))
 	renderer.name = "Chunk_" + key.replace(":", "_").replace("-", "m")
+	renderer.call("set_loading_fog", 0.16 if immediate_active else 0.26)
 	# No fade: terrain loads well outside the view (large radius), so it is simply
 	# present when it scrolls on screen — fading introduced the visible "pop".
 	add_child(renderer)
 	_renderers[key] = renderer
+	_renderer_aabbs[key] = WG.chunk_aabb(coords.x, coords.y).grow(WG.CHUNK_SIZE * 0.5)
 	_queue_mesh_rebuild(key)
 	_redraw_loaded_neighbors(coords)
 	if _within_radius(coords, _center, active_radius):
@@ -217,11 +264,14 @@ func _load_visual_placeholder(coords: Vector2i) -> void:
 		tid = int(WorldGen.reg.tile_index.get("grass", 0))
 	var chunk := Chunk.new()
 	chunk.setup(layer, coords.x, coords.y)
+	chunk.tiles.fill(tid)
 	var avg := ChunkRenderer.tile_color(WorldGen.reg, tid)
 	var renderer: Node2D = ChunkRenderer.new(chunk, avg, ChunkRenderer.DETAIL_LOW)
 	renderer.name = "Chunk_" + key.replace(":", "_").replace("-", "m")
+	renderer.call("set_fog_placeholder", true)
 	add_child(renderer)
 	_renderers[key] = renderer
+	_renderer_aabbs[key] = WG.chunk_aabb(coords.x, coords.y).grow(WG.CHUNK_SIZE * 0.5)
 	_visual_only[key] = true
 
 
@@ -240,8 +290,10 @@ func _hydrate_visual_placeholder(coords: Vector2i, immediate_active: bool = fals
 	_visual_only.erase(key)
 	if _renderers.has(key):
 		var renderer: Node2D = _renderers[key]
+		renderer.call("set_fog_placeholder", false)
 		renderer.set("chunk", chunk)
 		renderer.call("set_detail_level", _detail_for(coords))
+		renderer.call("set_loading_fog", 0.30)
 		_queue_mesh_rebuild(key)
 	_redraw_loaded_neighbors(coords)
 	if _within_radius(coords, _center, active_radius):
@@ -252,21 +304,40 @@ func _hydrate_visual_placeholder(coords: Vector2i, immediate_active: bool = fals
 
 
 func _closer_to_center(a: Vector2i, b: Vector2i) -> bool:
-	var ca := maxi(absi(a.x - _center.x), absi(a.y - _center.y))
-	var cb := maxi(absi(b.x - _center.x), absi(b.y - _center.y))
-	if ca != cb:
-		return ca < cb
-	var da := absi(a.x - _center.x) + absi(a.y - _center.y)
-	var db := absi(b.x - _center.x) + absi(b.y - _center.y)
-	return da < db
+	var pa := _stream_priority(a)
+	var pb := _stream_priority(b)
+	if not is_equal_approx(pa, pb):
+		return pa < pb
+	if a.x != b.x:
+		return a.x < b.x
+	return a.y < b.y
 
 
 func _closer_key_to_center(a: String, b: String) -> bool:
 	return _closer_to_center(_coord_from_key(a), _coord_from_key(b))
 
 
-func _detail_for(coords: Vector2i) -> int:
-	return ChunkRenderer.DETAIL_FULL if _within_radius(coords, _center, detail_radius) else ChunkRenderer.DETAIL_LOW
+func _stream_priority(coord: Vector2i) -> float:
+	var cheb := maxi(absi(coord.x - _center.x), absi(coord.y - _center.y))
+	var manhattan := absi(coord.x - _center.x) + absi(coord.y - _center.y)
+	var priority := float(cheb) * 1000.0 + float(manhattan) * 10.0
+	if _move_dir != Vector2.ZERO:
+		var to_chunk := _chunk_center_world(coord) - _chunk_center_world(_center)
+		if to_chunk.length_squared() > 0.01:
+			priority -= to_chunk.normalized().dot(_move_dir) * 250.0
+	return priority
+
+
+static func _chunk_center_world(coord: Vector2i) -> Vector2:
+	return WG.tile_to_world(
+		coord.x * WG.CHUNK_TILES + WG.CHUNK_TILES / 2,
+		coord.y * WG.CHUNK_TILES + WG.CHUNK_TILES / 2)
+
+
+func _detail_for(_coords: Vector2i) -> int:
+	# Visual-only chunks are the loading/far-view state. Once a real chunk hydrates,
+	# keep it dark until the full mesh is ready instead of showing coarse terrain.
+	return ChunkRenderer.DETAIL_FULL
 
 
 ## Frustum-cull the terrain renderers to the camera view (with a generous
@@ -275,10 +346,9 @@ func _detail_for(coords: Vector2i) -> int:
 ## chunk in the wide stream radius is drawn every frame even far off screen.
 func set_view_rect(rect: Rect2) -> void:
 	for key: String in _renderers.keys():
-		var coord := _coord_from_key(key)
-		if coord == Vector2i(999999, 999999):
+		var aabb: Rect2 = _renderer_aabbs.get(key, Rect2())
+		if aabb.size == Vector2.ZERO:
 			continue
-		var aabb := WG.chunk_aabb(coord.x, coord.y).grow(WG.CHUNK_SIZE * 0.5)
 		_renderers[key].visible = aabb.intersects(rect)
 
 
@@ -303,10 +373,13 @@ func _fade_in(node: CanvasItem, seconds: float) -> void:
 
 
 func _redraw_loaded_neighbors(coords: Vector2i) -> void:
-	# Enqueue the existing neighbours for a seam refresh (the just-created chunk
-	# already draws fresh on entering the tree, so skip its own centre). The queue
-	# is drained a few per frame in _process so a load never triggers a burst of
-	# full chunk redraws on the same frame.
+	# Seam refresh: a neighbour only needs re-meshing if THIS chunk has elevation
+	# (cross-seam risers/cliffs/terrain-shadow are the only seam features that span
+	# chunks). The map is mostly flat, so this skips ~all the re-mesh churn that was
+	# firing on every chunk crossing — flat grass/sand seams already align.
+	var chunk: RefCounted = _chunks.get("%d:%d" % [coords.x, coords.y])
+	if chunk == null or not _chunk_has_elev(chunk):
+		return
 	for dy: int in range(-1, 2):
 		for dx: int in range(-1, 2):
 			if dx == 0 and dy == 0:
@@ -315,6 +388,13 @@ func _redraw_loaded_neighbors(coords: Vector2i) -> void:
 			if _renderers.has(key) and not _redraw_pending.has(key):
 				_redraw_pending[key] = true
 				_redraw_queue.append(key)
+
+
+static func _chunk_has_elev(chunk: RefCounted) -> bool:
+	for e: int in chunk.elev:
+		if e > 0:
+			return true
+	return false
 
 
 func _process(_delta: float) -> void:
@@ -406,7 +486,8 @@ func _detail_updates_allowed() -> bool:
 
 
 func _should_load_real_chunk(coord: Vector2i) -> bool:
-	return _within_radius(coord, _center, active_radius + 1) or _detail_updates_allowed()
+	var real_radius := mini(view_radius, active_radius + REAL_CHUNK_PREFETCH_MARGIN)
+	return _within_radius(coord, _center, real_radius)
 
 
 func _queue_unload(key: String) -> void:
@@ -458,7 +539,7 @@ func _process_mesh_rebuild_queue() -> void:
 	if _mesh_queue_dirty:
 		_mesh_queue.sort_custom(_closer_key_to_center)
 		_mesh_queue_dirty = false
-	var budget := MESH_REBUILDS_PER_FRAME
+	var budget := 1 if _stream_busy else MESH_REBUILDS_PER_FRAME
 	while budget > 0 and not _mesh_queue.is_empty():
 		var key: String = _mesh_queue.pop_front()
 		_queued_mesh.erase(key)
@@ -484,6 +565,7 @@ func _unload(key: String) -> void:
 	if _renderers.has(key):
 		_renderers[key].queue_free()
 	_renderers.erase(key)
+	_renderer_aabbs.erase(key)
 	_visual_only.erase(key)
 	_queued_mesh.erase(key)
 	_chunks.erase(key)
@@ -496,11 +578,11 @@ func _sync_active_chunks() -> void:
 			continue
 		if _queued.has(key):
 			continue
-		_queued[key] = true
 		if _within_radius(coord, _center, active_radius + 1):
+			_queued[key] = true
 			_load_queue.push_front(coord)
 		else:
-			_load_queue.append(coord)
+			_queue_load_coord(coord, false)
 	for key: String in _active.keys():
 		var coord := _coord_from_key(key)
 		if coord == Vector2i(999999, 999999) or not _within_radius(coord, _center, active_radius):
@@ -518,7 +600,7 @@ func _queue_activate(key: String) -> void:
 		return
 	_queued_activate[key] = true
 	_activate_queue.append(key)
-	_activate_queue.sort_custom(_closer_key_to_center)
+	_activate_queue_dirty = true
 
 
 func _queue_deactivate(key: String) -> void:
@@ -529,6 +611,9 @@ func _queue_deactivate(key: String) -> void:
 
 
 func _process_activation_queue() -> void:
+	if _activate_queue_dirty:
+		_activate_queue.sort_custom(_closer_key_to_center)
+		_activate_queue_dirty = false
 	var budget := ACTIVATIONS_PER_FRAME
 	while budget > 0 and not _activate_queue.is_empty():
 		var key: String = _activate_queue.pop_front()

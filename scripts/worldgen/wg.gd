@@ -20,14 +20,20 @@ const ZONE_CELL := 6                       # zone Voronoi cell size, in chunks
 # zoomed in. These are the MIN (most zoomed-in) values; MAX_* cap the worst case.
 const VIEW_RADIUS := 6                     # min terrain chunks rendered (baked sprite, 1 draw
                                            # call each, so a wide ring is cheap).
-const MAX_VIEW_RADIUS := 10
+const MAX_VIEW_RADIUS := 12                 # must exceed the normal zoomed-out corner reach so the
+                                           # iso chunk-square encloses the screen rectangle (no
+                                           # empty corners). Cheap: far terrain is coarse-LOD,
+                                           # built off-thread, ~1 draw call each.
 const ACTIVE_RADIUS := 4                   # min chunks with spawned entities (houses/ore/etc).
-const MAX_ACTIVE_RADIUS := 9               # cap so an extreme zoom-out can't spawn a runaway
-                                           # number of entity nodes. Entities must reach the view
-                                           # edge (+1) so props never pop in on-camera.
+const MAX_ACTIVE_RADIUS := 8               # cap so an extreme zoom-out can't spawn a runaway
+                                           # number of entity nodes. Far zoom uses fogged terrain
+                                           # placeholders for the outer view instead of spawning
+                                           # every visible prop/enemy at once.
 const NAV_RADIUS := 3                      # chunks of A* nav graph around the player. Decoupled
                                            # from (and much smaller than) the entity ring so the
                                            # debounced rebuild stays cheap no matter the zoom.
+const MAX_DETAIL_RADIUS := 7               # cap on full-detail terrain (memory); distant visible
+                                           # terrain uses coarse LOD instead of full meshes.
 const DETAIL_RADIUS := 3                   # full-detail terrain radius; farther rendered as
                                            # cheap visual LOD to keep the wide view smooth.
 const SITE_SEARCH_RADIUS := 14             # chunks scanned for auto-path targets

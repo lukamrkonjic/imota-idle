@@ -23,6 +23,11 @@ const DETAIL_FULL := 1
 
 var chunk: RefCounted
 var detail_level := DETAIL_FULL
+var fog_placeholder := false
+var loading_fog_alpha := 0.0:
+	set(v):
+		loading_fog_alpha = clampf(v, 0.0, 1.0)
+		queue_redraw()
 var _placeholder: Color = Color(0.25, 0.35, 0.22)
 # The chunk's ~300 per-tile polygons are baked ONCE into a single vertex-coloured
 # triangle mesh (the Terraria/Minecraft "chunk mesh") and drawn in ONE draw_mesh()
@@ -43,7 +48,14 @@ var _build_seed := 0
 var _pending_verts := PackedVector3Array()
 var _pending_cols := PackedColorArray()
 var _pending_props: Array = []
+# The triangle assembly runs on the worker; the ArrayMesh (GPU upload) is created
+# on the MAIN thread (creating GPU resources on workers contends with rendering).
+# Cap those creations per frame across all renderers so a burst never spikes.
+const APPLIES_PER_FRAME := 1
+static var _apply_frame := -1
+static var _applies_left := 0
 static var _white_tex: Texture2D = null
+static var visible_mesh_applies_allowed := true
 
 
 func _init(p_chunk: RefCounted, avg_color: Color, p_detail_level: int = DETAIL_FULL) -> void:
@@ -103,13 +115,16 @@ func _ready() -> void:
 
 
 func _draw() -> void:
+	if fog_placeholder:
+		_draw_fog_placeholder()
+		return
 	if _mesh == null:
-		# Until the mesh is built, show one cheap flat diamond placeholder.
-		var center := WG.tile_to_world(chunk.cx * WG.CHUNK_TILES + 8, chunk.cy * WG.CHUNK_TILES + 8)
-		PixelDraw.px_diamond(self, center.x, center.y,
-			float(WG.CHUNK_TILES) * WG.ISO_HW, float(WG.CHUNK_TILES) * WG.ISO_HH, _placeholder)
+		# Until the full mesh is built, keep the chunk as a clean fog tile instead
+		# of briefly showing coarse terrain or edge artifacts.
+		_draw_fog_placeholder()
 		return
 	draw_mesh(_mesh, _white_texture())
+	_draw_loading_fog()
 	# Ground decor: batched atlas regions on top of the terrain (one shared page →
 	# Godot merges them into a few draw calls). Behind entities (chunk z is far
 	# below the entity layer).
@@ -127,6 +142,19 @@ func mark_dirty() -> void:
 
 func needs_mesh_rebuild() -> bool:
 	return _mesh_dirty
+
+
+func set_loading_fog(alpha: float) -> void:
+	loading_fog_alpha = alpha
+
+
+func set_fog_placeholder(enabled: bool) -> void:
+	fog_placeholder = enabled
+	if fog_placeholder:
+		_mesh = null
+		_static_props.clear()
+		loading_fog_alpha = 0.0
+	queue_redraw()
 
 
 ## Kick off the chunk's mesh+decor build on a worker thread (cheap on the main
@@ -172,7 +200,7 @@ func _build_async() -> void:
 	var b := _MeshBuilder.new()
 	var props: Array = []
 	if detail_level == DETAIL_LOW:
-		_draw_coarse_lod(b)
+		_draw_chunk_lod(b, chunk, reg)
 	else:
 		_draw_chunk(b, chunk, reg)
 		props = DecorPlacement.compute(chunk, reg, _build_seed)
@@ -187,17 +215,19 @@ func _process(_delta: float) -> void:
 		return
 	if not WorkerThreadPool.is_task_completed(_build_task):
 		return
+	if not visible_mesh_applies_allowed:
+		return
+	# Throttle ArrayMesh creation (GPU upload) across all renderers this frame.
+	var f := Engine.get_process_frames()
+	if _apply_frame != f:
+		_apply_frame = f
+		_applies_left = APPLIES_PER_FRAME
+	if _applies_left <= 0:
+		return  # apply next frame; placeholder/old mesh stays until then
+	_applies_left -= 1
 	WorkerThreadPool.wait_for_task_completion(_build_task)
 	_build_task = -1
 	set_process(false)
-	_apply_build()
-	# A neighbour may have loaded while we were building — rebuild for the seam.
-	if _mesh_dirty:
-		rebuild_mesh()
-
-
-# MAIN THREAD: turn the worker's arrays into the live mesh and decor list.
-func _apply_build() -> void:
 	if _pending_verts.is_empty():
 		_mesh = null
 	else:
@@ -213,7 +243,11 @@ func _apply_build() -> void:
 	_pending_cols = PackedColorArray()
 	_pending_props = []
 	chunk.render_neighbors = {}  # release neighbour refs
+	_fade_loading_fog()
 	queue_redraw()
+	# A neighbour may have loaded while we were building — rebuild for the seam.
+	if _mesh_dirty:
+		rebuild_mesh()
 
 
 func _exit_tree() -> void:
@@ -224,7 +258,7 @@ func _exit_tree() -> void:
 
 
 func _draw_coarse_lod(canvas: Variant) -> void:
-	var center := WG.tile_to_world(chunk.cx * WG.CHUNK_TILES + 8, chunk.cy * WG.CHUNK_TILES + 8)
+	var center := _chunk_center_world(chunk.cx, chunk.cy)
 	PixelDraw.px_diamond(canvas, center.x, center.y,
 		float(WG.CHUNK_TILES) * WG.ISO_HW, float(WG.CHUNK_TILES) * WG.ISO_HH, _placeholder)
 
@@ -235,6 +269,47 @@ static func _white_texture() -> Texture2D:
 		img.fill(Color.WHITE)
 		_white_tex = ImageTexture.create_from_image(img)
 	return _white_tex
+
+
+func _draw_loading_fog() -> void:
+	if loading_fog_alpha <= 0.001:
+		return
+	var center := _chunk_center_world(chunk.cx, chunk.cy)
+	var hw := float(WG.CHUNK_TILES) * WG.ISO_HW + TILE_OVERLAP * 2.0
+	var hh := float(WG.CHUNK_TILES) * WG.ISO_HH + TILE_OVERLAP
+	var fog := Color(0.12, 0.13, 0.15)
+	PixelDraw.px_diamond(self, center.x, center.y, hw, hh, fog, loading_fog_alpha * 0.30)
+	PixelDraw.px_diamond(self, center.x, center.y, hw * 0.82, hh * 0.82, fog, loading_fog_alpha * 0.22)
+	PixelDraw.px_diamond(self, center.x, center.y, hw * 0.62, hh * 0.62, fog, loading_fog_alpha * 0.14)
+
+
+func _draw_fog_placeholder() -> void:
+	var center := _chunk_center_world(chunk.cx, chunk.cy)
+	var hw := float(WG.CHUNK_TILES) * WG.ISO_HW + TILE_OVERLAP * 3.0
+	var hh := float(WG.CHUNK_TILES) * WG.ISO_HH + TILE_OVERLAP * 1.5
+	PixelDraw.px_diamond(self, center.x, center.y, hw, hh, Color(0.095, 0.105, 0.095), 1.0)
+
+
+func _fade_loading_fog() -> void:
+	if loading_fog_alpha <= 0.001:
+		return
+	if not is_inside_tree():
+		loading_fog_alpha = 0.0
+		return
+	var tw := create_tween()
+	tw.set_trans(Tween.TRANS_SINE)
+	tw.set_ease(Tween.EASE_OUT)
+	tw.tween_property(self, "loading_fog_alpha", 0.0, 0.28)
+
+
+static func _chunk_center_world(cx: int, cy: int) -> Vector2:
+	return _grid_to_world(
+		float(cx * WG.CHUNK_TILES) + float(WG.CHUNK_TILES) * 0.5,
+		float(cy * WG.CHUNK_TILES) + float(WG.CHUNK_TILES) * 0.5)
+
+
+static func _grid_to_world(gx: float, gy: float) -> Vector2:
+	return Vector2((gx - gy) * WG.ISO_HW, (gx + gy) * WG.ISO_HH)
 
 
 ## Duck-typed as a CanvasItem for the existing paint helpers (which only call

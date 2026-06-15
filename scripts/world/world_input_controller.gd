@@ -59,7 +59,13 @@ func update_hover() -> void:
 func entity_at(world_pos: Vector2) -> Node2D:
 	var best: Node2D = null
 	var best_d := INF
-	for e: Node2D in world.entities:
+	var candidates: Array = world._visible_entities if not world._visible_entities.is_empty() else world.entities
+	for raw: Variant in candidates:
+		if not is_instance_valid(raw):
+			continue
+		var e: Node2D = raw
+		if not e.visible:
+			continue
 		# Only interactable entities are hover/click targets. Decorative props —
 		# walls, houses, ruined masonry, bridges, street clutter — carry an empty
 		# action, so they get no tooltip and clicks pass through to walk-here.

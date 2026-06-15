@@ -5,6 +5,7 @@ extends Node2D
 
 const WG := preload("res://scripts/worldgen/wg.gd")
 const ChunkManager := preload("res://scripts/worldgen/chunk_manager.gd")
+const ChunkRenderer := preload("res://scripts/worldgen/chunk_renderer.gd")
 const UnexploredBackdrop := preload("res://scripts/worldgen/unexplored_backdrop.gd")
 const PlayerAvatar := preload("res://scripts/world/player_avatar.gd")
 const WorldEntitySpawner := preload("res://scripts/world/world_entity_spawner.gd")
@@ -43,6 +44,7 @@ var _chunk_containers: Dictionary = {}
 var _site_entities: Dictionary = {}
 var _decor_nodes: Array = []
 var _water_decor_nodes: Array = []
+var _visible_entities: Array = []  # maintained by WorldVisualController for hot queries
 var _roofed_entities: Array = []  # houses/buildings only — for per-frame roof fade
 var _click_fx_layer: Node2D
 var _camera: Camera2D
@@ -51,6 +53,9 @@ var _ambience: Node2D
 var _biome_debug: Node2D
 var _perf_logger: Node
 var _last_bake_gate_pos := Vector2.INF
+var _last_stream_motion_msec := 0
+
+const STREAM_SETTLE_MSEC := 220
 
 # --- controllers ---
 var _entity_spawner: RefCounted
@@ -216,20 +221,24 @@ func _update_stream_radius() -> void:
 	var wy: float = vp.y / zoom * 0.5
 	var span_x: float = float(WG.CHUNK_TILES) * WG.ISO_HW
 	var span_y: float = float(WG.CHUNK_TILES) * WG.ISO_HH
-	var r: int = ceili((wx / span_x + wy / span_y) * 0.5)
-	# Entities must spawn at least one chunk BEYOND the visible edge so props never
-	# pop in on-camera (the baked atlas makes the extra CanvasItems cheap to draw).
-	# When zoomed far out the view is huge and entities barely read, so fall back to
-	# the nav ring there to avoid a runaway node count.
-	var active_r: int = WG.NAV_RADIUS if zoom < 0.7 else mini(r + 1, WG.MAX_ACTIVE_RADIUS)
-	chunk_manager.set_radii(r + 2, active_r)
+	var camera_r: int = ceili((wx / span_x + wy / span_y) * 0.5)
+	# Terrain gets the widest shell, entities get a still-off-camera shell, and
+	# nav stays fixed in ChunkManager.loaded_chunks(). That keeps trees/enemies
+	# from popping into view without making A* rebuild the whole visible world.
+	chunk_manager.set_radii(camera_r + 2, camera_r + 1)
 	# Freeze entity animations when zoomed far out — the per-frame live redraw of
 	# hundreds of visible enemies/fish is the dominant cost there and invisible.
 	WorldEntity.animations_enabled = zoom >= 0.7
 	var bake_queue := get_node_or_null("BakeQueue")
 	if bake_queue != null:
 		var moving := _last_bake_gate_pos != Vector2.INF and player.position.distance_squared_to(_last_bake_gate_pos) > 1.0
-		bake_queue.set("paused", moving and zoom < 0.7)
+		if moving:
+			_last_stream_motion_msec = Time.get_ticks_msec()
+		var stream_stable := Time.get_ticks_msec() - _last_stream_motion_msec >= STREAM_SETTLE_MSEC
+		if chunk_manager.has_method("set_stream_busy"):
+			chunk_manager.call("set_stream_busy", not stream_stable)
+		bake_queue.set("paused", moving)
+		ChunkRenderer.visible_mesh_applies_allowed = stream_stable
 		_last_bake_gate_pos = player.position
 
 
