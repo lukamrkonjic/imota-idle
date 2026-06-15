@@ -8,6 +8,7 @@ extends RefCounted
 
 const TOON := preload("res://shaders/toon_world.gdshader")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
+const TreeArt := preload("res://scripts/world/art/trees/tree_art.gd")
 
 static var _mesh_cache: Dictionary = {}
 static var _mat_cache: Dictionary = {}
@@ -23,7 +24,7 @@ static func sync_entities(render) -> void:
 		live[id] = true
 		var node: Node3D = render._prop_nodes.get(id)
 		if node == null:
-			node = _build_for(str(e.kind))
+			node = _build_for(e)
 			if node == null:
 				continue
 			render.props_root.add_child(node)
@@ -39,10 +40,13 @@ static func sync_entities(render) -> void:
 
 ## Build a 3D prop node for an entity kind (shared meshes/materials). Returns null
 ## for kinds rendered by the terrain (water) or not yet mapped.
-static func _build_for(kind: String) -> Node3D:
+static func _build_for(e: Node) -> Node3D:
+	var kind := str(e.kind)
 	match kind:
 		"tree", "landmark_tree":
-			return _tree()
+			# Match the 2D species silhouettes: conifers are conical, the rest round.
+			var species := TreeArt.classify(str(e.get("label")))
+			return _conifer() if species == "fir" else _tree()
 		"rock":
 			return _rock()
 		"node":
@@ -65,6 +69,17 @@ static func _tree() -> Node3D:
 	var leaf := _mat("foliage_a", "foliage_b", "foliage_c")
 	_add(root, _sphere("canopy_lo", 1.2), leaf, Vector3(0, 2.0, 0), Vector3(1, 0.82, 1))
 	_add(root, _sphere("canopy_hi", 0.85), _mat("foliage_c", "foliage_a", "foliage_c"), Vector3(0.15, 2.8, -0.1), Vector3(1, 0.82, 1))
+	return root
+
+
+static func _conifer() -> Node3D:
+	var root := Node3D.new()
+	_add(root, _cyl("contrunk", 0.14, 0.2, 1.0), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0, 0.5, 0))
+	var dark := _mat("fir_a", "fir_b", "foliage_c")
+	# 3 narrowing offset sections -> a readable conifer (not one perfect cone).
+	_add(root, _cone("fir0", 1.05, 0.7, 1.0), dark, Vector3(0, 1.0, 0))
+	_add(root, _cone("fir1", 0.82, 0.5, 0.95), dark, Vector3(0.05, 1.7, 0))
+	_add(root, _cone("fir2", 0.55, 0.08, 0.9), dark, Vector3(-0.04, 2.35, 0))
 	return root
 
 
@@ -121,6 +136,17 @@ static func _cyl(key: String, top: float, bot: float, h: float) -> Mesh:
 		m.bottom_radius = bot
 		m.height = h
 		m.radial_segments = 7
+		_mesh_cache[key] = m
+	return _mesh_cache[key]
+
+
+static func _cone(key: String, bot: float, top: float, h: float) -> Mesh:
+	if not _mesh_cache.has(key):
+		var m := CylinderMesh.new()
+		m.top_radius = top
+		m.bottom_radius = bot
+		m.height = h
+		m.radial_segments = 8
 		_mesh_cache[key] = m
 	return _mesh_cache[key]
 
