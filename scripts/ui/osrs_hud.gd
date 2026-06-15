@@ -184,7 +184,7 @@ func update_tile_debug(world_pos: Vector2) -> void:
 		tile_debug_label.text = "Tile: (off map)"
 		return
 	var sub_line := "" if str(d["sub_biome"]).is_empty() else "  Sub: %s" % d["sub_biome"]
-	var tile_elev: int = WorldGen.elevation_at(world_pos)
+	var tile_elev: int = int(d.get("elev", 0))   # elevation of the picked (raised) tile
 	var player_elev: int = WorldGen.elevation_at(world.player.position) if world.player != null else 0
 	tile_debug_label.text = (
 		"Tile (%d, %d)  %s\nParent: %s%s  ·  Zone: %s (lvl %d)\nWalk: %s  Water: %s  ·  Elev: %d\nPlayer elev: %d"

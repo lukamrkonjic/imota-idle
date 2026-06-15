@@ -131,7 +131,9 @@ func biome_id_at(world_pos: Vector2) -> String:
 
 
 func tile_debug_at(world_pos: Vector2, layer: int = 0) -> Dictionary:
-	var t: Vector2i = WG.world_to_tile(world_pos)
+	# Resolve the raised tile actually drawn under the cursor (not the flat tile in
+	# front of a mountain), so the overlay reports the block you're pointing at.
+	var t: Vector2i = tile_at_screen(world_pos, layer)
 	var c: Vector2i = WG.tile_to_chunk(t)
 	var chunk: RefCounted = get_chunk(layer, c.x, c.y)
 	var lx: int = t.x - c.x * WG.CHUNK_TILES
@@ -143,7 +145,7 @@ func tile_debug_at(world_pos: Vector2, layer: int = 0) -> Dictionary:
 	var sub_idx: int = chunk.sub_biome_at(lx, ly)
 	var tid: int = chunk.tile_id(lx, ly)
 	var td: Dictionary = reg.tile_def(tid) if tid >= 0 and tid < reg.tile_order.size() else {}
-	var zone: Dictionary = zone_at(world_pos)
+	var zone: Dictionary = zone_at(WG.tile_to_world(t.x, t.y))
 	var eff_id: String = "" if eff_idx == 255 else str(reg.biomes[eff_idx]["id"])
 	var parent_id: String = "" if parent_idx == 255 else str(reg.biomes[parent_idx]["id"])
 	var sub_id: String = ""
@@ -159,6 +161,7 @@ func tile_debug_at(world_pos: Vector2, layer: int = 0) -> Dictionary:
 		"water": bool(td.get("water", false)),
 		"zone": str(zone.get("name", "")),
 		"zone_lvl": int(zone.get("req", 1)),
+		"elev": _tile_elev(layer, t),
 	}
 
 
@@ -240,6 +243,37 @@ func elevation_at(pos: Vector2, layer: int = 0) -> int:
 	var lx: int = t.x - c.x * WG.CHUNK_TILES
 	var ly: int = t.y - c.y * WG.CHUNK_TILES
 	return chunk.elev[ly * WG.CHUNK_TILES + lx]
+
+
+## Elevation (steps) of a specific surface tile.
+func _tile_elev(layer: int, t: Vector2i) -> int:
+	if layer != 0:
+		return 0
+	var c := WG.tile_to_chunk(t)
+	var chunk: RefCounted = get_chunk(layer, c.x, c.y)
+	if chunk == null or chunk.elev.size() == 0:
+		return 0
+	var lx: int = t.x - c.x * WG.CHUNK_TILES
+	var ly: int = t.y - c.y * WG.CHUNK_TILES
+	if lx < 0 or ly < 0 or lx >= WG.CHUNK_TILES or ly >= WG.CHUNK_TILES:
+		return 0
+	return chunk.elev[ly * WG.CHUNK_TILES + lx]
+
+
+## Tile whose RAISED top is drawn under a world/cursor position. Plain
+## world_to_tile() is a flat projection, so hovering or clicking a drawn mountain
+## resolves to the low tile in FRONT of it (reading elevation 0). A raised tile's
+## top is shifted up by elev*ELEV_STEP_PX, so we add that back and test elevations
+## tallest-first, returning the topmost tile actually drawn under the cursor.
+const ELEV_PICK_MAX := 42   # generator ELEV_MAX_STEPS — tallest possible peak
+
+func tile_at_screen(world_pos: Vector2, layer: int = 0) -> Vector2i:
+	if layer == 0:
+		for e: int in range(ELEV_PICK_MAX, 0, -1):
+			var t := WG.world_to_tile(world_pos + Vector2(0.0, float(e) * WG.ELEV_STEP_PX))
+			if _tile_elev(layer, t) == e:
+				return t
+	return WG.world_to_tile(world_pos)
 
 
 func is_water_world(pos: Vector2, layer: int = 0) -> bool:

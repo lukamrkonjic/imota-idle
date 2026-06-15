@@ -11,8 +11,33 @@ func _ready() -> void:
 	GameSettings.suppress = true
 	WorldGen.store.suppress = true
 	await get_tree().process_frame
-	_dump(-455, -405, 2, 30)
+	_dump(-330, -255, 95, 135)
+	_verify_pick(-330, -255, 95, 135)
 	get_tree().quit(0)
+
+
+## For every raised tile in the region, compute where its top renders and confirm
+## tile_at_screen() resolves to a RAISED tile (the block you point at) instead of
+## the flat elevation-0 tile in front of it (the old bug).
+func _verify_pick(tx0: int, tx1: int, ty0: int, ty1: int) -> void:
+	var raised := 0
+	var hit := 0
+	var exact := 0
+	for ty: int in range(ty0, ty1 + 1):
+		for tx: int in range(tx0, tx1 + 1):
+			var t := Vector2i(tx, ty)
+			var e: int = WorldGen._tile_elev(0, t)
+			if e < 1 or e > WG.MAX_REACHABLE_ELEV:
+				continue
+			raised += 1
+			var top := WG.tile_to_world(tx, ty) - Vector2(0.0, float(e) * WG.ELEV_STEP_PX)
+			var picked: Vector2i = WorldGen.tile_at_screen(top, 0)
+			if WorldGen._tile_elev(0, picked) >= 1:
+				hit += 1
+			if picked == t:
+				exact += 1
+	print("\ntile_at_screen: of %d raised tiles, %d resolve to a raised tile (%d exact)" % [
+		raised, hit, exact])
 
 
 func _ch(e: int) -> String:

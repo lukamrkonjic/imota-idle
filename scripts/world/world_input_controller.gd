@@ -2,6 +2,8 @@ extends RefCounted
 class_name WorldInputController
 ## Mouse clicks, zoom, and hover targeting.
 
+const WG := preload("res://scripts/worldgen/wg.gd")
+
 const ZOOM_MIN := 1.1
 const ZOOM_MAX := 2.4
 const ZOOM_STEP := 0.1
@@ -40,7 +42,10 @@ func handle_input(event: InputEvent) -> void:
 				world._activity_ctrl.clear_combat_target()
 				world.pending_action = {}
 				world.auto_task = {}
-				world.walk_to_pos(world.get_global_mouse_position())
+				# Resolve the raised tile drawn under the cursor so clicking a mountain
+				# walks onto it, not to the flat tile rendered in front of it.
+				var tile := WorldGen.tile_at_screen(click_pos, int(world.get("current_layer")))
+				world.walk_to_pos(WG.tile_to_world(tile.x, tile.y))
 			world.get_viewport().set_input_as_handled()
 
 
