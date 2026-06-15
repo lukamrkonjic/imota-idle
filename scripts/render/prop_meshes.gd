@@ -62,23 +62,35 @@ static func decor_parts(kind: String) -> Array:
 
 
 static func _tree_parts() -> Array:
+	# Fuller, rounder canopy (A Short Hike-ish): a big central mass, side lobes,
+	# and a lighter sunlit crown — the toon bands do the soft shading.
+	var leaf := _mat("foliage_a", "foliage_b", "foliage_c")
+	var crown := _mat("foliage_c", "foliage_a", "foliage_c")
 	return [
-		_part(_cyl("trunk", 0.16, 0.24, 1.6), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0, 0.8, 0)),
-		_part(_sphere("canopy_lo", 1.2), _mat("foliage_a", "foliage_b", "foliage_c"), Vector3(0, 2.0, 0), Vector3(1, 0.82, 1)),
-		_part(_sphere("canopy_hi", 0.85), _mat("foliage_c", "foliage_a", "foliage_c"), Vector3(0.15, 2.8, -0.1), Vector3(1, 0.82, 1))]
+		_part(_cyl("trunk", 0.16, 0.26, 1.5), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0, 0.75, 0)),
+		_part(_sphere("can_main", 1.35), leaf, Vector3(0, 2.05, 0), Vector3(1.05, 0.9, 1.05)),
+		_part(_sphere("can_l", 0.95), leaf, Vector3(-0.78, 1.85, 0.32), Vector3(1, 0.85, 1)),
+		_part(_sphere("can_r", 0.9), leaf, Vector3(0.8, 1.9, -0.24), Vector3(1, 0.85, 1)),
+		_part(_sphere("can_f", 0.85), leaf, Vector3(0.1, 1.8, 0.7), Vector3(1, 0.85, 1)),
+		_part(_sphere("can_top", 1.0), crown, Vector3(0.05, 2.75, -0.05), Vector3(1, 0.85, 1))]
 
 
 static func _conifer_parts() -> Array:
 	var dark := _mat("fir_a", "fir_b", "foliage_c")
 	return [
 		_part(_cyl("contrunk", 0.14, 0.2, 1.0), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0, 0.5, 0)),
-		_part(_cone("fir0", 1.05, 0.7, 1.0), dark, Vector3(0, 1.0, 0)),
-		_part(_cone("fir1", 0.82, 0.5, 0.95), dark, Vector3(0.05, 1.7, 0)),
-		_part(_cone("fir2", 0.55, 0.08, 0.9), dark, Vector3(-0.04, 2.35, 0))]
+		_part(_cone("fir0", 1.15, 0.78, 1.1), dark, Vector3(0, 1.0, 0)),
+		_part(_cone("fir1", 0.9, 0.55, 1.0), dark, Vector3(0.05, 1.7, 0)),
+		_part(_cone("fir2", 0.62, 0.3, 0.95), dark, Vector3(-0.04, 2.35, 0.02)),
+		_part(_cone("fir3", 0.36, 0.05, 0.85), dark, Vector3(0.02, 2.95, 0))]
 
 
 static func _bush_parts() -> Array:
-	return [_part(_sphere("bush", 0.55), _mat("foliage_b", "grass_dark", "foliage_a"), Vector3(0, 0.4, 0), Vector3(1.1, 0.8, 1.1))]
+	var leaf := _mat("foliage_b", "grass_dark", "foliage_a")
+	return [
+		_part(_sphere("bush_m", 0.55), leaf, Vector3(0, 0.4, 0), Vector3(1.1, 0.85, 1.1)),
+		_part(_sphere("bush_l", 0.38), leaf, Vector3(-0.4, 0.32, 0.12), Vector3(1.1, 0.8, 1.1)),
+		_part(_sphere("bush_r", 0.36), leaf, Vector3(0.4, 0.3, -0.1), Vector3(1.1, 0.8, 1.1))]
 
 
 static func _rock_parts() -> Array:
