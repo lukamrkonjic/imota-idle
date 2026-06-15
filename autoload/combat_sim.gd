@@ -91,7 +91,17 @@ func advance(delta: float) -> void:
 	if enemy_timer >= cooldown:
 		enemy_timer -= cooldown
 		_enemy_attack()
+		_auto_eat()
 	EventBus.action_progress.emit(player_timer / ATTACK_INTERVAL)
+
+
+## Idle survival: after taking a hit, eat the best food if HP fell to/below the
+## configured threshold (spec §12). Keeps idle combat alive instead of dying.
+func _auto_eat() -> void:
+	if not active or not GameSettings.auto_eat_enabled:
+		return
+	if GameState.auto_eat(GameSettings.auto_eat_threshold):
+		EventBus.combat_log.emit("You eat to %d HP." % GameState.current_hp)
 
 
 # ---------------------------------------------------------- player stats ----

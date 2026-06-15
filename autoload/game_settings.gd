@@ -31,6 +31,11 @@ var show_hover_tooltip: bool = true
 var show_fps: bool = false
 var fps_limit: int = DEFAULT_FPS_LIMIT
 
+# Idle automation (spec §12, §21). Auto-eat the best food when HP drops to/below
+# the threshold fraction of max during combat.
+var auto_eat_enabled: bool = true
+var auto_eat_threshold: float = 0.5
+
 
 func _ready() -> void:
 	load_settings()
@@ -59,6 +64,8 @@ func load_settings() -> void:
 	fps_limit = int(data.get("fps_limit", DEFAULT_FPS_LIMIT))
 	if not _is_valid_fps_limit(fps_limit):
 		fps_limit = DEFAULT_FPS_LIMIT
+	auto_eat_enabled = bool(data.get("auto_eat_enabled", true))
+	auto_eat_threshold = clampf(float(data.get("auto_eat_threshold", 0.5)), 0.0, 1.0)
 
 
 func save_settings() -> void:
@@ -74,6 +81,8 @@ func save_settings() -> void:
 		"show_hover_tooltip": show_hover_tooltip,
 		"show_fps": show_fps,
 		"fps_limit": fps_limit,
+		"auto_eat_enabled": auto_eat_enabled,
+		"auto_eat_threshold": auto_eat_threshold,
 	}
 	var f := FileAccess.open(SETTINGS_PATH, FileAccess.WRITE)
 	if f == null:

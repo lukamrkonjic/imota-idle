@@ -33,6 +33,7 @@ func _ready() -> void:
 	phase3_rename_alias()
 	phase3_recipes()
 	phase4_food_shop_offline()
+	phase4_auto_eat()
 	await phase3_ui_smoke()
 	phase6_worldgen()
 	phase6_chunk_snapshots()
@@ -157,6 +158,44 @@ func phase3_content_rename() -> void:
 	if leaks.size() > 0:
 		printerr("  leak examples: %s" % str(leaks.slice(0, 5)))
 	check(leaks.is_empty(), "no Bloobs token leaks in display names (%d)" % leaks.size())
+
+
+func phase4_auto_eat() -> void:
+	print("== Phase 4: auto-eat / idle survival ==")
+	GameState.reset_state()
+	var shrimp_id := DataRegistry.resolve_item_id("Shrimp")  # heals 3
+	GameState.add_item("Shrimp", 5)
+	# Full HP -> never auto-eats.
+	GameState.set_hp(GameState.max_hp())
+	check(not GameState.auto_eat(0.5), "no auto-eat at full HP")
+	check(GameState.count_item("Shrimp") == 5, "no food wasted at full HP")
+	# Best food = the least-wasteful one that covers the deficit (only Shrimp here).
+	GameState.set_hp(GameState.max_hp() - 2)
+	check(GameState.best_food_id() == shrimp_id, "best_food_id returns available food")
+	# Below threshold -> eats exactly one and heals.
+	var maxhp := GameState.max_hp()
+	GameState.set_hp(maxi(1, int(float(maxhp) * 0.3)))
+	var hp_before := GameState.current_hp
+	check(GameState.auto_eat(0.5), "auto-eat fires below threshold")
+	check(GameState.current_hp > hp_before, "auto-eat raised HP")
+	check(GameState.count_item("Shrimp") == 4, "auto-eat consumed one food")
+	# Wired into the combat loop and gated by the setting.
+	check(CombatSim.has_method("_auto_eat"), "combat loop has auto-eat")
+	check(GameSettings.auto_eat_enabled, "auto-eat enabled by default")
+
+	# Integration: taking a hit below threshold mid-combat triggers a heal.
+	GameState.reset_state()
+	GameState.add_item("Shrimp", 10)
+	if CombatSim.start_combat("Chickens", "attack"):
+		GameState.set_hp(2)  # below 50% of 10
+		var fed_before := GameState.count_item("Shrimp")
+		var safety := 2000
+		while GameState.count_item("Shrimp") == fed_before and safety > 0 and CombatSim.active:
+			CombatSim.advance(0.1)
+			safety -= 1
+		check(GameState.count_item("Shrimp") < fed_before, "idle combat auto-ate to survive")
+		check(GameState.current_hp > 0, "player did not die while food remained")
+		CombatSim.stop()
 
 
 func phase2_skill_roster() -> void:

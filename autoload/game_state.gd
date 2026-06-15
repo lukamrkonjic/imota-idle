@@ -308,6 +308,42 @@ func tool_progress(skill: String) -> int:
 	return int(DataRegistry.get_item(equipment[slot]).get("progress", 0))
 
 
+## The best food to eat right now: the smallest heal that still covers the HP
+## deficit (least waste), falling back to the largest heal if nothing covers it.
+## Returns "" when the inventory holds no food.
+func best_food_id() -> String:
+	var deficit := max_hp() - current_hp
+	var best := ""
+	var best_heal := 0
+	var best_fit := ""
+	var best_fit_heal := 1 << 30
+	for stack: Dictionary in inventory:
+		var id: String = stack["id"]
+		var heal := int(DataRegistry.food_hp.get(id, 0))
+		if heal <= 0:
+			continue
+		if heal > best_heal:
+			best_heal = heal
+			best = id
+		if heal >= deficit and heal < best_fit_heal:
+			best_fit_heal = heal
+			best_fit = id
+	return best_fit if not best_fit.is_empty() else best
+
+
+## Auto-eat the best food if HP is at/below `threshold` (fraction of max). Returns
+## true if something was eaten. Used by the idle combat loop (spec §12).
+func auto_eat(threshold: float = 0.5) -> bool:
+	if current_hp >= max_hp():
+		return false
+	if float(current_hp) > threshold * float(max_hp()):
+		return false
+	var food := best_food_id()
+	if food.is_empty():
+		return false
+	return eat(food)
+
+
 ## Eat one unit of a cooked food item; heals the recipe's hpValue.
 func eat(item_name_or_id: String) -> bool:
 	var item_id := DataRegistry.resolve_item_id(item_name_or_id)

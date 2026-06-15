@@ -529,6 +529,19 @@ func _build_minimap_cluster() -> void:
 	coins_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cluster.add_child(coins_label)
 
+	# Bank icon by the minimap (spec §3d): one click auto-paths to the nearest bank.
+	var bank_btn := Button.new()
+	bank_btn.text = "🏦 Bank"
+	bank_btn.position = UiScale.v2(Vector2(0, 82))
+	bank_btn.custom_minimum_size = UiScale.v2(Vector2(84, 24))
+	bank_btn.size = bank_btn.custom_minimum_size
+	bank_btn.add_theme_font_size_override("font_size", UiScale.i(11))
+	bank_btn.tooltip_text = "Auto-walk to the nearest bank"
+	bank_btn.pressed.connect(func() -> void:
+		if world != null:
+			world.call("auto_bank"))
+	cluster.add_child(bank_btn)
+
 	var map_panel := MinimapPanel.new()
 	map_panel.setup(self)
 	map_panel.position = UiScale.v2(Vector2(62, 0))
@@ -837,10 +850,17 @@ func open_skill_guide(skill: String) -> void:
 		any = true
 		var sorted := nodes.duplicate()
 		sorted.sort_custom(func(a, b): return int(a["level"]) < int(b["level"]))
+		# Spoiler-free (spec §3c): show unlocked nodes plus only the NEXT one as a
+		# teaser; everything further out stays hidden until reachable.
+		var node_teaser_shown := false
 		for n: Dictionary in sorted:
+			var unlocked: bool = lvl >= int(n["level"])
+			if not unlocked:
+				if node_teaser_shown:
+					continue
+				node_teaser_shown = true
 			var row := HBoxContainer.new()
 			var lbl := Label.new()
-			var unlocked: bool = lvl >= int(n["level"])
 			lbl.text = "Lvl %d  %s" % [int(n["level"]), str(n.get("displayName", n["name"]))]
 			var give_names: PackedStringArray = []
 			for it: String in n["items"]:
@@ -871,10 +891,15 @@ func open_skill_guide(skill: String) -> void:
 		head.text = "— Recipes (made at a %s station) —" % skill.capitalize()
 		head.add_theme_color_override("font_color", Color(0.7, 0.62, 0.4))
 		popup_list.add_child(head)
+		var recipe_teaser_shown := false
 		for r: Dictionary in recipes:
+			var unlocked: bool = lvl >= int(r["levelReq"])
+			if not unlocked:
+				if recipe_teaser_shown:
+					continue
+				recipe_teaser_shown = true
 			var row := HBoxContainer.new()
 			var lbl := Label.new()
-			var unlocked: bool = lvl >= int(r["levelReq"])
 			var input_strs: PackedStringArray = []
 			for input: Dictionary in r["inputs"]:
 				input_strs.append("%dx %s" % [int(input["qty"]), DataRegistry.item_display_name(input["item"])])
