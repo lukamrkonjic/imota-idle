@@ -1,20 +1,25 @@
 extends Control
-## SPIKE preview v2: live "crunch" view tuned toward A Short Hike.
-## Renders a small iso 3D scene into a SubViewport at 1/SHRINK res, upscaled with
-## nearest-neighbor (that upscale = the crunch). Tuned for the inspo: SOFT thin
-## outlines, smooth cohesive 2-tone shading (not hard facets), ROUNDED organic
-## shapes, and a warm palette.
+## SPIKE preview v3: 3D-pixel-art pipeline (technique from the Godot 3d-pixelart
+## demos): low-res render + nearest upscale, FLAT cohesive shading, and a
+## screen-space depth+normal edge OUTLINE post-process (the clean A Short Hike
+## outline) — no more inverted hull.
 ##
 ##   Godot_v4.6.3-stable_win64.exe --path C:/Dev/imota-idle res://tools/crunch_preview.tscn
-##   Esc to quit.  Press [ / ] to make pixels finer / chunkier.
+##   Esc quit.  [ / ] finer/chunkier pixels.
+
+const OUTLINE_SHADER := preload("res://tools/crunch_outline.gdshader")
+const SHOT_PATH := "res://generated/props/_preview_shot.png"
 
 var shrink := 4
 const CAM_YAW := 45.0
-const CAM_PITCH := 32.0
+const CAM_PITCH := 35.0
 
 var _spin: Node3D
 var _container: SubViewportContainer
+var _vp: SubViewport
 var _hint: Label
+var _shot_done := false
+var _frames := 0
 
 
 func _ready() -> void:
@@ -22,82 +27,101 @@ func _ready() -> void:
 	_container.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_container.stretch = true
 	_container.stretch_shrink = shrink
-	_container.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST  # crunch upscale
+	_container.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	add_child(_container)
 
-	var vp := SubViewport.new()
-	vp.transparent_bg = false
-	vp.msaa_3d = Viewport.MSAA_DISABLED  # no AA -> crisp pixels
-	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	_container.add_child(vp)
+	_vp = SubViewport.new()
+	_vp.transparent_bg = false
+	_vp.msaa_3d = Viewport.MSAA_DISABLED
+	_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_container.add_child(_vp)
 
 	var world := Node3D.new()
-	vp.add_child(world)
+	_vp.add_child(world)
 
-	# Warm grassy ground + a couple of dirt patches for color variation.
-	world.add_child(_ground_plane(Vector2(16, 16), Color(0.47, 0.66, 0.31), -0.01))
-	world.add_child(_dirt_patch(Vector3(0.2, 0.0, 1.0), 2.2))
-	world.add_child(_dirt_patch(Vector3(-2.0, 0.0, -0.6), 1.6))
+	world.add_child(_ground(Vector2(18, 18), Color(0.49, 0.67, 0.33)))
+	world.add_child(_dirt(Vector3(0.2, 0, 1.0), 2.2))
+	world.add_child(_dirt(Vector3(-2.2, 0, -0.6), 1.6))
 
 	_spin = Node3D.new()
 	world.add_child(_spin)
-	# A little vignette: pines, a warm autumn broadleaf, bushes, a rock, grass.
-	_spin.add_child(_at(_pine(3.3), Vector3(-2.4, 0, -1.2)))
-	_spin.add_child(_at(_pine(2.5), Vector3(-3.4, 0, 1.0)))
-	_spin.add_child(_at(_broadleaf(3.0), Vector3(2.0, 0, -1.8)))
-	_spin.add_child(_at(_broadleaf(2.4), Vector3(3.2, 0, 1.4)))
+	_spin.add_child(_at(_pine(3.4), Vector3(-2.4, 0, -1.2)))
+	_spin.add_child(_at(_pine(2.6), Vector3(-3.6, 0, 1.0)))
+	_spin.add_child(_at(_broadleaf(3.0), Vector3(2.1, 0, -1.8)))
+	_spin.add_child(_at(_broadleaf(2.4), Vector3(3.3, 0, 1.4)))
 	_spin.add_child(_at(_rock(), Vector3(-1.4, 0, 1.9)))
-	_spin.add_child(_at(_bush(), Vector3(0.4, 0, 0.5)))
-	_spin.add_child(_at(_bush(), Vector3(1.2, 0, 2.0)))
-	for gp: Vector3 in [Vector3(-0.8, 0, -0.4), Vector3(1.6, 0, -0.6), Vector3(-2.2, 0, 0.6), Vector3(2.6, 0, -0.2)]:
-		_spin.add_child(_at(_grass_tuft(), gp))
+	_spin.add_child(_at(_bush(), Vector3(0.5, 0, 0.5)))
+	_spin.add_child(_at(_bush(), Vector3(1.3, 0, 2.1)))
+	for gp: Vector3 in [Vector3(-0.8, 0, -0.4), Vector3(1.6, 0, -0.6), Vector3(-2.4, 0, 0.6)]:
+		_spin.add_child(_at(_grass(), gp))
 
 	var cam := Camera3D.new()
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
 	cam.size = 10.0
+	cam.near = 0.05
+	cam.far = 60.0
 	world.add_child(cam)
 	var target := Vector3(0, 1.0, 0)
 	var dir := Vector3(
 		cos(deg_to_rad(CAM_PITCH)) * sin(deg_to_rad(CAM_YAW)),
 		sin(deg_to_rad(CAM_PITCH)),
 		cos(deg_to_rad(CAM_PITCH)) * cos(deg_to_rad(CAM_YAW)))
-	cam.position = target + dir * 18.0
+	cam.position = target + dir * 20.0
 	cam.look_at(target, Vector3.UP)
 
-	# Warm low sun + bright warm ambient -> soft, cohesive shadows (not black).
+	# Screen-space outline as a fullscreen quad parented to the camera.
+	var quad := MeshInstance3D.new()
+	var qm := QuadMesh.new()
+	qm.size = Vector2(2, 2)
+	quad.mesh = qm
+	quad.extra_cull_margin = 16384.0
+	var omat := ShaderMaterial.new()
+	omat.shader = OUTLINE_SHADER
+	omat.render_priority = 100
+	omat.set_shader_parameter("outline_color", Color(0.10, 0.08, 0.10))
+	omat.set_shader_parameter("depth_threshold", 0.6)  # world units: only big silhouette steps, not the ground's smooth slope
+	omat.set_shader_parameter("normal_threshold", 0.55)
+	omat.set_shader_parameter("thickness", 1.0)
+	omat.set_shader_parameter("outline_opacity", 1.0)
+	quad.material_override = omat
+	quad.position = Vector3(0, 0, -1.0)
+	cam.add_child(quad)
+
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-48.0, -120.0, 0.0)
-	sun.light_color = Color(1.0, 0.95, 0.85)
-	sun.light_energy = 1.05
+	sun.rotation_degrees = Vector3(-50.0, -120.0, 0.0)
+	sun.light_color = Color(1.0, 0.96, 0.88)
+	sun.light_energy = 0.9
 	sun.shadow_enabled = true
-	sun.directional_shadow_blend_splits = true
 	world.add_child(sun)
 
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.66, 0.80, 0.88)
+	env.background_color = Color(0.67, 0.81, 0.89)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.74, 0.74, 0.66)
-	env.ambient_light_energy = 0.7
-	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.tonemap_white = 1.2
+	env.ambient_light_color = Color(0.7, 0.72, 0.66)
+	env.ambient_light_energy = 0.45  # lower so flat albedos don't blow to white
+	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR  # truer flat colors
 	cam.environment = env
 
 	_hint = Label.new()
 	_hint.position = Vector2(12, 10)
-	_hint.add_theme_color_override("font_color", Color(0.12, 0.12, 0.14))
+	_hint.add_theme_color_override("font_color", Color(0.1, 0.1, 0.12))
 	add_child(_hint)
 	_update_hint()
 
 
-func _process(delta: float) -> void:
-	if _spin != null:
-		_spin.rotate_y(delta * 0.4)
+func _process(_delta: float) -> void:
+	# Capture one frame to PNG so the look can be inspected without a screenshot.
+	_frames += 1
+	if not _shot_done and _frames == 8:
+		_shot_done = true
+		var img := _vp.get_texture().get_image()
+		img.save_png(SHOT_PATH)
 
 
 func _update_hint() -> void:
 	if _hint != null:
-		_hint.text = "Crunch preview v2 — 1/%d res, nearest upscale.  [ ] = finer/chunkier,  Esc to quit." % shrink
+		_hint.text = "Crunch preview v3 (screen-space outline) — 1/%d res.  [ ] finer/chunkier,  Esc quit." % shrink
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -117,36 +141,27 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 # ----------------------------------------------------------- materials ----
 
-## Soft, cohesive 2-tone toon (smooth normals -> bands follow rounded geometry,
-## not hard facets). Shadow side stays bright (0.66) so it reads warm, like the
-## inspo. A thin, dark-tinted (not pure black) inverted-hull outline as next_pass.
-func _toon(albedo: Color) -> ShaderMaterial:
+## Flat, cohesive shading (the inspo uses near-flat textures): one gentle band,
+## bright shadow side, NO per-mesh outline — the screen-space pass draws those.
+func _flat(albedo: Color) -> ShaderMaterial:
 	var sh := Shader.new()
 	sh.code = """
 shader_type spatial;
 render_mode cull_back, diffuse_lambert, specular_disabled;
 uniform vec4 albedo : source_color;
+void fragment() {
+	ALBEDO = albedo.rgb;
+}
 void light() {
 	float d = dot(normalize(NORMAL), normalize(LIGHT));
-	float band = smoothstep(0.18, 0.42, d) * 0.34 + 0.66; // 0.66 .. 1.0
+	float band = smoothstep(0.0, 0.55, d) * 0.42 + 0.58; // 0.58 .. 1.0
 	DIFFUSE_LIGHT += ALBEDO * LIGHT_COLOR.rgb * ATTENUATION * band;
 }
 """
 	var mat := ShaderMaterial.new()
 	mat.shader = sh
 	mat.set_shader_parameter("albedo", albedo)
-	mat.next_pass = _outline(albedo.darkened(0.78))
 	return mat
-
-
-func _outline(col: Color) -> StandardMaterial3D:
-	var m := StandardMaterial3D.new()
-	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	m.albedo_color = Color(col, 1.0)
-	m.cull_mode = BaseMaterial3D.CULL_FRONT
-	m.grow = true
-	m.grow_amount = 0.02
-	return m
 
 
 func _mi(mesh: Mesh, mat: Material, pos: Vector3, scale: Vector3 = Vector3.ONE) -> MeshInstance3D:
@@ -165,67 +180,19 @@ func _at(prop: Node3D, pos: Vector3) -> Node3D:
 
 # -------------------------------------------------------------- props ----
 
-func _ground_plane(sz: Vector2, col: Color, y: float) -> MeshInstance3D:
+func _ground(sz: Vector2, col: Color) -> MeshInstance3D:
 	var pm := PlaneMesh.new()
 	pm.size = sz
-	var m := _toon(col)
-	m.next_pass = null  # no outline on the ground
-	return _mi(pm, m, Vector3(0, y, 0))
+	return _mi(pm, _flat(col), Vector3(0, -0.01, 0))
 
 
-func _dirt_patch(pos: Vector3, r: float) -> MeshInstance3D:
+func _dirt(pos: Vector3, r: float) -> MeshInstance3D:
 	var c := CylinderMesh.new()
 	c.top_radius = r
 	c.bottom_radius = r
 	c.height = 0.02
-	c.radial_segments = 10
-	var m := _toon(Color(0.55, 0.43, 0.27))
-	m.next_pass = null
-	return _mi(c, m, pos + Vector3(0, 0.005, 0))
-
-
-## Rounded pine: smooth cones (more segments) so the silhouette reads soft.
-func _pine(height: float) -> Node3D:
-	var root := Node3D.new()
-	var trunk_h := height * 0.22
-	var trunk := CylinderMesh.new()
-	trunk.top_radius = 0.11
-	trunk.bottom_radius = 0.17
-	trunk.height = trunk_h
-	trunk.radial_segments = 8
-	root.add_child(_mi(trunk, _toon(Color(0.46, 0.31, 0.19)), Vector3(0, trunk_h * 0.5, 0)))
-	var dark := Color(0.24, 0.45, 0.27)
-	var lite := Color(0.34, 0.57, 0.30)
-	var base := trunk_h * 0.7
-	root.add_child(_mi(_cone(1.0, height * 0.46, 9), _toon(dark), Vector3(0, base + height * 0.17, 0)))
-	root.add_child(_mi(_cone(0.78, height * 0.42, 9), _toon(lite), Vector3(0, base + height * 0.40, 0)))
-	root.add_child(_mi(_cone(0.52, height * 0.38, 9), _toon(dark), Vector3(0, base + height * 0.64, 0)))
-	return root
-
-
-## Warm autumn broadleaf: a clump of rounded blobs (spheres), like the inspo.
-func _broadleaf(height: float) -> Node3D:
-	var root := Node3D.new()
-	var trunk_h := height * 0.42
-	var trunk := CylinderMesh.new()
-	trunk.top_radius = 0.10
-	trunk.bottom_radius = 0.16
-	trunk.height = trunk_h
-	trunk.radial_segments = 8
-	root.add_child(_mi(trunk, _toon(Color(0.5, 0.36, 0.22)), Vector3(0, trunk_h * 0.5, 0)))
-	var o1 := Color(0.84, 0.42, 0.16)
-	var o2 := Color(0.90, 0.55, 0.20)
-	var cy := trunk_h + height * 0.22
-	for b: Array in [
-		[Vector3(0, cy + 0.18, 0), 0.85, o1], [Vector3(-0.5, cy, 0.15), 0.6, o2],
-		[Vector3(0.5, cy - 0.05, -0.1), 0.62, o1], [Vector3(0.05, cy + 0.5, 0.0), 0.55, o2]]:
-		var s := SphereMesh.new()
-		s.radius = float(b[1])
-		s.height = float(b[1]) * 1.9
-		s.radial_segments = 9
-		s.rings = 5
-		root.add_child(_mi(s, _toon(b[2]), b[0]))
-	return root
+	c.radial_segments = 12
+	return _mi(c, _flat(Color(0.56, 0.44, 0.28)), pos + Vector3(0, 0.005, 0))
 
 
 func _cone(radius: float, height: float, segs: int) -> CylinderMesh:
@@ -238,6 +205,48 @@ func _cone(radius: float, height: float, segs: int) -> CylinderMesh:
 	return c
 
 
+func _pine(height: float) -> Node3D:
+	var root := Node3D.new()
+	var trunk_h := height * 0.22
+	var trunk := CylinderMesh.new()
+	trunk.top_radius = 0.11
+	trunk.bottom_radius = 0.17
+	trunk.height = trunk_h
+	trunk.radial_segments = 8
+	root.add_child(_mi(trunk, _flat(Color(0.47, 0.32, 0.2)), Vector3(0, trunk_h * 0.5, 0)))
+	var dark := Color(0.26, 0.46, 0.28)
+	var lite := Color(0.36, 0.58, 0.31)
+	var base := trunk_h * 0.7
+	root.add_child(_mi(_cone(1.0, height * 0.46, 10), _flat(dark), Vector3(0, base + height * 0.17, 0)))
+	root.add_child(_mi(_cone(0.78, height * 0.42, 10), _flat(lite), Vector3(0, base + height * 0.40, 0)))
+	root.add_child(_mi(_cone(0.52, height * 0.38, 10), _flat(dark), Vector3(0, base + height * 0.64, 0)))
+	return root
+
+
+func _broadleaf(height: float) -> Node3D:
+	var root := Node3D.new()
+	var trunk_h := height * 0.42
+	var trunk := CylinderMesh.new()
+	trunk.top_radius = 0.10
+	trunk.bottom_radius = 0.16
+	trunk.height = trunk_h
+	trunk.radial_segments = 8
+	root.add_child(_mi(trunk, _flat(Color(0.5, 0.36, 0.22)), Vector3(0, trunk_h * 0.5, 0)))
+	var o1 := Color(0.86, 0.44, 0.18)
+	var o2 := Color(0.92, 0.57, 0.22)
+	var cy := trunk_h + height * 0.22
+	for b: Array in [
+		[Vector3(0, cy + 0.18, 0), 0.9, o1], [Vector3(-0.52, cy, 0.15), 0.62, o2],
+		[Vector3(0.52, cy - 0.05, -0.1), 0.64, o1], [Vector3(0.05, cy + 0.52, 0.0), 0.56, o2]]:
+		var s := SphereMesh.new()
+		s.radius = float(b[1])
+		s.height = float(b[1]) * 1.9
+		s.radial_segments = 10
+		s.rings = 6
+		root.add_child(_mi(s, _flat(b[2]), b[0]))
+	return root
+
+
 func _rock() -> Node3D:
 	var root := Node3D.new()
 	var s := SphereMesh.new()
@@ -245,7 +254,7 @@ func _rock() -> Node3D:
 	s.height = 1.0
 	s.radial_segments = 7
 	s.rings = 4
-	root.add_child(_mi(s, _toon(Color(0.62, 0.61, 0.58)), Vector3(0, 0.4, 0), Vector3(1.1, 0.7, 1.0)))
+	root.add_child(_mi(s, _flat(Color(0.63, 0.62, 0.59)), Vector3(0, 0.4, 0), Vector3(1.1, 0.7, 1.0)))
 	return root
 
 
@@ -255,15 +264,14 @@ func _bush() -> Node3D:
 		var s := SphereMesh.new()
 		s.radius = float(p[1])
 		s.height = float(p[1]) * 1.8
-		s.radial_segments = 8
+		s.radial_segments = 9
 		s.rings = 5
-		root.add_child(_mi(s, _toon(Color(0.36, 0.55, 0.26)), p[0]))
+		root.add_child(_mi(s, _flat(Color(0.37, 0.56, 0.27)), p[0]))
 	return root
 
 
-func _grass_tuft() -> Node3D:
+func _grass() -> Node3D:
 	var root := Node3D.new()
 	for off: Vector3 in [Vector3(0, 0, 0), Vector3(0.1, 0, 0.06), Vector3(-0.08, 0, -0.05)]:
-		var blade := _cone(0.07, 0.34, 4)
-		root.add_child(_mi(blade, _toon(Color(0.42, 0.62, 0.28)), off + Vector3(0, 0.17, 0)))
+		root.add_child(_mi(_cone(0.07, 0.34, 4), _flat(Color(0.43, 0.63, 0.29)), off + Vector3(0, 0.17, 0)))
 	return root
