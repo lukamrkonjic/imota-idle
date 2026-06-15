@@ -35,5 +35,5 @@ void light() {
 	float l = smoothstep(light_threshold - softness, light_threshold + softness, lit);
 	vec3 ramp = mix(shad, base, s);
 	ramp = mix(ramp, lite, l);
-	DIFFUSE_LIGHT += ramp;
+	DIFFUSE_LIGHT += ramp * mix(vec3(1.0), LIGHT_COLOR.rgb, 0.3);
 }

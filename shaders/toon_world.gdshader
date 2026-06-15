@@ -11,12 +11,29 @@ shader_type spatial;
 
 render_mode specular_disabled, ambient_light_disabled, diffuse_lambert;
 
-uniform vec4 shadow_color : source_color = vec4(0.13, 0.13, 0.16, 1.0);
+uniform vec4 shadow_color : source_color = vec4(0.27, 0.30, 0.24, 1.0);
 uniform vec4 base_color : source_color   = vec4(0.35, 0.42, 0.29, 1.0);
 uniform vec4 light_color : source_color  = vec4(0.42, 0.47, 0.28, 1.0);
-uniform float shadow_threshold : hint_range(0.0, 1.0) = 0.32;
-uniform float light_threshold : hint_range(0.0, 1.0)  = 0.72;
-uniform float softness : hint_range(0.0, 0.4) = 0.07;
+uniform float shadow_threshold : hint_range(0.0, 1.0) = 0.30;
+uniform float light_threshold : hint_range(0.0, 1.0)  = 0.66;
+uniform float softness : hint_range(0.0, 0.4) = 0.10;
+// Ambient fill lifts the floor so shadow-facing surfaces stay readable (soft,
+// warm A Short Hike shadows rather than near-black).
+uniform float ambient : hint_range(0.0, 1.0) = 0.30;
+// Gentle canopy/grass sway. 0 = off (trunks, rocks, houses). Per-instance phase
+// from the model origin; taller verts sway more.
+uniform float wind : hint_range(0.0, 0.3) = 0.0;
+uniform float wind_speed = 1.2;
+
+void vertex() {
+	if (wind > 0.0) {
+		vec2 wp = (MODEL_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).xz;
+		float phase = TIME * wind_speed + wp.x * 0.6 + wp.y * 0.4;
+		float lift = max(VERTEX.y + 0.4, 0.0);
+		VERTEX.x += sin(phase) * wind * lift;
+		VERTEX.z += cos(phase * 0.8) * wind * 0.5 * lift;
+	}
+}
 
 void fragment() {
 	// White albedo: the engine multiplies DIFFUSE_LIGHT by ALBEDO, so we keep
@@ -29,9 +46,11 @@ void fragment() {
 void light() {
 	// ATTENUATION folds in the directional shadow, so shadowed pixels read 0.
 	float lit = clamp(dot(normalize(NORMAL), normalize(LIGHT)), 0.0, 1.0) * ATTENUATION;
+	lit = ambient + (1.0 - ambient) * lit;
 	float s = smoothstep(shadow_threshold - softness, shadow_threshold + softness, lit);
 	float l = smoothstep(light_threshold - softness, light_threshold + softness, lit);
 	vec3 ramp = mix(shadow_color.rgb, base_color.rgb, s);
 	ramp = mix(ramp, light_color.rgb, l);
-	DIFFUSE_LIGHT += ramp;
+	// Subtle warm wash from the sun color — keeps palette identity, adds warmth.
+	DIFFUSE_LIGHT += ramp * mix(vec3(1.0), LIGHT_COLOR.rgb, 0.3);
 }

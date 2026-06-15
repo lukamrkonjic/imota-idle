@@ -27,6 +27,7 @@ var props_root: Node3D
 var _ground_mat: ShaderMaterial
 var _water_mat: ShaderMaterial
 var _chunk_meshes: Dictionary = {}   # chunk key -> Node3D (ground + water)
+var _chunk_by_key: Dictionary = {}   # chunk key -> chunk RefCounted (O(1) height lookup)
 var batches_root: Node3D             # holds the per-(mesh,material) MultiMeshInstance3D
 var _mover_nodes: Dictionary = {}    # moving entity id -> Node3D (player/enemies)
 var _player_node: Node3D
@@ -80,12 +81,13 @@ func _build() -> void:
 
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-50, 40, 0)
-	sun.light_color = Color(1.0, 0.97, 0.88)
+	sun.light_color = Color(1.0, 0.94, 0.8)   # warm afternoon sun (A Short Hike)
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	sun.directional_shadow_max_distance = 90.0
 	sun.shadow_bias = 0.03
 	sun.shadow_normal_bias = 0.6
+	sun.shadow_blur = 1.1   # softer shadow edge (the low-res render keeps it crisp enough)
 	world3d.add_child(sun)
 
 	# Orthographic camera at the game's 2:1 isometric angle (yaw 45, pitch ~30).
@@ -160,9 +162,11 @@ func _sync_camera() -> void:
 ## Build/free per-chunk terrain meshes to match the currently loaded chunks.
 func _sync_terrain() -> void:
 	var live := {}
+	_chunk_by_key.clear()
 	for chunk: RefCounted in world.chunk_manager.loaded_chunks():
 		var key: String = chunk.key()
 		live[key] = true
+		_chunk_by_key[key] = chunk
 		if not _chunk_meshes.has(key):
 			var node := _build_chunk_terrain(chunk)
 			terrain_root.add_child(node)
@@ -341,15 +345,13 @@ func height_at(pos: Vector2) -> float:
 	var t := WG.world_to_tile(pos)
 	var ck := WG.tile_to_chunk(t)
 	var key := WG.key(world.current_layer, ck.x, ck.y)
-	if not _chunk_meshes.has(key):
+	var chunk: RefCounted = _chunk_by_key.get(key)
+	if chunk == null:
 		return 0.0
-	for chunk: RefCounted in world.chunk_manager.loaded_chunks():
-		if chunk.key() == key:
-			var lx: int = t.x - ck.x * WG.CHUNK_TILES
-			var ly: int = t.y - ck.y * WG.CHUNK_TILES
-			if lx >= 0 and lx < WG.CHUNK_TILES and ly >= 0 and ly < WG.CHUNK_TILES:
-				return float(chunk.elev[ly * WG.CHUNK_TILES + lx]) * ELEV_H
-			return 0.0
+	var lx: int = t.x - ck.x * WG.CHUNK_TILES
+	var ly: int = t.y - ck.y * WG.CHUNK_TILES
+	if lx >= 0 and lx < WG.CHUNK_TILES and ly >= 0 and ly < WG.CHUNK_TILES:
+		return float(chunk.elev[ly * WG.CHUNK_TILES + lx]) * ELEV_H
 	return 0.0
 
 

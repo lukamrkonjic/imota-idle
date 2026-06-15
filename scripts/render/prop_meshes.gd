@@ -205,6 +205,9 @@ static func _mat(base_key: String, shadow_key: String, light_key: String) -> Sha
 		m.set_shader_parameter("base_color", PixelPalette.pal(base_key))
 		m.set_shader_parameter("shadow_color", PixelPalette.pal(shadow_key))
 		m.set_shader_parameter("light_color", PixelPalette.pal(light_key))
+		# Foliage sways gently in the wind; trunks/stone/walls stay put.
+		if base_key.begins_with("foliage") or base_key.begins_with("fir"):
+			m.set_shader_parameter("wind", 0.06)
 		_mat_cache[ck] = m
 	return _mat_cache[ck]
 
