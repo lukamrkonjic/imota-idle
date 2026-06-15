@@ -31,6 +31,11 @@ var pois: Array = []
 var monsters: Array = []
 var structures: Array = []  # loose entity parts from multi-chunk megastructures
                             # (cities/ruins); same shape as poi parts, abs tx/ty
+# Transient (never baked/saved): a {key -> neighbour Chunk} snapshot the renderer
+# fills on the main thread before building its mesh on a worker, so cross-seam
+# elevation/tile reads (_resolve) never touch the shared WorldGen.chunks dict from
+# the thread. Cleared after the build is applied.
+var render_neighbors: Dictionary = {}
 
 
 func setup(p_layer: int, p_cx: int, p_cy: int) -> void:

@@ -6,6 +6,8 @@ const Chunk := preload("res://scripts/worldgen/chunk.gd")
 const PixelDraw := preload("res://scripts/world/art/core/pixel_draw.gd")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 const WorldLighting := preload("res://scripts/world/art/core/world_lighting.gd")
+const SpriteAtlas := preload("res://scripts/world/sprite_atlas.gd")
+const DecorPlacement := preload("res://scripts/worldgen/decor_placement.gd")
 
 # Tiles are drawn slightly larger than their cell so neighbours overlap and hide
 # the hairline between diamonds.
@@ -28,6 +30,19 @@ var _placeholder: Color = Color(0.25, 0.35, 0.22)
 # while terrain streams in during movement. Rebuilt only when a neighbour changes.
 var _mesh: ArrayMesh = null
 var _mesh_dirty := true
+# Static ground decor (grass/flowers/…) as {key, pos} — drawn node-free from the
+# shared atlas in _draw(), so a chunk's hundreds of clutter sprites cost a few
+# batched draws instead of hundreds of Node2Ds. Computed with the mesh.
+var _static_props: Array = []
+# The chunk's mesh + decor are built on a WorkerThreadPool task (pure CPU over the
+# immutable baked chunk), so a chunk streaming in never blocks the main thread. The
+# worker writes _pending_*; the main thread applies them once the task completes.
+var _build_task := -1
+var _build_reg: RefCounted = null   # captured on the main thread at dispatch
+var _build_seed := 0
+var _pending_verts := PackedVector3Array()
+var _pending_cols := PackedColorArray()
+var _pending_props: Array = []
 static var _white_tex: Texture2D = null
 
 
@@ -35,6 +50,8 @@ func _init(p_chunk: RefCounted, avg_color: Color, p_detail_level: int = DETAIL_F
 	chunk = p_chunk
 	_placeholder = avg_color
 	detail_level = p_detail_level
+	# Atlas decor is sampled as the camera zooms; nearest keeps the pixel art crisp.
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	# Order ground chunks back-to-front by isometric depth so a raised chunk's
 	# terrain risers can never poke through the flat chunk in front of it. Kept
 	# well below entities (which y-sort around z 0+) so ground stays underneath.
@@ -86,13 +103,20 @@ func _ready() -> void:
 
 
 func _draw() -> void:
-	if _mesh != null:
-		draw_mesh(_mesh, _white_texture())
+	if _mesh == null:
+		# Until the mesh is built, show one cheap flat diamond placeholder.
+		var center := WG.tile_to_world(chunk.cx * WG.CHUNK_TILES + 8, chunk.cy * WG.CHUNK_TILES + 8)
+		PixelDraw.px_diamond(self, center.x, center.y,
+			float(WG.CHUNK_TILES) * WG.ISO_HW, float(WG.CHUNK_TILES) * WG.ISO_HH, _placeholder)
 		return
-	# Until the mesh is built, show one cheap flat diamond placeholder.
-	var center := WG.tile_to_world(chunk.cx * WG.CHUNK_TILES + 8, chunk.cy * WG.CHUNK_TILES + 8)
-	PixelDraw.px_diamond(self, center.x, center.y,
-		float(WG.CHUNK_TILES) * WG.ISO_HW, float(WG.CHUNK_TILES) * WG.ISO_HH, _placeholder)
+	draw_mesh(_mesh, _white_texture())
+	# Ground decor: batched atlas regions on top of the terrain (one shared page →
+	# Godot merges them into a few draw calls). Behind entities (chunk z is far
+	# below the entity layer).
+	var atlas := SpriteAtlas.instance
+	if atlas != null:
+		for p: Dictionary in _static_props:
+			atlas.draw_to(self, p["key"], Color.WHITE, p["pos"])
 
 
 ## Mark the chunk's mesh stale; ChunkManager rebuilds dirty meshes from its
@@ -105,36 +129,98 @@ func needs_mesh_rebuild() -> bool:
 	return _mesh_dirty
 
 
+## Kick off the chunk's mesh+decor build on a worker thread (cheap on the main
+## thread: just snapshot neighbours and queue the task). The result is applied in
+## _process once the task finishes; the flat placeholder shows until then. Called
+## by ChunkManager from its dirty queue.
 func rebuild_mesh() -> void:
-	if not _mesh_dirty:
+	if not _mesh_dirty or _build_task != -1:
 		return
-	_rebuild_mesh()
-	queue_redraw()
-
-
-## Bake the whole chunk into ONE vertex-coloured triangle mesh. Reuses the exact
-## per-tile paint logic by feeding it a triangle-accumulating builder in place of
-## the canvas, so diamonds/shading/risers/borders all land in one draw_mesh call.
-func _rebuild_mesh() -> void:
+	if WorldGen == null or WorldGen.reg == null:
+		return
 	_mesh_dirty = false
-	var reg: RefCounted = WorldGen.reg if WorldGen != null else null
-	if reg == null:
-		return
+	_build_reg = WorldGen.reg
+	_build_seed = WorldGen.store.world_seed
+	_capture_neighbours()
+	_build_task = WorkerThreadPool.add_task(_build_async)
+	set_process(true)
+
+
+func is_building() -> bool:
+	return _build_task != -1
+
+
+# MAIN THREAD: capture the 3x3 neighbour chunk refs so the worker's cross-seam
+# reads (_resolve) never touch the shared WorldGen.chunks dict. Refs only; the
+# chunk objects are immutable baked data.
+func _capture_neighbours() -> void:
+	var nb: Dictionary = {}
+	for dy: int in [-1, 0, 1]:
+		for dx: int in [-1, 0, 1]:
+			var k := WG.key(chunk.layer, chunk.cx + dx, chunk.cy + dy)
+			if WorldGen.chunks.has(k):
+				nb[k] = WorldGen.chunks[k]
+	chunk.render_neighbors = nb
+
+
+# WORKER THREAD: build the vertex-coloured triangle soup + decor list. Reads only
+# immutable data (reg, this chunk, the neighbour snapshot, the seed); writes only
+# this renderer's _pending_* (one task at a time). The ArrayMesh resource is
+# assembled on the main thread in _apply_build.
+func _build_async() -> void:
+	var reg: RefCounted = _build_reg
 	var b := _MeshBuilder.new()
+	var props: Array = []
 	if detail_level == DETAIL_LOW:
 		_draw_coarse_lod(b)
 	else:
 		_draw_chunk(b, chunk, reg)
-	if b.verts.is_empty():
-		_mesh = null
+		props = DecorPlacement.compute(chunk, reg, _build_seed)
+	_pending_verts = b.verts
+	_pending_cols = b.cols
+	_pending_props = props
+
+
+func _process(_delta: float) -> void:
+	if _build_task == -1:
+		set_process(false)
 		return
-	var arr := []
-	arr.resize(Mesh.ARRAY_MAX)
-	arr[Mesh.ARRAY_VERTEX] = b.verts
-	arr[Mesh.ARRAY_COLOR] = b.cols
-	var m := ArrayMesh.new()
-	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
-	_mesh = m
+	if not WorkerThreadPool.is_task_completed(_build_task):
+		return
+	WorkerThreadPool.wait_for_task_completion(_build_task)
+	_build_task = -1
+	set_process(false)
+	_apply_build()
+	# A neighbour may have loaded while we were building — rebuild for the seam.
+	if _mesh_dirty:
+		rebuild_mesh()
+
+
+# MAIN THREAD: turn the worker's arrays into the live mesh and decor list.
+func _apply_build() -> void:
+	if _pending_verts.is_empty():
+		_mesh = null
+	else:
+		var arr := []
+		arr.resize(Mesh.ARRAY_MAX)
+		arr[Mesh.ARRAY_VERTEX] = _pending_verts
+		arr[Mesh.ARRAY_COLOR] = _pending_cols
+		var m := ArrayMesh.new()
+		m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+		_mesh = m
+	_static_props = _pending_props
+	_pending_verts = PackedVector3Array()
+	_pending_cols = PackedColorArray()
+	_pending_props = []
+	chunk.render_neighbors = {}  # release neighbour refs
+	queue_redraw()
+
+
+func _exit_tree() -> void:
+	# Never let a worker task outlive the renderer (it touches our members).
+	if _build_task != -1:
+		WorkerThreadPool.wait_for_task_completion(_build_task)
+		_build_task = -1
 
 
 func _draw_coarse_lod(canvas: Variant) -> void:
@@ -441,15 +527,17 @@ static func _surface_category(reg: RefCounted, tile_id: int) -> int:
 static func _resolve(p_chunk: RefCounted, lx: int, ly: int) -> Array:
 	if lx >= 0 and ly >= 0 and lx < WG.CHUNK_TILES and ly < WG.CHUNK_TILES:
 		return [p_chunk, lx, ly]
-	if WorldGen == null:
-		return []
 	var gtx: int = p_chunk.cx * WG.CHUNK_TILES + lx
 	var gty: int = p_chunk.cy * WG.CHUNK_TILES + ly
 	var c := WG.tile_to_chunk(Vector2i(gtx, gty))
 	var key := WG.key(p_chunk.layer, c.x, c.y)
-	if not WorldGen.chunks.has(key):
+	# Read the neighbour snapshot captured on the main thread (mesh builds run on a
+	# worker, so they must NOT touch the shared WorldGen.chunks dict). A miss means
+	# the neighbour isn't loaded yet → flat seam now, refreshed when it loads.
+	var nb: Dictionary = p_chunk.render_neighbors
+	if not nb.has(key):
 		return []
-	var nc: RefCounted = WorldGen.chunks[key]
+	var nc: RefCounted = nb[key]
 	return [nc, gtx - c.x * WG.CHUNK_TILES, gty - c.y * WG.CHUNK_TILES]
 
 

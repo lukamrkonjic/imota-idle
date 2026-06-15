@@ -48,7 +48,8 @@ func on_chunk_loaded(chunk: RefCounted, immediate: bool = false) -> void:
 
 
 func _spawn_chunk_contents(chunk: RefCounted, container: Node2D) -> void:
-	_spawn_ground_decor(chunk, container)
+	# Ground decor is no longer spawned as nodes — the ChunkRenderer draws it
+	# node-free from the shared atlas (see DecorPlacement / chunk_renderer.gd).
 	_spawn_water_decor(chunk, container)
 	for i: int in chunk.sites.size():
 		_spawn_site(chunk, i, container)
@@ -71,16 +72,8 @@ func _spawn_chunk_streamed(chunk: RefCounted, container: Node2D) -> void:
 
 	if chunk.layer == 0:
 		var seed: int = WorldGen.store.world_seed
-		for ty: int in range(WG.CHUNK_TILES):
-			for tx: int in range(WG.CHUNK_TILES):
-				_spawn_ground_decor_tile(chunk, container, seed, tx, ty)
-			if _stream_budget_exhausted(started):
-				_finish_stream_slice(started)
-				await world.get_tree().process_frame
-				if not _still_loading(key, container):
-					return
-				started = _begin_stream_slice()
-
+		# Ground decor is drawn node-free by the ChunkRenderer (DecorPlacement) — no
+		# per-tile node spawning here anymore.
 		var reg: RefCounted = WorldGen.reg
 		for ty: int in range(WG.CHUNK_TILES):
 			for tx: int in range(WG.CHUNK_TILES):
@@ -233,45 +226,6 @@ func on_chunk_unloaded(chunk: RefCounted) -> void:
 	world._path_ctrl.mark_path_dirty()
 
 
-func _spawn_ground_decor(chunk: RefCounted, container: Node2D) -> void:
-	if chunk.layer != 0:
-		return
-	var seed: int = WorldGen.store.world_seed
-	for ty: int in range(WG.CHUNK_TILES):
-		for tx: int in range(WG.CHUNK_TILES):
-			_spawn_ground_decor_tile(chunk, container, seed, tx, ty)
-
-
-func _spawn_ground_decor_tile(chunk: RefCounted, container: Node2D, seed: int, tx: int, ty: int) -> void:
-	var tile: Dictionary = WorldGen.reg.tile_def(chunk.tile_id(tx, ty))
-	var tname: String = WorldGen.reg.tile_order[chunk.tile_id(tx, ty)]
-	if chunk.elev.size() > 0 and chunk.elev[ty * WG.CHUNK_TILES + tx] > 0:
-		return
-	if bool(tile.get("water", false)) or not bool(tile.get("walkable", true)):
-		return
-	if tname in ["sand", "sand_dune", "shallow", "rock", "cobble", "snow", "gravel", "savanna_grass", "jungle_loam", "boreal_moss", "badland_clay"]:
-		return
-	var r := WG.r01(seed, chunk.cx * 251 + tx, chunk.cy * 263 + ty, 201)
-	var biome_id := _tile_biome_id(chunk, tx, ty)
-	var b_idx: int = chunk.biome_at(tx, ty)
-	var parent_id: String = WorldGen.reg.parent_biome_id(b_idx) if b_idx != 255 else biome_id
-	var near_water := _tile_near_water(chunk, tx, ty)
-	var chance := _decor_chance(biome_id, parent_id, near_water)
-	if r > chance:
-		return
-	var d: Node2D = WorldDecor.new()
-	d.variant = int(WG.hash_i(seed, chunk.cx * 97 + tx, chunk.cy * 101 + ty, 202) % 1000)
-	var kroll := WG.r01(seed, chunk.cx * 97 + tx, chunk.cy * 101 + ty, 205)
-	d.kind = _pick_decor_kind(biome_id, near_water, kroll)
-	var jitter := Vector2(
-		(WG.r01(seed, tx, ty, 203) - 0.5) * WG.TILE * 0.28,
-		(WG.r01(seed, tx, ty, 204) - 0.5) * WG.TILE * 0.14)
-	d.position = chunk.tile_world(tx, ty) + jitter
-	d.visible = false
-	container.add_child(d)
-	world._decor_nodes.append(d)
-
-
 func _spawn_water_decor(chunk: RefCounted, container: Node2D) -> void:
 	if chunk.layer != 0:
 		return
@@ -349,55 +303,6 @@ func _is_water_tile(chunk: RefCounted, tx: int, ty: int) -> bool:
 	if tid < 0 or tid >= WorldGen.reg.tile_order.size():
 		return false
 	return bool(WorldGen.reg.tile_def(tid).get("water", false))
-
-
-func _tile_biome_id(chunk: RefCounted, tx: int, ty: int) -> String:
-	var b_idx: int = chunk.biome_at(tx, ty)
-	return "" if b_idx == 255 else str(WorldGen.reg.biomes[b_idx]["id"])
-
-
-func _tile_near_water(chunk: RefCounted, tx: int, ty: int) -> bool:
-	for oy: int in range(-1, 2):
-		for ox: int in range(-1, 2):
-			if ox == 0 and oy == 0:
-				continue
-			var nx := tx + ox
-			var ny := ty + oy
-			if nx < 0 or ny < 0 or nx >= WG.CHUNK_TILES or ny >= WG.CHUNK_TILES:
-				continue
-			if bool(WorldGen.reg.tile_def(chunk.tile_id(nx, ny)).get("water", false)):
-				return true
-	return false
-
-
-func _decor_chance(biome_id: String, _parent_id: String, near_water: bool) -> float:
-	var cfg: Dictionary = WorldGen.reg.ground_decor(biome_id)
-	if cfg.is_empty():
-		return 0.025
-	if near_water:
-		return float(cfg.get("waterDensity", cfg.get("density", 0.03)))
-	return float(cfg.get("density", 0.03))
-
-
-func _pick_decor_kind(biome_id: String, near_water: bool, roll: float) -> String:
-	var cfg: Dictionary = WorldGen.reg.ground_decor(biome_id)
-	var kinds: Array = cfg.get("kinds", [])
-	if near_water and biome_id in ["swamp", "marsh_pool", "beach", "oasis", "jungle", "tide_flats", "bog"]:
-		for entry: Dictionary in kinds:
-			if str(entry.get("kind", "")) in ["reed", "fern", "mushroom"]:
-				if roll < 0.55:
-					return str(entry["kind"])
-	if not kinds.is_empty():
-		var total := 0.0
-		for entry: Dictionary in kinds:
-			total += float(entry.get("weight", 1.0))
-		var target := roll * total
-		for entry: Dictionary in kinds:
-			target -= float(entry.get("weight", 1.0))
-			if target <= 0.0:
-				return str(entry.get("kind", "grass"))
-		return str(kinds.back().get("kind", "grass"))
-	return "grass"
 
 
 func _spawn_site(chunk: RefCounted, i: int, container: Node2D) -> void:

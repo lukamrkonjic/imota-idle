@@ -73,7 +73,7 @@ func has(key: String) -> bool:
 ## Draw the baked sprite `key` onto `canvas` with its foot/origin at the canvas
 ## origin (0,0). Returns false if the key isn't baked so the caller can fall back
 ## to live drawing. An empty (zero-size) baked region is a valid "draws nothing".
-func draw_to(canvas: CanvasItem, key: String, modulate: Color = Color.WHITE) -> bool:
+func draw_to(canvas: CanvasItem, key: String, modulate: Color = Color.WHITE, pos: Vector2 = Vector2.ZERO) -> bool:
 	var s: Dictionary = _sprites.get(key, {})
 	if s.is_empty():
 		return false
@@ -81,5 +81,5 @@ func draw_to(canvas: CanvasItem, key: String, modulate: Color = Color.WHITE) -> 
 	if region.size.x <= 0.0 or region.size.y <= 0.0:
 		return true  # baked-empty: nothing to draw, but handled
 	var pivot: Vector2 = s["pivot"]
-	canvas.draw_texture_rect_region(s["tex"], Rect2(-pivot, region.size), region, modulate)
+	canvas.draw_texture_rect_region(s["tex"], Rect2(pos - pivot, region.size), region, modulate)
 	return true

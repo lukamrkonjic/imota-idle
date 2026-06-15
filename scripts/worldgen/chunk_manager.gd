@@ -41,7 +41,7 @@ const ACTIVATIONS_PER_FRAME := 2
 const DEACTIVATIONS_PER_FRAME := 1
 const UNLOADS_PER_FRAME := 1
 const TERRAIN_REDRAWS_PER_FRAME := 2
-const MESH_REBUILDS_PER_FRAME := 1
+const MESH_REBUILDS_PER_FRAME := 6   # worker-thread dispatches/frame (cheap; builds run off-thread)
 const MESH_REBUILD_TIME_BUDGET_USEC := 1800
 const MESH_REBUILD_IDLE_MSEC := 180
 const DETAIL_UPDATE_IDLE_MSEC := 350
@@ -452,17 +452,14 @@ func _queue_mesh_rebuild(key: String) -> void:
 
 
 func _process_mesh_rebuild_queue() -> void:
-	if not _mesh_rebuilds_allowed():
-		return
+	# Mesh+decor builds now run on worker threads (ChunkRenderer.rebuild_mesh just
+	# dispatches), so we DON'T gate on movement and dispatch several per frame —
+	# the heavy work is off the main thread, the flat placeholder shows until ready.
 	if _mesh_queue_dirty:
 		_mesh_queue.sort_custom(_closer_key_to_center)
 		_mesh_queue_dirty = false
 	var budget := MESH_REBUILDS_PER_FRAME
-	var rebuilt := 0
-	var started := Time.get_ticks_usec()
 	while budget > 0 and not _mesh_queue.is_empty():
-		if rebuilt > 0 and Time.get_ticks_usec() - started > MESH_REBUILD_TIME_BUDGET_USEC:
-			break
 		var key: String = _mesh_queue.pop_front()
 		_queued_mesh.erase(key)
 		if not _renderers.has(key):
@@ -470,7 +467,6 @@ func _process_mesh_rebuild_queue() -> void:
 		var renderer: Node2D = _renderers[key]
 		if renderer.has_method("needs_mesh_rebuild") and renderer.call("needs_mesh_rebuild"):
 			renderer.call("rebuild_mesh")
-			rebuilt += 1
 			budget -= 1
 
 
