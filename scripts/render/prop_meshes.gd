@@ -38,6 +38,70 @@ static func sync_entities(render) -> void:
 			render._prop_nodes.erase(id)
 
 
+## Mirror render.world._decor_nodes into small 3D ground-fill meshes — this is
+## what makes the world feel full (grass tufts, flowers, pebbles, shrubs...).
+static func sync_decor(render) -> void:
+	var live := {}
+	for d: Node in render.world._decor_nodes:
+		if not is_instance_valid(d):
+			continue
+		var id := d.get_instance_id()
+		live[id] = true
+		var node: Node3D = render._decor3d.get(id)
+		if node == null:
+			node = _build_decor(str(d.kind))
+			if node == null:
+				continue
+			node.rotation.y = float(int(d.variant)) * 0.131
+			render.props_root.add_child(node)
+			render._decor3d[id] = node
+		node.position = render.iso_to_3d(d.position, render.height_at(d.position))
+	for id: int in render._decor3d.keys():
+		if not live.has(id):
+			var n: Node = render._decor3d[id]
+			if is_instance_valid(n):
+				n.queue_free()
+			render._decor3d.erase(id)
+
+
+static func _build_decor(kind: String) -> Node3D:
+	match kind:
+		"flower":
+			return _flower()
+		"shrub", "bramble", "shrubbery":
+			return _decor_single(_sphere("d_bush", 0.3), _mat("foliage_b", "grass_dark", "foliage_a"), Vector3(0, 0.22, 0), Vector3(1.1, 0.8, 1.1))
+		"mushroom":
+			return _mushroom()
+		"cactus":
+			return _decor_single(_cone("d_cact", 0.16, 0.12, 0.6), _mat("fir_a", "fir_b", "foliage_c"), Vector3(0, 0.3, 0))
+		"pebble", "rubble", "shell", "stone":
+			return _decor_single(_sphere("d_peb", 0.16), _mat("stone_a", "stone_b", "ore"), Vector3(0, 0.06, 0), Vector3(1.3, 0.55, 1.1))
+		"stick", "driftwood", "bone":
+			return _decor_single(_box("d_stick", Vector3(0.5, 0.07, 0.09)), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0, 0.05, 0))
+		_:  # grass, fern, reed, vine, moss, lichen, etc -> green tuft
+			return _decor_single(_sphere("d_tuft", 0.22), _mat("foliage_c", "grass_dark", "foliage_c"), Vector3(0, 0.16, 0), Vector3(1.0, 0.7, 1.0))
+
+
+static func _decor_single(mesh: Mesh, mat: Material, pos: Vector3, scl := Vector3.ONE) -> Node3D:
+	var root := Node3D.new()
+	_add(root, mesh, mat, pos, scl)
+	return root
+
+
+static func _flower() -> Node3D:
+	var root := Node3D.new()
+	_add(root, _sphere("d_ftuft", 0.16), _mat("foliage_c", "grass_dark", "foliage_c"), Vector3(0, 0.12, 0), Vector3(1.0, 0.7, 1.0))
+	_add(root, _sphere("d_fhead", 0.1), _mat("gold", "dirt_a", "snow_a"), Vector3(0, 0.34, 0))
+	return root
+
+
+static func _mushroom() -> Node3D:
+	var root := Node3D.new()
+	_add(root, _cyl("d_mstalk", 0.05, 0.07, 0.22), _mat("snow_a", "stone_b", "snow_a"), Vector3(0, 0.11, 0))
+	_add(root, _sphere("d_mcap", 0.14), _mat("dirt_a", "trunk_b", "gold"), Vector3(0, 0.26, 0), Vector3(1.0, 0.6, 1.0))
+	return root
+
+
 ## Build a 3D prop node for an entity kind (shared meshes/materials). Returns null
 ## for kinds rendered by the terrain (water) or not yet mapped.
 static func _build_for(e: Node) -> Node3D:

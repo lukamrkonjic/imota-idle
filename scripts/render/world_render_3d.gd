@@ -26,6 +26,7 @@ var props_root: Node3D
 var _ground_mat: ShaderMaterial
 var _chunk_meshes: Dictionary = {}   # chunk key -> MeshInstance3D
 var _prop_nodes: Dictionary = {}     # entity instance id -> Node3D (Stage C)
+var _decor3d: Dictionary = {}        # decor instance id -> Node3D (ground fill)
 var _frames := 0
 var _captured := false
 var _active := false
@@ -120,6 +121,7 @@ func _process(_delta: float) -> void:
 	_sync_camera()
 	_sync_terrain()
 	PropMeshes.sync_entities(self)
+	PropMeshes.sync_decor(self)
 	_frames += 1
 	if _frames == 90 and not _captured:
 		_capture()
