@@ -101,7 +101,7 @@ func _build() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-50, 40, 0)
 	sun.light_color = Color(1.0, 0.94, 0.8)   # warm afternoon sun (A Short Hike)
-	sun.shadow_enabled = false
+	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	sun.directional_shadow_max_distance = 90.0
 	sun.shadow_bias = 0.03
@@ -154,6 +154,9 @@ func _build() -> void:
 	present.texture = sub.get_texture()
 	present.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	present.stretch_mode = TextureRect.STRETCH_SCALE
+	# Let clicks / scroll-wheel fall through to the 2D world (movement, picking,
+	# zoom all still run on the hidden 2D substrate).
+	present.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_snap_mat = ShaderMaterial.new()
 	_snap_mat.shader = PALETTE_SNAP
 	_snap_mat.set_shader_parameter("palette_tex", _palette_texture())
@@ -269,8 +272,14 @@ func _water_near_tile(gtx: int, gty: int, radius: int) -> bool:
 	return false
 
 
+const CAM_SIZE_BASE := 19.5   # ortho size at the default 1.65 zoom
+
 func _sync_camera() -> void:
 	var c := iso_to_3d(world.player.position, height_at(world.player.position))
+	# Mouse-wheel zoom still drives the 2D camera (the logic substrate); mirror it
+	# to the 3D ortho size so zoom works like before.
+	var zoom: float = float(world._camera.zoom.x) if world._camera != null and world._camera.zoom.x > 0.01 else 1.65
+	cam.size = CAM_SIZE_BASE / zoom
 	# Slightly lower and closer than the exact iso math so tall original props
 	# read as cozy hiking-place silhouettes instead of flattened map icons.
 	var dir := Vector3(1.0, 0.62, 1.0).normalized()
