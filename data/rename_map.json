@@ -1,0 +1,43 @@
+{
+  "_comment": "IP rename map (Imota spec §7). Applied to displayName ONLY; the 'name' field and ids stay frozen, so saves and cross-references survive. 'tokens' are whole-word substitutions that cascade across every item/node/enemy sharing a Bloobs-coined material word. 'exact' are full-name overrides (bosses). OSRS-shared generic tiers (Oak, Iron, Mithril, ...) are intentionally left alone. Placeholder-quality names, refine later.",
+  "tokens": {
+    "Bloobberry": "Brightberry",
+    "Bloobberries": "Brightberries",
+    "Bloobbird": "Lumabird",
+    "Suncoil": "Elderlog",
+    "Lunarwood": "Moonbark",
+    "Aether": "Etherwood",
+    "Spicebough": "Emberbough",
+    "Bitterpine": "Frostpine",
+    "Imbued": "Runed",
+    "Cerulium": "Azurite",
+    "Sanguinite": "Hemalite",
+    "Aeronite": "Zephite",
+    "Necrosis": "Mortite",
+    "Phantom": "Wraithite",
+    "Karinite": "Glaciite",
+    "Taigite": "Wyldite",
+    "Cryxcite": "Rimite",
+    "Aurite": "Dawnite",
+    "Sunwrought": "Emberite",
+    "Acadia": "Acacia",
+    "Rubra": "Redwood"
+  },
+  "exact": {
+    "ForageListBloobberry Bush": "Brightberry Bush",
+    "Aurelion the Sunbound Pharaoh": "Solheim the Sunbound Pharaoh",
+    "Braknor the Bloodhoof": "Taurok the Crimsonhoof",
+    "Glazarth the Glacierborn": "Vorlach the Glacierborn",
+    "Gorthank the Twin-Titan": "Drommok the Twin-Titan",
+    "Kharos the Sandborn": "Sethra the Sandborn",
+    "Sunfang the Oasis Matriarch": "Solfang the Oasis Matriarch",
+    "Uldren the Buried Prince": "Oskar the Buried Prince",
+    "Vaerthrax, the Ebon Maw": "Nyxthrax, the Ebon Maw",
+    "Vermithrax the Bloodbound": "Sangthrax the Bloodbound",
+    "Twinfang the Blight Bringer": "Dreadfang the Blight Bringer",
+    "Brainbasher": "Skullsmasher",
+    "Shadowfang": "Duskfang",
+    "Graveheart": "Tombheart",
+    "Frostmaw Yeti": "Rimejaw Yeti"
+  }
+}

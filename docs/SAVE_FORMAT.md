@@ -112,12 +112,20 @@ Managed by `WorldStore`. Written alongside the game save.
 - **chunkSnapshots** — frozen chunk data for explored areas. See `docs/WORLDGEN_GUIDE.md`.
 - **generatorVersion** — bump in `WorldStore.GENERATOR_VERSION` when generation logic changes.
 
-## Renaming content safely
+## Renaming content safely (Phase 3 IP rename)
 
-1. Keep the stable `id` unchanged in data (or in runtime index).
-2. Add an entry to `data/content_aliases.json`:
-   ```json
-   { "items": { "Old Display Name": "item.logs" } }
-   ```
-3. Update `displayName` in data if desired.
-4. Old saves and references resolve through `DataRegistry.resolve_*_id()`.
+Display names are presentation-only; the `id` (frozen numeric) and the legacy `name` field are
+the permanent contract. The IP rename pass (spec §7) therefore touches **`displayName` only**:
+
+1. `data/rename_map.json` holds `tokens` (whole-word substitutions that cascade across every
+   item/node/enemy sharing a Bloobs-coined material word, e.g. `Cerulium` → `Azurite`) and
+   `exact` full-name overrides (bosses, malformed names).
+2. `scripts/content/content_rename.gd` applies the map; `tools/apply_renames.gd` stamps a
+   `displayName` onto every entry, and the importer does the same so re-imports stay consistent.
+3. The `name` field stays the original Bloobs name, so recipe/drop/node cross-references and old
+   saves keep resolving. `DataRegistry` indexes both `name` and `displayName` → the same id.
+4. **All UI/log display must render `displayName`** (via `DataRegistry.item_display_name()` /
+   `enemy_display_name()` or the entry's `displayName`), never the raw `name`.
+
+`tools/validate.tscn` audits that no Bloobs token leaks into any display name and that legacy
+names still resolve to their frozen ids.

@@ -69,7 +69,7 @@ func _ready() -> void:
 	eb.activity_started.connect(_on_activity_started)
 	eb.activity_stopped.connect(_on_activity_stopped)
 	eb.action_progress.connect(func(f: float) -> void: action_bar.value = f)
-	eb.loot_gained.connect(func(item: String, qty: int) -> void: _push_feed("[color=#8c8]+%d %s[/color]" % [qty, item]))
+	eb.loot_gained.connect(func(item: String, qty: int) -> void: _push_feed("[color=#8c8]+%d %s[/color]" % [qty, DataRegistry.item_display_name(item)]))
 	eb.combat_log.connect(func(t: String) -> void: _push_feed(t))
 	eb.enemy_hp_changed.connect(_on_enemy_hp)
 	eb.enemy_respawning.connect(func(s: float) -> void: _push_feed("[color=#789]Respawning in %.0fs...[/color]" % s))
@@ -308,7 +308,7 @@ func _build_right_tabs() -> Control:
 	for t: Dictionary in shop_tools:
 		var row := HBoxContainer.new()
 		var lbl := Label.new()
-		lbl.text = "%s (Lvl %d)" % [t["name"], int(t["level"])]
+		lbl.text = "%s (Lvl %d)" % [DataRegistry.item_display_name(t["name"]), int(t["level"])]
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		lbl.clip_text = true
 		lbl.tooltip_text = "Tool power %d — sells for %d coins" % [int(t["progress"]), int(t["value"])]
@@ -332,10 +332,14 @@ func _build_picker() -> Control:
 	for skill: String in GATHER_SKILLS:
 		var flow := _picker_tab(tabs, skill.capitalize())
 		for node: Dictionary in DataRegistry.gather_nodes.get(skill, []):
+			var node_disp: String = str(node.get("displayName", node["name"]))
+			var give_names: PackedStringArray = []
+			for it: String in node["items"]:
+				give_names.append(DataRegistry.item_display_name(it))
 			var btn := _picker_button(
-				"%s\nLvl %d" % [node["name"], int(node["level"])],
+				"%s\nLvl %d" % [node_disp, int(node["level"])],
 				GATHER_ICON[skill], _tier_color(int(node["level"])))
-			btn.tooltip_text = "%s\nGives: %s\n%d XP per item" % [node["name"], ", ".join(PackedStringArray(node["items"])), int(node["xp"])]
+			btn.tooltip_text = "%s\nGives: %s\n%d XP per item" % [node_disp, ", ".join(give_names), int(node["xp"])]
 			var node_name: String = node["name"]
 			var skill_copy := skill
 			btn.pressed.connect(func() -> void: TickSim.start_gather(skill_copy, node_name))
@@ -365,14 +369,15 @@ func _build_picker() -> Control:
 		for key: String in STYLE_ICON:
 			if style.contains(key):
 				icon = STYLE_ICON[key]
+		var enemy_disp: String = str(e.get("displayName", e["name"]))
 		var btn := _picker_button(
-			"%s\nLvl %d %s%s" % [e["name"], int(e["level"]), e["style"], " [BOSS]" if e["isBoss"] else ""],
+			"%s\nLvl %d %s%s" % [enemy_disp, int(e["level"]), e["style"], " [BOSS]" if e["isBoss"] else ""],
 			icon, _tier_color(int(e["level"])))
 		var drop_names: PackedStringArray = []
 		for d: Dictionary in e["drops"]:
-			drop_names.append(str(d["item"]))
+			drop_names.append(DataRegistry.item_display_name(str(d["item"])))
 		btn.tooltip_text = "%s — HP %d, hits %.0f every %.1fs\nSlayer req: %d\nDrops: %s" % [
-			e["name"], int(e["maxHealth"]), float(e["damage"]), float(e["cooldown"]),
+			enemy_disp, int(e["maxHealth"]), float(e["damage"]), float(e["cooldown"]),
 			int(e["beastMasteryReq"]), ", ".join(drop_names)]
 		var enemy_name: String = e["name"]
 		btn.pressed.connect(func() -> void:
@@ -384,15 +389,16 @@ func _build_picker() -> Control:
 	for skill: String in CRAFT_SKILLS:
 		var flow := _picker_tab(tabs, skill.capitalize())
 		for r: Dictionary in DataRegistry.recipes_by_skill.get(skill, []):
+			var recipe_disp: String = str(r.get("displayName", r["name"]))
 			var btn := _picker_button(
-				"%s\nLvl %d" % [r["name"], int(r["levelReq"])],
+				"%s\nLvl %d" % [recipe_disp, int(r["levelReq"])],
 				CRAFT_ICON[skill], _tier_color(int(r["levelReq"])))
 			var input_strs: PackedStringArray = []
 			for input: Dictionary in r["inputs"]:
-				input_strs.append("%dx %s" % [int(input["qty"]), input["item"]])
+				input_strs.append("%dx %s" % [int(input["qty"]), DataRegistry.item_display_name(input["item"])])
 			btn.tooltip_text = "%s\nNeeds: %s\nMakes: %dx %s\n%.0f XP, %.1fs" % [
-				r["name"], ", ".join(input_strs), int(r["output"]["qty"]),
-				r["output"]["item"], float(r["xp"]), float(r["time"])]
+				recipe_disp, ", ".join(input_strs), int(r["output"]["qty"]),
+				DataRegistry.item_display_name(r["output"]["item"]), float(r["xp"]), float(r["time"])]
 			var skill_copy := skill
 			var recipe_name: String = r["name"]
 			btn.pressed.connect(func() -> void: RecipeSim.start_craft(skill_copy, recipe_name))

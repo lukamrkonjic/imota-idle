@@ -13,6 +13,8 @@ const OUT_DIR := "res://data"
 const ContentId := preload("res://scripts/content/content_id.gd")
 const IdRegistry := preload("res://scripts/content/id_registry.gd")
 const SkillRemap := preload("res://scripts/content/skill_remap.gd")
+const ContentRename := preload("res://scripts/content/content_rename.gd")
+var _rename_map: Dictionary = {}
 
 # Mints/preserves opaque numeric ids; re-imports keep every existing assignment
 # and only mint for genuinely new content. See scripts/content/id_registry.gd.
@@ -29,6 +31,7 @@ func _init() -> void:
 	var t0 := Time.get_ticks_msec()
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
 	_reg = IdRegistry.load_or_new()
+	_rename_map = ContentRename.load_map()
 	import_xp_table()
 	var items := import_items()
 	import_enemies()
@@ -39,6 +42,7 @@ func _init() -> void:
 	for name: String in items:
 		# Mint the id from the original name slug, then remap skill keys (spec §2).
 		items[name]["id"] = _reg.mint("items", ContentId.item_id(name))
+		items[name]["displayName"] = ContentRename.rename(name, _rename_map)
 		for field: String in ["reqs", "bonusXp"]:
 			items[name][field] = _remap_skill_keys(items[name].get(field, {}))
 	write_json("items.json", items)
@@ -234,6 +238,7 @@ func import_enemies() -> void:
 		}
 	for name: String in enemies:
 		enemies[name]["id"] = _reg.mint("enemies", ContentId.enemy_id(name))
+		enemies[name]["displayName"] = ContentRename.rename(name, _rename_map)
 	write_json("enemies.json", enemies)
 	print("enemies: %d" % enemies.size())
 
@@ -296,6 +301,7 @@ func import_recipes(items: Dictionary) -> void:
 	for key: String in recipes:
 		var r: Dictionary = recipes[key]
 		r["id"] = _reg.mint("recipes", ContentId.recipe_id(str(r["skill"]), str(r["name"])))
+		r["displayName"] = ContentRename.rename(str(r["name"]), _rename_map)
 		r["skill"] = SkillRemap.to_new(str(r["skill"]))
 		var new_key: String = str(r["skill"]) + "/" + str(r["name"])
 		if not remapped.has(new_key):
@@ -352,6 +358,7 @@ func import_gather_nodes() -> void:
 		arr.sort_custom(func(a, b): return a["level"] < b["level"])
 		for node: Dictionary in arr:
 			node["id"] = _reg.mint("nodes", ContentId.node_id(skill, str(node["name"])))
+			node["displayName"] = ContentRename.rename(str(node["name"]), _rename_map)
 	write_json("gather_nodes.json", nodes)
 	for skill: String in nodes:
 		print("gather %s: %d nodes" % [skill, nodes[skill].size()])

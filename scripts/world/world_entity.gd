@@ -340,10 +340,32 @@ func _draw_sprite_to(canvas: CanvasItem) -> void:
 
 func _draw_labels() -> void:
 	var h := icon_height()
-	if not label.is_empty():
-		_plate(label, Vector2(0, -h - 12.0), 11, Color(0.95, 0.92, 0.72))
+	var shown := display_label()
+	if not shown.is_empty():
+		_plate(shown, Vector2(0, -h - 12.0), 11, Color(0.95, 0.92, 0.72))
 	if not sub_label.is_empty():
 		_plate(sub_label, Vector2(0, -h - 2.0), 10, Color(0.78, 0.78, 0.78))
+
+
+## The on-screen name, resolved to the renamed displayName for Bloobs content
+## (gather nodes, enemies) and cached so it costs one lookup per entity, not one
+## per frame. POI/station/landmark labels are procedural and pass through.
+var _display_label := ""
+var _display_label_ready := false
+
+func display_label() -> String:
+	if _display_label_ready:
+		return _display_label
+	_display_label_ready = true
+	_display_label = label
+	match str(action.get("type", "")):
+		"gather":
+			var node: Dictionary = DataRegistry.get_gather_node(str(action.get("skill", "")), str(action.get("node", label)))
+			if not node.is_empty():
+				_display_label = str(node.get("displayName", label))
+		"enemy":
+			_display_label = DataRegistry.enemy_display_name(str(action.get("name", label)))
+	return _display_label
 
 
 func is_interactable() -> bool:
@@ -367,13 +389,17 @@ func tooltip_content() -> Dictionary:
 			var skill := str(action.get("skill", ""))
 			var node: Dictionary = DataRegistry.get_gather_node(skill, label)
 			if not node.is_empty():
-				details.append("Gives: %s" % ", ".join(PackedStringArray(node["items"])))
+				title = str(node.get("displayName", label))
+				var gives: PackedStringArray = []
+				for it: String in node["items"]:
+					gives.append(DataRegistry.item_display_name(it))
+				details.append("Gives: %s" % ", ".join(gives))
 				details.append("%.0f XP per gather" % float(node["xp"]))
 			if dimmed:
 				details.append("Depleted — respawning soon")
 		"enemy":
-			if title.is_empty():
-				title = DataRegistry.enemy_display_name(str(action.get("name", "Enemy")))
+			# Always render the renamed display name, never the raw legacy name.
+			title = DataRegistry.enemy_display_name(str(action.get("name", label if not label.is_empty() else "Enemy")))
 			if subtitle.is_empty():
 				subtitle = "Lvl %d" % int(action.get("level", 1))
 			var enemy: Dictionary = DataRegistry.get_enemy(str(action.get("name", label)))
@@ -391,7 +417,7 @@ func tooltip_content() -> Dictionary:
 					var drop_bits: PackedStringArray = []
 					for d: Variant in drops.slice(0, 4):
 						if d is Dictionary:
-							drop_bits.append(str(d.get("item", "?")))
+							drop_bits.append(DataRegistry.item_display_name(str(d.get("item", "?"))))
 					var extra := drops.size() - 4
 					if extra > 0:
 						drop_bits.append("+%d more" % extra)

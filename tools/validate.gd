@@ -4,6 +4,7 @@ const ValidateContent := preload("res://tools/validate_content.gd")
 const ContentId := preload("res://scripts/content/content_id.gd")
 const SaveMigration := preload("res://autoload/save_migration.gd")
 const SkillRemap := preload("res://scripts/content/skill_remap.gd")
+const ContentRename := preload("res://scripts/content/content_rename.gd")
 const WG := preload("res://scripts/worldgen/wg.gd")
 const Chunk := preload("res://scripts/worldgen/chunk.gd")
 const PathFinder := preload("res://scripts/worldgen/path_finder.gd")
@@ -22,6 +23,7 @@ func _ready() -> void:
 	phase0_data()
 	phase0_content_schema()
 	phase0_stable_ids()
+	phase3_content_rename()
 	phase2_skill_roster()
 	phase1_gathering()
 	phase1_inventory_bank_equipment()
@@ -113,6 +115,48 @@ func phase0_stable_ids() -> void:
 		if not (id.begins_with("item.") and id.trim_prefix("item.").is_valid_int()):
 			bad_ids += 1
 	check(bad_ids == 0, "all items carry opaque numeric ids (%d bad)" % bad_ids)
+
+
+func phase3_content_rename() -> void:
+	print("== Phase 3d: IP rename integrity ==")
+	# Renamed item: legacy name + id are frozen; displayName changed; both names
+	# resolve to the same frozen id (cross-references and saves survive).
+	var ore := DataRegistry.get_item("Cerulium Ore")
+	check(not ore.is_empty(), "legacy name 'Cerulium Ore' still resolves")
+	if not ore.is_empty():
+		check(str(ore["name"]) == "Cerulium Ore", "legacy name field unchanged")
+		check(str(ore["displayName"]) == "Azurite Ore", "Cerulium Ore -> Azurite Ore (got %s)" % str(ore.get("displayName", "")))
+		check(DataRegistry.resolve_item_id("Cerulium Ore") == str(ore["id"]), "legacy name resolves to frozen id")
+		check(DataRegistry.resolve_item_id("Azurite Ore") == str(ore["id"]), "new display name resolves to same id")
+	check(DataRegistry.enemy_display_name("Aurelion the Sunbound Pharaoh") == "Solheim the Sunbound Pharaoh", "boss exact-renamed")
+	check(DataRegistry.item_display_name("Suncoil Logs") == "Elderlog Logs", "token cascade: Suncoil Logs -> Elderlog Logs")
+
+	# Audit: no surviving Bloobs token leaks into ANY display name (items/enemies/
+	# nodes). Whole-word match against the rename map's token + exact keys.
+	var map := ContentRename.load_map()
+	var banned: Dictionary = {}
+	for t: String in map.get("tokens", {}):
+		banned[t] = true
+	banned["Bloob"] = true  # core IP stem must never appear
+	var leaks: Array = []
+	var scan := func(disp: String) -> void:
+		if disp.contains("Bloob"):
+			leaks.append(disp)
+			return
+		for w: String in disp.split(" "):
+			if banned.has(w.trim_suffix(",")):
+				leaks.append(disp)
+				return
+	for name: String in DataRegistry.items:
+		scan.call(str(DataRegistry.items[name].get("displayName", name)))
+	for name: String in DataRegistry.enemies:
+		scan.call(str(DataRegistry.enemies[name].get("displayName", name)))
+	for skill: String in DataRegistry.gather_nodes:
+		for n: Dictionary in DataRegistry.gather_nodes[skill]:
+			scan.call(str(n.get("displayName", n["name"])))
+	if leaks.size() > 0:
+		printerr("  leak examples: %s" % str(leaks.slice(0, 5)))
+	check(leaks.is_empty(), "no Bloobs token leaks in display names (%d)" % leaks.size())
 
 
 func phase2_skill_roster() -> void:

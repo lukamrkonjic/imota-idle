@@ -78,7 +78,7 @@ func _ready() -> void:
 	var eb := EventBus
 	eb.combat_log.connect(_push_chat)
 	eb.loot_gained.connect(func(item: String, qty: int) -> void:
-		_push_chat("[color=#1a6e1a]+%d %s[/color]" % [qty, item]))
+		_push_chat("[color=#1a6e1a]+%d %s[/color]" % [qty, DataRegistry.item_display_name(item)]))
 	eb.level_up.connect(func(skill: String, lvl: int) -> void:
 		_push_chat("[color=#a05400]Congratulations, your %s level is now %d![/color]" % [skill.capitalize(), lvl])
 		_refresh_skills())
@@ -807,11 +807,11 @@ func open_recipes(skill: String) -> void:
 	for r: Dictionary in DataRegistry.recipes_by_skill.get(skill, []):
 		var input_strs: PackedStringArray = []
 		for input: Dictionary in r["inputs"]:
-			input_strs.append("%dx %s" % [int(input["qty"]), input["item"]])
+			input_strs.append("%dx %s" % [int(input["qty"]), DataRegistry.item_display_name(input["item"])])
 		var btn := Button.new()
-		btn.text = "%s  (Lvl %d)" % [r["name"], int(r["levelReq"])]
+		btn.text = "%s  (Lvl %d)" % [r.get("displayName", r["name"]), int(r["levelReq"])]
 		btn.tooltip_text = "Needs: %s\nMakes: %dx %s\n%.0f XP, %.1fs" % [
-			", ".join(input_strs), int(r["output"]["qty"]), r["output"]["item"],
+			", ".join(input_strs), int(r["output"]["qty"]), DataRegistry.item_display_name(r["output"]["item"]),
 			float(r["xp"]), float(r["time"])]
 		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		btn.disabled = GameState.level(skill) < int(r["levelReq"])
@@ -841,8 +841,11 @@ func open_skill_guide(skill: String) -> void:
 			var row := HBoxContainer.new()
 			var lbl := Label.new()
 			var unlocked: bool = lvl >= int(n["level"])
-			lbl.text = "Lvl %d  %s" % [int(n["level"]), str(n["name"])]
-			lbl.tooltip_text = "Gives: %s\n%.0f XP per gather" % [", ".join(PackedStringArray(n["items"])), float(n["xp"])]
+			lbl.text = "Lvl %d  %s" % [int(n["level"]), str(n.get("displayName", n["name"]))]
+			var give_names: PackedStringArray = []
+			for it: String in n["items"]:
+				give_names.append(DataRegistry.item_display_name(it))
+			lbl.tooltip_text = "Gives: %s\n%.0f XP per gather" % [", ".join(give_names), float(n["xp"])]
 			lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			lbl.clip_text = true
 			lbl.add_theme_color_override("font_color",
@@ -850,7 +853,7 @@ func open_skill_guide(skill: String) -> void:
 			row.add_child(lbl)
 			var go := Button.new()
 			go.text = "Go"
-			go.tooltip_text = "Auto-walk to the nearest %s and gather" % str(n["name"])
+			go.tooltip_text = "Auto-walk to the nearest %s and gather" % str(n.get("displayName", n["name"]))
 			go.disabled = not unlocked
 			var node_name := str(n["name"])
 			var skill_copy := skill
@@ -874,10 +877,10 @@ func open_skill_guide(skill: String) -> void:
 			var unlocked: bool = lvl >= int(r["levelReq"])
 			var input_strs: PackedStringArray = []
 			for input: Dictionary in r["inputs"]:
-				input_strs.append("%dx %s" % [int(input["qty"]), input["item"]])
-			lbl.text = "Lvl %d  %s" % [int(r["levelReq"]), str(r["name"])]
+				input_strs.append("%dx %s" % [int(input["qty"]), DataRegistry.item_display_name(input["item"])])
+			lbl.text = "Lvl %d  %s" % [int(r["levelReq"]), str(r.get("displayName", r["name"]))]
 			lbl.tooltip_text = "Needs: %s\nMakes: %dx %s\n%.0f XP, %.1fs" % [
-				", ".join(input_strs), int(r["output"]["qty"]), r["output"]["item"],
+				", ".join(input_strs), int(r["output"]["qty"]), DataRegistry.item_display_name(r["output"]["item"]),
 				float(r["xp"]), float(r["time"])]
 			lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			lbl.clip_text = true
@@ -972,7 +975,7 @@ func open_shop() -> void:
 	for t: Dictionary in stock:
 		var row := HBoxContainer.new()
 		var lbl := Label.new()
-		lbl.text = "%s (Lvl %d, power %d)" % [t["name"], int(t["level"]), int(t["progress"])]
+		lbl.text = "%s (Lvl %d, power %d)" % [DataRegistry.item_display_name(t["name"]), int(t["level"]), int(t["progress"])]
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		lbl.clip_text = true
 		row.add_child(lbl)

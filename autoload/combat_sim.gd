@@ -189,7 +189,7 @@ func _apply_player_hit() -> void:
 	dmg *= 1.0 - float(enemy["damageReduction"]) / 100.0
 	dmg = maxf(roundf(dmg * 10.0) / 10.0, 0.0)
 	enemy_hp = maxf(enemy_hp - dmg, 0.0)
-	EventBus.combat_log.emit("You hit %s for %.1f%s" % [enemy["name"], dmg, " (CRIT!)" if is_crit else ""])
+	EventBus.combat_log.emit("You hit %s for %.1f%s" % [_enemy_name(), dmg, " (CRIT!)" if is_crit else ""])
 	EventBus.enemy_hp_changed.emit(enemy_hp, float(enemy["maxHealth"]))
 	if enemy_hp <= 0.0:
 		_on_enemy_killed()
@@ -197,7 +197,7 @@ func _apply_player_hit() -> void:
 
 func _enemy_attack() -> void:
 	if rng.randf() >= float(enemy["accuracy"]):
-		EventBus.combat_log.emit("%s misses you." % enemy["name"])
+		EventBus.combat_log.emit("%s misses you." % _enemy_name())
 		return
 	var dmg := float(enemy["damage"])
 	if rng.randf() < float(enemy["critChance"]):
@@ -206,20 +206,20 @@ func _enemy_attack() -> void:
 	dmg *= 1.0 - dr / 100.0
 	var final := maxi(int(ceil(dmg)), 0)
 	GameState.set_hp(GameState.current_hp - final)
-	EventBus.combat_log.emit("%s hits you for %d" % [enemy["name"], final])
+	EventBus.combat_log.emit("%s hits you for %d" % [_enemy_name(), final])
 	if GameState.current_hp <= 0:
 		_on_player_died()
 
 
 func _on_enemy_killed() -> void:
 	kills += 1
-	EventBus.combat_log.emit("%s defeated!" % enemy["name"])
+	EventBus.combat_log.emit("%s defeated!" % _enemy_name())
 	# XP from the bestiary data (equals BasicEnemy.RecalculateStats output).
 	GameState.add_xp(train_skill, float(enemy["combatXp"]))
 	GameState.add_xp("hitpoints", float(enemy["hitpointsXp"]))
 	GameState.add_xp("slayer", float(enemy["beastMasteryXp"]))
 	_roll_drops()
-	EventBus.enemy_killed.emit(enemy["name"])
+	EventBus.enemy_killed.emit(_enemy_name())
 	respawning = true
 	respawn_timer = 60.0 if enemy["isBoss"] else 10.0
 	EventBus.enemy_respawning.emit(respawn_timer)
@@ -232,12 +232,17 @@ func _roll_drops() -> void:
 			if GameState.add_item(drop["item"], qty) > 0:
 				EventBus.loot_gained.emit(drop["item"], qty)
 			else:
-				EventBus.combat_log.emit("Inventory full — %s lost!" % drop["item"])
+				EventBus.combat_log.emit("Inventory full — %s lost!" % DataRegistry.item_display_name(drop["item"]))
 
 
 func _on_player_died() -> void:
-	var killer: String = enemy["name"]
+	var killer := _enemy_name()
 	EventBus.combat_log.emit("You were defeated by %s!" % killer)
 	stop("player_died")
 	GameState.set_hp(GameState.max_hp())
 	EventBus.player_died.emit(killer)
+
+
+## Display name for the current enemy (Bloobs-renamed); never the raw legacy name.
+func _enemy_name() -> String:
+	return str(enemy.get("displayName", enemy.get("name", "?")))
