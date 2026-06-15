@@ -723,29 +723,31 @@ func phase6_worldgen() -> void:
 	check(has_bank, "home campsite includes a bank chest")
 	check(WorldGen.find_nearest_station(0, Vector2.ZERO, "bank").size() > 0, "find_nearest_station locates a bank")
 
-	# Terrain pathing: water is never a node, one elevation step is climbable,
-	# and a two-step cliff edge is not.
+	# Terrain pathing: water carries no node; a one-step change links only across the
+	# camera-facing (+x/+y) face the renderer draws a cliff for, never the hidden back
+	# (-x/-y) face; a two-step cliff never links.
 	var pf_chunk: RefCounted = Chunk.new()
 	pf_chunk.setup(0, 200, 200)
 	pf_chunk.zone = {"req": 1}
 	pf_chunk.tiles.fill(int(WorldGen.reg.tile_index["grass"]))
 	pf_chunk.tiles[Chunk.idx(1, 0)] = int(WorldGen.reg.tile_index["shallow"])
-	pf_chunk.elev[Chunk.idx(0, 1)] = 1
-	pf_chunk.elev[Chunk.idx(0, 2)] = 3
+	pf_chunk.elev[Chunk.idx(2, 2)] = 1   # a 1-high tile amid flat ground
+	pf_chunk.elev[Chunk.idx(6, 2)] = 2   # a 2-high cliff tile
 	var pf := PathFinder.new()
 	pf.rebuild([pf_chunk], WorldGen.reg, 1)
 	var base := Vector2i(pf_chunk.cx, pf_chunk.cy) * WG.CHUNK_TILES
 	check(not pf.has_reachable_tile(base + Vector2i(1, 0)), "pathfinder rejects shallow water nodes")
-	var climb_one := pf.find_path(
-		WG.tile_to_world(base.x, base.y),
-		WG.tile_to_world(base.x, base.y + 1),
-		false)
-	check(not climb_one.is_empty(), "pathfinder allows one-step elevation climbs")
-	var climb_two := pf.find_path(
-		WG.tile_to_world(base.x, base.y + 1),
-		WG.tile_to_world(base.x, base.y + 2),
-		false)
-	check(climb_two.is_empty(), "pathfinder rejects two-step cliff climbs")
+	var hi: int = int(pf._ids.get(base + Vector2i(2, 2), -1))
+	var front: int = int(pf._ids.get(base + Vector2i(3, 2), -1))   # +x neighbour (visible face)
+	var back: int = int(pf._ids.get(base + Vector2i(1, 2), -1))    # -x neighbour (hidden back face)
+	check(hi >= 0 and front >= 0 and pf.astar.are_points_connected(hi, front),
+		"pathfinder links a one-step visible front face")
+	check(hi >= 0 and back >= 0 and not pf.astar.are_points_connected(hi, back),
+		"pathfinder seals the one-step hidden back face")
+	var cliff: int = int(pf._ids.get(base + Vector2i(6, 2), -1))
+	var cliff_lo: int = int(pf._ids.get(base + Vector2i(5, 2), -1))
+	check(cliff >= 0 and cliff_lo >= 0 and not pf.astar.are_points_connected(cliff, cliff_lo),
+		"pathfinder rejects a two-step cliff")
 
 	# Admin teleports are allowed to target authored/biome tiles that happen to
 	# be on raised mountain terrain, but the final landing tile must be flat.

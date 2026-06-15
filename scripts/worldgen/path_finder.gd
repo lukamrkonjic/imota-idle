@@ -127,29 +127,48 @@ func _build_graph(chunks: Array, reg: RefCounted, entry_level: int) -> Dictionar
 				a.add_point(next_id, Vector2(gt))
 				next_id += 1
 
-	# 2) Link neighbours only where the elevation step is climbable. Diagonals also
-	#    require both orthogonal corners open and climbable (no cutting cliff corners).
+	# 2) Link neighbours only where the elevation step is climbable AND on a visible
+	#    face. Diagonals also require both orthogonal corners open (no cutting cliff
+	#    corners).
 	for gt: Vector2i in ids:
 		var id: int = ids[gt]
 		var e: int = elev[gt]
 		for off: Vector2i in ORTHO:
 			var n0 := gt + off
-			if ids.has(n0) and absi(elev[n0] - e) <= WG.MAX_CLIMB_STEP:
+			if ids.has(n0) and _edge_passable(off.x, off.y, e, elev[n0]):
 				if not a.are_points_connected(id, ids[n0]):
 					a.connect_points(id, ids[n0])
 		for d: Vector2i in DIAG:
 			var n := gt + d
-			if not ids.has(n) or absi(elev[n] - e) > WG.MAX_CLIMB_STEP:
+			if not ids.has(n) or not _edge_passable(d.x, d.y, e, elev[n]):
 				continue
 			var ca := gt + Vector2i(d.x, 0)
 			var cb := gt + Vector2i(0, d.y)
 			if not (ids.has(ca) and ids.has(cb)):
 				continue
-			if absi(elev[ca] - e) > WG.MAX_CLIMB_STEP or absi(elev[cb] - e) > WG.MAX_CLIMB_STEP:
+			if not _edge_passable(d.x, 0, e, elev[ca]) or not _edge_passable(0, d.y, e, elev[cb]):
 				continue
 			if not a.are_points_connected(id, ids[n]):
 				a.connect_points(id, ids[n])
 	return {"astar": a, "ids": ids, "elev": elev, "region": reg_rect, "locked": locked}
+
+
+## Whether the player may step across this edge (move offset ox,oy) between a tile
+## at elevation e and a neighbour at en. Flat ground always passes. An elevation
+## change is allowed only within one climb step AND on a camera-FACING face: the
+## renderer draws cliff risers toward +x (SE) and +y (SW) only, so the ground may
+## step DOWN moving +x/+y and UP moving -x/-y. The reverse is a back (NW/NE) face
+## the isometric view hides — sealing it stops walking off a peak's hidden side.
+static func _edge_passable(ox: int, oy: int, e: int, en: int) -> bool:
+	if en == e:
+		return true
+	if absi(en - e) > WG.MAX_CLIMB_STEP:
+		return false
+	if (ox > 0 or oy > 0) and en > e:
+		return false   # climbing UP toward +x/+y would be a hidden back face
+	if (ox < 0 or oy < 0) and en < e:
+		return false   # dropping DOWN toward -x/-y would be a hidden back face
+	return true
 
 
 func in_region(tile: Vector2i) -> bool:
