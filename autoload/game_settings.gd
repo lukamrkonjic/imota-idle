@@ -19,6 +19,12 @@ const FPS_LIMIT_OPTIONS := [
 	{"value": 0, "label": "Unlimited"},
 ]
 
+# Rebindable key bindings. Add an entry here and the settings menu grows a rebind
+# row for it automatically; handlers read the bound key via keybind(id).
+const KEYBIND_ACTIONS := [
+	{"id": "hide_hud", "label": "Hide HUD", "default": KEY_H},
+]
+
 var suppress := false  # headless tests set this so they never touch settings
 
 var ui_scale: float = DEFAULT_UI_SCALE
@@ -36,6 +42,8 @@ var fps_limit: int = DEFAULT_FPS_LIMIT
 var auto_eat_enabled: bool = true
 var auto_eat_threshold: float = 0.5
 
+var keybinds: Dictionary = {}  # action id -> Key keycode
+
 
 func _ready() -> void:
 	load_settings()
@@ -43,6 +51,7 @@ func _ready() -> void:
 
 
 func load_settings() -> void:
+	keybinds = _default_keybinds()
 	if not FileAccess.file_exists(SETTINGS_PATH):
 		return
 	var f := FileAccess.open(SETTINGS_PATH, FileAccess.READ)
@@ -66,6 +75,10 @@ func load_settings() -> void:
 		fps_limit = DEFAULT_FPS_LIMIT
 	auto_eat_enabled = bool(data.get("auto_eat_enabled", true))
 	auto_eat_threshold = clampf(float(data.get("auto_eat_threshold", 0.5)), 0.0, 1.0)
+	var saved_kb: Dictionary = data.get("keybinds", {})
+	for id: String in keybinds:
+		if saved_kb.has(id):
+			keybinds[id] = int(saved_kb[id])
 
 
 func save_settings() -> void:
@@ -83,6 +96,7 @@ func save_settings() -> void:
 		"fps_limit": fps_limit,
 		"auto_eat_enabled": auto_eat_enabled,
 		"auto_eat_threshold": auto_eat_threshold,
+		"keybinds": keybinds,
 	}
 	var f := FileAccess.open(SETTINGS_PATH, FileAccess.WRITE)
 	if f == null:
@@ -150,6 +164,24 @@ func set_fps_limit(value: int) -> void:
 	save_settings()
 	_apply_fps()
 	changed.emit(&"fps_limit")
+
+
+func _default_keybinds() -> Dictionary:
+	var d := {}
+	for a: Dictionary in KEYBIND_ACTIONS:
+		d[str(a["id"])] = int(a["default"])
+	return d
+
+
+## The Key keycode bound to an action id (0 if unbound/unknown).
+func keybind(id: String) -> int:
+	return int(keybinds.get(id, 0))
+
+
+func set_keybind(id: String, keycode: int) -> void:
+	keybinds[id] = keycode
+	save_settings()
+	changed.emit(&"keybinds")
 
 
 func apply_all() -> void:

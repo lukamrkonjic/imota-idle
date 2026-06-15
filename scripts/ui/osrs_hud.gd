@@ -72,6 +72,8 @@ var _settings_chat: CheckBox
 var _settings_tooltip: CheckBox
 var _settings_show_fps: CheckBox
 var _settings_fps_limit: OptionButton
+var _keybind_buttons: Dictionary = {}  # action id -> rebind Button
+var _rebinding_action := ""             # action id currently capturing a key, or ""
 var _fps_sample_us: int = 0
 var _frame_ms_smooth: float = 16.0
 const FPS_SAMPLE_BLEND := 0.15
@@ -116,7 +118,23 @@ func _ready() -> void:
 	world_map.setup(self)
 
 
-## Press M to toggle the full-world map; Esc closes it when open.
+## Captures the next key while a settings rebind row is armed. Runs ahead of GUI /
+## unhandled input so the chosen key rebinds instead of triggering its old action.
+func _input(event: InputEvent) -> void:
+	if _rebinding_action == "":
+		return
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+	var kc: int = (event as InputEventKey).keycode
+	if kc != KEY_ESCAPE:
+		GameSettings.set_keybind(_rebinding_action, kc)
+	_rebinding_action = ""
+	_refresh_keybind_buttons()
+	get_viewport().set_input_as_handled()
+
+
+## Press M to toggle the full-world map; Esc closes it when open. Configurable
+## bindings (Hide HUD, …) are read from GameSettings.
 func _unhandled_key_input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed and not event.echo):
 		return
@@ -125,6 +143,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif event.keycode == KEY_ESCAPE and world_map.visible:
 		world_map.visible = false
+		get_viewport().set_input_as_handled()
+	elif event.keycode == GameSettings.keybind("hide_hud"):
+		hud_root.visible = not hud_root.visible
 		get_viewport().set_input_as_handled()
 
 
@@ -627,6 +648,15 @@ func _build_settings_popup() -> void:
 		box, "FPS limit", GameSettings.FPS_LIMIT_OPTIONS, GameSettings.fps_limit,
 		func(value: int) -> void: GameSettings.set_fps_limit(value))
 
+	var kb_title := Label.new()
+	kb_title.text = "Key bindings"
+	kb_title.add_theme_font_size_override("font_size", UiScale.i(14))
+	kb_title.add_theme_color_override("font_color", Color(0.85, 0.72, 0.3))
+	box.add_child(kb_title)
+	for action: Dictionary in GameSettings.KEYBIND_ACTIONS:
+		_add_keybind_row(box, str(action["id"]), str(action["label"]))
+	_refresh_keybind_buttons()
+
 	var close := Button.new()
 	close.text = "Close"
 	close.pressed.connect(func() -> void: settings_popup.hide())
@@ -886,6 +916,35 @@ func _add_settings_option_row(
 	row.add_child(opt)
 	parent.add_child(row)
 	return opt
+
+
+## A rebind row: action label on the left, a button showing the bound key. Pressing
+## the button arms capture (_input grabs the next key, Esc cancels).
+func _add_keybind_row(parent: VBoxContainer, id: String, label_text: String) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", UiScale.i(10))
+	var lbl := Label.new()
+	lbl.text = label_text
+	lbl.custom_minimum_size.x = UiScale.f(140.0)
+	row.add_child(lbl)
+	var btn := Button.new()
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn.pressed.connect(func() -> void:
+		_rebinding_action = id
+		_refresh_keybind_buttons())
+	row.add_child(btn)
+	parent.add_child(row)
+	_keybind_buttons[id] = btn
+
+
+func _refresh_keybind_buttons() -> void:
+	for id: String in _keybind_buttons:
+		var btn: Button = _keybind_buttons[id]
+		if id == _rebinding_action:
+			btn.text = "Press a key…  (Esc to cancel)"
+		else:
+			var kc := GameSettings.keybind(id)
+			btn.text = OS.get_keycode_string(kc) if kc != 0 else "Unbound"
 
 
 func _build_fps_overlay() -> void:
