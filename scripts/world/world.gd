@@ -21,6 +21,7 @@ const PerfLogger := preload("res://scripts/world/perf_logger.gd")
 const BakeQueue := preload("res://scripts/world/bake_queue.gd")
 const EntitySpriteCache := preload("res://scripts/world/entity_sprite_cache.gd")
 const WorldEntity := preload("res://scripts/world/world_entity.gd")
+const WorldRender3D := preload("res://scripts/render/world_render_3d.gd")
 
 # --- public state (tests, HUD) ---
 var entities: Array = []
@@ -159,6 +160,13 @@ func _build_scene() -> void:
 	add_child(_biome_debug)
 
 	hud.call("bind_world", self)
+
+	# 3D pixel-art renderer (committed port). No-ops in headless; hides the 2D
+	# world visuals and presents the 3D world under the HUD.
+	var render3d := WorldRender3D.new()
+	render3d.name = "WorldRender3D"
+	add_child(render3d)
+	render3d.setup(self)
 
 
 func _connect_events() -> void:
