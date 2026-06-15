@@ -217,7 +217,10 @@ func on_chunk_unloaded(chunk: RefCounted) -> void:
 			if e == world.combat_target_entity:
 				world.combat_target_entity = null
 		if not kids.is_empty():
-			var keep := func(e: Node2D) -> bool: return not kids.has(e)
+			# Untyped param + validity guard: a tracking array can briefly hold a
+			# freed node during heavy load/unload churn, and a typed Node2D lambda
+			# param throws "cannot convert Object to Object" on a freed instance.
+			var keep := func(e: Variant) -> bool: return is_instance_valid(e) and not kids.has(e)
 			world.entities = world.entities.filter(keep)
 			world._decor_nodes = world._decor_nodes.filter(keep)
 			world._water_decor_nodes = world._water_decor_nodes.filter(keep)
