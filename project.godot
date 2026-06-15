@@ -9,6 +9,8 @@ config_version=5
 config/name="Imota"
 run/main_scene="res://scenes/world.tscn"
 config/features=PackedStringArray("4.6")
+boot_splash/show_image=false
+boot_splash/bg_color=Color(0.133333, 0.133333, 0.156863, 1)
 
 [autoload]
 
