@@ -645,11 +645,12 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 		yaw = lerp_angle(yaw, atan2(vel.x, vel.z), clampf(dt * 12.0, 0.0, 1.0))
 		_mover_yaw[key] = yaw
 	node.rotation.y = yaw
-	# Bob + squash scale with the walk amount.
+	# Bob + squash scale with the walk amount; a gentle idle breathe when still.
 	var bob := absf(sin(t * 11.0)) * 0.09 * walk
 	var sq := sin(t * 11.0) * 0.06 * walk
+	var idle := (1.0 - walk) * sin(t * 2.2) * 0.018
 	node.position = pos3 + Vector3(0, bob, 0)
-	node.scale = Vector3(1.0 - sq * 0.5, 1.0 + sq, 1.0 - sq * 0.5)
+	node.scale = Vector3(1.0 - sq * 0.5, 1.0 + sq + idle, 1.0 - sq * 0.5)
 
 
 ## Batch all static decor + props into per-(mesh,material) MultiMeshes. Rebuilt
