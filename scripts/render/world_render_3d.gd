@@ -77,7 +77,7 @@ func _build() -> void:
 	# Orthographic camera at the game's 2:1 isometric angle (yaw 45, pitch ~30).
 	cam = Camera3D.new()
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
-	cam.size = 24.0
+	cam.size = 17.0
 	cam.near = 0.05
 	cam.far = 400.0
 	world3d.add_child(cam)
@@ -126,10 +126,11 @@ func _process(_delta: float) -> void:
 
 
 func _sync_camera() -> void:
-	var c := iso_to_3d(world.player.position, 0.0)
-	# Iso offset: yaw 45, pitch ~30 (2:1). Keep it constant so pixels stay stable.
-	var dir := Vector3(1.0, 1.15, 1.0).normalized()
-	cam.position = c + dir * 60.0
+	var c := iso_to_3d(world.player.position, height_at(world.player.position))
+	# Exact 2:1 isometric: yaw 45, pitch 30. A ground tile then projects 2:1 like
+	# the old 2D iso. dir.y = tan(30) * sqrt(2) = 0.8165 for the 1,_,1 horizontal.
+	var dir := Vector3(1.0, 0.8165, 1.0).normalized()
+	cam.position = c + dir * 80.0
 	cam.look_at(c, Vector3.UP)
 
 
