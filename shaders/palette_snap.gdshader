@@ -8,6 +8,9 @@ uniform sampler2D palette_tex : filter_nearest;
 uniform int palette_count = 32;
 uniform float enabled = 0.0;            // 0 = passthrough, 1 = snap
 uniform float strength : hint_range(0.0, 1.0) = 1.0;
+uniform float contrast : hint_range(0.5, 1.8) = 1.0;
+uniform float saturation : hint_range(0.0, 2.0) = 1.0;
+uniform float brightness : hint_range(0.5, 1.5) = 1.0;
 
 vec3 to_linear(vec3 c) {
 	return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c));
@@ -15,6 +18,11 @@ vec3 to_linear(vec3 c) {
 
 void fragment() {
 	vec4 src = texture(TEXTURE, UV);
+	float luma = dot(src.rgb, vec3(0.299, 0.587, 0.114));
+	src.rgb = mix(vec3(luma), src.rgb, saturation);
+	src.rgb = (src.rgb - vec3(0.5)) * contrast + vec3(0.5);
+	src.rgb *= brightness;
+	src.rgb = clamp(src.rgb, vec3(0.0), vec3(1.0));
 	if (enabled < 0.5) {
 		COLOR = src;
 	} else {

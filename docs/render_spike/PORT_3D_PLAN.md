@@ -129,3 +129,43 @@ Decision: **fully replace** the 2D renderer; no toggle. The branch is the rollba
   shadows, camera movement, shader animation (impostors only for distant objects).
 - Don't bake duplicate meshes/materials per chunk; identical props share resources.
 - Preserve iso angle, palette, silhouettes, proportions, atmosphere.
+
+## 6. Visual decisions
+
+### 2026-06-15 - Original cozy hiking diorama target
+
+**Decision:** the 3D port targets an original cozy low-poly pixel-art hiking
+diorama: low-resolution nearest presentation, warm afternoon haze, posterized
+toon bands, rounded/clustered foliage, teal water with crisp foam strips,
+recessed dirt/cobble paths, and shared mesh/material batches for the live world.
+The Unity toon-terrain reference is used only for transferable concepts:
+harder terrain layer selection, toon lighting bands, and treating vertical or
+shore surfaces differently from flat ground.
+
+**Why:** this gets the warmth, readability and terrain richness the branch needs
+without copying another game's proprietary assets or making gameplay/data
+changes. It also keeps the existing Imota rules intact: stable content ids,
+same world data, same sim/picking substrate, and one shared palette.
+
+**Consequence:** future 3D visual work should add original meshes/materials in
+this language instead of importing or tracing reference assets. Terrain changes
+should stay renderer-side unless they intentionally change world generation, in
+which case `WorldStore.GENERATOR_VERSION` and the world docs need review.
+
+### 2026-06-15 - Renderer-only hiking set dressing
+
+**Decision:** add a visual-only, batched hiking-diorama dressing layer around
+the active camera: original large cabin, steep conifers, autumn blob-canopy
+trees, orange dirt path overlays, fences, campfire staging, warm cliff slabs,
+boulders, flowers, and a small teal pool. The layer is snapped to a coarse tile
+anchor and rebuilt as the player moves, but it does not create gameplay
+entities or content ids.
+
+**Why:** live world data can be sparse near the camera, which made the 3D port
+feel like isolated props on a muted map. Renderer-only dressing lets the branch
+hit the cozy hiking-place composition target without copying proprietary
+models/assets and without changing saves, nodes, recipes, drops, or worldgen.
+
+**Consequence:** this is a composition aid for the visual port. If any dressing
+piece later becomes interactive content, it must be promoted through the normal
+content/id registry path and reviewed under the save-safety rules.
