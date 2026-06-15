@@ -19,6 +19,18 @@ var _water_anim_accum := 0.0
 var _cached_visible_rect := Rect2()
 var _darkness_vp := Vector2.ZERO
 
+# Rolling entity-visibility cursor. The per-entity view test (a method + several
+# property reads over ~1000+ entities) used to run for the whole world in one
+# frame every 0.18s — a ~2.5ms spike that landed as a periodic walk hitch. It is
+# now sliced across frames against the current camera rect. The slice is sized so
+# a full pass still takes ~0.18s (≈ VIS_PASS_FRAMES frames), so an entity is
+# re-tested exactly as often as before and the total work is unchanged — the
+# spike is just spread into a flat sub-millisecond per-frame cost.
+const VIS_PASS_FRAMES := 11
+const VIS_SLICE_MIN := 96
+var _vis_cursor := 0
+var _vis_accum: Array = []
+
 const TreeArt := preload("res://scripts/world/art/trees/tree_art.gd")
 const WaterSurfaceArt := preload("res://scripts/world/art/water/water_surface_art.gd")
 
@@ -136,26 +148,32 @@ func _update_darkness() -> void:
 
 
 func _update_visibility_budget(delta: float) -> void:
+	# Entities are sliced every frame (the dominant cost) against the rect already
+	# computed this tick; containers + decor are far cheaper and stay throttled.
+	_update_entity_visibility_slice(_cached_visible_rect)
 	_visibility_timer -= delta
 	if _visibility_timer > 0.0:
 		return
 	_visibility_timer = 0.18
-	var vp := world.get_viewport().get_visible_rect().size
 	var zoom: float = world._camera.zoom.x
-	var world_size: Vector2 = vp / zoom
-	var margin := WG.CHUNK_SIZE * 0.4
-	var rect := Rect2(world._camera.global_position - world_size * 0.5 - Vector2(margin, margin), world_size + Vector2(margin * 2.0, margin * 2.0))
+	var rect := _cached_visible_rect
 	for key: String in world._chunk_containers.keys():
 		var container: Node2D = world._chunk_containers[key]
 		if container.has_meta("streaming_complete") and not bool(container.get_meta("streaming_complete")):
 			container.visible = false
 			continue
-		var parts: PackedStringArray = key.split(":")
-		if parts.size() == 3:
-			var chunk_rect := WG.chunk_aabb(int(parts[1]), int(parts[2])).grow(WG.CHUNK_SIZE * 0.75)
-			container.visible = chunk_rect.intersects(rect)
-		else:
-			container.visible = true
+		# The chunk AABB is fixed for a container's lifetime, so parse the key once
+		# and cache it — the per-frame string split over the whole active ring was
+		# pure waste.
+		var aabb: Rect2 = container.get_meta("vis_aabb", Rect2())
+		if aabb.size == Vector2.ZERO:
+			var parts: PackedStringArray = key.split(":")
+			if parts.size() != 3:
+				container.visible = true
+				continue
+			aabb = WG.chunk_aabb(int(parts[1]), int(parts[2])).grow(WG.CHUNK_SIZE * 0.75)
+			container.set_meta("vis_aabb", aabb)
+		container.visible = aabb.intersects(rect)
 	# Zoom LOD: tiny clutter is invisible (and very expensive) when zoomed out, so
 	# stop drawing ground/water decor past these thresholds.
 	var show_decor: bool = zoom >= 0.84
@@ -168,17 +186,40 @@ func _update_visibility_budget(delta: float) -> void:
 		if not is_instance_valid(d):
 			continue
 		d.visible = show_water and rect.has_point(d.global_position)
-	var visible_entities: Array = []
-	for e: Node2D in world.entities:
+
+
+## Advance the rolling entity-visibility pass by one slice. Each entity's view
+## flag is updated against the current rect; the freshly-visible set is committed
+## to world._visible_entities only when a full pass completes, so hot consumers
+## (hover, outlines, tree redraw) always read a coherent list.
+func _update_entity_visibility_slice(rect: Rect2) -> void:
+	var ents: Array = world.entities
+	var n := ents.size()
+	if n == 0:
+		world._visible_entities = []
+		_vis_accum = []
+		_vis_cursor = 0
+		return
+	var slice := maxi(VIS_SLICE_MIN, ceili(float(n) / float(VIS_PASS_FRAMES)))
+	var processed := 0
+	while processed < slice:
+		if _vis_cursor >= n:
+			# Pass complete: publish the new visible set and start the next sweep.
+			world._visible_entities = _vis_accum
+			_vis_accum = []
+			_vis_cursor = 0
+			return
+		var e: Node2D = ents[_vis_cursor]
+		_vis_cursor += 1
+		processed += 1
 		if not is_instance_valid(e):
 			continue
 		var in_view := _entity_intersects_rect(e, rect)
 		e.visible = in_view
 		if in_view:
-			visible_entities.append(e)
+			_vis_accum.append(e)
 		elif e.highlight_outline:
 			e.highlight_outline = false
-	world._visible_entities = visible_entities
 
 
 func _entity_intersects_rect(e: Node2D, rect: Rect2) -> bool:
