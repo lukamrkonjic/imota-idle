@@ -1,10 +1,11 @@
 extends RefCounted
-## Shared 3D mesh + toon-material library keyed by entity "kind", and the mirror
-## that instances one 3D node per live WorldEntity for the 3D renderer.
-## (Stage C of the port — later replaced by per-chunk MultiMesh; see PORT_3D_PLAN.)
+## Shared 3D mesh + toon-material library for the 3D pixel-art port. Exposes each
+## prop/decor kind as a list of PARTS ({mesh, mat, off, scl}); the renderer batches
+## identical parts into per-(mesh,material) MultiMeshInstance3D groups, so hundreds
+## of trees/tufts/rocks cost a handful of draw calls. Movers (player/enemies) are
+## built as individual nodes via build_node().
 ##
-## Meshes and materials are cached statically and SHARED across instances — each
-## entity just gets cheap MeshInstance3D nodes pointing at the shared resources.
+## Meshes and materials are cached statically and SHARED across every instance.
 
 const TOON := preload("res://shaders/toon_world.gdshader")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
@@ -14,183 +15,111 @@ static var _mesh_cache: Dictionary = {}
 static var _mat_cache: Dictionary = {}
 
 
-## Mirror render.world.entities into 3D prop nodes under render.props_root.
-static func sync_entities(render) -> void:
-	var live := {}
-	for e: Node in render.world.entities:
-		if not is_instance_valid(e):
-			continue
-		var id := e.get_instance_id()
-		live[id] = true
-		var node: Node3D = render._prop_nodes.get(id)
-		if node == null:
-			node = _build_for(e)
-			if node == null:
-				continue
-			render.props_root.add_child(node)
-			render._prop_nodes[id] = node
-		node.position = render.iso_to_3d(e.position, render.height_at(e.position))
-	for id: int in render._prop_nodes.keys():
-		if not live.has(id):
-			var n: Node = render._prop_nodes[id]
-			if is_instance_valid(n):
-				n.queue_free()
-			render._prop_nodes.erase(id)
+# --------------------------------------------------------------- part lists ----
+
+## Static (batchable) parts for a world entity, or [] if it should not be batched
+## (movers like enemies, or unmapped kinds rendered by the terrain).
+static func entity_parts(e: Node) -> Array:
+	match str(e.kind):
+		"tree", "landmark_tree":
+			return _conifer_parts() if TreeArt.classify(str(e.get("label"))) == "fir" else _tree_parts()
+		"rock":
+			return _rock_parts()
+		"node":
+			return _bush_parts()
+		"house", "building":
+			return _house_parts()
+		"stall", "tent":
+			return _tent_parts()
+		_:
+			return []
 
 
-## Mirror render.world._decor_nodes into small 3D ground-fill meshes — this is
-## what makes the world feel full (grass tufts, flowers, pebbles, shrubs...).
-static func sync_decor(render) -> void:
-	var live := {}
-	for d: Node in render.world._decor_nodes:
-		if not is_instance_valid(d):
-			continue
-		var id := d.get_instance_id()
-		live[id] = true
-		var node: Node3D = render._decor3d.get(id)
-		if node == null:
-			node = _build_decor(str(d.kind))
-			if node == null:
-				continue
-			node.rotation.y = float(int(d.variant)) * 0.131
-			render.props_root.add_child(node)
-			render._decor3d[id] = node
-		node.position = render.iso_to_3d(d.position, render.height_at(d.position))
-	for id: int in render._decor3d.keys():
-		if not live.has(id):
-			var n: Node = render._decor3d[id]
-			if is_instance_valid(n):
-				n.queue_free()
-			render._decor3d.erase(id)
+static func is_moving(e: Node) -> bool:
+	return str(e.kind) == "enemy"
 
 
-static func _build_decor(kind: String) -> Node3D:
+static func decor_parts(kind: String) -> Array:
 	match kind:
 		"flower":
-			return _flower()
+			return [
+				_part(_sphere("d_ftuft", 0.16), _mat("foliage_c", "grass_dark", "foliage_c"), Vector3(0, 0.12, 0), Vector3(1.0, 0.7, 1.0)),
+				_part(_sphere("d_fhead", 0.1), _mat("gold", "dirt_a", "snow_a"), Vector3(0, 0.34, 0))]
 		"shrub", "bramble", "shrubbery":
-			return _decor_single(_sphere("d_bush", 0.3), _mat("foliage_b", "grass_dark", "foliage_a"), Vector3(0, 0.22, 0), Vector3(1.1, 0.8, 1.1))
+			return [_part(_sphere("d_bush", 0.3), _mat("foliage_b", "grass_dark", "foliage_a"), Vector3(0, 0.22, 0), Vector3(1.1, 0.8, 1.1))]
 		"mushroom":
-			return _mushroom()
+			return [
+				_part(_cyl("d_mstalk", 0.05, 0.07, 0.22), _mat("snow_a", "stone_b", "snow_a"), Vector3(0, 0.11, 0)),
+				_part(_sphere("d_mcap", 0.14), _mat("dirt_a", "trunk_b", "gold"), Vector3(0, 0.26, 0), Vector3(1.0, 0.6, 1.0))]
 		"cactus":
-			return _decor_single(_cone("d_cact", 0.16, 0.12, 0.6), _mat("fir_a", "fir_b", "foliage_c"), Vector3(0, 0.3, 0))
+			return [_part(_cone("d_cact", 0.16, 0.12, 0.6), _mat("fir_a", "fir_b", "foliage_c"), Vector3(0, 0.3, 0))]
 		"pebble", "rubble", "shell", "stone":
-			return _decor_single(_sphere("d_peb", 0.16), _mat("stone_a", "stone_b", "ore"), Vector3(0, 0.06, 0), Vector3(1.3, 0.55, 1.1))
+			return [_part(_sphere("d_peb", 0.16), _mat("stone_a", "stone_b", "ore"), Vector3(0, 0.06, 0), Vector3(1.3, 0.55, 1.1))]
 		"stick", "driftwood", "bone":
-			return _decor_single(_box("d_stick", Vector3(0.5, 0.07, 0.09)), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0, 0.05, 0))
-		_:  # grass, fern, reed, vine, moss, lichen, etc -> green tuft
-			return _decor_single(_sphere("d_tuft", 0.22), _mat("foliage_c", "grass_dark", "foliage_c"), Vector3(0, 0.16, 0), Vector3(1.0, 0.7, 1.0))
+			return [_part(_box("d_stick", Vector3(0.5, 0.07, 0.09)), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0, 0.05, 0))]
+		_:  # grass, fern, reed, vine, moss, lichen, ... -> green tuft
+			return [_part(_sphere("d_tuft", 0.22), _mat("foliage_c", "grass_dark", "foliage_c"), Vector3(0, 0.16, 0), Vector3(1.0, 0.7, 1.0))]
 
 
-static func _decor_single(mesh: Mesh, mat: Material, pos: Vector3, scl := Vector3.ONE) -> Node3D:
-	var root := Node3D.new()
-	_add(root, mesh, mat, pos, scl)
-	return root
+static func _tree_parts() -> Array:
+	return [
+		_part(_cyl("trunk", 0.16, 0.24, 1.6), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0, 0.8, 0)),
+		_part(_sphere("canopy_lo", 1.2), _mat("foliage_a", "foliage_b", "foliage_c"), Vector3(0, 2.0, 0), Vector3(1, 0.82, 1)),
+		_part(_sphere("canopy_hi", 0.85), _mat("foliage_c", "foliage_a", "foliage_c"), Vector3(0.15, 2.8, -0.1), Vector3(1, 0.82, 1))]
 
 
-static func _flower() -> Node3D:
-	var root := Node3D.new()
-	_add(root, _sphere("d_ftuft", 0.16), _mat("foliage_c", "grass_dark", "foliage_c"), Vector3(0, 0.12, 0), Vector3(1.0, 0.7, 1.0))
-	_add(root, _sphere("d_fhead", 0.1), _mat("gold", "dirt_a", "snow_a"), Vector3(0, 0.34, 0))
-	return root
-
-
-static func _mushroom() -> Node3D:
-	var root := Node3D.new()
-	_add(root, _cyl("d_mstalk", 0.05, 0.07, 0.22), _mat("snow_a", "stone_b", "snow_a"), Vector3(0, 0.11, 0))
-	_add(root, _sphere("d_mcap", 0.14), _mat("dirt_a", "trunk_b", "gold"), Vector3(0, 0.26, 0), Vector3(1.0, 0.6, 1.0))
-	return root
-
-
-## Build a 3D prop node for an entity kind (shared meshes/materials). Returns null
-## for kinds rendered by the terrain (water) or not yet mapped.
-static func _build_for(e: Node) -> Node3D:
-	var kind := str(e.kind)
-	match kind:
-		"tree", "landmark_tree":
-			# Match the 2D species silhouettes: conifers are conical, the rest round.
-			var species := TreeArt.classify(str(e.get("label")))
-			return _conifer() if species == "fir" else _tree()
-		"rock":
-			return _rock()
-		"node":
-			return _bush()
-		"enemy":
-			return _figure(PixelPalette.pal("outfit_b"), PixelPalette.pal("skin_a"))
-		"house", "building":
-			return _house()
-		"stall", "tent":
-			return _tent()
-		_:
-			return null
-
-
-# ------------------------------------------------------------------ builders ----
-
-static func _tree() -> Node3D:
-	var root := Node3D.new()
-	_add(root, _cyl("trunk", 0.16, 0.24, 1.6), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0, 0.8, 0))
-	var leaf := _mat("foliage_a", "foliage_b", "foliage_c")
-	_add(root, _sphere("canopy_lo", 1.2), leaf, Vector3(0, 2.0, 0), Vector3(1, 0.82, 1))
-	_add(root, _sphere("canopy_hi", 0.85), _mat("foliage_c", "foliage_a", "foliage_c"), Vector3(0.15, 2.8, -0.1), Vector3(1, 0.82, 1))
-	return root
-
-
-static func _conifer() -> Node3D:
-	var root := Node3D.new()
-	_add(root, _cyl("contrunk", 0.14, 0.2, 1.0), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0, 0.5, 0))
+static func _conifer_parts() -> Array:
 	var dark := _mat("fir_a", "fir_b", "foliage_c")
-	# 3 narrowing offset sections -> a readable conifer (not one perfect cone).
-	_add(root, _cone("fir0", 1.05, 0.7, 1.0), dark, Vector3(0, 1.0, 0))
-	_add(root, _cone("fir1", 0.82, 0.5, 0.95), dark, Vector3(0.05, 1.7, 0))
-	_add(root, _cone("fir2", 0.55, 0.08, 0.9), dark, Vector3(-0.04, 2.35, 0))
-	return root
+	return [
+		_part(_cyl("contrunk", 0.14, 0.2, 1.0), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0, 0.5, 0)),
+		_part(_cone("fir0", 1.05, 0.7, 1.0), dark, Vector3(0, 1.0, 0)),
+		_part(_cone("fir1", 0.82, 0.5, 0.95), dark, Vector3(0.05, 1.7, 0)),
+		_part(_cone("fir2", 0.55, 0.08, 0.9), dark, Vector3(-0.04, 2.35, 0))]
 
 
-static func _bush() -> Node3D:
+static func _bush_parts() -> Array:
+	return [_part(_sphere("bush", 0.55), _mat("foliage_b", "grass_dark", "foliage_a"), Vector3(0, 0.4, 0), Vector3(1.1, 0.8, 1.1))]
+
+
+static func _rock_parts() -> Array:
+	return [_part(_octa("rock"), _mat("stone_a", "stone_b", "ore"), Vector3(0, 0.3, 0), Vector3(0.9, 0.7, 0.9))]
+
+
+static func _house_parts() -> Array:
+	return [
+		_part(_box("house_body", Vector3(2.6, 1.7, 2.2)), _mat("dirt_a", "trunk_b", "gold"), Vector3(0, 1.0, 0)),
+		_part(_prism("house_roof", Vector3(3.2, 1.2, 2.7)), _mat("stone_a", "stone_b", "snow_a"), Vector3(0, 2.45, 0))]
+
+
+static func _tent_parts() -> Array:
+	return [_part(_prism("tent", Vector3(1.6, 1.3, 1.6)), _mat("outfit_a", "outfit_b", "water_foam"), Vector3(0, 0.65, 0))]
+
+
+static func figure_parts(body: Color, head: Color) -> Array:
+	return [
+		_part(_capsule("fig_body", 0.28, 1.0), _mat_from(body, body.darkened(0.35), body.lightened(0.2)), Vector3(0, 0.6, 0)),
+		_part(_sphere("fig_head", 0.26), _mat_from(head, head.darkened(0.3), head.lightened(0.2)), Vector3(0, 1.3, 0))]
+
+
+# ----------------------------------------------------------- node (movers) ----
+
+## Build an individual Node3D from a part list (used for the player and enemies).
+static func build_node(parts: Array) -> Node3D:
 	var root := Node3D.new()
-	var leaf := _mat("foliage_b", "grass_dark", "foliage_a")
-	_add(root, _sphere("bush", 0.55), leaf, Vector3(0, 0.4, 0), Vector3(1.1, 0.8, 1.1))
-	return root
-
-
-static func _rock() -> Node3D:
-	var root := Node3D.new()
-	_add(root, _octa("rock"), _mat("stone_a", "stone_b", "ore"), Vector3(0, 0.3, 0), Vector3(0.9, 0.7, 0.9))
-	return root
-
-
-static func _figure(body_key: Color, head_key: Color) -> Node3D:
-	var root := Node3D.new()
-	var bm := _mat_from(body_key, body_key.darkened(0.35), body_key.lightened(0.2))
-	var hm := _mat_from(head_key, head_key.darkened(0.3), head_key.lightened(0.2))
-	_add(root, _capsule("fig_body", 0.28, 1.0), bm, Vector3(0, 0.6, 0))
-	_add(root, _sphere("fig_head", 0.26), hm, Vector3(0, 1.3, 0))
-	return root
-
-
-static func _house() -> Node3D:
-	var root := Node3D.new()
-	_add(root, _box("house_body", Vector3(2.6, 1.7, 2.2)), _mat("dirt_a", "trunk_b", "gold"), Vector3(0, 1.0, 0))
-	_add(root, _prism("house_roof", Vector3(3.2, 1.2, 2.7)), _mat("stone_a", "stone_b", "snow_a"), Vector3(0, 2.45, 0))
-	return root
-
-
-static func _tent() -> Node3D:
-	var root := Node3D.new()
-	_add(root, _prism("tent", Vector3(1.6, 1.3, 1.6)), _mat("outfit_a", "outfit_b", "water_foam"), Vector3(0, 0.65, 0))
+	for p: Dictionary in parts:
+		var mi := MeshInstance3D.new()
+		mi.mesh = p["mesh"]
+		mi.material_override = p["mat"]
+		mi.position = p["off"]
+		mi.scale = p["scl"]
+		root.add_child(mi)
 	return root
 
 
 # ------------------------------------------------------------------ helpers ----
 
-static func _add(root: Node3D, mesh: Mesh, mat: Material, pos: Vector3, scl := Vector3.ONE) -> void:
-	var mi := MeshInstance3D.new()
-	mi.mesh = mesh
-	mi.material_override = mat
-	mi.position = pos
-	mi.scale = scl
-	root.add_child(mi)
+static func _part(mesh: Mesh, mat: Material, off: Vector3, scl := Vector3.ONE) -> Dictionary:
+	return {"mesh": mesh, "mat": mat, "off": off, "scl": scl}
 
 
 static func _cyl(key: String, top: float, bot: float, h: float) -> Mesh:

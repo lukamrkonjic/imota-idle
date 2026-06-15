@@ -25,8 +25,10 @@ var terrain_root: Node3D
 var props_root: Node3D
 var _ground_mat: ShaderMaterial
 var _chunk_meshes: Dictionary = {}   # chunk key -> MeshInstance3D
-var _prop_nodes: Dictionary = {}     # entity instance id -> Node3D (Stage C)
-var _decor3d: Dictionary = {}        # decor instance id -> Node3D (ground fill)
+var batches_root: Node3D             # holds the per-(mesh,material) MultiMeshInstance3D
+var _mover_nodes: Dictionary = {}    # moving entity id -> Node3D (player/enemies)
+var _player_node: Node3D
+var _static_sig := -1
 var _frames := 0
 var _captured := false
 var _active := false
@@ -87,6 +89,8 @@ func _build() -> void:
 	world3d.add_child(terrain_root)
 	props_root = Node3D.new()
 	world3d.add_child(props_root)
+	batches_root = Node3D.new()
+	world3d.add_child(batches_root)
 
 	_ground_mat = ShaderMaterial.new()
 	_ground_mat.shader = TOON_GROUND
@@ -120,8 +124,8 @@ func _process(_delta: float) -> void:
 		return
 	_sync_camera()
 	_sync_terrain()
-	PropMeshes.sync_entities(self)
-	PropMeshes.sync_decor(self)
+	_sync_movers()
+	_sync_static_batches()
 	_frames += 1
 	if _frames == 90 and not _captured:
 		_capture()
@@ -213,6 +217,78 @@ func _riser(st: SurfaceTool, p0: Vector3, p1: Vector3, bot_y: float, normal: Vec
 		st.set_color(col)
 		st.set_normal(normal)
 		st.add_vertex(v)
+
+
+## Movers (player + enemies) stay individual nodes — few of them, and they move.
+func _sync_movers() -> void:
+	if _player_node == null:
+		_player_node = PropMeshes.build_node(PropMeshes.figure_parts(PixelPalette.pal("outfit_a"), PixelPalette.pal("skin_a")))
+		props_root.add_child(_player_node)
+	_player_node.position = iso_to_3d(world.player.position, height_at(world.player.position))
+	var live := {}
+	for e: Node in world.entities:
+		if not is_instance_valid(e) or not PropMeshes.is_moving(e):
+			continue
+		var id := e.get_instance_id()
+		live[id] = true
+		var n: Node3D = _mover_nodes.get(id)
+		if n == null:
+			n = PropMeshes.build_node(PropMeshes.figure_parts(PixelPalette.pal("outfit_b"), PixelPalette.pal("skin_a")))
+			props_root.add_child(n)
+			_mover_nodes[id] = n
+		n.position = iso_to_3d(e.position, height_at(e.position))
+	for id: int in _mover_nodes.keys():
+		if not live.has(id):
+			var n: Node = _mover_nodes[id]
+			if is_instance_valid(n):
+				n.queue_free()
+			_mover_nodes.erase(id)
+
+
+## Batch all static decor + props into per-(mesh,material) MultiMeshes. Rebuilt
+## only when the static set changes (or a periodic safety pass), not every frame.
+func _sync_static_batches() -> void:
+	var sig: int = int(world._decor_nodes.size()) * 100003 + int(world.entities.size())
+	if sig == _static_sig and _frames % 120 != 0:
+		return
+	_static_sig = sig
+	for c: Node in batches_root.get_children():
+		c.queue_free()
+	var groups := {}
+	for d: Node in world._decor_nodes:
+		if not is_instance_valid(d):
+			continue
+		var pl := Transform3D(Basis(Vector3.UP, float(int(d.variant)) * 0.131), iso_to_3d(d.position, height_at(d.position)))
+		_collect(PropMeshes.decor_parts(str(d.kind)), pl, groups)
+	for e: Node in world.entities:
+		if not is_instance_valid(e) or PropMeshes.is_moving(e):
+			continue
+		var parts: Array = PropMeshes.entity_parts(e)
+		if parts.is_empty():
+			continue
+		_collect(parts, Transform3D(Basis.IDENTITY, iso_to_3d(e.position, height_at(e.position))), groups)
+	for key: String in groups:
+		var g: Dictionary = groups[key]
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = g["mesh"]
+		var xf: Array = g["xf"]
+		mm.instance_count = xf.size()
+		for i: int in xf.size():
+			mm.set_instance_transform(i, xf[i])
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		mmi.material_override = g["mat"]
+		batches_root.add_child(mmi)
+
+
+func _collect(parts: Array, placement: Transform3D, groups: Dictionary) -> void:
+	for p: Dictionary in parts:
+		var key := str(p["mesh"].get_instance_id()) + "|" + str(p["mat"].get_instance_id())
+		if not groups.has(key):
+			groups[key] = {"mesh": p["mesh"], "mat": p["mat"], "xf": []}
+		var local := Transform3D(Basis().scaled(p["scl"]), p["off"])
+		groups[key]["xf"].append(placement * local)
 
 
 ## Map a 2D iso-pixel position to a 3D world position (Y from elevation/height).
