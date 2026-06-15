@@ -369,7 +369,10 @@ func _process(_delta: float) -> void:
 	})
 
 
+var last_timings: Dictionary = {}  # this frame's per-step usec, for spike attribution
+
 func _record_perf_timings(times: Dictionary) -> void:
+	last_timings = times
 	for k: String in PERF_KEYS:
 		_perf_accum[k] = float(_perf_accum.get(k, 0.0)) + float(times.get(k, 0))
 	_perf_frames += 1

@@ -35,6 +35,7 @@ var pending_action: Dictionary = {}
 var combat_target_entity: Node2D = null
 var auto_task: Dictionary = {}
 var gather_ref: Dictionary = {}
+var last_frame_timings: Dictionary = {}  # per-frame subsystem usec, for spike attribution
 
 # --- internal scene graph ---
 var _entities_layer: Node2D
@@ -193,11 +194,12 @@ func _process(delta: float) -> void:
 	var t5 := Time.get_ticks_usec()
 	_activity_ctrl.process_tick(delta)
 	var t6 := Time.get_ticks_usec()
+	last_frame_timings = {
+		"chunk": t1 - t0, "stream": t2 - t1, "path": t3 - t2,
+		"visual": t4 - t3, "hover": t5 - t4, "activity": t6 - t5,
+	}
 	if _perf_logger != null:
-		_perf_logger.record(delta, {
-			"chunk": t1 - t0, "stream": t2 - t1, "path": t3 - t2,
-			"visual": t4 - t3, "hover": t5 - t4, "activity": t6 - t5,
-		})
+		_perf_logger.record(delta, last_frame_timings)
 
 
 ## Scale the streaming radii to the camera so terrain + entities always fill the

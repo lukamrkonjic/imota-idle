@@ -231,8 +231,8 @@
         ],
         "radius": 5
       },
-      "fixed": false,
-      "motif": "The lawless southeastern jungle \u00e2\u20ac\u201d overgrown, ever-shifting, with few memorable ways in. High risk, high reward. (Stays procedural at runtime.)",
+      "fixed": true,
+      "motif": "The lawless southeastern jungle \u00e2\u20ac\u201d overgrown, ever-shifting, with few memorable ways in. High risk, high reward.",
       "material": "wet vine and rot",
       "silhouette": "a wall of dark canopy",
       "locked": false,

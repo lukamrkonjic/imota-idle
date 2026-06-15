@@ -85,12 +85,15 @@ func _source_chunk(layer: int, cx: int, cy: int) -> RefCounted:
 	if layer == 0 and reg.spec.active and reg.spec.finite:
 		if not reg.spec.in_bounds(cx, cy):
 			return baked.ocean_chunk(cx, cy)
-		if reg.spec.is_procedural_zone(cx, cy):
-			return generator.generate(0, cx, cy)
+		# The overworld is a FIXED, fully-baked map: NEVER procedurally generate a
+		# surface chunk at runtime (that was the walking-stutter source — a single
+		# uncached chunk could cost 100ms+). Generation is an editor/bake-time tool
+		# only. An in-bounds chunk that isn't baked shows as ocean — a loud "re-bake
+		# the world" signal — instead of freezing the frame.
 		if baked.has(cx, cy):
 			return baked.build_chunk(cx, cy)
-		# In bounds but not yet baked: fall back so the game runs before a bake.
-		return generator.generate(0, cx, cy)
+		push_warning("world_gen: unbaked in-bounds chunk %d:%d — re-run tools/world_bake.tscn" % [cx, cy])
+		return baked.ocean_chunk(cx, cy)
 	var above: RefCounted = null
 	if layer < 0:
 		above = get_chunk(layer + 1, cx, cy)

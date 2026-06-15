@@ -675,20 +675,22 @@ func phase5_world() -> void:
 
 func phase6_worldgen() -> void:
 	print("== Phase 6: procedural world generation ==")
-	# Determinism: identical seed -> identical chunk.
-	var proc_chunk := Vector2i(14, 12)  # Tanglewild is fixed:false, so it stays procedural.
+	# Determinism: the generator is a pure function of seed. The overworld is now a
+	# FIXED baked map (runtime never generates it), so test the generator directly —
+	# it still drives the offline baker, the editor and cave layers.
+	var proc_chunk := Vector2i(14, 12)
 	WorldGen.reset(4242)
-	var a: RefCounted = WorldGen.get_chunk(0, proc_chunk.x, proc_chunk.y)
+	var a: RefCounted = WorldGen.generator.generate(0, proc_chunk.x, proc_chunk.y)
 	var a_tiles: PackedByteArray = a.tiles.duplicate()
 	var a_sites: int = a.sites.size()
 	var a_first := "" if a.sites.is_empty() else str(a.sites[0]["node"])
 	WorldGen.reset(4242)
-	var b: RefCounted = WorldGen.get_chunk(0, proc_chunk.x, proc_chunk.y)
+	var b: RefCounted = WorldGen.generator.generate(0, proc_chunk.x, proc_chunk.y)
 	check(b.tiles == a_tiles, "same seed regenerates identical tiles")
 	check(b.sites.size() == a_sites and (b.sites.is_empty() or str(b.sites[0]["node"]) == a_first),
 		"same seed regenerates identical sites")
 	WorldGen.reset(4243)
-	var c: RefCounted = WorldGen.get_chunk(0, proc_chunk.x, proc_chunk.y)
+	var c: RefCounted = WorldGen.generator.generate(0, proc_chunk.x, proc_chunk.y)
 	check(c.tiles != a_tiles, "different seed yields different terrain")
 
 	WorldGen.reset(WorldGen.DEFAULT_SEED)
@@ -864,8 +866,12 @@ func phase6_worldgen() -> void:
 
 func phase6_chunk_snapshots() -> void:
 	print("== Phase 6b: chunk snapshot preservation ==")
+	# The baked overworld is never snapshotted (baked data is authoritative). The
+	# snapshot system now serves cave layers / the non-finite world, so exercise it
+	# on a cave chunk (layer -1).
+	var cave := -1
 	WorldGen.reset(9999)
-	var chunk_a: RefCounted = WorldGen.get_chunk(0, 14, 12)
+	var chunk_a: RefCounted = WorldGen.get_chunk(cave, 14, 12)
 	var tiles_a: PackedByteArray = chunk_a.tiles.duplicate()
 	var elev_a: PackedByteArray = chunk_a.elev.duplicate()
 	var sites_a: int = chunk_a.sites.size()
@@ -873,14 +879,14 @@ func phase6_chunk_snapshots() -> void:
 	check(WorldGen.store.has_chunk_snapshot(chunk_a.key()), "snapshot saved for explored chunk")
 	WorldGen.chunks.clear()
 	WorldGen.generator.setup(WorldGen.reg, 8888)
-	var chunk_b: RefCounted = WorldGen.get_chunk(0, 14, 12)
+	var chunk_b: RefCounted = WorldGen.get_chunk(cave, 14, 12)
 	check(chunk_b.tiles == tiles_a, "snapshot restores identical tiles after seed change")
 	check(chunk_b.elev == elev_a, "snapshot restores identical elevation after seed change")
 	check(chunk_b.sites.size() == sites_a, "snapshot restores site count")
-	var unvisited: RefCounted = WorldGen.get_chunk(0, 15, 12)
+	var unvisited: RefCounted = WorldGen.get_chunk(cave, 15, 12)
 	WorldGen.chunks.clear()
 	WorldGen.generator.setup(WorldGen.reg, 7777)
-	var unvisited_b: RefCounted = WorldGen.get_chunk(0, 15, 12)
+	var unvisited_b: RefCounted = WorldGen.get_chunk(cave, 15, 12)
 	check(not WorldGen.store.has_chunk_snapshot(unvisited.key()), "unvisited chunk has no snapshot")
 	check(unvisited_b.tiles != unvisited.tiles or unvisited_b.sites.size() != unvisited.sites.size(),
 		"unvisited chunk regenerates with new generator (no snapshot)")
@@ -891,7 +897,7 @@ func phase6_chunk_snapshots() -> void:
 	var trip: Variant = JSON.parse_string(JSON.stringify(WorldGen.store.chunk_snapshots))
 	WorldGen.store.chunk_snapshots = trip
 	WorldGen.chunks.clear()
-	var chunk_c: RefCounted = WorldGen.get_chunk(0, 14, 12)
+	var chunk_c: RefCounted = WorldGen.get_chunk(cave, 14, 12)
 	check(chunk_c.tiles == tiles_a, "snapshot survives JSON disk round-trip")
 	var home_c: RefCounted = WorldGen.get_chunk(0, 0, 0)
 	var anchors_typed: bool = home_c.pois.size() > 0
