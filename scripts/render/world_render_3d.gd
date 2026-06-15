@@ -195,7 +195,7 @@ func _build_chunk_terrain(chunk: RefCounted) -> Node3D:
 			var gty: int = int(chunk.cy) * n + ty
 			var e: float = float(chunk.elev[ty * n + tx]) * ELEV_H
 			var tdef: Dictionary = reg.tile_def(chunk.tile_id(tx, ty))
-			var col: Color = tdef["colors"][0]
+			var col: Color = _grade_ground(tdef["colors"][0], gtx, gty)
 			var x0 := float(gtx) * TILE_S
 			var z0 := float(gty) * TILE_S
 			var x1 := x0 + TILE_S
@@ -247,6 +247,22 @@ func _build_chunk_terrain(chunk: RefCounted) -> Node3D:
 		water.material_override = _water_mat
 		root.add_child(water)
 	return root
+
+
+## Warm + enrich a terrain tile color and add BROAD low-frequency variation
+## (large painted regions, not noise) so the ground reads painterly, not as flat
+## monotone diamonds. Original warm grading — our palette, A Short Hike vibe.
+func _grade_ground(col: Color, gtx: int, gty: int) -> Color:
+	var c := Color.from_hsv(col.h, minf(col.s * 1.22, 1.0), minf(col.v * 1.12, 1.0), col.a)
+	var fx := float(gtx)
+	var fz := float(gty)
+	# Two broad bands (period ~14-25 tiles) -> large sunlit/shaded patches.
+	var bright := 0.5 + 0.5 * sin(fx * 0.07) * cos(fz * 0.06)
+	var warm := clampf(sin((fx + fz) * 0.045 + 1.3), 0.0, 1.0)
+	c = c.lerp(c.lightened(0.16), bright * 0.55)
+	# Warm dry/golden patches in some regions (subtle).
+	c = c.lerp(Color.from_hsv(0.12, 0.36, c.v * 1.04, c.a), warm * 0.16)
+	return c
 
 
 ## A vertical riser quad from the top edge (p0->p1 at height top_y) down to bot_y.

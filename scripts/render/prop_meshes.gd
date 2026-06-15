@@ -19,10 +19,19 @@ static var _mat_cache: Dictionary = {}
 
 ## Static (batchable) parts for a world entity, or [] if it should not be batched
 ## (movers like enemies, or unmapped kinds rendered by the terrain).
+# Soft warm canopy variety (A Short Hike vibe): mostly greens with autumn
+# accents. Original colors — not copied from any game.
+const CANOPY := [
+	Color8(94, 120, 64), Color8(110, 134, 60), Color8(78, 104, 58),   # greens (weighted)
+	Color8(94, 120, 64), Color8(110, 134, 60),
+	Color8(196, 156, 64), Color8(192, 116, 52), Color8(160, 72, 48)]  # gold / orange / red
+
 static func entity_parts(e: Node) -> Array:
 	match str(e.kind):
 		"tree", "landmark_tree":
-			return _conifer_parts() if TreeArt.classify(str(e.get("label"))) == "fir" else _tree_parts()
+			if TreeArt.classify(str(e.get("label"))) == "fir":
+				return _conifer_parts()
+			return _tree_parts(_canopy_mat(e))
 		"rock":
 			return _rock_parts()
 		"node":
@@ -61,18 +70,36 @@ static func decor_parts(kind: String) -> Array:
 			return [_part(_sphere("d_tuft", 0.22), _mat("foliage_c", "grass_dark", "foliage_c"), Vector3(0, 0.16, 0), Vector3(1.0, 0.7, 1.0))]
 
 
-static func _tree_parts() -> Array:
-	# Fuller, rounder canopy (A Short Hike-ish): a big central mass, side lobes,
-	# and a lighter sunlit crown — the toon bands do the soft shading.
-	var leaf := _mat("foliage_a", "foliage_b", "foliage_c")
-	var crown := _mat("foliage_c", "foliage_a", "foliage_c")
+static func _canopy_mat(e: Node) -> ShaderMaterial:
+	var h := absi(hash(str(e.get("label")) + str(int(e.position.x)) + "," + str(int(e.position.y))))
+	var col: Color = CANOPY[h % CANOPY.size()]
+	return _foliage_mat(col)
+
+
+## A foliage material (toon bands derived from one canopy color) with wind on.
+static func _foliage_mat(base: Color) -> ShaderMaterial:
+	var ck := "fol|%s" % base
+	if not _mat_cache.has(ck):
+		var m := ShaderMaterial.new()
+		m.shader = TOON
+		m.set_shader_parameter("base_color", base)
+		m.set_shader_parameter("shadow_color", base.darkened(0.34))
+		m.set_shader_parameter("light_color", base.lightened(0.2))
+		m.set_shader_parameter("wind", 0.06)
+		_mat_cache[ck] = m
+	return _mat_cache[ck]
+
+
+static func _tree_parts(leaf: ShaderMaterial) -> Array:
+	# Fuller, rounder canopy (A Short Hike-ish): a big central mass + side lobes;
+	# the toon bands do the soft shading and the per-tree color adds variety.
 	return [
 		_part(_cyl("trunk", 0.16, 0.26, 1.5), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0, 0.75, 0)),
 		_part(_sphere("can_main", 1.35), leaf, Vector3(0, 2.05, 0), Vector3(1.05, 0.9, 1.05)),
 		_part(_sphere("can_l", 0.95), leaf, Vector3(-0.78, 1.85, 0.32), Vector3(1, 0.85, 1)),
 		_part(_sphere("can_r", 0.9), leaf, Vector3(0.8, 1.9, -0.24), Vector3(1, 0.85, 1)),
 		_part(_sphere("can_f", 0.85), leaf, Vector3(0.1, 1.8, 0.7), Vector3(1, 0.85, 1)),
-		_part(_sphere("can_top", 1.0), crown, Vector3(0.05, 2.75, -0.05), Vector3(1, 0.85, 1))]
+		_part(_sphere("can_top", 1.0), leaf, Vector3(0.05, 2.75, -0.05), Vector3(1, 0.85, 1))]
 
 
 static func _conifer_parts() -> Array:
