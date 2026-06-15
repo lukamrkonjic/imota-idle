@@ -27,13 +27,58 @@ func _run() -> void:
 	if cam != null:
 		cam.position_smoothing_enabled = false
 	print("\n=== WALK DIAG (2560x1440) ===")
-	for zoom: float in [1.0, 0.7, 0.5]:
-		await _walk(zoom)
-	# A/B: walk a fresh corridor, then walk the SAME corridor again. Pass 2 re-streams
-	# the same chunks but every shader pipeline/GPU resource is already warm, so if
-	# pass 2 has far fewer spikes the stutter is first-render compilation, not work.
-	await _ab_test(0.7)
+	await _click_walk(0.95)
 	get_tree().quit(0)
+
+
+## REAL click-to-walk: drives the player through the actual path system (A* find_path,
+## avatar movement at 230px/s, debounced nav rebuilds on chunk crossings, waypoint
+## arrivals) instead of teleporting position. Camera smoothing left ON like real play.
+## Attributes the worst frames to a subsystem so we catch the click-walk-only culprit.
+func _click_walk(zoom: float) -> void:
+	var cam: Camera2D = _world.get("_camera")
+	if cam != null:
+		cam.zoom = Vector2(zoom, zoom)
+		cam.position_smoothing_enabled = true
+		cam.reset_smoothing()
+	var vp_rid := _world.get_viewport().get_viewport_rid()
+	RenderingServer.viewport_set_measure_render_time(vp_rid, true)
+	# Settle at spawn, then walk outward into fresh land along a diagonal.
+	for _i: int in 120:
+		await get_tree().process_frame
+	var dir := Vector2(0.80, 0.60).normalized()
+	var worst: Array = []
+	var drops := 0          # frames slower than 60Hz (>16.7ms)
+	var deep_drops := 0     # frames slower than ~90fps-ish that read as a visible hitch (>11ms) — count separate
+	var big := 0            # >25ms (the 144->40 dips the user reports)
+	var frames := 2400
+	for i: int in frames:
+		var p: Node2D = _world.player
+		# Re-issue a target ahead whenever the avatar is idle or nearly there.
+		if not bool(p.get("walking")):
+			var target: Vector2 = p.position + dir * (WG.CHUNK_SIZE * 6.0)
+			_world.call("walk_to_pos", target)
+		var t0 := Time.get_ticks_usec()
+		await get_tree().process_frame
+		var ms := float(Time.get_ticks_usec() - t0) / 1000.0
+		if ms > 16.7:
+			drops += 1
+		if ms > 11.0:
+			deep_drops += 1
+		if ms > 25.0:
+			big += 1
+		if ms > 16.0:
+			var cm: Dictionary = (_world.chunk_manager.get("last_timings") as Dictionary).duplicate()
+			var wf: Dictionary = (_world.get("last_frame_timings") as Dictionary).duplicate()
+			worst.append({"ms": snappedf(ms, 0.1),
+				"rcpu": snappedf(RenderingServer.viewport_get_measured_render_time_cpu(vp_rid), 0.2),
+				"rgpu": snappedf(RenderingServer.viewport_get_measured_render_time_gpu(vp_rid), 0.2),
+				"world_us": wf, "cm_us": cm})
+	worst.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["ms"] > b["ms"])
+	print("\n=== CLICK-WALK (zoom %.2f, %d frames) ===" % [zoom, frames])
+	print("frames >16.7ms: %d   >25ms: %d   >11ms: %d" % [drops, big, deep_drops])
+	for w: Dictionary in worst.slice(0, 10):
+		print(JSON.stringify(w))
 
 
 func _ab_test(zoom: float) -> void:

@@ -28,6 +28,9 @@ var _darkness_vp := Vector2.ZERO
 # spike is just spread into a flat sub-millisecond per-frame cost.
 const VIS_PASS_FRAMES := 11
 const VIS_SLICE_MIN := 96
+# Live-animate only entities within this world-space distance of the player (~the
+# immediate surroundings); everything farther freezes to a baked blit.
+const ANIM_NEAR_DIST_SQ := 400.0 * 400.0
 var _vis_cursor := 0
 var _vis_accum: Array = []
 
@@ -201,6 +204,7 @@ func _update_entity_visibility_slice(rect: Rect2) -> void:
 		_vis_cursor = 0
 		return
 	var slice := maxi(VIS_SLICE_MIN, ceili(float(n) / float(VIS_PASS_FRAMES)))
+	var pp: Vector2 = world.player.position
 	var processed := 0
 	while processed < slice:
 		if _vis_cursor >= n:
@@ -216,6 +220,10 @@ func _update_entity_visibility_slice(rect: Rect2) -> void:
 			continue
 		var in_view := _entity_intersects_rect(e, rect)
 		e.visible = in_view
+		# Only entities close to the player run live procedural animation; distant
+		# visible ones freeze to a cheap baked blit. Live procedural art is the
+		# dominant walking render cost (disabling baking quadrupled the slow frames).
+		e.set_animate_near(in_view and e.position.distance_squared_to(pp) < ANIM_NEAR_DIST_SQ)
 		if in_view:
 			_vis_accum.append(e)
 		elif e.highlight_outline:

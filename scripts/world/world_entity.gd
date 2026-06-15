@@ -80,6 +80,12 @@ var _t := 0.0
 var _font: Font
 var _animated := false
 var _anim_accum := 0.0
+# Animated entities only redraw procedurally every frame while near the player.
+# Distant visible ones (most of the screen at play zoom) freeze, which lets them
+# fall back to a 1-draw baked atlas blit instead of ~40-object live procedural art.
+# Set by WorldVisualController each visibility pass; defaults true so behaviour is
+# unchanged until the controller scopes it.
+var _animate_near := true
 # Ambient/idle/limb animation only needs ~30 redraws/sec; movement is a transform
 # change (always smooth) so this is imperceptible but cuts redraw work hugely.
 const ANIM_DT := 1.0 / 30.0
@@ -119,9 +125,23 @@ func _sync_processing() -> void:
 	set_process(_animated and is_visible_in_tree())
 
 
+## True only when this entity should run live procedural animation this frame —
+## globally enabled (zoomed in enough) AND close to the player. Otherwise it draws
+## its frozen baked look.
+func _live_anim() -> bool:
+	return animations_enabled and _animate_near
+
+
+func set_animate_near(v: bool) -> void:
+	if _animate_near == v:
+		return
+	_animate_near = v
+	queue_redraw()  # switch between live procedural art and the baked blit
+
+
 func _process(delta: float) -> void:
 	_t += delta
-	if not animations_enabled:
+	if not _live_anim():
 		return
 	_anim_accum += delta
 	if _anim_accum < ANIM_DT:
@@ -229,9 +249,9 @@ func _is_baked_kind() -> bool:
 	if not is_instance_valid(sprite_cache):
 		return false
 	if kind in ROOF_FADE_KINDS:
-		return not animations_enabled and roof_alpha >= 0.99
+		return not _live_anim() and roof_alpha >= 0.99
 	if kind in LIVE_KINDS:
-		return not animations_enabled
+		return not _live_anim()
 	return true
 
 
