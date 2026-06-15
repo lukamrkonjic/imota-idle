@@ -20,6 +20,7 @@ const ClickMarkerNode := preload("res://scripts/ui/click_marker_node.gd")
 const PerfLogger := preload("res://scripts/world/perf_logger.gd")
 const BakeQueue := preload("res://scripts/world/bake_queue.gd")
 const EntitySpriteCache := preload("res://scripts/world/entity_sprite_cache.gd")
+const SpriteAtlas := preload("res://scripts/world/sprite_atlas.gd")
 const WorldEntity := preload("res://scripts/world/world_entity.gd")
 
 # --- public state (tests, HUD) ---
@@ -107,6 +108,10 @@ func _build_scene() -> void:
 	add_child(chunk_manager)
 	chunk_manager.chunk_loaded.connect(_entity_spawner.on_chunk_loaded)
 	chunk_manager.chunk_unloaded.connect(_entity_spawner.on_chunk_unloaded)
+
+	var sprite_atlas := SpriteAtlas.new()
+	sprite_atlas.name = "SpriteAtlas"
+	add_child(sprite_atlas)
 
 	var bake_queue := BakeQueue.new()
 	bake_queue.name = "BakeQueue"

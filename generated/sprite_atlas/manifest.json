@@ -1,0 +1,7859 @@
+{
+  "pages": [
+    "res://generated/sprite_atlas/page_0.png"
+  ],
+  "sprites": {
+    "decor|bone|0": {
+      "page": 0,
+      "pivot": [
+        14.0,
+        15.0
+      ],
+      "region": [
+        867,
+        88,
+        28,
+        25
+      ]
+    },
+    "decor|bone|1": {
+      "page": 0,
+      "pivot": [
+        13.0,
+        14.0
+      ],
+      "region": [
+        897,
+        88,
+        28,
+        25
+      ]
+    },
+    "decor|bone|10": {
+      "page": 0,
+      "pivot": [
+        14.0,
+        15.0
+      ],
+      "region": [
+        1167,
+        88,
+        28,
+        25
+      ]
+    },
+    "decor|bone|11": {
+      "page": 0,
+      "pivot": [
+        13.0,
+        14.0
+      ],
+      "region": [
+        1197,
+        88,
+        28,
+        25
+      ]
+    },
+    "decor|bone|12": {
+      "page": 0,
+      "pivot": [
+        14.0,
+        15.0
+      ],
+      "region": [
+        1227,
+        88,
+        28,
+        25
+      ]
+    },
+    "decor|bone|13": {
+      "page": 0,
+      "pivot": [
+        13.0,
+        14.0
+      ],
+      "region": [
+        1257,
+        88,
+        28,
+        25
+      ]
+    },
+    "decor|bone|14": {
+      "page": 0,
+      "pivot": [
+        14.0,
+        15.0
+      ],
+      "region": [
+        1287,
+        88,
+        28,
+        25
+      ]
+    },
+    "decor|bone|15": {
+      "page": 0,
+      "pivot": [
+        13.0,
+        14.0
+      ],
+      "region": [
+        1317,
+        88,
+        28,
+        25
+      ]
+    },
+    "decor|bone|16": {
+      "page": 0,
+      "pivot": [
+        14.0,
+        15.0
+      ],
+      "region": [
+        1347,
+        88,
+        28,
+        25
+      ]
+    },
+    "decor|bone|17": {
+      "page": 0,
+      "pivot": [
+        13.0,
+        14.0
+      ],
+      "region": [
+        1377,
+        88,
+        28,
+        25
+      ]
+    },
+    "decor|bone|18": {
+      "page": 0,
+      "pivot": [
+        14.0,
+        15.0
+      ],
+      "region": [
+        1407,
+        88,
+        28,
+        25
+      ]
+    },
+    "decor|bone|19": {
+      "page": 0,
+      "pivot": [
+        13.0,
+        14.0
+      ],
+      "region": [
+        1437,
+        88,
+        28,
+        25
+      ]
+    },
+    "decor|bone|2": {
+      "page": 0,
+      "pivot": [
+        14.0,
+        15.0
+      ],
+      "region": [
+        927,
+        88,
+        28,
+        25
+      ]
+    },
+    "decor|bone|20": {
+      "page": 0,
+      "pivot": [
+        14.0,
+        15.0
+      ],
+      "region": [
+        1467,
+        88,
+        28,
+        25
+      ]
+    },
+    "decor|bone|21": {
+      "page": 0,
+      "pivot": [
+        13.0,
+        14.0
+      ],
+      "region": [
+        1497,
+        88,
+        28,
+        25
+      ]
+    },
+    "decor|bone|22": {
+      "page": 0,
+      "pivot": [
+        14.0,
+        15.0
+      ],
+      "region": [
+        1527,
+        88,
+        28,
+        25
+      ]
+    },
+    "decor|bone|23": {
+      "page": 0,
+      "pivot": [
+        13.0,
+        14.0
+      ],
+      "region": [
+        1557,
+        88,
+        28,
+        25
+      ]
+    },
+    "decor|bone|3": {
+      "page": 0,
+      "pivot": [
+        13.0,
+        14.0
+      ],
+      "region": [
+        957,
+        88,
+        28,
+        25
+      ]
+    },
+    "decor|bone|4": {
+      "page": 0,
+      "pivot": [
+        14.0,
+        15.0
+      ],
+      "region": [
+        987,
+        88,
+        28,
+        25
+      ]
+    },
+    "decor|bone|5": {
+      "page": 0,
+      "pivot": [
+        13.0,
+        14.0
+      ],
+      "region": [
+        1017,
+        88,
+        28,
+        25
+      ]
+    },
+    "decor|bone|6": {
+      "page": 0,
+      "pivot": [
+        14.0,
+        15.0
+      ],
+      "region": [
+        1047,
+        88,
+        28,
+        25
+      ]
+    },
+    "decor|bone|7": {
+      "page": 0,
+      "pivot": [
+        13.0,
+        14.0
+      ],
+      "region": [
+        1077,
+        88,
+        28,
+        25
+      ]
+    },
+    "decor|bone|8": {
+      "page": 0,
+      "pivot": [
+        14.0,
+        15.0
+      ],
+      "region": [
+        1107,
+        88,
+        28,
+        25
+      ]
+    },
+    "decor|bone|9": {
+      "page": 0,
+      "pivot": [
+        13.0,
+        14.0
+      ],
+      "region": [
+        1137,
+        88,
+        28,
+        25
+      ]
+    },
+    "decor|bramble|0": {
+      "page": 0,
+      "pivot": [
+        9.0,
+        12.0
+      ],
+      "region": [
+        1587,
+        88,
+        18,
+        20
+      ]
+    },
+    "decor|bramble|1": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1607,
+        88,
+        17,
+        20
+      ]
+    },
+    "decor|bramble|10": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1784,
+        88,
+        17,
+        20
+      ]
+    },
+    "decor|bramble|11": {
+      "page": 0,
+      "pivot": [
+        9.0,
+        12.0
+      ],
+      "region": [
+        1803,
+        88,
+        18,
+        20
+      ]
+    },
+    "decor|bramble|12": {
+      "page": 0,
+      "pivot": [
+        9.0,
+        12.0
+      ],
+      "region": [
+        1823,
+        88,
+        18,
+        20
+      ]
+    },
+    "decor|bramble|13": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1843,
+        88,
+        17,
+        20
+      ]
+    },
+    "decor|bramble|14": {
+      "page": 0,
+      "pivot": [
+        9.0,
+        12.0
+      ],
+      "region": [
+        1862,
+        88,
+        18,
+        20
+      ]
+    },
+    "decor|bramble|15": {
+      "page": 0,
+      "pivot": [
+        9.0,
+        12.0
+      ],
+      "region": [
+        1882,
+        88,
+        18,
+        20
+      ]
+    },
+    "decor|bramble|16": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1902,
+        88,
+        17,
+        20
+      ]
+    },
+    "decor|bramble|17": {
+      "page": 0,
+      "pivot": [
+        9.0,
+        12.0
+      ],
+      "region": [
+        1921,
+        88,
+        18,
+        20
+      ]
+    },
+    "decor|bramble|18": {
+      "page": 0,
+      "pivot": [
+        9.0,
+        12.0
+      ],
+      "region": [
+        1941,
+        88,
+        18,
+        20
+      ]
+    },
+    "decor|bramble|19": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1961,
+        88,
+        17,
+        20
+      ]
+    },
+    "decor|bramble|2": {
+      "page": 0,
+      "pivot": [
+        9.0,
+        12.0
+      ],
+      "region": [
+        1626,
+        88,
+        18,
+        20
+      ]
+    },
+    "decor|bramble|20": {
+      "page": 0,
+      "pivot": [
+        9.0,
+        12.0
+      ],
+      "region": [
+        1980,
+        88,
+        18,
+        20
+      ]
+    },
+    "decor|bramble|21": {
+      "page": 0,
+      "pivot": [
+        9.0,
+        12.0
+      ],
+      "region": [
+        2000,
+        88,
+        18,
+        20
+      ]
+    },
+    "decor|bramble|22": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        2020,
+        88,
+        17,
+        20
+      ]
+    },
+    "decor|bramble|23": {
+      "page": 0,
+      "pivot": [
+        9.0,
+        12.0
+      ],
+      "region": [
+        2,
+        115,
+        18,
+        20
+      ]
+    },
+    "decor|bramble|3": {
+      "page": 0,
+      "pivot": [
+        9.0,
+        12.0
+      ],
+      "region": [
+        1646,
+        88,
+        18,
+        20
+      ]
+    },
+    "decor|bramble|4": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1666,
+        88,
+        17,
+        20
+      ]
+    },
+    "decor|bramble|5": {
+      "page": 0,
+      "pivot": [
+        9.0,
+        12.0
+      ],
+      "region": [
+        1685,
+        88,
+        18,
+        20
+      ]
+    },
+    "decor|bramble|6": {
+      "page": 0,
+      "pivot": [
+        9.0,
+        12.0
+      ],
+      "region": [
+        1705,
+        88,
+        18,
+        20
+      ]
+    },
+    "decor|bramble|7": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1725,
+        88,
+        17,
+        20
+      ]
+    },
+    "decor|bramble|8": {
+      "page": 0,
+      "pivot": [
+        9.0,
+        12.0
+      ],
+      "region": [
+        1744,
+        88,
+        18,
+        20
+      ]
+    },
+    "decor|bramble|9": {
+      "page": 0,
+      "pivot": [
+        9.0,
+        12.0
+      ],
+      "region": [
+        1764,
+        88,
+        18,
+        20
+      ]
+    },
+    "decor|cactus|0": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        24.0
+      ],
+      "region": [
+        200,
+        62,
+        16,
+        24
+      ]
+    },
+    "decor|cactus|1": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        20.0
+      ],
+      "region": [
+        218,
+        62,
+        4,
+        20
+      ]
+    },
+    "decor|cactus|10": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        20.0
+      ],
+      "region": [
+        308,
+        62,
+        4,
+        20
+      ]
+    },
+    "decor|cactus|11": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        20.0
+      ],
+      "region": [
+        314,
+        62,
+        4,
+        20
+      ]
+    },
+    "decor|cactus|12": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        24.0
+      ],
+      "region": [
+        320,
+        62,
+        16,
+        24
+      ]
+    },
+    "decor|cactus|13": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        20.0
+      ],
+      "region": [
+        338,
+        62,
+        4,
+        20
+      ]
+    },
+    "decor|cactus|14": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        20.0
+      ],
+      "region": [
+        344,
+        62,
+        4,
+        20
+      ]
+    },
+    "decor|cactus|15": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        24.0
+      ],
+      "region": [
+        350,
+        62,
+        16,
+        24
+      ]
+    },
+    "decor|cactus|16": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        20.0
+      ],
+      "region": [
+        368,
+        62,
+        4,
+        20
+      ]
+    },
+    "decor|cactus|17": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        20.0
+      ],
+      "region": [
+        374,
+        62,
+        4,
+        20
+      ]
+    },
+    "decor|cactus|18": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        24.0
+      ],
+      "region": [
+        380,
+        62,
+        16,
+        24
+      ]
+    },
+    "decor|cactus|19": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        20.0
+      ],
+      "region": [
+        398,
+        62,
+        4,
+        20
+      ]
+    },
+    "decor|cactus|2": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        20.0
+      ],
+      "region": [
+        224,
+        62,
+        4,
+        20
+      ]
+    },
+    "decor|cactus|20": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        20.0
+      ],
+      "region": [
+        404,
+        62,
+        4,
+        20
+      ]
+    },
+    "decor|cactus|21": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        24.0
+      ],
+      "region": [
+        410,
+        62,
+        16,
+        24
+      ]
+    },
+    "decor|cactus|22": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        20.0
+      ],
+      "region": [
+        428,
+        62,
+        4,
+        20
+      ]
+    },
+    "decor|cactus|23": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        20.0
+      ],
+      "region": [
+        434,
+        62,
+        4,
+        20
+      ]
+    },
+    "decor|cactus|3": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        24.0
+      ],
+      "region": [
+        230,
+        62,
+        16,
+        24
+      ]
+    },
+    "decor|cactus|4": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        20.0
+      ],
+      "region": [
+        248,
+        62,
+        4,
+        20
+      ]
+    },
+    "decor|cactus|5": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        20.0
+      ],
+      "region": [
+        254,
+        62,
+        4,
+        20
+      ]
+    },
+    "decor|cactus|6": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        24.0
+      ],
+      "region": [
+        260,
+        62,
+        16,
+        24
+      ]
+    },
+    "decor|cactus|7": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        20.0
+      ],
+      "region": [
+        278,
+        62,
+        4,
+        20
+      ]
+    },
+    "decor|cactus|8": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        20.0
+      ],
+      "region": [
+        284,
+        62,
+        4,
+        20
+      ]
+    },
+    "decor|cactus|9": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        24.0
+      ],
+      "region": [
+        290,
+        62,
+        16,
+        24
+      ]
+    },
+    "decor|driftwood|0": {
+      "page": 0,
+      "pivot": [
+        11.0,
+        13.0
+      ],
+      "region": [
+        1776,
+        62,
+        23,
+        20
+      ]
+    },
+    "decor|driftwood|1": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1801,
+        62,
+        26,
+        18
+      ]
+    },
+    "decor|driftwood|10": {
+      "page": 0,
+      "pivot": [
+        13.0,
+        9.0
+      ],
+      "region": [
+        30,
+        88,
+        28,
+        13
+      ]
+    },
+    "decor|driftwood|11": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        7.0
+      ],
+      "region": [
+        60,
+        88,
+        28,
+        9
+      ]
+    },
+    "decor|driftwood|12": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        4.0
+      ],
+      "region": [
+        90,
+        88,
+        28,
+        4
+      ]
+    },
+    "decor|driftwood|13": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        6.0
+      ],
+      "region": [
+        120,
+        88,
+        28,
+        9
+      ]
+    },
+    "decor|driftwood|14": {
+      "page": 0,
+      "pivot": [
+        11.0,
+        8.0
+      ],
+      "region": [
+        150,
+        88,
+        27,
+        13
+      ]
+    },
+    "decor|driftwood|15": {
+      "page": 0,
+      "pivot": [
+        10.0,
+        9.0
+      ],
+      "region": [
+        179,
+        88,
+        25,
+        17
+      ]
+    },
+    "decor|driftwood|16": {
+      "page": 0,
+      "pivot": [
+        11.0,
+        13.0
+      ],
+      "region": [
+        206,
+        88,
+        23,
+        20
+      ]
+    },
+    "decor|driftwood|17": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        231,
+        88,
+        26,
+        18
+      ]
+    },
+    "decor|driftwood|18": {
+      "page": 0,
+      "pivot": [
+        13.0,
+        9.0
+      ],
+      "region": [
+        259,
+        88,
+        28,
+        13
+      ]
+    },
+    "decor|driftwood|19": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        7.0
+      ],
+      "region": [
+        289,
+        88,
+        28,
+        9
+      ]
+    },
+    "decor|driftwood|2": {
+      "page": 0,
+      "pivot": [
+        13.0,
+        9.0
+      ],
+      "region": [
+        1829,
+        62,
+        28,
+        13
+      ]
+    },
+    "decor|driftwood|20": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        4.0
+      ],
+      "region": [
+        319,
+        88,
+        28,
+        4
+      ]
+    },
+    "decor|driftwood|21": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        6.0
+      ],
+      "region": [
+        349,
+        88,
+        28,
+        9
+      ]
+    },
+    "decor|driftwood|22": {
+      "page": 0,
+      "pivot": [
+        11.0,
+        8.0
+      ],
+      "region": [
+        379,
+        88,
+        27,
+        13
+      ]
+    },
+    "decor|driftwood|23": {
+      "page": 0,
+      "pivot": [
+        10.0,
+        9.0
+      ],
+      "region": [
+        408,
+        88,
+        25,
+        17
+      ]
+    },
+    "decor|driftwood|3": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        7.0
+      ],
+      "region": [
+        1859,
+        62,
+        28,
+        9
+      ]
+    },
+    "decor|driftwood|4": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        4.0
+      ],
+      "region": [
+        1889,
+        62,
+        28,
+        4
+      ]
+    },
+    "decor|driftwood|5": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        6.0
+      ],
+      "region": [
+        1919,
+        62,
+        28,
+        9
+      ]
+    },
+    "decor|driftwood|6": {
+      "page": 0,
+      "pivot": [
+        11.0,
+        8.0
+      ],
+      "region": [
+        1949,
+        62,
+        27,
+        13
+      ]
+    },
+    "decor|driftwood|7": {
+      "page": 0,
+      "pivot": [
+        10.0,
+        9.0
+      ],
+      "region": [
+        1978,
+        62,
+        25,
+        17
+      ]
+    },
+    "decor|driftwood|8": {
+      "page": 0,
+      "pivot": [
+        11.0,
+        13.0
+      ],
+      "region": [
+        2005,
+        62,
+        23,
+        20
+      ]
+    },
+    "decor|driftwood|9": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        2,
+        88,
+        26,
+        18
+      ]
+    },
+    "decor|fern|0": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        20.0
+      ],
+      "region": [
+        370,
+        2,
+        36,
+        20
+      ]
+    },
+    "decor|fern|1": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        20.0
+      ],
+      "region": [
+        408,
+        2,
+        36,
+        20
+      ]
+    },
+    "decor|fern|10": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        20.0
+      ],
+      "region": [
+        750,
+        2,
+        36,
+        20
+      ]
+    },
+    "decor|fern|11": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        20.0
+      ],
+      "region": [
+        788,
+        2,
+        36,
+        20
+      ]
+    },
+    "decor|fern|12": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        20.0
+      ],
+      "region": [
+        826,
+        2,
+        36,
+        20
+      ]
+    },
+    "decor|fern|13": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        20.0
+      ],
+      "region": [
+        864,
+        2,
+        36,
+        20
+      ]
+    },
+    "decor|fern|14": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        20.0
+      ],
+      "region": [
+        902,
+        2,
+        36,
+        20
+      ]
+    },
+    "decor|fern|15": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        20.0
+      ],
+      "region": [
+        940,
+        2,
+        36,
+        20
+      ]
+    },
+    "decor|fern|16": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        20.0
+      ],
+      "region": [
+        978,
+        2,
+        36,
+        20
+      ]
+    },
+    "decor|fern|17": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        20.0
+      ],
+      "region": [
+        1016,
+        2,
+        36,
+        20
+      ]
+    },
+    "decor|fern|18": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        20.0
+      ],
+      "region": [
+        1054,
+        2,
+        36,
+        20
+      ]
+    },
+    "decor|fern|19": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        20.0
+      ],
+      "region": [
+        1092,
+        2,
+        36,
+        20
+      ]
+    },
+    "decor|fern|2": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        20.0
+      ],
+      "region": [
+        446,
+        2,
+        36,
+        20
+      ]
+    },
+    "decor|fern|20": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        20.0
+      ],
+      "region": [
+        1130,
+        2,
+        36,
+        20
+      ]
+    },
+    "decor|fern|21": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        20.0
+      ],
+      "region": [
+        1168,
+        2,
+        36,
+        20
+      ]
+    },
+    "decor|fern|22": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        20.0
+      ],
+      "region": [
+        1206,
+        2,
+        36,
+        20
+      ]
+    },
+    "decor|fern|23": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        20.0
+      ],
+      "region": [
+        1244,
+        2,
+        36,
+        20
+      ]
+    },
+    "decor|fern|3": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        20.0
+      ],
+      "region": [
+        484,
+        2,
+        36,
+        20
+      ]
+    },
+    "decor|fern|4": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        20.0
+      ],
+      "region": [
+        522,
+        2,
+        36,
+        20
+      ]
+    },
+    "decor|fern|5": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        20.0
+      ],
+      "region": [
+        560,
+        2,
+        36,
+        20
+      ]
+    },
+    "decor|fern|6": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        20.0
+      ],
+      "region": [
+        598,
+        2,
+        36,
+        20
+      ]
+    },
+    "decor|fern|7": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        20.0
+      ],
+      "region": [
+        636,
+        2,
+        36,
+        20
+      ]
+    },
+    "decor|fern|8": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        20.0
+      ],
+      "region": [
+        674,
+        2,
+        36,
+        20
+      ]
+    },
+    "decor|fern|9": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        20.0
+      ],
+      "region": [
+        712,
+        2,
+        36,
+        20
+      ]
+    },
+    "decor|flower|0": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        1282,
+        2,
+        16,
+        16
+      ]
+    },
+    "decor|flower|1": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        1300,
+        2,
+        12,
+        16
+      ]
+    },
+    "decor|flower|10": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        1438,
+        2,
+        12,
+        16
+      ]
+    },
+    "decor|flower|11": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        1452,
+        2,
+        12,
+        16
+      ]
+    },
+    "decor|flower|12": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        1466,
+        2,
+        16,
+        16
+      ]
+    },
+    "decor|flower|13": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        1484,
+        2,
+        12,
+        16
+      ]
+    },
+    "decor|flower|14": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        1498,
+        2,
+        12,
+        16
+      ]
+    },
+    "decor|flower|15": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        1512,
+        2,
+        16,
+        16
+      ]
+    },
+    "decor|flower|16": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        1530,
+        2,
+        12,
+        16
+      ]
+    },
+    "decor|flower|17": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        1544,
+        2,
+        12,
+        16
+      ]
+    },
+    "decor|flower|18": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        1558,
+        2,
+        16,
+        16
+      ]
+    },
+    "decor|flower|19": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        1576,
+        2,
+        12,
+        16
+      ]
+    },
+    "decor|flower|2": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        1314,
+        2,
+        12,
+        16
+      ]
+    },
+    "decor|flower|20": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        1590,
+        2,
+        12,
+        16
+      ]
+    },
+    "decor|flower|21": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        1604,
+        2,
+        16,
+        16
+      ]
+    },
+    "decor|flower|22": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        1622,
+        2,
+        12,
+        16
+      ]
+    },
+    "decor|flower|23": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        1636,
+        2,
+        12,
+        16
+      ]
+    },
+    "decor|flower|3": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        1328,
+        2,
+        16,
+        16
+      ]
+    },
+    "decor|flower|4": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        1346,
+        2,
+        12,
+        16
+      ]
+    },
+    "decor|flower|5": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        1360,
+        2,
+        12,
+        16
+      ]
+    },
+    "decor|flower|6": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        1374,
+        2,
+        16,
+        16
+      ]
+    },
+    "decor|flower|7": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        1392,
+        2,
+        12,
+        16
+      ]
+    },
+    "decor|flower|8": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        1406,
+        2,
+        12,
+        16
+      ]
+    },
+    "decor|flower|9": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        1420,
+        2,
+        16,
+        16
+      ]
+    },
+    "decor|grass|0": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        2,
+        2,
+        16,
+        8
+      ]
+    },
+    "decor|grass|1": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        8.0
+      ],
+      "region": [
+        20,
+        2,
+        12,
+        8
+      ]
+    },
+    "decor|grass|10": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        8.0
+      ],
+      "region": [
+        158,
+        2,
+        12,
+        8
+      ]
+    },
+    "decor|grass|11": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        8.0
+      ],
+      "region": [
+        172,
+        2,
+        12,
+        8
+      ]
+    },
+    "decor|grass|12": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        186,
+        2,
+        16,
+        8
+      ]
+    },
+    "decor|grass|13": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        8.0
+      ],
+      "region": [
+        204,
+        2,
+        12,
+        8
+      ]
+    },
+    "decor|grass|14": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        8.0
+      ],
+      "region": [
+        218,
+        2,
+        12,
+        8
+      ]
+    },
+    "decor|grass|15": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        232,
+        2,
+        16,
+        8
+      ]
+    },
+    "decor|grass|16": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        8.0
+      ],
+      "region": [
+        250,
+        2,
+        12,
+        8
+      ]
+    },
+    "decor|grass|17": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        8.0
+      ],
+      "region": [
+        264,
+        2,
+        12,
+        8
+      ]
+    },
+    "decor|grass|18": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        278,
+        2,
+        16,
+        8
+      ]
+    },
+    "decor|grass|19": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        8.0
+      ],
+      "region": [
+        296,
+        2,
+        12,
+        8
+      ]
+    },
+    "decor|grass|2": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        8.0
+      ],
+      "region": [
+        34,
+        2,
+        12,
+        8
+      ]
+    },
+    "decor|grass|20": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        8.0
+      ],
+      "region": [
+        310,
+        2,
+        12,
+        8
+      ]
+    },
+    "decor|grass|21": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        324,
+        2,
+        16,
+        8
+      ]
+    },
+    "decor|grass|22": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        8.0
+      ],
+      "region": [
+        342,
+        2,
+        12,
+        8
+      ]
+    },
+    "decor|grass|23": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        8.0
+      ],
+      "region": [
+        356,
+        2,
+        12,
+        8
+      ]
+    },
+    "decor|grass|3": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        48,
+        2,
+        16,
+        8
+      ]
+    },
+    "decor|grass|4": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        8.0
+      ],
+      "region": [
+        66,
+        2,
+        12,
+        8
+      ]
+    },
+    "decor|grass|5": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        8.0
+      ],
+      "region": [
+        80,
+        2,
+        12,
+        8
+      ]
+    },
+    "decor|grass|6": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        94,
+        2,
+        16,
+        8
+      ]
+    },
+    "decor|grass|7": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        8.0
+      ],
+      "region": [
+        112,
+        2,
+        12,
+        8
+      ]
+    },
+    "decor|grass|8": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        8.0
+      ],
+      "region": [
+        126,
+        2,
+        12,
+        8
+      ]
+    },
+    "decor|grass|9": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        140,
+        2,
+        16,
+        8
+      ]
+    },
+    "decor|lichen|0": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1324,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|lichen|1": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1342,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|lichen|10": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1512,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|lichen|11": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1530,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|lichen|12": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1548,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|lichen|13": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1566,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|lichen|14": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        12.0
+      ],
+      "region": [
+        1588,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|lichen|15": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1606,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|lichen|16": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1624,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|lichen|17": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1642,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|lichen|18": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1660,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|lichen|19": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        12.0
+      ],
+      "region": [
+        1682,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|lichen|2": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1360,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|lichen|20": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1700,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|lichen|21": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1718,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|lichen|22": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1736,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|lichen|23": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1754,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|lichen|3": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1378,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|lichen|4": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        12.0
+      ],
+      "region": [
+        1400,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|lichen|5": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1418,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|lichen|6": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1436,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|lichen|7": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1454,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|lichen|8": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1472,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|lichen|9": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        12.0
+      ],
+      "region": [
+        1494,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|moss|0": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        796,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|moss|1": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        818,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|moss|10": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1016,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|moss|11": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1038,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|moss|12": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1060,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|moss|13": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        12.0
+      ],
+      "region": [
+        1082,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|moss|14": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1104,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|moss|15": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1126,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|moss|16": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1148,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|moss|17": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1170,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|moss|18": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1192,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|moss|19": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        1214,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|moss|2": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        840,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|moss|20": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        12.0
+      ],
+      "region": [
+        1236,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|moss|21": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1258,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|moss|22": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1280,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|moss|23": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1302,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|moss|3": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        862,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|moss|4": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        884,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|moss|5": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        906,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|moss|6": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        12.0
+      ],
+      "region": [
+        928,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|moss|7": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        950,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|moss|8": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        972,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|moss|9": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        994,
+        62,
+        20,
+        16
+      ]
+    },
+    "decor|mushroom|0": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        1804,
+        32,
+        16,
+        16
+      ]
+    },
+    "decor|mushroom|1": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        1822,
+        32,
+        16,
+        16
+      ]
+    },
+    "decor|mushroom|10": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        1984,
+        32,
+        16,
+        16
+      ]
+    },
+    "decor|mushroom|11": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        2002,
+        32,
+        16,
+        16
+      ]
+    },
+    "decor|mushroom|12": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        2020,
+        32,
+        16,
+        16
+      ]
+    },
+    "decor|mushroom|13": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        2,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|mushroom|14": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        20,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|mushroom|15": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        38,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|mushroom|16": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        56,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|mushroom|17": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        74,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|mushroom|18": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        92,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|mushroom|19": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        110,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|mushroom|2": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        1840,
+        32,
+        16,
+        16
+      ]
+    },
+    "decor|mushroom|20": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        128,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|mushroom|21": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        146,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|mushroom|22": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        164,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|mushroom|23": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        182,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|mushroom|3": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        1858,
+        32,
+        16,
+        16
+      ]
+    },
+    "decor|mushroom|4": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        1876,
+        32,
+        16,
+        16
+      ]
+    },
+    "decor|mushroom|5": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        1894,
+        32,
+        16,
+        16
+      ]
+    },
+    "decor|mushroom|6": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        1912,
+        32,
+        16,
+        16
+      ]
+    },
+    "decor|mushroom|7": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        1930,
+        32,
+        16,
+        16
+      ]
+    },
+    "decor|mushroom|8": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        1948,
+        32,
+        16,
+        16
+      ]
+    },
+    "decor|mushroom|9": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        16.0
+      ],
+      "region": [
+        1966,
+        32,
+        16,
+        16
+      ]
+    },
+    "decor|pebble|0": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        908,
+        32,
+        12,
+        16
+      ]
+    },
+    "decor|pebble|1": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        922,
+        32,
+        20,
+        16
+      ]
+    },
+    "decor|pebble|10": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1096,
+        32,
+        20,
+        16
+      ]
+    },
+    "decor|pebble|11": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1118,
+        32,
+        20,
+        16
+      ]
+    },
+    "decor|pebble|12": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1140,
+        32,
+        12,
+        16
+      ]
+    },
+    "decor|pebble|13": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1154,
+        32,
+        20,
+        16
+      ]
+    },
+    "decor|pebble|14": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1176,
+        32,
+        20,
+        16
+      ]
+    },
+    "decor|pebble|15": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1198,
+        32,
+        12,
+        16
+      ]
+    },
+    "decor|pebble|16": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1212,
+        32,
+        20,
+        16
+      ]
+    },
+    "decor|pebble|17": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1234,
+        32,
+        20,
+        16
+      ]
+    },
+    "decor|pebble|18": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1256,
+        32,
+        12,
+        16
+      ]
+    },
+    "decor|pebble|19": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1270,
+        32,
+        20,
+        16
+      ]
+    },
+    "decor|pebble|2": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        944,
+        32,
+        20,
+        16
+      ]
+    },
+    "decor|pebble|20": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1292,
+        32,
+        20,
+        16
+      ]
+    },
+    "decor|pebble|21": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1314,
+        32,
+        12,
+        16
+      ]
+    },
+    "decor|pebble|22": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1328,
+        32,
+        20,
+        16
+      ]
+    },
+    "decor|pebble|23": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1350,
+        32,
+        20,
+        16
+      ]
+    },
+    "decor|pebble|3": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        966,
+        32,
+        12,
+        16
+      ]
+    },
+    "decor|pebble|4": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        980,
+        32,
+        20,
+        16
+      ]
+    },
+    "decor|pebble|5": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1002,
+        32,
+        20,
+        16
+      ]
+    },
+    "decor|pebble|6": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1024,
+        32,
+        12,
+        16
+      ]
+    },
+    "decor|pebble|7": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1038,
+        32,
+        20,
+        16
+      ]
+    },
+    "decor|pebble|8": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1060,
+        32,
+        20,
+        16
+      ]
+    },
+    "decor|pebble|9": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        12.0
+      ],
+      "region": [
+        1082,
+        32,
+        12,
+        16
+      ]
+    },
+    "decor|reed|0": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        28.0
+      ],
+      "region": [
+        1372,
+        32,
+        20,
+        28
+      ]
+    },
+    "decor|reed|1": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        28.0
+      ],
+      "region": [
+        1394,
+        32,
+        12,
+        28
+      ]
+    },
+    "decor|reed|10": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        24.0
+      ],
+      "region": [
+        1552,
+        32,
+        20,
+        24
+      ]
+    },
+    "decor|reed|11": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        24.0
+      ],
+      "region": [
+        1574,
+        32,
+        12,
+        24
+      ]
+    },
+    "decor|reed|12": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        28.0
+      ],
+      "region": [
+        1588,
+        32,
+        20,
+        28
+      ]
+    },
+    "decor|reed|13": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        28.0
+      ],
+      "region": [
+        1610,
+        32,
+        12,
+        28
+      ]
+    },
+    "decor|reed|14": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        28.0
+      ],
+      "region": [
+        1624,
+        32,
+        20,
+        28
+      ]
+    },
+    "decor|reed|15": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        24.0
+      ],
+      "region": [
+        1646,
+        32,
+        12,
+        24
+      ]
+    },
+    "decor|reed|16": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        24.0
+      ],
+      "region": [
+        1660,
+        32,
+        20,
+        24
+      ]
+    },
+    "decor|reed|17": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        24.0
+      ],
+      "region": [
+        1682,
+        32,
+        12,
+        24
+      ]
+    },
+    "decor|reed|18": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        28.0
+      ],
+      "region": [
+        1696,
+        32,
+        20,
+        28
+      ]
+    },
+    "decor|reed|19": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        28.0
+      ],
+      "region": [
+        1718,
+        32,
+        12,
+        28
+      ]
+    },
+    "decor|reed|2": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        28.0
+      ],
+      "region": [
+        1408,
+        32,
+        20,
+        28
+      ]
+    },
+    "decor|reed|20": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        28.0
+      ],
+      "region": [
+        1732,
+        32,
+        20,
+        28
+      ]
+    },
+    "decor|reed|21": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        24.0
+      ],
+      "region": [
+        1754,
+        32,
+        12,
+        24
+      ]
+    },
+    "decor|reed|22": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        24.0
+      ],
+      "region": [
+        1768,
+        32,
+        20,
+        24
+      ]
+    },
+    "decor|reed|23": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        24.0
+      ],
+      "region": [
+        1790,
+        32,
+        12,
+        24
+      ]
+    },
+    "decor|reed|3": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        24.0
+      ],
+      "region": [
+        1430,
+        32,
+        12,
+        24
+      ]
+    },
+    "decor|reed|4": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        24.0
+      ],
+      "region": [
+        1444,
+        32,
+        20,
+        24
+      ]
+    },
+    "decor|reed|5": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        24.0
+      ],
+      "region": [
+        1466,
+        32,
+        12,
+        24
+      ]
+    },
+    "decor|reed|6": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        28.0
+      ],
+      "region": [
+        1480,
+        32,
+        20,
+        28
+      ]
+    },
+    "decor|reed|7": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        28.0
+      ],
+      "region": [
+        1502,
+        32,
+        12,
+        28
+      ]
+    },
+    "decor|reed|8": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        28.0
+      ],
+      "region": [
+        1516,
+        32,
+        20,
+        28
+      ]
+    },
+    "decor|reed|9": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        24.0
+      ],
+      "region": [
+        1538,
+        32,
+        12,
+        24
+      ]
+    },
+    "decor|rubble|0": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        22,
+        115,
+        12,
+        8
+      ]
+    },
+    "decor|rubble|1": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        4.0
+      ],
+      "region": [
+        36,
+        115,
+        16,
+        4
+      ]
+    },
+    "decor|rubble|10": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        178,
+        115,
+        16,
+        8
+      ]
+    },
+    "decor|rubble|11": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        4.0
+      ],
+      "region": [
+        196,
+        115,
+        16,
+        4
+      ]
+    },
+    "decor|rubble|12": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        214,
+        115,
+        12,
+        8
+      ]
+    },
+    "decor|rubble|13": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        4.0
+      ],
+      "region": [
+        228,
+        115,
+        16,
+        4
+      ]
+    },
+    "decor|rubble|14": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        246,
+        115,
+        16,
+        8
+      ]
+    },
+    "decor|rubble|15": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        4.0
+      ],
+      "region": [
+        264,
+        115,
+        8,
+        4
+      ]
+    },
+    "decor|rubble|16": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        274,
+        115,
+        16,
+        8
+      ]
+    },
+    "decor|rubble|17": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        4.0
+      ],
+      "region": [
+        292,
+        115,
+        16,
+        4
+      ]
+    },
+    "decor|rubble|18": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        310,
+        115,
+        12,
+        8
+      ]
+    },
+    "decor|rubble|19": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        4.0
+      ],
+      "region": [
+        324,
+        115,
+        16,
+        4
+      ]
+    },
+    "decor|rubble|2": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        54,
+        115,
+        16,
+        8
+      ]
+    },
+    "decor|rubble|20": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        342,
+        115,
+        16,
+        8
+      ]
+    },
+    "decor|rubble|21": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        4.0
+      ],
+      "region": [
+        360,
+        115,
+        8,
+        4
+      ]
+    },
+    "decor|rubble|22": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        370,
+        115,
+        16,
+        8
+      ]
+    },
+    "decor|rubble|23": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        4.0
+      ],
+      "region": [
+        388,
+        115,
+        16,
+        4
+      ]
+    },
+    "decor|rubble|3": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        4.0
+      ],
+      "region": [
+        72,
+        115,
+        8,
+        4
+      ]
+    },
+    "decor|rubble|4": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        82,
+        115,
+        16,
+        8
+      ]
+    },
+    "decor|rubble|5": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        4.0
+      ],
+      "region": [
+        100,
+        115,
+        16,
+        4
+      ]
+    },
+    "decor|rubble|6": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        118,
+        115,
+        12,
+        8
+      ]
+    },
+    "decor|rubble|7": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        4.0
+      ],
+      "region": [
+        132,
+        115,
+        16,
+        4
+      ]
+    },
+    "decor|rubble|8": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        150,
+        115,
+        16,
+        8
+      ]
+    },
+    "decor|rubble|9": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        4.0
+      ],
+      "region": [
+        168,
+        115,
+        8,
+        4
+      ]
+    },
+    "decor|shell|0": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        435,
+        88,
+        16,
+        20
+      ]
+    },
+    "decor|shell|1": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        453,
+        88,
+        16,
+        20
+      ]
+    },
+    "decor|shell|10": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        615,
+        88,
+        16,
+        20
+      ]
+    },
+    "decor|shell|11": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        633,
+        88,
+        16,
+        20
+      ]
+    },
+    "decor|shell|12": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        651,
+        88,
+        16,
+        20
+      ]
+    },
+    "decor|shell|13": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        669,
+        88,
+        16,
+        20
+      ]
+    },
+    "decor|shell|14": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        687,
+        88,
+        16,
+        20
+      ]
+    },
+    "decor|shell|15": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        705,
+        88,
+        16,
+        20
+      ]
+    },
+    "decor|shell|16": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        723,
+        88,
+        16,
+        20
+      ]
+    },
+    "decor|shell|17": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        741,
+        88,
+        16,
+        20
+      ]
+    },
+    "decor|shell|18": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        759,
+        88,
+        16,
+        20
+      ]
+    },
+    "decor|shell|19": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        777,
+        88,
+        16,
+        20
+      ]
+    },
+    "decor|shell|2": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        471,
+        88,
+        16,
+        20
+      ]
+    },
+    "decor|shell|20": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        795,
+        88,
+        16,
+        20
+      ]
+    },
+    "decor|shell|21": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        813,
+        88,
+        16,
+        20
+      ]
+    },
+    "decor|shell|22": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        831,
+        88,
+        16,
+        20
+      ]
+    },
+    "decor|shell|23": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        849,
+        88,
+        16,
+        20
+      ]
+    },
+    "decor|shell|3": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        489,
+        88,
+        16,
+        20
+      ]
+    },
+    "decor|shell|4": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        507,
+        88,
+        16,
+        20
+      ]
+    },
+    "decor|shell|5": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        525,
+        88,
+        16,
+        20
+      ]
+    },
+    "decor|shell|6": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        543,
+        88,
+        16,
+        20
+      ]
+    },
+    "decor|shell|7": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        561,
+        88,
+        16,
+        20
+      ]
+    },
+    "decor|shell|8": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        579,
+        88,
+        16,
+        20
+      ]
+    },
+    "decor|shell|9": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        12.0
+      ],
+      "region": [
+        597,
+        88,
+        16,
+        20
+      ]
+    },
+    "decor|shrub|0": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        16.0
+      ],
+      "region": [
+        1650,
+        2,
+        24,
+        28
+      ]
+    },
+    "decor|shrub|1": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        16.0
+      ],
+      "region": [
+        1676,
+        2,
+        24,
+        28
+      ]
+    },
+    "decor|shrub|10": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        16.0
+      ],
+      "region": [
+        1910,
+        2,
+        24,
+        28
+      ]
+    },
+    "decor|shrub|11": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        16.0
+      ],
+      "region": [
+        1936,
+        2,
+        24,
+        28
+      ]
+    },
+    "decor|shrub|12": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        16.0
+      ],
+      "region": [
+        1962,
+        2,
+        24,
+        28
+      ]
+    },
+    "decor|shrub|13": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        16.0
+      ],
+      "region": [
+        1988,
+        2,
+        24,
+        28
+      ]
+    },
+    "decor|shrub|14": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        16.0
+      ],
+      "region": [
+        2014,
+        2,
+        24,
+        28
+      ]
+    },
+    "decor|shrub|15": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        16.0
+      ],
+      "region": [
+        2,
+        32,
+        24,
+        28
+      ]
+    },
+    "decor|shrub|16": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        16.0
+      ],
+      "region": [
+        28,
+        32,
+        24,
+        28
+      ]
+    },
+    "decor|shrub|17": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        16.0
+      ],
+      "region": [
+        54,
+        32,
+        24,
+        28
+      ]
+    },
+    "decor|shrub|18": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        16.0
+      ],
+      "region": [
+        80,
+        32,
+        24,
+        28
+      ]
+    },
+    "decor|shrub|19": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        16.0
+      ],
+      "region": [
+        106,
+        32,
+        24,
+        28
+      ]
+    },
+    "decor|shrub|2": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        16.0
+      ],
+      "region": [
+        1702,
+        2,
+        24,
+        28
+      ]
+    },
+    "decor|shrub|20": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        16.0
+      ],
+      "region": [
+        132,
+        32,
+        24,
+        28
+      ]
+    },
+    "decor|shrub|21": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        16.0
+      ],
+      "region": [
+        158,
+        32,
+        24,
+        28
+      ]
+    },
+    "decor|shrub|22": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        16.0
+      ],
+      "region": [
+        184,
+        32,
+        24,
+        28
+      ]
+    },
+    "decor|shrub|23": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        16.0
+      ],
+      "region": [
+        210,
+        32,
+        24,
+        28
+      ]
+    },
+    "decor|shrub|3": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        16.0
+      ],
+      "region": [
+        1728,
+        2,
+        24,
+        28
+      ]
+    },
+    "decor|shrub|4": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        16.0
+      ],
+      "region": [
+        1754,
+        2,
+        24,
+        28
+      ]
+    },
+    "decor|shrub|5": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        16.0
+      ],
+      "region": [
+        1780,
+        2,
+        24,
+        28
+      ]
+    },
+    "decor|shrub|6": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        16.0
+      ],
+      "region": [
+        1806,
+        2,
+        24,
+        28
+      ]
+    },
+    "decor|shrub|7": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        16.0
+      ],
+      "region": [
+        1832,
+        2,
+        24,
+        28
+      ]
+    },
+    "decor|shrub|8": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        16.0
+      ],
+      "region": [
+        1858,
+        2,
+        24,
+        28
+      ]
+    },
+    "decor|shrub|9": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        16.0
+      ],
+      "region": [
+        1884,
+        2,
+        24,
+        28
+      ]
+    },
+    "decor|stick|0": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        8.0
+      ],
+      "region": [
+        236,
+        32,
+        28,
+        8
+      ]
+    },
+    "decor|stick|1": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        266,
+        32,
+        24,
+        8
+      ]
+    },
+    "decor|stick|10": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        8.0
+      ],
+      "region": [
+        516,
+        32,
+        28,
+        8
+      ]
+    },
+    "decor|stick|11": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        546,
+        32,
+        24,
+        8
+      ]
+    },
+    "decor|stick|12": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        8.0
+      ],
+      "region": [
+        572,
+        32,
+        28,
+        8
+      ]
+    },
+    "decor|stick|13": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        602,
+        32,
+        24,
+        8
+      ]
+    },
+    "decor|stick|14": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        8.0
+      ],
+      "region": [
+        628,
+        32,
+        28,
+        8
+      ]
+    },
+    "decor|stick|15": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        658,
+        32,
+        24,
+        8
+      ]
+    },
+    "decor|stick|16": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        8.0
+      ],
+      "region": [
+        684,
+        32,
+        28,
+        8
+      ]
+    },
+    "decor|stick|17": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        714,
+        32,
+        24,
+        8
+      ]
+    },
+    "decor|stick|18": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        8.0
+      ],
+      "region": [
+        740,
+        32,
+        28,
+        8
+      ]
+    },
+    "decor|stick|19": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        770,
+        32,
+        24,
+        8
+      ]
+    },
+    "decor|stick|2": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        8.0
+      ],
+      "region": [
+        292,
+        32,
+        28,
+        8
+      ]
+    },
+    "decor|stick|20": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        8.0
+      ],
+      "region": [
+        796,
+        32,
+        28,
+        8
+      ]
+    },
+    "decor|stick|21": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        826,
+        32,
+        24,
+        8
+      ]
+    },
+    "decor|stick|22": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        8.0
+      ],
+      "region": [
+        852,
+        32,
+        28,
+        8
+      ]
+    },
+    "decor|stick|23": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        882,
+        32,
+        24,
+        8
+      ]
+    },
+    "decor|stick|3": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        322,
+        32,
+        24,
+        8
+      ]
+    },
+    "decor|stick|4": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        8.0
+      ],
+      "region": [
+        348,
+        32,
+        28,
+        8
+      ]
+    },
+    "decor|stick|5": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        378,
+        32,
+        24,
+        8
+      ]
+    },
+    "decor|stick|6": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        8.0
+      ],
+      "region": [
+        404,
+        32,
+        28,
+        8
+      ]
+    },
+    "decor|stick|7": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        434,
+        32,
+        24,
+        8
+      ]
+    },
+    "decor|stick|8": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        8.0
+      ],
+      "region": [
+        460,
+        32,
+        28,
+        8
+      ]
+    },
+    "decor|stick|9": {
+      "page": 0,
+      "pivot": [
+        8.0,
+        8.0
+      ],
+      "region": [
+        490,
+        32,
+        24,
+        8
+      ]
+    },
+    "decor|vine|0": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        440,
+        62,
+        12,
+        16
+      ]
+    },
+    "decor|vine|1": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        454,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|vine|10": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        588,
+        62,
+        12,
+        16
+      ]
+    },
+    "decor|vine|11": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        602,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|vine|12": {
+      "page": 0,
+      "pivot": [
+        0.0,
+        16.0
+      ],
+      "region": [
+        620,
+        62,
+        12,
+        16
+      ]
+    },
+    "decor|vine|13": {
+      "page": 0,
+      "pivot": [
+        0.0,
+        16.0
+      ],
+      "region": [
+        634,
+        62,
+        12,
+        16
+      ]
+    },
+    "decor|vine|14": {
+      "page": 0,
+      "pivot": [
+        0.0,
+        16.0
+      ],
+      "region": [
+        648,
+        62,
+        12,
+        16
+      ]
+    },
+    "decor|vine|15": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        662,
+        62,
+        12,
+        16
+      ]
+    },
+    "decor|vine|16": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        676,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|vine|17": {
+      "page": 0,
+      "pivot": [
+        0.0,
+        16.0
+      ],
+      "region": [
+        694,
+        62,
+        12,
+        16
+      ]
+    },
+    "decor|vine|18": {
+      "page": 0,
+      "pivot": [
+        0.0,
+        16.0
+      ],
+      "region": [
+        708,
+        62,
+        12,
+        16
+      ]
+    },
+    "decor|vine|19": {
+      "page": 0,
+      "pivot": [
+        0.0,
+        16.0
+      ],
+      "region": [
+        722,
+        62,
+        12,
+        16
+      ]
+    },
+    "decor|vine|2": {
+      "page": 0,
+      "pivot": [
+        0.0,
+        16.0
+      ],
+      "region": [
+        472,
+        62,
+        12,
+        16
+      ]
+    },
+    "decor|vine|20": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        736,
+        62,
+        12,
+        16
+      ]
+    },
+    "decor|vine|21": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        750,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|vine|22": {
+      "page": 0,
+      "pivot": [
+        0.0,
+        16.0
+      ],
+      "region": [
+        768,
+        62,
+        12,
+        16
+      ]
+    },
+    "decor|vine|23": {
+      "page": 0,
+      "pivot": [
+        0.0,
+        16.0
+      ],
+      "region": [
+        782,
+        62,
+        12,
+        16
+      ]
+    },
+    "decor|vine|3": {
+      "page": 0,
+      "pivot": [
+        0.0,
+        16.0
+      ],
+      "region": [
+        486,
+        62,
+        12,
+        16
+      ]
+    },
+    "decor|vine|4": {
+      "page": 0,
+      "pivot": [
+        0.0,
+        16.0
+      ],
+      "region": [
+        500,
+        62,
+        12,
+        16
+      ]
+    },
+    "decor|vine|5": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        514,
+        62,
+        12,
+        16
+      ]
+    },
+    "decor|vine|6": {
+      "page": 0,
+      "pivot": [
+        4.0,
+        16.0
+      ],
+      "region": [
+        528,
+        62,
+        16,
+        16
+      ]
+    },
+    "decor|vine|7": {
+      "page": 0,
+      "pivot": [
+        0.0,
+        16.0
+      ],
+      "region": [
+        546,
+        62,
+        12,
+        16
+      ]
+    },
+    "decor|vine|8": {
+      "page": 0,
+      "pivot": [
+        0.0,
+        16.0
+      ],
+      "region": [
+        560,
+        62,
+        12,
+        16
+      ]
+    },
+    "decor|vine|9": {
+      "page": 0,
+      "pivot": [
+        0.0,
+        16.0
+      ],
+      "region": [
+        574,
+        62,
+        12,
+        16
+      ]
+    },
+    "ent|broken_statue|107|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        30.0,
+        76.0
+      ],
+      "region": [
+        1291,
+        501,
+        43,
+        108
+      ]
+    },
+    "ent|broken_statue|200|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        30.0,
+        76.0
+      ],
+      "region": [
+        1147,
+        501,
+        43,
+        108
+      ]
+    },
+    "ent|broken_statue|240|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        30.0,
+        52.0
+      ],
+      "region": [
+        1090,
+        290,
+        43,
+        84
+      ]
+    },
+    "ent|broken_statue|386|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        30.0,
+        76.0
+      ],
+      "region": [
+        195,
+        501,
+        43,
+        108
+      ]
+    },
+    "ent|broken_statue|505|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        30.0,
+        64.0
+      ],
+      "region": [
+        591,
+        501,
+        43,
+        96
+      ]
+    },
+    "ent|broken_statue|653|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        30.0,
+        76.0
+      ],
+      "region": [
+        498,
+        501,
+        43,
+        108
+      ]
+    },
+    "ent|broken_wall|11|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        28.4000015258789,
+        44.0
+      ],
+      "region": [
+        960,
+        501,
+        56,
+        76
+      ]
+    },
+    "ent|broken_wall|552|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        21.4000015258789,
+        40.0
+      ],
+      "region": [
+        1165,
+        290,
+        42,
+        68
+      ]
+    },
+    "ent|broken_wall|658|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        24.4000015258789,
+        40.0
+      ],
+      "region": [
+        1018,
+        501,
+        49,
+        72
+      ]
+    },
+    "ent|broken_wall|755|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        28.4000015258789,
+        44.0
+      ],
+      "region": [
+        1842,
+        290,
+        56,
+        76
+      ]
+    },
+    "ent|broken_wall|890|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        28.4000015258789,
+        40.0
+      ],
+      "region": [
+        1542,
+        501,
+        56,
+        72
+      ]
+    },
+    "ent|broken_wall|901|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        24.4000015258789,
+        44.0
+      ],
+      "region": [
+        1192,
+        501,
+        49,
+        76
+      ]
+    },
+    "ent|broken_wall|902|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        28.4000015258789,
+        40.0
+      ],
+      "region": [
+        1790,
+        501,
+        56,
+        72
+      ]
+    },
+    "ent|building|963|13.0|3b8740|705038|705038|705038|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        176.080001831055,
+        176.100006103516
+      ],
+      "region": [
+        28,
+        290,
+        229,
+        209
+      ]
+    },
+    "ent|burrow|0|40.0|3b8740|a3784f|b38cf2|804d4d|0|0|Animal Burrow|0.00|": {
+      "page": 0,
+      "pivot": [
+        31.5999984741211,
+        32.0
+      ],
+      "region": [
+        515,
+        290,
+        64,
+        56
+      ]
+    },
+    "ent|bush|13|26.0|917856|a3784f|b38cf2|804d4d|0|0|Scarlet Sporecap|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1064,
+        290,
+        24,
+        28
+      ]
+    },
+    "ent|bush|143|26.0|917856|a3784f|b38cf2|804d4d|0|0|Papyrus Plant|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        326,
+        851,
+        24,
+        28
+      ]
+    },
+    "ent|bush|168|26.0|917856|a3784f|b38cf2|804d4d|0|0|Cotton Bush|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        604,
+        851,
+        24,
+        28
+      ]
+    },
+    "ent|bush|172|26.0|917856|a3784f|b38cf2|804d4d|0|0|Scarlet Sporecap|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1296,
+        851,
+        24,
+        28
+      ]
+    },
+    "ent|bush|174|26.0|917856|a3784f|b38cf2|804d4d|0|0|Papyrus Plant|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1538,
+        851,
+        24,
+        28
+      ]
+    },
+    "ent|bush|182|26.0|6e757e|a3784f|b38cf2|804d4d|0|0|Azure Starshroom|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        858,
+        676,
+        24,
+        28
+      ]
+    },
+    "ent|bush|219|26.0|6e757e|a3784f|b38cf2|804d4d|0|0|Sunsnap|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1360,
+        851,
+        24,
+        28
+      ]
+    },
+    "ent|bush|231|26.0|917856|a3784f|b38cf2|804d4d|0|0|Papyrus Plant|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1750,
+        676,
+        24,
+        28
+      ]
+    },
+    "ent|bush|232|26.0|917856|a3784f|b38cf2|804d4d|0|0|Papyrus Plant|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        352,
+        851,
+        24,
+        28
+      ]
+    },
+    "ent|bush|236|26.0|917856|a3784f|b38cf2|804d4d|0|0|Papyrus Plant|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1628,
+        851,
+        24,
+        28
+      ]
+    },
+    "ent|bush|249|26.0|6e757e|a3784f|b38cf2|804d4d|0|0|Meadow Cress|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        700,
+        501,
+        24,
+        28
+      ]
+    },
+    "ent|bush|258|26.0|917856|a3784f|b38cf2|804d4d|0|0|Scarlet Sporecap|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        2002,
+        676,
+        24,
+        28
+      ]
+    },
+    "ent|bush|271|26.0|6e757e|a3784f|b38cf2|804d4d|0|0|Azure Starshroom|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1208,
+        676,
+        24,
+        28
+      ]
+    },
+    "ent|bush|273|26.0|6e757e|a3784f|b38cf2|804d4d|0|0|Azure Starshroom|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        442,
+        851,
+        24,
+        28
+      ]
+    },
+    "ent|bush|295|26.0|917856|a3784f|b38cf2|804d4d|0|0|Papyrus Plant|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1408,
+        676,
+        24,
+        28
+      ]
+    },
+    "ent|bush|320|26.0|917856|a3784f|b38cf2|804d4d|0|0|Papyrus Plant|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1840,
+        676,
+        24,
+        28
+      ]
+    },
+    "ent|bush|328|26.0|6e757e|a3784f|b38cf2|804d4d|0|0|Sunsnap|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1160,
+        851,
+        24,
+        28
+      ]
+    },
+    "ent|bush|344|26.0|54653f|a3784f|b38cf2|804d4d|0|0|Orange Bloobberry Bush|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1582,
+        676,
+        24,
+        28
+      ]
+    },
+    "ent|bush|375|26.0|917856|a3784f|b38cf2|804d4d|0|0|Worms|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        974,
+        115,
+        24,
+        28
+      ]
+    },
+    "ent|bush|420|26.0|6e757e|a3784f|b38cf2|804d4d|0|0|Azure Starshroom|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1046,
+        676,
+        24,
+        28
+      ]
+    },
+    "ent|bush|429|26.0|917856|a3784f|b38cf2|804d4d|0|0|Papyrus Plant|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        190,
+        851,
+        24,
+        28
+      ]
+    },
+    "ent|bush|437|26.0|917856|a3784f|b38cf2|804d4d|0|0|Worms|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        398,
+        676,
+        24,
+        28
+      ]
+    },
+    "ent|bush|50|26.0|6e757e|a3784f|b38cf2|804d4d|0|0|Meadow Cress|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1776,
+        676,
+        24,
+        28
+      ]
+    },
+    "ent|bush|516|26.0|917856|a3784f|b38cf2|804d4d|0|0|Papyrus Plant|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1516,
+        115,
+        24,
+        28
+      ]
+    },
+    "ent|bush|518|26.0|917856|a3784f|b38cf2|804d4d|0|0|Papyrus Plant|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        138,
+        851,
+        24,
+        28
+      ]
+    },
+    "ent|bush|526|26.0|917856|a3784f|b38cf2|804d4d|0|0|Bloobberry Bush|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        756,
+        676,
+        24,
+        28
+      ]
+    },
+    "ent|bush|575|26.0|917856|a3784f|b38cf2|804d4d|0|0|Scarlet Sporecap|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        628,
+        676,
+        24,
+        28
+      ]
+    },
+    "ent|bush|583|26.0|917856|a3784f|b38cf2|804d4d|0|0|Papyrus Plant|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1602,
+        851,
+        24,
+        28
+      ]
+    },
+    "ent|bush|585|26.0|917856|a3784f|b38cf2|804d4d|0|0|Papyrus Plant|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1768,
+        851,
+        24,
+        28
+      ]
+    },
+    "ent|bush|589|26.0|917856|a3784f|b38cf2|804d4d|0|0|Bloobberry Bush|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        130,
+        676,
+        24,
+        28
+      ]
+    },
+    "ent|bush|593|26.0|917856|a3784f|b38cf2|804d4d|0|0|Bloobberry Bush|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        372,
+        676,
+        24,
+        28
+      ]
+    },
+    "ent|bush|604|26.0|917856|a3784f|b38cf2|804d4d|0|0|Papyrus Plant|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        2,
+        290,
+        24,
+        28
+      ]
+    },
+    "ent|bush|605|26.0|917856|a3784f|b38cf2|804d4d|0|0|Papyrus Plant|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1940,
+        115,
+        24,
+        28
+      ]
+    },
+    "ent|bush|606|26.0|917856|a3784f|b38cf2|804d4d|0|0|Papyrus Plant|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1634,
+        676,
+        24,
+        28
+      ]
+    },
+    "ent|bush|607|26.0|917856|a3784f|b38cf2|804d4d|0|0|Papyrus Plant|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        164,
+        851,
+        24,
+        28
+      ]
+    },
+    "ent|bush|608|26.0|917856|a3784f|b38cf2|804d4d|0|0|Papyrus Plant|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        468,
+        851,
+        24,
+        28
+      ]
+    },
+    "ent|bush|612|26.0|917856|a3784f|b38cf2|804d4d|0|0|Cotton Bush|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        622,
+        115,
+        24,
+        28
+      ]
+    },
+    "ent|bush|61|26.0|6e757e|a3784f|b38cf2|804d4d|0|0|Red Bloobberry Bush|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1182,
+        676,
+        24,
+        28
+      ]
+    },
+    "ent|bush|628|26.0|6e757e|a3784f|b38cf2|804d4d|0|0|Meadow Cress|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1234,
+        676,
+        24,
+        28
+      ]
+    },
+    "ent|bush|662|26.0|917856|a3784f|b38cf2|804d4d|0|0|Imbued Glory|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        394,
+        501,
+        24,
+        28
+      ]
+    },
+    "ent|bush|702|26.0|917856|a3784f|b38cf2|804d4d|0|0|Cotton Bush|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1490,
+        501,
+        24,
+        28
+      ]
+    },
+    "ent|bush|703|26.0|917856|a3784f|b38cf2|804d4d|0|0|Scarlet Sporecap|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1438,
+        501,
+        24,
+        28
+      ]
+    },
+    "ent|bush|705|26.0|6e757e|a3784f|b38cf2|804d4d|0|0|Red Bloobberry Bush|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        948,
+        115,
+        24,
+        28
+      ]
+    },
+    "ent|bush|707|26.0|6e757e|a3784f|b38cf2|804d4d|0|0|Red Bloobberry Bush|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        866,
+        501,
+        24,
+        28
+      ]
+    },
+    "ent|bush|719|26.0|917856|a3784f|b38cf2|804d4d|0|0|Bloobberry Bush|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1412,
+        501,
+        24,
+        28
+      ]
+    },
+    "ent|bush|722|26.0|917856|a3784f|b38cf2|804d4d|0|0|Imbued Glory|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1110,
+        115,
+        24,
+        28
+      ]
+    },
+    "ent|bush|723|26.0|917856|a3784f|b38cf2|804d4d|0|0|Imbued Glory|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        812,
+        115,
+        24,
+        28
+      ]
+    },
+    "ent|bush|741|26.0|917856|a3784f|b38cf2|804d4d|0|0|Cotton Bush|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1020,
+        676,
+        24,
+        28
+      ]
+    },
+    "ent|bush|756|26.0|6e757e|a3784f|b38cf2|804d4d|0|0|Azure Starshroom|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        890,
+        290,
+        24,
+        28
+      ]
+    },
+    "ent|bush|760|26.0|6e757e|a3784f|b38cf2|804d4d|0|0|Azure Starshroom|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1134,
+        851,
+        24,
+        28
+      ]
+    },
+    "ent|bush|782|26.0|917856|a3784f|b38cf2|804d4d|0|0|Imbued Glory|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        2,
+        676,
+        24,
+        28
+      ]
+    },
+    "ent|bush|786|26.0|917856|a3784f|b38cf2|804d4d|0|0|Imbued Glory|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1966,
+        115,
+        24,
+        28
+      ]
+    },
+    "ent|bush|807|26.0|917856|a3784f|b38cf2|804d4d|0|0|Cotton Bush|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        994,
+        676,
+        24,
+        28
+      ]
+    },
+    "ent|bush|810|26.0|917856|a3784f|b38cf2|804d4d|0|0|Cotton Bush|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1660,
+        676,
+        24,
+        28
+      ]
+    },
+    "ent|bush|811|26.0|917856|a3784f|b38cf2|804d4d|0|0|Bloobberry Bush|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        489,
+        290,
+        24,
+        28
+      ]
+    },
+    "ent|bush|813|26.0|917856|a3784f|b38cf2|804d4d|0|0|Imbued Glory|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1608,
+        676,
+        24,
+        28
+      ]
+    },
+    "ent|bush|828|26.0|917856|a3784f|b38cf2|804d4d|0|0|Cotton Bush|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        368,
+        501,
+        24,
+        28
+      ]
+    },
+    "ent|bush|831|26.0|6e757e|a3784f|b38cf2|804d4d|0|0|Red Bloobberry Bush|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1876,
+        115,
+        24,
+        28
+      ]
+    },
+    "ent|bush|845|26.0|6e757e|a3784f|b38cf2|804d4d|0|0|Azure Starshroom|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1464,
+        501,
+        24,
+        28
+      ]
+    },
+    "ent|bush|865|26.0|54653f|a3784f|b38cf2|804d4d|0|0|Orange Bloobberry Bush|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        850,
+        851,
+        24,
+        28
+      ]
+    },
+    "ent|bush|880|26.0|917856|a3784f|b38cf2|804d4d|0|0|Cotton Bush|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1976,
+        676,
+        24,
+        28
+      ]
+    },
+    "ent|bush|888|26.0|917856|a3784f|b38cf2|804d4d|0|0|Scarlet Sporecap|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1516,
+        501,
+        24,
+        28
+      ]
+    },
+    "ent|bush|917|26.0|6e757e|a3784f|b38cf2|804d4d|0|0|Red Bloobberry Bush|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        378,
+        851,
+        24,
+        28
+      ]
+    },
+    "ent|bush|931|26.0|917856|a3784f|b38cf2|804d4d|0|0|Cotton Bush|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        754,
+        290,
+        24,
+        28
+      ]
+    },
+    "ent|bush|951|26.0|917856|a3784f|b38cf2|804d4d|0|0|Scarlet Sporecap|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        892,
+        501,
+        24,
+        28
+      ]
+    },
+    "ent|bush|954|26.0|917856|a3784f|b38cf2|804d4d|0|0|Cotton Bush|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        636,
+        501,
+        24,
+        28
+      ]
+    },
+    "ent|bush|969|26.0|917856|a3784f|b38cf2|804d4d|0|0|Cotton Bush|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        2,
+        851,
+        24,
+        28
+      ]
+    },
+    "ent|bush|991|26.0|917856|a3784f|b38cf2|804d4d|0|0|Imbued Glory|0.00|": {
+      "page": 0,
+      "pivot": [
+        12.0719985961914,
+        15.8400001525879
+      ],
+      "region": [
+        1686,
+        676,
+        24,
+        28
+      ]
+    },
+    "ent|cave|0|40.0|3b8740|a3784f|b38cf2|804d4d|0|0|Cave Entrance|0.00|": {
+      "page": 0,
+      "pivot": [
+        31.5999984741211,
+        32.0
+      ],
+      "region": [
+        1450,
+        115,
+        64,
+        56
+      ]
+    },
+    "ent|chest|0|40.0|3b8740|a3784f|b38cf2|804d4d|0|0|Bank Chest|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.0,
+        24.0
+      ],
+      "region": [
+        546,
+        115,
+        32,
+        44
+      ]
+    },
+    "ent|city_prop|144|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|crate": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        20.0
+      ],
+      "region": [
+        399,
+        290,
+        24,
+        36
+      ]
+    },
+    "ent|city_prop|233|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|barrel": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        20.0
+      ],
+      "region": [
+        65,
+        501,
+        20,
+        36
+      ]
+    },
+    "ent|city_prop|276|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|hay": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        24.0
+      ],
+      "region": [
+        726,
+        501,
+        28,
+        36
+      ]
+    },
+    "ent|city_prop|357|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|crate": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        24.0
+      ],
+      "region": [
+        292,
+        501,
+        24,
+        40
+      ]
+    },
+    "ent|city_prop|439|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|crate": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        24.0
+      ],
+      "region": [
+        425,
+        290,
+        24,
+        40
+      ]
+    },
+    "ent|city_prop|456|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|lamp": {
+      "page": 0,
+      "pivot": [
+        24.0,
+        46.0
+      ],
+      "region": [
+        1902,
+        115,
+        36,
+        78
+      ]
+    },
+    "ent|city_prop|469|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|barrel": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        20.0
+      ],
+      "region": [
+        87,
+        501,
+        20,
+        36
+      ]
+    },
+    "ent|city_prop|487|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|lamp": {
+      "page": 0,
+      "pivot": [
+        24.0,
+        46.0
+      ],
+      "region": [
+        1762,
+        115,
+        36,
+        78
+      ]
+    },
+    "ent|city_prop|593|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|flowerbox": {
+      "page": 0,
+      "pivot": [
+        11.0,
+        20.0
+      ],
+      "region": [
+        2,
+        501,
+        23,
+        32
+      ]
+    },
+    "ent|city_prop|611|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|crate": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        24.0
+      ],
+      "region": [
+        266,
+        501,
+        24,
+        40
+      ]
+    },
+    "ent|city_prop|656|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|crate": {
+      "page": 0,
+      "pivot": [
+        12.0,
+        20.0
+      ],
+      "region": [
+        240,
+        501,
+        24,
+        36
+      ]
+    },
+    "ent|city_prop|664|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|flowerbox": {
+      "page": 0,
+      "pivot": [
+        11.0,
+        20.0
+      ],
+      "region": [
+        619,
+        290,
+        23,
+        32
+      ]
+    },
+    "ent|city_prop|719|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|cart": {
+      "page": 0,
+      "pivot": [
+        20.0,
+        24.0
+      ],
+      "region": [
+        318,
+        501,
+        48,
+        40
+      ]
+    },
+    "ent|city_prop|72|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|lamp": {
+      "page": 0,
+      "pivot": [
+        24.0,
+        46.0
+      ],
+      "region": [
+        27,
+        501,
+        36,
+        78
+      ]
+    },
+    "ent|city_prop|763|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|flowerbox": {
+      "page": 0,
+      "pivot": [
+        11.0,
+        20.0
+      ],
+      "region": [
+        1703,
+        290,
+        23,
+        32
+      ]
+    },
+    "ent|city_prop|783|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|lamp": {
+      "page": 0,
+      "pivot": [
+        24.0,
+        46.0
+      ],
+      "region": [
+        1728,
+        290,
+        36,
+        78
+      ]
+    },
+    "ent|city_wall|0|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        27.5999984741211,
+        44.0
+      ],
+      "region": [
+        1238,
+        115,
+        52,
+        76
+      ]
+    },
+    "ent|city_wall|1|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        37.5999984741211,
+        60.0
+      ],
+      "region": [
+        1382,
+        115,
+        66,
+        92
+      ]
+    },
+    "ent|city_wall|2|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        33.5999984741211,
+        80.0
+      ],
+      "region": [
+        1292,
+        115,
+        50,
+        112
+      ]
+    },
+    "ent|rock|128|34.0|6e757e|a3784f|b38cf2|804d4d|0|0|Iron Ore|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        1322,
+        851,
+        36,
+        40
+      ]
+    },
+    "ent|rock|166|34.0|54653f|a3784f|b38cf2|804d4d|0|0|Silver Ore|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        1712,
+        676,
+        36,
+        40
+      ]
+    },
+    "ent|rock|18|34.0|917856|a3784f|b38cf2|804d4d|0|0|Imbued Crystal|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        406,
+        115,
+        36,
+        40
+      ]
+    },
+    "ent|rock|193|34.0|917856|a3784f|b38cf2|804d4d|0|0|Common Gem Rock|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        1544,
+        676,
+        36,
+        40
+      ]
+    },
+    "ent|rock|210|34.0|917856|a3784f|b38cf2|804d4d|0|0|Imbued Crystal|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        2006,
+        501,
+        36,
+        40
+      ]
+    },
+    "ent|rock|239|34.0|917856|a3784f|b38cf2|804d4d|0|0|Clay|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        1370,
+        676,
+        36,
+        40
+      ]
+    },
+    "ent|rock|318|34.0|917856|a3784f|b38cf2|804d4d|0|0|Common Gem Rock|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        820,
+        676,
+        36,
+        40
+      ]
+    },
+    "ent|rock|344|34.0|917856|a3784f|b38cf2|804d4d|0|0|Imbued Crystal|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        1766,
+        290,
+        36,
+        40
+      ]
+    },
+    "ent|rock|418|34.0|917856|a3784f|b38cf2|804d4d|0|0|Imbued Crystal|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        581,
+        290,
+        36,
+        40
+      ]
+    },
+    "ent|rock|421|34.0|5d646d|a3784f|b38cf2|804d4d|0|0|Large Sandstone|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        1462,
+        851,
+        36,
+        40
+      ]
+    },
+    "ent|rock|422|34.0|5d646d|a3784f|b38cf2|804d4d|0|0|Large Sandstone|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        1564,
+        851,
+        36,
+        40
+      ]
+    },
+    "ent|rock|424|34.0|5d646d|a3784f|b38cf2|804d4d|0|0|Large Sandstone|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        1730,
+        851,
+        36,
+        40
+      ]
+    },
+    "ent|rock|434|34.0|54653f|a3784f|b38cf2|804d4d|0|0|Silver Ore|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        404,
+        851,
+        36,
+        40
+      ]
+    },
+    "ent|rock|466|34.0|917856|a3784f|b38cf2|804d4d|0|0|Imbued Crystal|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        1096,
+        851,
+        36,
+        40
+      ]
+    },
+    "ent|rock|489|34.0|917856|a3784f|b38cf2|804d4d|0|0|Clay|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        1838,
+        115,
+        36,
+        40
+      ]
+    },
+    "ent|rock|506|34.0|917856|a3784f|b38cf2|804d4d|0|0|Common Gem Rock|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        451,
+        290,
+        36,
+        40
+      ]
+    },
+    "ent|rock|507|34.0|917856|a3784f|b38cf2|804d4d|0|0|Imbued Crystal|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        1374,
+        501,
+        36,
+        40
+      ]
+    },
+    "ent|rock|513|34.0|5d646d|a3784f|b38cf2|804d4d|0|0|Large Sandstone|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        1692,
+        851,
+        36,
+        40
+      ]
+    },
+    "ent|rock|547|34.0|6e757e|a3784f|b38cf2|804d4d|0|0|Iron Ore|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        1802,
+        676,
+        36,
+        40
+      ]
+    },
+    "ent|rock|570|34.0|917856|a3784f|b38cf2|804d4d|0|0|Clay|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        1800,
+        115,
+        36,
+        40
+      ]
+    },
+    "ent|rock|59|34.0|917856|a3784f|b38cf2|804d4d|0|0|Tin Ore|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        782,
+        676,
+        36,
+        40
+      ]
+    },
+    "ent|rock|634|34.0|917856|a3784f|b38cf2|804d4d|0|0|Clay|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        916,
+        290,
+        36,
+        40
+      ]
+    },
+    "ent|rock|676|34.0|917856|a3784f|b38cf2|804d4d|0|0|Common Gem Rock|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        1336,
+        501,
+        36,
+        40
+      ]
+    },
+    "ent|rock|682|34.0|917856|a3784f|b38cf2|804d4d|0|0|Tin Ore|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        1992,
+        115,
+        36,
+        40
+      ]
+    },
+    "ent|rock|718|34.0|5d646d|a3784f|b38cf2|804d4d|0|0|Large Sandstone|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        1424,
+        851,
+        36,
+        40
+      ]
+    },
+    "ent|rock|780|34.0|5d646d|a3784f|b38cf2|804d4d|0|0|Large Sandstone|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        1386,
+        851,
+        36,
+        40
+      ]
+    },
+    "ent|rock|781|34.0|5d646d|a3784f|b38cf2|804d4d|0|0|Large Sandstone|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        1500,
+        851,
+        36,
+        40
+      ]
+    },
+    "ent|rock|844|34.0|5d646d|a3784f|b38cf2|804d4d|0|0|Large Sandstone|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        1654,
+        851,
+        36,
+        40
+      ]
+    },
+    "ent|rock|844|34.0|917856|a3784f|b38cf2|804d4d|0|0|Common Gem Rock|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        1804,
+        290,
+        36,
+        40
+      ]
+    },
+    "ent|rock|891|34.0|917856|a3784f|b38cf2|804d4d|0|0|Copper Ore|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        156,
+        676,
+        36,
+        40
+      ]
+    },
+    "ent|rock|913|34.0|54653f|a3784f|b38cf2|804d4d|0|0|Coal Ore|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        334,
+        676,
+        36,
+        40
+      ]
+    },
+    "ent|rock|92|34.0|917856|a3784f|b38cf2|804d4d|0|0|Imbued Crystal|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        662,
+        501,
+        36,
+        40
+      ]
+    },
+    "ent|rock|946|34.0|6e757e|a3784f|b38cf2|804d4d|0|0|Iron Ore|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        296,
+        676,
+        36,
+        40
+      ]
+    },
+    "ent|rock|953|34.0|917856|a3784f|b38cf2|804d4d|0|0|Copper Ore|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        109,
+        501,
+        36,
+        40
+      ]
+    },
+    "ent|rock|968|34.0|917856|a3784f|b38cf2|804d4d|0|0|Common Gem Rock|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        1344,
+        115,
+        36,
+        40
+      ]
+    },
+    "ent|rock|969|34.0|917856|a3784f|b38cf2|804d4d|0|0|Common Gem Rock|0.00|": {
+      "page": 0,
+      "pivot": [
+        16.3359985351563,
+        19.9200000762939
+      ],
+      "region": [
+        259,
+        290,
+        36,
+        40
+      ]
+    },
+    "ent|rubble_pile|519|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        15.5999984741211,
+        12.0
+      ],
+      "region": [
+        1900,
+        290,
+        28,
+        28
+      ]
+    },
+    "ent|rubble_pile|549|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        15.5999984741211,
+        12.0
+      ],
+      "region": [
+        1069,
+        501,
+        28,
+        28
+      ]
+    },
+    "ent|rubble_pile|65|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        23.5999984741211,
+        20.0
+      ],
+      "region": [
+        1696,
+        501,
+        44,
+        44
+      ]
+    },
+    "ent|rubble_pile|924|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        15.5999984741211,
+        12.0
+      ],
+      "region": [
+        420,
+        501,
+        28,
+        28
+      ]
+    },
+    "ent|rubble_pile|987|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        15.5999984741211,
+        12.0
+      ],
+      "region": [
+        1135,
+        290,
+        28,
+        28
+      ]
+    },
+    "ent|ruin_pillar|191|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        33.5999984741211,
+        36.0
+      ],
+      "region": [
+        1742,
+        501,
+        46,
+        68
+      ]
+    },
+    "ent|ruin_pillar|343|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        33.5999984741211,
+        36.0
+      ],
+      "region": [
+        450,
+        501,
+        46,
+        68
+      ]
+    },
+    "ent|ruin_pillar|467|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        33.5999984741211,
+        36.0
+      ],
+      "region": [
+        543,
+        501,
+        46,
+        68
+      ]
+    },
+    "ent|ruin_pillar|484|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        33.5999984741211,
+        48.0
+      ],
+      "region": [
+        1243,
+        501,
+        46,
+        80
+      ]
+    },
+    "ent|ruin_pillar|545|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        33.5999984741211,
+        68.0
+      ],
+      "region": [
+        1600,
+        501,
+        46,
+        100
+      ]
+    },
+    "ent|ruin_pillar|582|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        33.5999984741211,
+        88.0
+      ],
+      "region": [
+        1099,
+        501,
+        46,
+        120
+      ]
+    },
+    "ent|ruin_pillar|640|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        33.5999984741211,
+        48.0
+      ],
+      "region": [
+        1848,
+        501,
+        46,
+        80
+      ]
+    },
+    "ent|ruin_pillar|854|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        33.5999984741211,
+        84.0
+      ],
+      "region": [
+        1648,
+        501,
+        46,
+        116
+      ]
+    },
+    "ent|ruin_pillar|926|40.0|3b8740|a3784f|b38cf2|804d4d|0|0||0.00|": {
+      "page": 0,
+      "pivot": [
+        33.5999984741211,
+        84.0
+      ],
+      "region": [
+        147,
+        501,
+        46,
+        116
+      ]
+    },
+    "ent|sign|0|40.0|3b8740|a3784f|b38cf2|804d4d|0|0|Ancient Ruins|0.00|": {
+      "page": 0,
+      "pivot": [
+        19.8000030517578,
+        36.0
+      ],
+      "region": [
+        918,
+        501,
+        40,
+        60
+      ]
+    },
+    "ent|sign|0|40.0|3b8740|a3784f|b38cf2|804d4d|0|0|Camp Shop|0.00|": {
+      "page": 0,
+      "pivot": [
+        19.8000030517578,
+        36.0
+      ],
+      "region": [
+        580,
+        115,
+        40,
+        60
+      ]
+    },
+    "ent|sign|0|40.0|3b8740|a3784f|b38cf2|804d4d|0|0|Tool Shop|0.00|": {
+      "page": 0,
+      "pivot": [
+        19.8000030517578,
+        36.0
+      ],
+      "region": [
+        1209,
+        290,
+        40,
+        60
+      ]
+    },
+    "ent|stall|0|40.0|3b8740|a3784f|b38cf2|804d4d|0|0|Market Stall|0.00|": {
+      "page": 0,
+      "pivot": [
+        20.4000015258789,
+        32.0
+      ],
+      "region": [
+        1497,
+        290,
+        40,
+        60
+      ]
+    },
+    "ent|tent|0|54.0|3b8740|3a6a4a|3a6a4a|804d4d|0|0|Fletching Tent|0.00|": {
+      "page": 0,
+      "pivot": [
+        40.0400009155273,
+        31.3000030517578
+      ],
+      "region": [
+        648,
+        115,
+        80,
+        63
+      ]
+    },
+    "ent|tent|0|54.0|3b8740|486898|486898|804d4d|0|0|Villager Tent|0.00|": {
+      "page": 0,
+      "pivot": [
+        40.0400009155273,
+        31.3000030517578
+      ],
+      "region": [
+        1621,
+        290,
+        80,
+        63
+      ]
+    },
+    "ent|tent|0|54.0|3b8740|4a4a9a|4a4a9a|804d4d|0|0|Imbuing Tent|0.00|": {
+      "page": 0,
+      "pivot": [
+        40.0400009155273,
+        31.3000030517578
+      ],
+      "region": [
+        1333,
+        290,
+        80,
+        63
+      ]
+    },
+    "ent|tent|0|54.0|3b8740|4a7a3a|4a7a3a|804d4d|0|0|Herbalist Tent|0.00|": {
+      "page": 0,
+      "pivot": [
+        40.0400009155273,
+        31.3000030517578
+      ],
+      "region": [
+        1251,
+        290,
+        80,
+        63
+      ]
+    },
+    "ent|tent|0|54.0|3b8740|6a4a8a|6a4a8a|804d4d|0|0|Crafting Tent|0.00|": {
+      "page": 0,
+      "pivot": [
+        40.0400009155273,
+        31.3000030517578
+      ],
+      "region": [
+        730,
+        115,
+        80,
+        63
+      ]
+    },
+    "ent|tent|0|54.0|3b8740|8a6848|8a6848|804d4d|0|0|Villager Tent|0.00|": {
+      "page": 0,
+      "pivot": [
+        40.0400009155273,
+        31.3000030517578
+      ],
+      "region": [
+        1539,
+        290,
+        80,
+        63
+      ]
+    },
+    "ent|tent|0|54.0|3b8740|b8b0a0|b8b0a0|804d4d|0|0|Devotion Tent|0.00|": {
+      "page": 0,
+      "pivot": [
+        40.0400009155273,
+        31.3000030517578
+      ],
+      "region": [
+        1415,
+        290,
+        80,
+        63
+      ]
+    },
+    "ent|tree|126|117.4|6e757e|a3784f|b38cf2|804d4d|0|0|Oak Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        59.0728759765625,
+        140.28385925293
+      ],
+      "region": [
+        838,
+        115,
+        108,
+        173
+      ]
+    },
+    "ent|tree|157|117.4|6e757e|a3784f|b38cf2|804d4d|0|0|Oak Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        58.0728759765625,
+        140.28385925293
+      ],
+      "region": [
+        954,
+        290,
+        108,
+        173
+      ]
+    },
+    "ent|tree|170|117.4|6e757e|a3784f|b38cf2|804d4d|0|0|Oak Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        57.0728759765625,
+        140.28385925293
+      ],
+      "region": [
+        630,
+        851,
+        108,
+        173
+      ]
+    },
+    "ent|tree|218|117.4|6e757e|a3784f|b38cf2|804d4d|0|0|Oak Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        58.0728759765625,
+        139.28385925293
+      ],
+      "region": [
+        740,
+        851,
+        108,
+        172
+      ]
+    },
+    "ent|tree|281|117.4|6e757e|a3784f|b38cf2|804d4d|0|0|Oak Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        56.0728759765625,
+        140.28385925293
+      ],
+      "region": [
+        1652,
+        115,
+        108,
+        173
+      ]
+    },
+    "ent|tree|304|117.4|6e757e|a3784f|b38cf2|804d4d|0|0|Oak Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        55.0728759765625,
+        140.28385925293
+      ],
+      "region": [
+        884,
+        676,
+        108,
+        173
+      ]
+    },
+    "ent|tree|305|117.4|6e757e|a3784f|b38cf2|804d4d|0|0|Oak Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        57.0728759765625,
+        140.28385925293
+      ],
+      "region": [
+        1866,
+        676,
+        108,
+        173
+      ]
+    },
+    "ent|tree|308|117.4|6e757e|a3784f|b38cf2|804d4d|0|0|Oak Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        55.0728759765625,
+        140.28385925293
+      ],
+      "region": [
+        1186,
+        851,
+        108,
+        173
+      ]
+    },
+    "ent|tree|396|117.4|6e757e|a3784f|b38cf2|804d4d|0|0|Oak Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        56.0728759765625,
+        140.28385925293
+      ],
+      "region": [
+        876,
+        851,
+        108,
+        173
+      ]
+    },
+    "ent|tree|3|116.2|917856|a3784f|b38cf2|804d4d|0|0|Regular Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        49.5635681152344,
+        135.734588623047
+      ],
+      "region": [
+        444,
+        115,
+        100,
+        168
+      ]
+    },
+    "ent|tree|483|117.4|6e757e|a3784f|b38cf2|804d4d|0|0|Oak Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        59.0728759765625,
+        139.28385925293
+      ],
+      "region": [
+        28,
+        851,
+        108,
+        172
+      ]
+    },
+    "ent|tree|485|117.4|6e757e|a3784f|b38cf2|804d4d|0|0|Oak Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        55.0728759765625,
+        140.28385925293
+      ],
+      "region": [
+        986,
+        851,
+        108,
+        173
+      ]
+    },
+    "ent|tree|682|117.4|6e757e|a3784f|b38cf2|804d4d|0|0|Oak Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        57.0728759765625,
+        140.28385925293
+      ],
+      "region": [
+        1434,
+        676,
+        108,
+        173
+      ]
+    },
+    "ent|tree|745|117.4|6e757e|a3784f|b38cf2|804d4d|0|0|Oak Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        56.0728759765625,
+        140.28385925293
+      ],
+      "region": [
+        1072,
+        676,
+        108,
+        173
+      ]
+    },
+    "ent|tree|746|117.4|6e757e|a3784f|b38cf2|804d4d|0|0|Oak Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        55.0728759765625,
+        140.28385925293
+      ],
+      "region": [
+        1260,
+        676,
+        108,
+        173
+      ]
+    },
+    "ent|tree|756|116.2|917856|a3784f|b38cf2|804d4d|0|0|Regular Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        50.5635681152344,
+        136.734588623047
+      ],
+      "region": [
+        654,
+        676,
+        100,
+        169
+      ]
+    },
+    "ent|tree|757|116.2|917856|a3784f|b38cf2|804d4d|0|0|Regular Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        50.5635681152344,
+        136.734588623047
+      ],
+      "region": [
+        424,
+        676,
+        100,
+        169
+      ]
+    },
+    "ent|tree|758|116.2|917856|a3784f|b38cf2|804d4d|0|0|Regular Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        50.5635681152344,
+        135.734588623047
+      ],
+      "region": [
+        526,
+        676,
+        100,
+        168
+      ]
+    },
+    "ent|tree|77|117.4|6e757e|a3784f|b38cf2|804d4d|0|0|Oak Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        56.0728759765625,
+        140.28385925293
+      ],
+      "region": [
+        644,
+        290,
+        108,
+        173
+      ]
+    },
+    "ent|tree|80|117.4|6e757e|a3784f|b38cf2|804d4d|0|0|Oak Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        57.0728759765625,
+        140.28385925293
+      ],
+      "region": [
+        216,
+        851,
+        108,
+        173
+      ]
+    },
+    "ent|tree|81|117.4|6e757e|a3784f|b38cf2|804d4d|0|0|Oak Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        59.0728759765625,
+        139.28385925293
+      ],
+      "region": [
+        494,
+        851,
+        108,
+        172
+      ]
+    },
+    "ent|tree|821|116.2|917856|a3784f|b38cf2|804d4d|0|0|Regular Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        49.5635681152344,
+        135.734588623047
+      ],
+      "region": [
+        28,
+        676,
+        100,
+        168
+      ]
+    },
+    "ent|tree|822|116.2|917856|a3784f|b38cf2|804d4d|0|0|Regular Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        49.5635681152344,
+        135.734588623047
+      ],
+      "region": [
+        194,
+        676,
+        100,
+        168
+      ]
+    },
+    "ent|tree|869|117.4|6e757e|a3784f|b38cf2|804d4d|0|0|Oak Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        53.0728759765625,
+        140.28385925293
+      ],
+      "region": [
+        1896,
+        501,
+        108,
+        173
+      ]
+    },
+    "ent|tree|883|116.2|917856|a3784f|b38cf2|804d4d|0|0|Regular Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        51.5635681152344,
+        136.734588623047
+      ],
+      "region": [
+        297,
+        290,
+        100,
+        169
+      ]
+    },
+    "ent|tree|899|117.4|6e757e|a3784f|b38cf2|804d4d|0|0|Oak Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        53.0728759765625,
+        139.28385925293
+      ],
+      "region": [
+        1000,
+        115,
+        108,
+        172
+      ]
+    },
+    "ent|tree|933|117.4|6e757e|a3784f|b38cf2|804d4d|0|0|Oak Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        55.0728759765625,
+        140.28385925293
+      ],
+      "region": [
+        780,
+        290,
+        108,
+        173
+      ]
+    },
+    "ent|tree|934|117.4|6e757e|a3784f|b38cf2|804d4d|0|0|Oak Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        53.0728759765625,
+        139.28385925293
+      ],
+      "region": [
+        756,
+        501,
+        108,
+        172
+      ]
+    },
+    "ent|tree|945|116.2|917856|a3784f|b38cf2|804d4d|0|0|Regular Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        49.5635681152344,
+        135.734588623047
+      ],
+      "region": [
+        1136,
+        115,
+        100,
+        168
+      ]
+    },
+    "ent|tree|995|117.4|6e757e|a3784f|b38cf2|804d4d|0|0|Oak Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        52.0728759765625,
+        140.28385925293
+      ],
+      "region": [
+        1542,
+        115,
+        108,
+        173
+      ]
+    },
+    "ent|tree|997|117.4|6e757e|a3784f|b38cf2|804d4d|0|0|Oak Tree|0.00|": {
+      "page": 0,
+      "pivot": [
+        56.0728759765625,
+        139.28385925293
+      ],
+      "region": [
+        1930,
+        290,
+        108,
+        172
+      ]
+    }
+  }
+}

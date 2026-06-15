@@ -8,6 +8,7 @@ const EnemyArt := preload("res://scripts/world/art/characters/enemy_art.gd")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 const SilhouetteDraw := preload("res://scripts/world/art/core/silhouette_draw.gd")
 const PixelDraw := preload("res://scripts/world/art/core/pixel_draw.gd")
+const SpriteAtlas := preload("res://scripts/world/sprite_atlas.gd")
 const ANIMATED_KINDS := ["fish", "enemy", "campfire", "anvil", "altar", "obelisk", "meteor", "fountain"]
 # Kinds drawn live every redraw. Everything else is a static look that we bake to
 # a shared texture (1 draw call) via sprite_cache. Houses/buildings animate their
@@ -96,6 +97,9 @@ const OUTLINE_OFFSETS: Array[Vector2] = [
 
 
 func _ready() -> void:
+	# Baked atlas regions are sampled as the camera zooms; nearest keeps the pixel
+	# art crisp and matches the live procedural look.
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_font = ThemeDB.fallback_font
 	_t = float(variant % 100) * 0.13
 	_animated = kind in ANIMATED_KINDS
@@ -233,6 +237,12 @@ func _is_baked_kind() -> bool:
 
 func _draw_cached() -> void:
 	var key := _sprite_key()
+	# Editor-baked atlas: a streamed-in prop draws as one batched region with zero
+	# live procedural work. Falls through to the runtime bake for un-enumerated
+	# looks (rare biomes), so nothing ever renders blank.
+	var atlas := SpriteAtlas.instance
+	if atlas != null and atlas.draw_to(self, "ent|" + key):
+		return
 	var e: Dictionary = sprite_cache.entry(key)
 	if e.is_empty():
 		# Not baked yet: kick off the bake and redraw when it lands. (Shared, so a
