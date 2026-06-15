@@ -41,9 +41,14 @@ func process_tick() -> void:
 		rebuild()
 
 
+# Zones are no longer level-gated for entry — the player may walk anywhere. Pass an
+# unrestricted entry level so the path graph never locks a zone's chunks out.
+const UNRESTRICTED_ENTRY_LEVEL := 0x7FFFFFFF
+
+
 func rebuild() -> void:
 	_needs_rebuild = false
-	path_finder.rebuild(world.chunk_manager.call("loaded_chunks"), WorldGen.reg, WorldGen.player_entry_level())
+	path_finder.rebuild(world.chunk_manager.call("loaded_chunks"), WorldGen.reg, UNRESTRICTED_ENTRY_LEVEL)
 
 
 func on_waypoint_reached() -> void:
@@ -81,14 +86,7 @@ func walk_to_pos(target: Vector2) -> bool:
 			return false
 		_has_long_target = false
 	else:
-		var zone: Dictionary = WorldGen.zone_at(target)
-		if int(zone["req"]) > WorldGen.player_entry_level():
-			EventBus.combat_log.emit("[color=#a01010]You need level %d to enter %s.[/color]" % [
-				int(zone["req"]), str(zone["name"])])
-			world.player.play_no()
-			world.pending_action = {}
-			world.auto_task = {}
-			return false
+		# Zones are no longer level-gated — a long walk into any zone is allowed.
 		_long_target = target
 		_has_long_target = true
 		_repath_budget = 200
