@@ -38,6 +38,9 @@ var _chunk_by_key: Dictionary = {}   # chunk key -> chunk RefCounted (O(1) heigh
 var batches_root: Node3D             # holds the per-(mesh,material) MultiMeshInstance3D
 var dressing_root: Node3D            # visual-only hiking-diorama silhouettes near camera
 var _mover_nodes: Dictionary = {}    # moving entity id -> Node3D (player/enemies)
+var _mover_prev: Dictionary = {}     # key -> last 3D pos (for walk detection)
+var _mover_yaw: Dictionary = {}      # key -> smoothed facing yaw
+var _mover_walk: Dictionary = {}     # key -> smoothed walk amount 0..1
 var _player_node: Node3D
 var _static_sig := ""
 var _dressing_sig := ""
@@ -188,7 +191,8 @@ func _process(_delta: float) -> void:
 	_sync_terrain()
 	_sync_movers()
 	_sync_static_batches()
-	_sync_style_dressing()
+	# (style-dressing diorama removed — it spawned canned hike props around the
+	#  camera everywhere; the real world content renders on its own now.)
 	_frames += 1
 	var capture_frame := 150 if _forest_preview_enabled() else 90
 	if _frames == capture_frame and not _captured:
@@ -597,10 +601,12 @@ func _riser(st: SurfaceTool, p0: Vector3, p1: Vector3, bot_y: float, normal: Vec
 
 ## Movers (player + enemies) stay individual nodes — few of them, and they move.
 func _sync_movers() -> void:
+	var dt := get_process_delta_time()
+	var t := Time.get_ticks_msec() / 1000.0
 	if _player_node == null:
 		_player_node = PropMeshes.build_node(PropMeshes.figure_parts(PixelPalette.pal("outfit_a"), PixelPalette.pal("skin_a")))
 		props_root.add_child(_player_node)
-	_player_node.position = iso_to_3d(world.player.position, height_at(world.player.position))
+	_animate_mover(_player_node, "player", world.player.position, t, dt)
 	var live := {}
 	for e: Node in world.entities:
 		if not is_instance_valid(e) or not PropMeshes.is_moving(e):
@@ -612,13 +618,38 @@ func _sync_movers() -> void:
 			n = PropMeshes.build_node(PropMeshes.figure_parts(PixelPalette.pal("outfit_b"), PixelPalette.pal("skin_a")))
 			props_root.add_child(n)
 			_mover_nodes[id] = n
-		n.position = iso_to_3d(e.position, height_at(e.position))
+		_animate_mover(n, str(id), e.position, t, dt)
 	for id: int in _mover_nodes.keys():
 		if not live.has(id):
 			var n: Node = _mover_nodes[id]
 			if is_instance_valid(n):
 				n.queue_free()
 			_mover_nodes.erase(id)
+			_mover_prev.erase(id); _mover_yaw.erase(id); _mover_walk.erase(id)
+
+
+## A Short Hike-style walk feel: gentle vertical bob + squash-stretch while moving,
+## and the body turns to face the movement direction. Idle = still and upright.
+func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: float) -> void:
+	var pos3 := iso_to_3d(pos2d, height_at(pos2d))
+	var prev: Vector3 = _mover_prev.get(key, pos3)
+	var vel := pos3 - prev
+	_mover_prev[key] = pos3
+	var speed := vel.length() / maxf(dt, 0.0001)
+	var target_walk := clampf(speed / 3.0, 0.0, 1.0)
+	var walk: float = lerpf(float(_mover_walk.get(key, 0.0)), target_walk, clampf(dt * 10.0, 0.0, 1.0))
+	_mover_walk[key] = walk
+	# Face the movement direction (smoothed), keep last facing when idle.
+	var yaw: float = float(_mover_yaw.get(key, 0.0))
+	if vel.length() > 0.0005:
+		yaw = lerp_angle(yaw, atan2(vel.x, vel.z), clampf(dt * 12.0, 0.0, 1.0))
+		_mover_yaw[key] = yaw
+	node.rotation.y = yaw
+	# Bob + squash scale with the walk amount.
+	var bob := absf(sin(t * 11.0)) * 0.09 * walk
+	var sq := sin(t * 11.0) * 0.06 * walk
+	node.position = pos3 + Vector3(0, bob, 0)
+	node.scale = Vector3(1.0 - sq * 0.5, 1.0 + sq, 1.0 - sq * 0.5)
 
 
 ## Batch all static decor + props into per-(mesh,material) MultiMeshes. Rebuilt
