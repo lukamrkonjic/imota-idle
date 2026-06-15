@@ -39,6 +39,10 @@ var skill_cells: Dictionary = {}  # skill -> Label
 var train_select: OptionButton
 var combat_info: Label
 var coins_label: Label
+var _side_tabs: TabContainer
+var _tab_icons: Array = []          # _TabIcon buttons, index-aligned with the tabs
+var prayer_orb: Control
+var run_orb: Control
 var popup: PopupPanel
 var popup_list: VBoxContainer
 var popup_title: Label
@@ -337,19 +341,67 @@ func _on_hud_scale_layer_resized(layer: Control) -> void:
 	layer.pivot_offset = Vector2(layer.size.x * corner.x, layer.size.y * corner.y)
 
 
+## OSRS-style interface panel: a content area driven by a row of drawn icon tabs
+## along the bottom (Combat / Skills / Inventory / Equipment / Prayer / Magic).
 func _build_side_panel() -> void:
 	var panel := PanelContainer.new()
 	panel.add_theme_stylebox_override("panel", _style(STONE, STONE_DARK))
-	_anchor(panel, Control.PRESET_BOTTOM_RIGHT, Vector2(-326, -454), Vector2(300, 420))
+	_anchor(panel, Control.PRESET_BOTTOM_RIGHT, Vector2(-300, -478), Vector2(274, 446))
 	_hud_br.add_child(panel)
 
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", UiScale.i(4))
+	panel.add_child(col)
+
+	# The built-in tab bar is hidden; our drawn icon row drives current_tab.
 	var tabs := TabContainer.new()
+	tabs.tabs_visible = false
+	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	tabs.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 			show_ui_click_marker(event.global_position))
-	panel.add_child(tabs)
+	col.add_child(tabs)
+	_side_tabs = tabs
 
-	# Combat tab.
+	tabs.add_child(_build_combat_tab())
+	tabs.add_child(_build_skills_tab())
+	tabs.add_child(_build_inventory_tab())
+	tabs.add_child(_build_equipment_tab())
+	tabs.add_child(_build_prayer_tab())
+	tabs.add_child(_build_magic_tab())
+
+	# Icon tab row (OSRS sits these under the panel). One per content tab.
+	var bar := GridContainer.new()
+	bar.columns = 6
+	bar.add_theme_constant_override("h_separation", UiScale.i(2))
+	col.add_child(bar)
+	var defs := [
+		["combat", "Combat"], ["skills", "Skills"], ["inventory", "Inventory"],
+		["equipment", "Equipment"], ["prayer", "Prayer"], ["magic", "Magic"],
+	]
+	_tab_icons.clear()
+	for i: int in defs.size():
+		var ico := _TabIcon.new()
+		ico.kind = str(defs[i][0])
+		ico.tooltip_text = str(defs[i][1])
+		var idx := i
+		ico.on_press = func() -> void:
+			show_ui_click_marker(get_viewport().get_mouse_position())
+			_select_side_tab(idx)
+		bar.add_child(ico)
+		_tab_icons.append(ico)
+	_select_side_tab(2)  # default to Inventory, like OSRS
+
+
+func _select_side_tab(idx: int) -> void:
+	if _side_tabs == null:
+		return
+	_side_tabs.current_tab = idx
+	for i: int in _tab_icons.size():
+		_tab_icons[i].set_active(i == idx)
+
+
+func _build_combat_tab() -> Control:
 	var combat_box := VBoxContainer.new()
 	combat_box.name = "Combat"
 	var train_row := HBoxContainer.new()
@@ -365,17 +417,24 @@ func _build_side_panel() -> void:
 	combat_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	combat_info.add_theme_font_size_override("font_size", UiScale.i(13))
 	combat_box.add_child(combat_info)
-	tabs.add_child(combat_box)
+	var slayer := Button.new()
+	slayer.text = "Slayer targets"
+	slayer.tooltip_text = "Browse monsters you can fight (Slayer level gated)"
+	slayer.pressed.connect(open_slayer)
+	combat_box.add_child(slayer)
+	return combat_box
 
-	# Skills tab: OSRS-style 3x8 grid. Clicking a cell opens the skill guide
-	# with all unlocks and auto-walk actions.
+
+## Skills tab: OSRS-style grid. Clicking a cell opens the skill guide with all
+## unlocks and auto-walk actions.
+func _build_skills_tab() -> Control:
 	var skills_grid := GridContainer.new()
 	skills_grid.name = "Skills"
 	skills_grid.columns = 3
 	for skill: String in GameState.SKILLS:
 		var cell := PanelContainer.new()
 		cell.add_theme_stylebox_override("panel", _style(STONE_DARK))
-		cell.custom_minimum_size = UiScale.v2(Vector2(92, 42))
+		cell.custom_minimum_size = UiScale.v2(Vector2(84, 40))
 		cell.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		var skill_copy := skill
 		cell.gui_input.connect(func(event: InputEvent) -> void:
@@ -389,29 +448,95 @@ func _build_side_panel() -> void:
 		cell.add_child(lbl)
 		skills_grid.add_child(cell)
 		skill_cells[skill] = lbl
-	tabs.add_child(skills_grid)
+	return skills_grid
 
-	# Inventory tab: 4x7 grid like OSRS.
+
+## Inventory tab: fixed 4x7 (28-slot) grid like OSRS.
+func _build_inventory_tab() -> Control:
 	var inv_wrap := VBoxContainer.new()
 	inv_wrap.name = "Inventory"
 	inv_grid = GridContainer.new()
 	inv_grid.columns = 4
+	inv_grid.add_theme_constant_override("h_separation", UiScale.i(2))
+	inv_grid.add_theme_constant_override("v_separation", UiScale.i(2))
 	inv_wrap.add_child(inv_grid)
 	var hint := Label.new()
-	hint.text = "Left-click: equip/eat. Right-click: more."
+	hint.text = "Left-click: equip/eat.  Right-click: more."
 	hint.add_theme_font_size_override("font_size", UiScale.i(10))
 	hint.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 	inv_wrap.add_child(hint)
-	tabs.add_child(inv_wrap)
+	return inv_wrap
 
-	# Equipment tab.
+
+func _build_equipment_tab() -> Control:
 	var eq_scroll := ScrollContainer.new()
-	eq_scroll.name = "Equip"
+	eq_scroll.name = "Equipment"
 	eq_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	equip_list = VBoxContainer.new()
 	equip_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	eq_scroll.add_child(equip_list)
-	tabs.add_child(eq_scroll)
+	return eq_scroll
+
+
+## Prayer tab (placeholder until the Prayer sim lands, spec §6/§16): shows the
+## prayers that unlock per Prayer level so the panel is meaningful today.
+func _build_prayer_tab() -> Control:
+	var box := VBoxContainer.new()
+	box.name = "Prayer"
+	var head := Label.new()
+	head.text = "Prayers"
+	head.add_theme_font_size_override("font_size", UiScale.i(15))
+	head.add_theme_color_override("font_color", Color(0.6, 0.78, 0.95))
+	box.add_child(head)
+	for p: Array in [
+		["Thick Skin", 1], ["Burst of Strength", 4], ["Clarity of Thought", 7],
+		["Sharp Eye", 8], ["Mystic Will", 9], ["Rock Skin", 10],
+		["Protect Item", 25], ["Protect from Melee", 43],
+	]:
+		var name: String = str(p[0])
+		var req: int = int(p[1])
+		var row := Label.new()
+		row.add_theme_font_size_override("font_size", UiScale.i(12))
+		var unlocked := GameState.level("prayer") >= req
+		row.text = "%s  (Lvl %d)" % [name, req]
+		row.add_theme_color_override("font_color",
+			Color(0.9, 0.9, 0.8) if unlocked else Color(0.45, 0.45, 0.45))
+		box.add_child(row)
+	var note := Label.new()
+	note.text = "Bury bones to train Prayer (coming soon)."
+	note.add_theme_font_size_override("font_size", UiScale.i(10))
+	note.add_theme_color_override("font_color", Color(0.65, 0.65, 0.65))
+	box.add_child(note)
+	return box
+
+
+## Magic tab (placeholder spellbook until Magic combat lands).
+func _build_magic_tab() -> Control:
+	var box := VBoxContainer.new()
+	box.name = "Magic"
+	var head := Label.new()
+	head.text = "Spellbook"
+	head.add_theme_font_size_override("font_size", UiScale.i(15))
+	head.add_theme_color_override("font_color", Color(0.7, 0.55, 0.95))
+	box.add_child(head)
+	for s: Array in [
+		["Wind Strike", 1], ["Confuse", 3], ["Water Strike", 5], ["Earth Strike", 9],
+		["Fire Strike", 13], ["Bind", 20], ["High Alchemy", 55],
+	]:
+		var row := Label.new()
+		row.add_theme_font_size_override("font_size", UiScale.i(12))
+		var unlocked := GameState.level("magic") >= int(s[1])
+		row.text = "%s  (Lvl %d)" % [str(s[0]), int(s[1])]
+		row.add_theme_color_override("font_color",
+			Color(0.9, 0.9, 0.8) if unlocked else Color(0.45, 0.45, 0.45))
+		box.add_child(row)
+	var note := Label.new()
+	note.text = "Select Magic in the Combat tab to cast while fighting (coming soon)."
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.add_theme_font_size_override("font_size", UiScale.i(10))
+	note.add_theme_color_override("font_color", Color(0.65, 0.65, 0.65))
+	box.add_child(note)
+	return box
 
 
 func _build_chatbox() -> void:
@@ -505,48 +630,80 @@ func _build_settings_popup() -> void:
 	add_child(settings_popup)
 
 
+## OSRS-style minimap cluster: a left column of status orbs (HP / Prayer / Run),
+## the circular minimap, and a row of action buttons (Bank / Slayer / World map).
 func _build_minimap_cluster() -> void:
 	var cluster := Control.new()
 	cluster.name = "MinimapCluster"
-	_anchor(cluster, Control.PRESET_TOP_RIGHT, Vector2(-218, 8), Vector2(218, 162))
+	_anchor(cluster, Control.PRESET_TOP_RIGHT, Vector2(-252, 8), Vector2(252, 210))
 	_hud_tr.add_child(cluster)
 
-	hp_orb = HpOrb.new()
-	hp_orb.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hp_orb.position = UiScale.v2(Vector2(0, 6))
-	hp_orb.custom_minimum_size = UiScale.v2(Vector2(52, 52))
-	hp_orb.size = hp_orb.custom_minimum_size
+	# Minimap (right).
+	var map_panel := MinimapPanel.new()
+	map_panel.setup(self)
+	map_panel.position = UiScale.v2(Vector2(88, 0))
+	cluster.add_child(map_panel)
+	minimap = map_panel.minimap
+
+	# Status orbs (left column), OSRS-style.
+	hp_orb = _Orb.new()
+	hp_orb.kind = "hp"
+	hp_orb.position = UiScale.v2(Vector2(6, 2))
+	hp_orb.tooltip_text = "Hitpoints"
 	cluster.add_child(hp_orb)
 
+	prayer_orb = _Orb.new()
+	prayer_orb.kind = "prayer"
+	prayer_orb.position = UiScale.v2(Vector2(6, 48))
+	prayer_orb.tooltip_text = "Prayer"
+	cluster.add_child(prayer_orb)
+
+	run_orb = _Orb.new()
+	run_orb.kind = "run"
+	run_orb.position = UiScale.v2(Vector2(6, 94))
+	run_orb.tooltip_text = "Run energy"
+	cluster.add_child(run_orb)
+
 	coins_label = Label.new()
-	coins_label.position = UiScale.v2(Vector2(0, 58))
-	coins_label.custom_minimum_size = UiScale.v2(Vector2(84, 22))
+	coins_label.position = UiScale.v2(Vector2(2, 142))
+	coins_label.custom_minimum_size = UiScale.v2(Vector2(82, 20))
 	coins_label.size = coins_label.custom_minimum_size
-	coins_label.add_theme_font_size_override("font_size", UiScale.i(12))
+	coins_label.add_theme_font_size_override("font_size", UiScale.i(11))
 	coins_label.add_theme_color_override("font_color", Color(1, 0.85, 0.3))
 	coins_label.add_theme_color_override("font_shadow_color", Color.BLACK)
-	coins_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	coins_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	coins_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cluster.add_child(coins_label)
 
-	# Bank icon by the minimap (spec §3d): one click auto-paths to the nearest bank.
-	var bank_btn := Button.new()
-	bank_btn.text = "🏦 Bank"
-	bank_btn.position = UiScale.v2(Vector2(0, 82))
-	bank_btn.custom_minimum_size = UiScale.v2(Vector2(84, 24))
-	bank_btn.size = bank_btn.custom_minimum_size
-	bank_btn.add_theme_font_size_override("font_size", UiScale.i(11))
-	bank_btn.tooltip_text = "Auto-walk to the nearest bank"
-	bank_btn.pressed.connect(func() -> void:
+	# Action buttons under the minimap.
+	var bank := _IconButton.new()
+	bank.kind = "bank"
+	bank.label = "Bank"
+	bank.tooltip_text = "Auto-walk to the nearest bank"
+	bank.position = UiScale.v2(Vector2(88, 166))
+	bank.on_press = func() -> void:
 		if world != null:
-			world.call("auto_bank"))
-	cluster.add_child(bank_btn)
+			world.call("auto_bank")
+	cluster.add_child(bank)
 
-	var map_panel := MinimapPanel.new()
-	map_panel.setup(self)
-	map_panel.position = UiScale.v2(Vector2(62, 0))
-	cluster.add_child(map_panel)
-	minimap = map_panel.minimap
+	var slay := _IconButton.new()
+	slay.kind = "slayer"
+	slay.label = "Slayer"
+	slay.tooltip_text = "Slayer master — browse monsters you can fight"
+	slay.position = UiScale.v2(Vector2(140, 166))
+	slay.on_press = func() -> void:
+		open_slayer()
+	cluster.add_child(slay)
+
+	var map_btn := _IconButton.new()
+	map_btn.kind = "map"
+	map_btn.label = "Map"
+	map_btn.tooltip_text = "Open the world map (M)"
+	map_btn.position = UiScale.v2(Vector2(192, 166))
+	map_btn.on_press = func() -> void:
+		if world_map != null:
+			world_map.toggle()
+	cluster.add_child(map_btn)
 
 
 func _build_game_menu() -> void:
@@ -935,6 +1092,47 @@ func open_skill_guide(skill: String) -> void:
 		popup_list.add_child(lbl)
 
 
+## Slayer master: the bestiary gated by Slayer level (spoiler-free, spec §3c).
+## Clicking a monster arms combat against that type (the §3b Slayer exception).
+func open_slayer() -> void:
+	var slvl := GameState.level("slayer")
+	_open_popup("Slayer Master — level %d" % slvl)
+	var list: Array = DataRegistry.enemies.values()
+	list.sort_custom(func(a, b):
+		return int(a.get("beastMasteryReq", 0)) < int(b.get("beastMasteryReq", 0)))
+	var teaser := false
+	for e: Dictionary in list:
+		var req := int(e.get("beastMasteryReq", 0))
+		var unlocked := slvl >= req
+		if not unlocked:
+			if teaser:
+				continue
+			teaser = true
+		var row := HBoxContainer.new()
+		var lbl := Label.new()
+		lbl.text = "Lvl %d  %s%s" % [int(e.get("level", 1)),
+			DataRegistry.enemy_display_name(str(e["name"])),
+			"  [BOSS]" if bool(e.get("isBoss", false)) else ""]
+		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lbl.clip_text = true
+		lbl.tooltip_text = "Slayer req: %d" % req
+		lbl.add_theme_color_override("font_color",
+			Color(0.9, 0.9, 0.8) if unlocked else Color(0.45, 0.45, 0.45))
+		row.add_child(lbl)
+		var go := Button.new()
+		go.text = "Fight"
+		go.disabled = not unlocked
+		var ename: String = str(e["name"])
+		go.pressed.connect(func() -> void:
+			var train := "attack"
+			if train_select != null and train_select.selected >= 0:
+				train = train_select.get_item_text(train_select.selected).to_lower()
+			if CombatSim.start_combat(ename, train):
+				popup.hide())
+		row.add_child(go)
+		popup_list.add_child(row)
+
+
 ## Teleport list: every obelisk the player has attuned to.
 func open_obelisks() -> void:
 	_open_popup("Teleport Obelisks")
@@ -1062,7 +1260,7 @@ func _refresh_inventory() -> void:
 		c.queue_free()
 	for i: int in GameState.max_inventory_slots():
 		var btn := Button.new()
-		btn.custom_minimum_size = UiScale.v2(Vector2(64, 50))
+		btn.custom_minimum_size = UiScale.v2(Vector2(60, 48))
 		if i < GameState.inventory.size():
 			var stack: Dictionary = GameState.inventory[i]
 			var item_id: String = stack["id"]
@@ -1158,6 +1356,138 @@ func _push_chat(line: String) -> void:
 
 
 # ------------------------------------------------------------ sub-widgets ----
+
+## A drawn icon tab in the side-panel tab row. Highlights when its tab is active.
+class _TabIcon extends Control:
+	var kind := ""
+	var active := false
+	var on_press: Callable
+
+	func _ready() -> void:
+		custom_minimum_size = UiScale.v2(Vector2(40, 32))
+		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+
+	func set_active(a: bool) -> void:
+		active = a
+		queue_redraw()
+
+	func _gui_input(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			if on_press.is_valid():
+				on_press.call()
+
+	func _draw() -> void:
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0.30, 0.27, 0.22) if active else Color(0.15, 0.14, 0.13))
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0.75, 0.65, 0.42) if active else Color(0.38, 0.35, 0.28), false, 2.0)
+		var c := size * 0.5
+		var s := minf(size.x, size.y) * 0.28
+		var ink := Color(0.97, 0.9, 0.62) if active else Color(0.72, 0.7, 0.58)
+		match kind:
+			"combat":  # crossed swords
+				draw_line(c + Vector2(-s, s), c + Vector2(s, -s), ink, 2.0)
+				draw_line(c + Vector2(-s, -s), c + Vector2(s, s), ink, 2.0)
+			"skills":  # rising bars
+				for i: int in 3:
+					var bh := s * (0.6 + 0.6 * float(i))
+					draw_rect(Rect2(c + Vector2(-s + float(i) * s * 0.8, s - bh), Vector2(s * 0.55, bh)), ink)
+			"inventory":  # backpack 2x2 grid
+				for ox: float in [-s * 0.62, s * 0.08]:
+					for oy: float in [-s * 0.62, s * 0.08]:
+						draw_rect(Rect2(c + Vector2(ox, oy), Vector2(s * 0.54, s * 0.54)), ink)
+			"equipment":  # shield
+				draw_colored_polygon(PackedVector2Array([
+					c + Vector2(-s, -s), c + Vector2(s, -s), c + Vector2(s, s * 0.3),
+					c + Vector2(0, s * 1.1), c + Vector2(-s, s * 0.3)]), ink)
+			"prayer":  # teardrop diamond
+				draw_colored_polygon(PackedVector2Array([
+					c + Vector2(0, -s * 1.1), c + Vector2(s * 0.8, 0),
+					c + Vector2(0, s * 1.1), c + Vector2(-s * 0.8, 0)]), ink)
+			"magic":  # six-point star
+				for a: float in [0.0, PI / 3.0, 2.0 * PI / 3.0]:
+					draw_line(c - Vector2(cos(a), sin(a)) * s, c + Vector2(cos(a), sin(a)) * s, ink, 2.0)
+
+
+## A drawn status orb (HP / Prayer / Run energy) for the minimap cluster.
+class _Orb extends Control:
+	var kind := "hp"
+
+	func _ready() -> void:
+		custom_minimum_size = UiScale.v2(Vector2(42, 42))
+		size = custom_minimum_size
+		mouse_filter = Control.MOUSE_FILTER_STOP  # STOP so the tooltip shows
+
+	func _process(_delta: float) -> void:
+		queue_redraw()
+
+	func _draw() -> void:
+		var r := size.x / 2.0
+		var c := size / 2.0
+		var frac := 1.0
+		var col := Color(0.7, 0.12, 0.12)
+		var text := ""
+		match kind:
+			"hp":
+				frac = float(GameState.current_hp) / maxf(float(GameState.max_hp()), 1.0)
+				col = Color(0.7, 0.12, 0.12)
+				text = str(GameState.current_hp)
+			"prayer":
+				col = Color(0.3, 0.55, 0.85)
+				text = str(GameState.level("prayer"))
+			"run":
+				col = Color(0.85, 0.78, 0.2)
+				text = "100"
+		draw_circle(c, r, Color(0.09, 0.09, 0.09, 0.92))
+		var fill_h := size.y * clampf(frac, 0.0, 1.0)
+		draw_rect(Rect2(Vector2(0, size.y - fill_h), Vector2(size.x, fill_h)).intersection(Rect2(Vector2.ZERO, size)), col)
+		draw_arc(c, r - 1.0, 0.0, TAU, 36, Color(0.55, 0.5, 0.35), 2.0)
+		var font := ThemeDB.fallback_font
+		var fs := UiScale.i(13)
+		var tw := font.get_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, -1, fs).x
+		draw_string(font, c + Vector2(-tw / 2.0, fs * 0.4), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
+		draw_string(font, c + Vector2(-tw / 2.0 + 1, fs * 0.4 + 1), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.0))
+
+
+## A drawn icon action button beside the minimap (Bank / Slayer / World map).
+class _IconButton extends Control:
+	var kind := "bank"
+	var label := ""
+	var on_press: Callable
+
+	func _ready() -> void:
+		custom_minimum_size = UiScale.v2(Vector2(50, 40))
+		size = custom_minimum_size
+		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+
+	func _gui_input(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			if on_press.is_valid():
+				on_press.call()
+
+	func _draw() -> void:
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0.18, 0.16, 0.14))
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0.55, 0.5, 0.35), false, 2.0)
+		var c := Vector2(size.x * 0.5, size.y * 0.38)
+		var s := minf(size.x, size.y) * 0.26
+		var ink := Color(0.93, 0.88, 0.72)
+		match kind:
+			"bank":  # building: roof + body
+				draw_colored_polygon(PackedVector2Array([
+					c + Vector2(-s * 1.2, -s * 0.2), c + Vector2(s * 1.2, -s * 0.2), c + Vector2(0, -s * 1.1)]), ink)
+				draw_rect(Rect2(c + Vector2(-s, -s * 0.2), Vector2(s * 2.0, s * 1.2)), ink, false, 1.5)
+			"slayer":  # skull
+				draw_circle(c, s, ink)
+				draw_circle(c + Vector2(-s * 0.42, -s * 0.05), s * 0.24, Color.BLACK)
+				draw_circle(c + Vector2(s * 0.42, -s * 0.05), s * 0.24, Color.BLACK)
+				draw_rect(Rect2(c + Vector2(-s * 0.4, s * 0.5), Vector2(s * 0.8, s * 0.5)), ink)
+			"map":  # globe
+				draw_arc(c, s, 0.0, TAU, 22, ink, 1.5)
+				draw_line(c + Vector2(0, -s), c + Vector2(0, s), ink, 1.0)
+				draw_line(c + Vector2(-s, 0), c + Vector2(s, 0), ink, 1.0)
+		var font := ThemeDB.fallback_font
+		var fs := UiScale.i(10)
+		var tw := font.get_string_size(label, HORIZONTAL_ALIGNMENT_CENTER, -1, fs).x
+		draw_string(font, Vector2(size.x * 0.5 - tw / 2.0, size.y - UiScale.f(3.0)), label, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.85, 0.82, 0.66))
+
 
 class MinimapPanel extends Control:
 	## OSRS-style minimap cluster: circular map with small orb zoom buttons on the rim.
