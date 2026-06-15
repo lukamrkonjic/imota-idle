@@ -8,10 +8,11 @@ render_mode specular_disabled, ambient_light_disabled, diffuse_lambert;
 
 uniform vec4 shadow_tint : source_color = vec4(0.27, 0.34, 0.22, 1.0);
 uniform vec4 light_tint : source_color  = vec4(0.42, 0.47, 0.28, 1.0);
-uniform float shadow_threshold : hint_range(0.0, 1.0) = 0.25;
-uniform float light_threshold : hint_range(0.0, 1.0)  = 0.62;
-uniform float softness : hint_range(0.0, 0.4) = 0.10;
-uniform float ambient : hint_range(0.0, 1.0) = 0.30;
+uniform float shadow_threshold : hint_range(0.0, 1.0) = 0.30;
+uniform float light_threshold : hint_range(0.0, 1.0)  = 0.58;
+uniform float softness : hint_range(0.0, 0.4) = 0.04;
+uniform float ambient : hint_range(0.0, 1.0) = 0.22;
+uniform float posterize_steps : hint_range(2.0, 8.0) = 4.0;
 
 varying vec3 v_col;
 
@@ -28,12 +29,13 @@ void fragment() {
 void light() {
 	float lit = clamp(dot(normalize(NORMAL), normalize(LIGHT)), 0.0, 1.0) * ATTENUATION;
 	lit = ambient + (1.0 - ambient) * lit;
+	lit = floor(lit * posterize_steps + 0.5) / posterize_steps;
 	vec3 base = v_col;
-	vec3 shad = mix(base, shadow_tint.rgb, 0.45);
-	vec3 lite = mix(base, light_tint.rgb, 0.35);
+	vec3 shad = mix(base, shadow_tint.rgb, 0.62);
+	vec3 lite = mix(base, light_tint.rgb, 0.42);
 	float s = smoothstep(shadow_threshold - softness, shadow_threshold + softness, lit);
 	float l = smoothstep(light_threshold - softness, light_threshold + softness, lit);
 	vec3 ramp = mix(shad, base, s);
 	ramp = mix(ramp, lite, l);
-	DIFFUSE_LIGHT += ramp * mix(vec3(1.0), LIGHT_COLOR.rgb, 0.3);
+	DIFFUSE_LIGHT += ramp * mix(vec3(1.0), LIGHT_COLOR.rgb, 0.18);
 }
