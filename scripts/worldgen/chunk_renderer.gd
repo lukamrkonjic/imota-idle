@@ -57,6 +57,7 @@ var _pending_props: Array = []
 const APPLIES_PER_FRAME := 4
 static var _apply_frame := -1
 static var _applies_left := 0
+static var debug_applies := 0  # running count of mesh applies (chunk first-draws), for profiling
 static var _white_tex: Texture2D = null
 
 
@@ -225,6 +226,7 @@ func _process(_delta: float) -> void:
 	if _applies_left <= 0:
 		return  # apply next frame; placeholder/old mesh stays until then
 	_applies_left -= 1
+	debug_applies += 1
 	WorkerThreadPool.wait_for_task_completion(_build_task)
 	_build_task = -1
 	set_process(false)

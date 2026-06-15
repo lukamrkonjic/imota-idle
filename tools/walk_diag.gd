@@ -6,6 +6,7 @@ extends Node
 ##   godot --path . res://tools/walk_diag.tscn
 
 const WG := preload("res://scripts/worldgen/wg.gd")
+const CR := preload("res://scripts/worldgen/chunk_renderer.gd")
 
 var _world: Node2D
 
@@ -47,37 +48,74 @@ func _click_walk(zoom: float) -> void:
 	for _i: int in 120:
 		await get_tree().process_frame
 	var dir := Vector2(0.80, 0.60).normalized()
+	var bake: Node = _world.get_node("BakeQueue")
 	var worst: Array = []
-	var drops := 0          # frames slower than 60Hz (>16.7ms)
-	var deep_drops := 0     # frames slower than ~90fps-ish that read as a visible hitch (>11ms) — count separate
-	var big := 0            # >25ms (the 144->40 dips the user reports)
-	var frames := 2400
+	var drops := 0
+	var big := 0
+	# correlation counts: of the slow (>13ms) frames, how many coincided with each event
+	var slow := 0
+	var with_apply := 0
+	var with_bake := 0
+	var with_spawn := 0
+	var with_mesh := 0
+	var with_activate := 0
+	var clean := 0  # slow frames with NONE of the above
+	var prev_applies: int = CR.debug_applies
+	var prev_kept: int = (bake.get("_kept_viewports") as Array).size()
+	var prev_ents: int = (_world.get("entities") as Array).size()
+	var frames := 3200
+	var stuck := 0
 	for i: int in frames:
 		var p: Node2D = _world.player
-		# Re-issue a target ahead whenever the avatar is idle or nearly there.
 		if not bool(p.get("walking")):
-			var target: Vector2 = p.position + dir * (WG.CHUNK_SIZE * 6.0)
-			_world.call("walk_to_pos", target)
+			# Steer: aim a few chunks ahead; if that's unreachable (water/cliffs),
+			# rotate until we find walkable land so the avatar keeps moving.
+			var moved := false
+			for attempt: int in 8:
+				var target: Vector2 = p.position + dir * (WG.CHUNK_SIZE * 4.0)
+				if bool(_world.call("walk_to_pos", target)):
+					moved = true
+					break
+				dir = dir.rotated(deg_to_rad(50.0))
+			if not moved:
+				stuck += 1
+				dir = dir.rotated(randf_range(-PI, PI))
 		var t0 := Time.get_ticks_usec()
 		await get_tree().process_frame
 		var ms := float(Time.get_ticks_usec() - t0) / 1000.0
+		var applies: int = CR.debug_applies - prev_applies
+		prev_applies = CR.debug_applies
+		var bakes: int = (bake.get("_kept_viewports") as Array).size() - prev_kept
+		prev_kept += bakes
+		var spawned: int = (_world.get("entities") as Array).size() - prev_ents
+		prev_ents += spawned
+		var cm: Dictionary = _world.chunk_manager.get("last_timings")
 		if ms > 16.7:
 			drops += 1
-		if ms > 11.0:
-			deep_drops += 1
 		if ms > 25.0:
 			big += 1
-		if ms > 16.0:
-			var cm: Dictionary = (_world.chunk_manager.get("last_timings") as Dictionary).duplicate()
-			var wf: Dictionary = (_world.get("last_frame_timings") as Dictionary).duplicate()
-			worst.append({"ms": snappedf(ms, 0.1),
+		if ms > 13.0:
+			slow += 1
+			var had := false
+			if applies > 0: with_apply += 1; had = true
+			if bakes > 0: with_bake += 1; had = true
+			if spawned > 0: with_spawn += 1; had = true
+			if int(cm.get("mesh", 0)) > 200: with_mesh += 1; had = true
+			if int(cm.get("activate", 0)) > 200: with_activate += 1; had = true
+			if not had: clean += 1
+			var wf: Dictionary = _world.get("last_frame_timings")
+			worst.append({"ms": snappedf(ms, 0.1), "appl": applies, "bake": bakes, "spawn": spawned,
 				"rcpu": snappedf(RenderingServer.viewport_get_measured_render_time_cpu(vp_rid), 0.2),
 				"rgpu": snappedf(RenderingServer.viewport_get_measured_render_time_gpu(vp_rid), 0.2),
-				"world_us": wf, "cm_us": cm})
+				"draw": int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)),
+				"objs": int(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME)),
+				"cm": cm.duplicate(), "w": wf.duplicate()})
 	worst.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["ms"] > b["ms"])
-	print("\n=== CLICK-WALK (zoom %.2f, %d frames) ===" % [zoom, frames])
-	print("frames >16.7ms: %d   >25ms: %d   >11ms: %d" % [drops, big, deep_drops])
-	for w: Dictionary in worst.slice(0, 10):
+	print("\n=== CLICK-WALK (zoom %.2f, %d frames, stuck=%d) ===" % [zoom, frames, stuck])
+	print("frames >16.7ms: %d   >25ms: %d   slow>13ms: %d" % [drops, big, slow])
+	print("of %d slow frames: apply=%d bake=%d spawn=%d mesh=%d activate=%d NONE=%d" % [
+		slow, with_apply, with_bake, with_spawn, with_mesh, with_activate, clean])
+	for w: Dictionary in worst.slice(0, 12):
 		print(JSON.stringify(w))
 
 

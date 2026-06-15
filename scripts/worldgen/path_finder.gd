@@ -22,19 +22,77 @@ var locked_chunks: Dictionary = {}  # "cx:cy" -> level requirement
 
 var _ids: Dictionary = {}   # Vector2i tile -> AStar point id
 var _elev: Dictionary = {}  # Vector2i tile -> elevation step
-var _next_id := 0
+
+# Off-main-thread rebuild. The graph build is O(walkable tiles) — ~12k nodes over a
+# dense nav ring, which spiked the frame ~68ms when it ran on the main thread every
+# time the player crossed into new chunks. It now builds a fresh graph on a worker
+# (pure data over immutable baked chunks) and swaps it in via poll(); find_path keeps
+# using the previous graph meanwhile.
+var _task := -1
+var _build_chunks: Array = []
+var _build_reg: RefCounted = null
+var _build_entry := 0
+var _result: Dictionary = {}
 
 
 ## chunks: Array of Chunk (one layer). entry_level: zone_map.player_entry_level().
+## Synchronous full build — used for the first build at spawn.
 func rebuild(chunks: Array, reg: RefCounted, entry_level: int) -> void:
-	astar.clear()
-	_ids.clear()
-	_elev.clear()
-	locked_chunks.clear()
-	_next_id = 0
-	if chunks.is_empty():
-		region = Rect2i()
+	_apply(_build_graph(chunks, reg, entry_level))
+
+
+## Kick off a worker-thread rebuild. No-op if one is already running (the next
+## poll() swaps it in; callers re-mark dirty if the world changed again).
+func rebuild_async(chunks: Array, reg: RefCounted, entry_level: int) -> void:
+	if _task != -1:
 		return
+	_build_chunks = chunks.duplicate()  # hold refs so the chunks outlive the task
+	_build_reg = reg
+	_build_entry = entry_level
+	_result = {}
+	_task = WorkerThreadPool.add_task(_run_async)
+
+
+func _run_async() -> void:
+	_result = _build_graph(_build_chunks, _build_reg, _build_entry)
+
+
+## Swap a finished worker build into the live graph. Call once per frame. Returns
+## true on the frame the swap happens.
+func poll() -> bool:
+	if _task == -1 or not WorkerThreadPool.is_task_completed(_task):
+		return false
+	WorkerThreadPool.wait_for_task_completion(_task)
+	_task = -1
+	_build_chunks = []
+	_build_reg = null
+	_apply(_result)
+	_result = {}
+	return true
+
+
+func building() -> bool:
+	return _task != -1
+
+
+func _apply(r: Dictionary) -> void:
+	astar = r["astar"]
+	_ids = r["ids"]
+	_elev = r["elev"]
+	region = r["region"]
+	locked_chunks = r["locked"]
+
+
+## Pure build over immutable chunk data — safe to run on a worker thread. Returns
+## the new graph + its lookup tables; nothing here touches shared live state.
+func _build_graph(chunks: Array, reg: RefCounted, entry_level: int) -> Dictionary:
+	var a := AStar2D.new()
+	var ids: Dictionary = {}
+	var elev: Dictionary = {}
+	var locked: Dictionary = {}
+	var reg_rect := Rect2i()
+	if chunks.is_empty():
+		return {"astar": a, "ids": ids, "elev": elev, "region": reg_rect, "locked": locked}
 	var mn := Vector2i(99999, 99999)
 	var mx := Vector2i(-99999, -99999)
 	var present: Dictionary = {}
@@ -42,14 +100,15 @@ func rebuild(chunks: Array, reg: RefCounted, entry_level: int) -> void:
 		mn = Vector2i(mini(mn.x, c.cx), mini(mn.y, c.cy))
 		mx = Vector2i(maxi(mx.x, c.cx), maxi(mx.y, c.cy))
 		present["%d:%d" % [c.cx, c.cy]] = c
-	region = Rect2i(mn * WG.CHUNK_TILES, (mx - mn + Vector2i.ONE) * WG.CHUNK_TILES)
+	reg_rect = Rect2i(mn * WG.CHUNK_TILES, (mx - mn + Vector2i.ONE) * WG.CHUNK_TILES)
 
 	# 1) Create a node for every reachable walkable tile.
+	var next_id := 0
 	for key: String in present:
 		var c: RefCounted = present[key]
 		var req := int(c.zone.get("req", 1))
 		if req > entry_level:
-			locked_chunks[key] = req
+			locked[key] = req
 			continue
 		var base := Vector2i(c.cx, c.cy) * WG.CHUNK_TILES
 		var has_elev: bool = c.elev.size() > 0
@@ -63,37 +122,34 @@ func rebuild(chunks: Array, reg: RefCounted, entry_level: int) -> void:
 				if e > WG.MAX_REACHABLE_ELEV:
 					continue
 				var gt := base + Vector2i(tx, ty)
-				_ids[gt] = _next_id
-				_elev[gt] = e
-				astar.add_point(_next_id, Vector2(gt))
-				_next_id += 1
+				ids[gt] = next_id
+				elev[gt] = e
+				a.add_point(next_id, Vector2(gt))
+				next_id += 1
 
 	# 2) Link neighbours only where the elevation step is climbable. Diagonals also
 	#    require both orthogonal corners open and climbable (no cutting cliff corners).
-	for gt: Vector2i in _ids:
-		var id: int = _ids[gt]
-		var e: int = _elev[gt]
+	for gt: Vector2i in ids:
+		var id: int = ids[gt]
+		var e: int = elev[gt]
 		for off: Vector2i in ORTHO:
-			_try_link(id, e, gt + off)
+			var n0 := gt + off
+			if ids.has(n0) and absi(elev[n0] - e) <= WG.MAX_CLIMB_STEP:
+				if not a.are_points_connected(id, ids[n0]):
+					a.connect_points(id, ids[n0])
 		for d: Vector2i in DIAG:
 			var n := gt + d
-			if not _ids.has(n) or absi(_elev[n] - e) > WG.MAX_CLIMB_STEP:
+			if not ids.has(n) or absi(elev[n] - e) > WG.MAX_CLIMB_STEP:
 				continue
-			var a := gt + Vector2i(d.x, 0)
-			var b := gt + Vector2i(0, d.y)
-			if not (_ids.has(a) and _ids.has(b)):
+			var ca := gt + Vector2i(d.x, 0)
+			var cb := gt + Vector2i(0, d.y)
+			if not (ids.has(ca) and ids.has(cb)):
 				continue
-			if absi(_elev[a] - e) > WG.MAX_CLIMB_STEP or absi(_elev[b] - e) > WG.MAX_CLIMB_STEP:
+			if absi(elev[ca] - e) > WG.MAX_CLIMB_STEP or absi(elev[cb] - e) > WG.MAX_CLIMB_STEP:
 				continue
-			if not astar.are_points_connected(id, _ids[n]):
-				astar.connect_points(id, _ids[n])
-
-
-func _try_link(id: int, e: int, n: Vector2i) -> void:
-	if not _ids.has(n) or absi(_elev[n] - e) > WG.MAX_CLIMB_STEP:
-		return
-	if not astar.are_points_connected(id, _ids[n]):
-		astar.connect_points(id, _ids[n])
+			if not a.are_points_connected(id, ids[n]):
+				a.connect_points(id, ids[n])
+	return {"astar": a, "ids": ids, "elev": elev, "region": reg_rect, "locked": locked}
 
 
 func in_region(tile: Vector2i) -> bool:

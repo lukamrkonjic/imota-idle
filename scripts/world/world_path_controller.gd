@@ -37,8 +37,11 @@ func on_level_up() -> void:
 
 
 func process_tick() -> void:
-	if _needs_rebuild and (Time.get_ticks_msec() / 1000.0 - _dirty_time) >= REBUILD_DEBOUNCE:
-		rebuild()
+	path_finder.poll()  # swap in a finished worker rebuild
+	if _needs_rebuild and not path_finder.building() \
+			and (Time.get_ticks_msec() / 1000.0 - _dirty_time) >= REBUILD_DEBOUNCE:
+		_needs_rebuild = false
+		path_finder.rebuild_async(world.chunk_manager.call("loaded_chunks"), WorldGen.reg, UNRESTRICTED_ENTRY_LEVEL)
 
 
 # Zones are no longer level-gated for entry — the player may walk anywhere. Pass an
@@ -46,6 +49,9 @@ func process_tick() -> void:
 const UNRESTRICTED_ENTRY_LEVEL := 0x7FFFFFFF
 
 
+## Synchronous build — only the initial spawn path uses this; all runtime refreshes
+## go through the worker thread (process_tick -> rebuild_async) so the ~68ms graph
+## build never stalls a walking frame.
 func rebuild() -> void:
 	_needs_rebuild = false
 	path_finder.rebuild(world.chunk_manager.call("loaded_chunks"), WorldGen.reg, UNRESTRICTED_ENTRY_LEVEL)
@@ -63,10 +69,9 @@ func stop_walking() -> void:
 
 
 func walk_to_pos(target: Vector2) -> bool:
-	# A real path request must use a current graph, so flush any debounced rebuild
-	# now rather than waiting out REBUILD_DEBOUNCE.
-	if _needs_rebuild:
-		rebuild()
+	# Path against the current graph — the worker keeps it fresh (process_tick), so a
+	# click never blocks on a full rebuild. A just-loaded edge tile may lag one
+	# debounce window; long walks repath as the graph catches up.
 	var tile := WG.world_to_tile(target)
 	var direct_ground_click: bool = world.pending_action.is_empty()
 	if path_finder.in_region(tile):
@@ -124,7 +129,6 @@ func _on_path_finished() -> void:
 		if world.player.position.distance_to(_long_target) > WG.TILE * 1.5 and _repath_budget > 0:
 			_repath_budget -= 1
 			world.chunk_manager.update_center(world.player.position)
-			rebuild()
 			if walk_to_pos(_long_target):
 				return
 		_has_long_target = false
