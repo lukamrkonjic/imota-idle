@@ -23,9 +23,9 @@ static var _part_cache: Dictionary = {}
 # Soft warm canopy variety (A Short Hike vibe): mostly greens with autumn
 # accents. Original colors — not copied from any game.
 const CANOPY := [
-	Color8(104, 136, 58), Color8(88, 118, 56), Color8(70, 96, 52),     # greens (weighted)
-	Color8(104, 136, 58), Color8(88, 118, 56),
-	Color8(215, 183, 68), Color8(196, 97, 47), Color8(169, 70, 50)]    # gold / orange / red
+	Color8(83, 123, 57), Color8(72, 114, 63), Color8(106, 141, 77),    # leaf/mid/moss greens (weighted)
+	Color8(83, 123, 57), Color8(72, 114, 63), Color8(45, 76, 43),
+	Color8(196, 150, 60), Color8(180, 95, 45), Color8(150, 60, 45)]    # deeper gold / orange / red accents
 
 static func entity_parts(e: Node) -> Array:
 	match str(e.kind):
@@ -227,7 +227,7 @@ static func _tree_parts(leaf: ShaderMaterial) -> Array:
 	# Fuller, rounder canopy (A Short Hike-ish): a big central mass + side lobes;
 	# the toon bands do the soft shading and the per-tree color adds variety.
 	return [
-		_part(_cyl("trunk", 0.16, 0.26, 1.5), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0, 0.75, 0)),
+		_part(_cyl("trunk", 0.16, 0.26, 1.5), _mat("bark_brown", "dark_bark", "olive_wood"), Vector3(0, 0.75, 0)),
 		_part(_sphere("can_main", 1.35), leaf, Vector3(0, 2.05, 0), Vector3(1.05, 0.9, 1.05)),
 		_part(_sphere("can_l", 0.95), leaf, Vector3(-0.78, 1.85, 0.32), Vector3(1, 0.85, 1)),
 		_part(_sphere("can_r", 0.9), leaf, Vector3(0.8, 1.9, -0.24), Vector3(1, 0.85, 1)),
@@ -239,9 +239,9 @@ static func _tree_parts(leaf: ShaderMaterial) -> Array:
 
 
 static func _conifer_parts() -> Array:
-	var dark := _mat("fir_a", "fir_b", "foliage_c")
+	var dark := _mat("forest_green", "forest_teal", "leaf_green")
 	return [
-		_part(_cyl("contrunk", 0.14, 0.2, 1.0), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0, 0.5, 0)),
+		_part(_cyl("contrunk", 0.14, 0.2, 1.0), _mat("bark_brown", "dark_bark", "olive_wood"), Vector3(0, 0.5, 0)),
 		_part(_cone("fir0", 1.15, 0.78, 1.1), dark, Vector3(0, 1.0, 0)),
 		_part(_cone("fir1", 0.9, 0.55, 1.0), dark, Vector3(0.05, 1.7, 0)),
 		_part(_cone("fir2", 0.62, 0.3, 0.95), dark, Vector3(-0.04, 2.35, 0.02)),
@@ -251,7 +251,7 @@ static func _conifer_parts() -> Array:
 
 
 static func _bush_parts() -> Array:
-	var leaf := _mat("foliage_b", "grass_dark", "foliage_a")
+	var leaf := _foliage_mat(PixelPalette.pal("mid_foliage"))
 	return [
 		_part(_sphere("bush_m", 0.55), leaf, Vector3(0, 0.4, 0), Vector3(1.1, 0.85, 1.1)),
 		_part(_sphere("bush_l", 0.38), leaf, Vector3(-0.4, 0.32, 0.12), Vector3(1.1, 0.8, 1.1)),

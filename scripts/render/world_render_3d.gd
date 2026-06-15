@@ -131,8 +131,8 @@ func _build() -> void:
 
 	_ground_mat = ShaderMaterial.new()
 	_ground_mat.shader = TOON_GROUND
-	_ground_mat.set_shader_parameter("shadow_tint", PixelPalette.pal("hike_grass_dark").lerp(PixelPalette.pal("cliff_dark"), 0.18))
-	_ground_mat.set_shader_parameter("light_tint", PixelPalette.pal("hike_grass_light").lerp(PixelPalette.pal("leaf_gold"), 0.35))
+	_ground_mat.set_shader_parameter("shadow_tint", PixelPalette.pal("forest_green"))
+	_ground_mat.set_shader_parameter("light_tint", PixelPalette.pal("sunlit_grass"))
 	_ground_mat.set_shader_parameter("ambient", 0.14)
 	_ground_mat.set_shader_parameter("softness", 0.03)
 
@@ -564,26 +564,30 @@ func _emit_foam_edge(st: SurfaceTool, gtx: int, gty: int, y: float, edge: Vector
 ## (large painted regions, not noise) so the ground reads painterly, not as flat
 ## monotone diamonds. Original warm grading — our palette, A Short Hike vibe.
 func _grade_ground(col: Color, tile: String, gtx: int, gty: int) -> Color:
-	var c := Color.from_hsv(col.h, minf(col.s * 1.18, 1.0), minf(col.v * 1.04, 1.0), col.a)
+	var c := col
 	var fx := float(gtx)
 	var fz := float(gty)
-	# Two broad bands (period ~14-25 tiles) -> large sunlit/shaded patches.
+	# Three broad low-frequency bands (no noise) -> painterly sunlit/shaded
+	# gradients across the ground like A Short Hike.
 	var bright := 0.5 + 0.5 * sin(fx * 0.07) * cos(fz * 0.06)
+	var band2 := 0.5 + 0.5 * sin(fx * 0.13 + 1.2) * cos(fz * 0.115 - 0.7)
 	var warm := clampf(sin((fx + fz) * 0.045 + 1.3), 0.0, 1.0)
-	c = c.lerp(c.lightened(0.12), bright * 0.4)
-	# Warm dry/golden patches in some regions (subtle).
-	c = c.lerp(Color.from_hsv(0.14, 0.45, minf(c.v * 1.04, 1.0), c.a), warm * 0.12)
 	if _is_path(tile):
 		var path_col := PixelPalette.pal("path_orange").lerp(PixelPalette.pal("path_light"), bright * 0.42)
 		c = c.lerp(path_col, 0.94)
 	elif _is_rock(tile):
 		c = c.lerp(PixelPalette.pal("cliff_warm").lerp(PixelPalette.pal("cliff_light"), bright * 0.34), 0.78)
 	elif tile in ["sand", "sand_dune"]:
-		c = c.lerp(PixelPalette.pal("gold").lightened(0.12), 0.24)
+		c = c.lerp(PixelPalette.pal("warm_stone"), 0.5)
 	else:
-		var grass := PixelPalette.pal("hike_grass").lerp(PixelPalette.pal("hike_grass_b"), 1.0 - bright)
-		grass = grass.lerp(PixelPalette.pal("hike_grass_light"), warm * 0.28)
-		c = c.lerp(grass, 0.45)
+		# Deep-forest grass gradient: mid foliage -> sunlit grass across the broad
+		# bright band, drifting toward leaf-green/forest-green in shaded regions and
+		# a moss highlight in others. No lime.
+		var grass := PixelPalette.pal("mid_foliage").lerp(PixelPalette.pal("sunlit_grass"), bright)
+		grass = grass.lerp(PixelPalette.pal("leaf_green"), (1.0 - band2) * 0.45)
+		grass = grass.lerp(PixelPalette.pal("forest_green"), (1.0 - bright) * 0.2)
+		grass = grass.lerp(PixelPalette.pal("moss_hi"), warm * 0.18)
+		c = c.lerp(grass, 0.82)
 	return c
 
 
