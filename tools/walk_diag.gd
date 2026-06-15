@@ -29,7 +29,40 @@ func _run() -> void:
 	print("\n=== WALK DIAG (2560x1440) ===")
 	for zoom: float in [1.0, 0.7, 0.5]:
 		await _walk(zoom)
+	# A/B: walk a fresh corridor, then walk the SAME corridor again. Pass 2 re-streams
+	# the same chunks but every shader pipeline/GPU resource is already warm, so if
+	# pass 2 has far fewer spikes the stutter is first-render compilation, not work.
+	await _ab_test(0.7)
 	get_tree().quit(0)
+
+
+func _ab_test(zoom: float) -> void:
+	var cam: Camera2D = _world.get("_camera")
+	if cam != null:
+		cam.zoom = Vector2(zoom, zoom)
+		cam.reset_smoothing()
+	print("\n=== A/B fresh-vs-warm corridor (zoom %.2f) ===" % zoom)
+	var start := WG.tile_to_world(-472, -472)  # chunk (-30,-30): in-bounds, far from spawn, unvisited
+	for pass_i: int in 2:
+		var pos := start
+		_world.player.position = pos
+		_world.chunk_manager.call("update_center", pos)
+		for _i: int in 60:
+			await get_tree().process_frame
+		var spikes := 0
+		var worst_ms := 0.0
+		var frames := 320
+		for i: int in frames:
+			pos += Vector2(WG.CHUNK_SIZE * 0.02, WG.CHUNK_SIZE * 0.012)
+			_world.player.position = pos
+			var t0 := Time.get_ticks_usec()
+			await get_tree().process_frame
+			var ms := float(Time.get_ticks_usec() - t0) / 1000.0
+			worst_ms = maxf(worst_ms, ms)
+			if ms > 16.0:
+				spikes += 1
+		print("pass %d (%s): spikes>16ms = %d / %d, worst = %.1fms" % [
+			pass_i + 1, "FRESH" if pass_i == 0 else "WARM (same path)", spikes, frames, worst_ms])
 
 
 func _walk(zoom: float) -> void:
@@ -40,6 +73,8 @@ func _walk(zoom: float) -> void:
 	var pos := WG.tile_to_world(8, 8)
 	_world.player.position = pos
 	_world.chunk_manager.call("update_center", pos)
+	var vp_rid := _world.get_viewport().get_viewport_rid()
+	RenderingServer.viewport_set_measure_render_time(vp_rid, true)
 	for _i: int in 90:
 		await get_tree().process_frame
 
@@ -50,13 +85,18 @@ func _walk(zoom: float) -> void:
 		# Brisk run that keeps crossing fresh chunk boundaries.
 		pos += Vector2(WG.CHUNK_SIZE * 0.02, WG.CHUNK_SIZE * 0.012)
 		_world.player.position = pos
+		var ents_before: int = (_world.get("entities") as Array).size()
 		var t0 := Time.get_ticks_usec()
 		await get_tree().process_frame
 		var ms := float(Time.get_ticks_usec() - t0) / 1000.0
 		if ms > 16.0:
 			var cm: Dictionary = (_world.chunk_manager.get("last_timings") as Dictionary).duplicate()
 			var wf: Dictionary = (_world.get("last_frame_timings") as Dictionary).duplicate()
-			worst.append({"ms": snappedf(ms, 0.1), "world_us": wf, "cm_us": cm})
+			var rcpu := RenderingServer.viewport_get_measured_render_time_cpu(vp_rid)
+			var rgpu := RenderingServer.viewport_get_measured_render_time_gpu(vp_rid)
+			var ents_added: int = (_world.get("entities") as Array).size() - ents_before
+			worst.append({"ms": snappedf(ms, 0.1), "rcpu": snappedf(rcpu, 0.2),
+				"rgpu": snappedf(rgpu, 0.2), "ents+": ents_added, "world_us": wf, "cm_us": cm})
 	worst.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["ms"] > b["ms"])
 	print("\n--- zoom %.2f  view_r=%d  spikes>16ms: %d / %d ---" % [
 		zoom, int(_world.chunk_manager.get("view_radius")), worst.size(), frames])
