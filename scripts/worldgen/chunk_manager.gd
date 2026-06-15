@@ -68,7 +68,6 @@ var _queued_mesh: Dictionary = {}
 var _mesh_queue_dirty := false
 var _last_center_change_msec := 0
 var _detail_update_pending := false
-var _stream_busy := false
 const PERF_KEYS := ["load", "redraw", "mesh", "deactivate", "unload", "activate", "detail", "total"]
 var _perf_accum: Dictionary = {}
 var _perf_frames := 0
@@ -166,10 +165,6 @@ func set_radii(p_view: int, p_active: int) -> void:
 		_refresh(false)
 		if detail_changed:
 			_request_renderer_detail_update(true)
-
-
-func set_stream_busy(busy: bool) -> void:
-	_stream_busy = busy
 
 
 func _refresh(first_fill: bool) -> void:
@@ -313,8 +308,22 @@ func _closer_to_center(a: Vector2i, b: Vector2i) -> bool:
 	return a.y < b.y
 
 
-func _closer_key_to_center(a: String, b: String) -> bool:
-	return _closer_to_center(_coord_from_key(a), _coord_from_key(b))
+## Sort a queue of "cx:cy" keys nearest-first WITHOUT re-parsing strings inside the
+## comparator. The old sort_custom(_closer_key_to_center) split each key into ints
+## on every comparison — O(n log n) string parses that spiked to ~3-4ms on a chunk
+## crossing (when these queues are largest). Decorate each key with its priority
+## once (O(n) parses), sort the floats, then write the keys back in order.
+func _sort_keys_by_priority(keys: Array) -> void:
+	var n := keys.size()
+	if n < 2:
+		return
+	var dec: Array = []
+	dec.resize(n)
+	for i: int in n:
+		dec[i] = [_stream_priority(_coord_from_key(keys[i])), keys[i]]
+	dec.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	for i: int in n:
+		keys[i] = dec[i][1]
 
 
 func _stream_priority(coord: Vector2i) -> float:
@@ -537,9 +546,13 @@ func _process_mesh_rebuild_queue() -> void:
 	# dispatches), so we DON'T gate on movement and dispatch several per frame —
 	# the heavy work is off the main thread, the flat placeholder shows until ready.
 	if _mesh_queue_dirty:
-		_mesh_queue.sort_custom(_closer_key_to_center)
+		_sort_keys_by_priority(_mesh_queue)
 		_mesh_queue_dirty = false
-	var budget := 1 if _stream_busy else MESH_REBUILDS_PER_FRAME
+	# Dispatches are cheap (snapshot neighbours + queue a worker task) and the apply
+	# is ~0.04ms, so keep terrain building at full rate even while walking — the
+	# old "1 per frame while moving" throttle is what left fresh land black until
+	# the player stopped.
+	var budget := MESH_REBUILDS_PER_FRAME
 	while budget > 0 and not _mesh_queue.is_empty():
 		var key: String = _mesh_queue.pop_front()
 		_queued_mesh.erase(key)
@@ -612,7 +625,7 @@ func _queue_deactivate(key: String) -> void:
 
 func _process_activation_queue() -> void:
 	if _activate_queue_dirty:
-		_activate_queue.sort_custom(_closer_key_to_center)
+		_sort_keys_by_priority(_activate_queue)
 		_activate_queue_dirty = false
 	var budget := ACTIVATIONS_PER_FRAME
 	while budget > 0 and not _activate_queue.is_empty():

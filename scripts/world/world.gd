@@ -5,7 +5,6 @@ extends Node2D
 
 const WG := preload("res://scripts/worldgen/wg.gd")
 const ChunkManager := preload("res://scripts/worldgen/chunk_manager.gd")
-const ChunkRenderer := preload("res://scripts/worldgen/chunk_renderer.gd")
 const UnexploredBackdrop := preload("res://scripts/worldgen/unexplored_backdrop.gd")
 const PlayerAvatar := preload("res://scripts/world/player_avatar.gd")
 const WorldEntitySpawner := preload("res://scripts/world/world_entity_spawner.gd")
@@ -53,9 +52,6 @@ var _ambience: Node2D
 var _biome_debug: Node2D
 var _perf_logger: Node
 var _last_bake_gate_pos := Vector2.INF
-var _last_stream_motion_msec := 0
-
-const STREAM_SETTLE_MSEC := 220
 
 # --- controllers ---
 var _entity_spawner: RefCounted
@@ -229,16 +225,14 @@ func _update_stream_radius() -> void:
 	# Freeze entity animations when zoomed far out — the per-frame live redraw of
 	# hundreds of visible enemies/fish is the dominant cost there and invisible.
 	WorldEntity.animations_enabled = zoom >= 0.7
+	# Terrain meshes build off-thread and apply in ~0.04ms, so they are no longer
+	# gated on movement (that left fresh land black until you stopped). The only
+	# thing still deferred while walking is entity sprite-atlas baking, which can
+	# cause a GPU-readback hitch; entities draw procedurally until the bake lands.
 	var bake_queue := get_node_or_null("BakeQueue")
 	if bake_queue != null:
 		var moving := _last_bake_gate_pos != Vector2.INF and player.position.distance_squared_to(_last_bake_gate_pos) > 1.0
-		if moving:
-			_last_stream_motion_msec = Time.get_ticks_msec()
-		var stream_stable := Time.get_ticks_msec() - _last_stream_motion_msec >= STREAM_SETTLE_MSEC
-		if chunk_manager.has_method("set_stream_busy"):
-			chunk_manager.call("set_stream_busy", not stream_stable)
 		bake_queue.set("paused", moving)
-		ChunkRenderer.visible_mesh_applies_allowed = stream_stable
 		_last_bake_gate_pos = player.position
 
 

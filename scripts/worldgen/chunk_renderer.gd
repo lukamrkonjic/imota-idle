@@ -50,12 +50,14 @@ var _pending_cols := PackedColorArray()
 var _pending_props: Array = []
 # The triangle assembly runs on the worker; the ArrayMesh (GPU upload) is created
 # on the MAIN thread (creating GPU resources on workers contends with rendering).
-# Cap those creations per frame across all renderers so a burst never spikes.
-const APPLIES_PER_FRAME := 1
+# A single apply measured ~0.04ms (worst ~0.1ms) for a 16x16 chunk, so this is
+# cheap — applies run every frame, including while moving, so terrain fills in as
+# you walk instead of waiting for you to stop. The per-frame cap only smooths the
+# rare case where many worker builds finish on the same frame.
+const APPLIES_PER_FRAME := 4
 static var _apply_frame := -1
 static var _applies_left := 0
 static var _white_tex: Texture2D = null
-static var visible_mesh_applies_allowed := true
 
 
 func _init(p_chunk: RefCounted, avg_color: Color, p_detail_level: int = DETAIL_FULL) -> void:
@@ -214,8 +216,6 @@ func _process(_delta: float) -> void:
 		set_process(false)
 		return
 	if not WorkerThreadPool.is_task_completed(_build_task):
-		return
-	if not visible_mesh_applies_allowed:
 		return
 	# Throttle ArrayMesh creation (GPU upload) across all renderers this frame.
 	var f := Engine.get_process_frames()
