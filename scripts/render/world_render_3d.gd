@@ -9,6 +9,7 @@ extends Node
 
 const WG := preload("res://scripts/worldgen/wg.gd")
 const TOON_GROUND := preload("res://shaders/toon_ground.gdshader")
+const TOON_WATER := preload("res://shaders/toon_water.gdshader")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 const PropMeshes := preload("res://scripts/render/prop_meshes.gd")
 
@@ -24,7 +25,8 @@ var present: TextureRect
 var terrain_root: Node3D
 var props_root: Node3D
 var _ground_mat: ShaderMaterial
-var _chunk_meshes: Dictionary = {}   # chunk key -> MeshInstance3D
+var _water_mat: ShaderMaterial
+var _chunk_meshes: Dictionary = {}   # chunk key -> Node3D (ground + water)
 var batches_root: Node3D             # holds the per-(mesh,material) MultiMeshInstance3D
 var _mover_nodes: Dictionary = {}    # moving entity id -> Node3D (player/enemies)
 var _player_node: Node3D
@@ -57,9 +59,18 @@ func _build() -> void:
 	world3d = Node3D.new()
 	sub.add_child(world3d)
 
+	# Soft warm gradient sky (A Short Hike-ish) using palette-derived colors.
+	var sky_mat := ProceduralSkyMaterial.new()
+	sky_mat.sky_top_color = PixelPalette.pal("water_a").lerp(PixelPalette.pal("snow_a"), 0.55)
+	sky_mat.sky_horizon_color = PixelPalette.pal("snow_a").lerp(PixelPalette.pal("gold"), 0.28)
+	sky_mat.ground_horizon_color = PixelPalette.pal("snow_a").lerp(PixelPalette.pal("gold"), 0.28)
+	sky_mat.ground_bottom_color = PixelPalette.pal("grass_a").lerp(PixelPalette.pal("snow_a"), 0.3)
+	sky_mat.sun_angle_max = 30.0
+	var sky := Sky.new()
+	sky.sky_material = sky_mat
 	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = PixelPalette.pal("snow_a").lerp(PixelPalette.pal("water_a"), 0.16)
+	env.background_mode = Environment.BG_SKY
+	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_energy = 0.0
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
@@ -96,6 +107,12 @@ func _build() -> void:
 	_ground_mat.shader = TOON_GROUND
 	_ground_mat.set_shader_parameter("shadow_tint", PixelPalette.pal("grass_dark"))
 	_ground_mat.set_shader_parameter("light_tint", PixelPalette.pal("foliage_c"))
+
+	_water_mat = ShaderMaterial.new()
+	_water_mat.shader = TOON_WATER
+	_water_mat.set_shader_parameter("base_color", PixelPalette.pal("water_a"))
+	_water_mat.set_shader_parameter("shadow_color", PixelPalette.pal("water_b"))
+	_water_mat.set_shader_parameter("light_color", PixelPalette.pal("water_foam"))
 
 	# Present the low-res 3D world at nearest-neighbour, under the HUD (layer 1).
 	var layer := CanvasLayer.new()
@@ -147,9 +164,9 @@ func _sync_terrain() -> void:
 		var key: String = chunk.key()
 		live[key] = true
 		if not _chunk_meshes.has(key):
-			var mi := _build_chunk_terrain(chunk)
-			terrain_root.add_child(mi)
-			_chunk_meshes[key] = mi
+			var node := _build_chunk_terrain(chunk)
+			terrain_root.add_child(node)
+			_chunk_meshes[key] = node
 	for key: String in _chunk_meshes.keys():
 		if not live.has(key):
 			var mi: Node = _chunk_meshes[key]
@@ -158,21 +175,35 @@ func _sync_terrain() -> void:
 			_chunk_meshes.erase(key)
 
 
-func _build_chunk_terrain(chunk: RefCounted) -> MeshInstance3D:
+const WATER_DROP := 0.14   # how far water sits below the surrounding ground
+
+func _build_chunk_terrain(chunk: RefCounted) -> Node3D:
 	var reg: RefCounted = WorldGen.reg
-	var st := SurfaceTool.new()
+	var st := SurfaceTool.new()       # ground (non-water tiles)
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var wst := SurfaceTool.new()      # recessed water surface
+	wst.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var has_water := false
 	var n := WG.CHUNK_TILES
 	for ty: int in n:
 		for tx: int in n:
 			var gtx: int = int(chunk.cx) * n + tx
 			var gty: int = int(chunk.cy) * n + ty
 			var e: float = float(chunk.elev[ty * n + tx]) * ELEV_H
-			var col: Color = reg.tile_def(chunk.tile_id(tx, ty))["colors"][0]
+			var tdef: Dictionary = reg.tile_def(chunk.tile_id(tx, ty))
+			var col: Color = tdef["colors"][0]
 			var x0 := float(gtx) * TILE_S
 			var z0 := float(gty) * TILE_S
 			var x1 := x0 + TILE_S
 			var z1 := z0 + TILE_S
+			if bool(tdef.get("water", false)):
+				# Recessed flat water quad (own toon-water material + waves).
+				has_water = true
+				var wy := e - WATER_DROP
+				for v: Vector3 in [Vector3(x0, wy, z0), Vector3(x1, wy, z0), Vector3(x1, wy, z1), Vector3(x0, wy, z0), Vector3(x1, wy, z1), Vector3(x0, wy, z1)]:
+					wst.set_normal(Vector3.UP)
+					wst.add_vertex(v)
+				continue
 			var a := Vector3(x0, e, z0)
 			var b := Vector3(x1, e, z0)
 			var cc := Vector3(x1, e, z1)
@@ -182,8 +213,8 @@ func _build_chunk_terrain(chunk: RefCounted) -> MeshInstance3D:
 				st.set_normal(Vector3.UP)
 				st.add_vertex(v)
 			# Vertical risers wherever this tile is higher than an in-chunk
-			# neighbor, so terraced terrain reads as 3D blocks (the higher tile
-			# owns the face; sideways normals fall into the toon shadow band).
+			# neighbor, so terraced terrain reads as 3D blocks (sideways normals
+			# fall into the toon shadow band).
 			var rcol := col.darkened(0.06)
 			if tx + 1 < n:
 				var er := float(chunk.elev[ty * n + (tx + 1)]) * ELEV_H
@@ -201,10 +232,17 @@ func _build_chunk_terrain(chunk: RefCounted) -> MeshInstance3D:
 				var eb := float(chunk.elev[(ty - 1) * n + tx]) * ELEV_H
 				if e > eb:
 					_riser(st, Vector3(x0, e, z0), Vector3(x1, e, z0), eb, Vector3(0, 0, -1), rcol)
-	var mi := MeshInstance3D.new()
-	mi.mesh = st.commit()
-	mi.material_override = _ground_mat
-	return mi
+	var root := Node3D.new()
+	var ground := MeshInstance3D.new()
+	ground.mesh = st.commit()
+	ground.material_override = _ground_mat
+	root.add_child(ground)
+	if has_water:
+		var water := MeshInstance3D.new()
+		water.mesh = wst.commit()
+		water.material_override = _water_mat
+		root.add_child(water)
+	return root
 
 
 ## A vertical riser quad from the top edge (p0->p1 at height top_y) down to bot_y.
