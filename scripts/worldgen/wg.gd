@@ -22,8 +22,9 @@ const VIEW_RADIUS := 6                     # min terrain chunks rendered (baked 
                                            # call each, so a wide ring is cheap).
 const MAX_VIEW_RADIUS := 10
 const ACTIVE_RADIUS := 4                   # min chunks with spawned entities (houses/ore/etc).
-const MAX_ACTIVE_RADIUS := 7               # cap so an extreme zoom-out can't spawn a runaway
-                                           # number of entity nodes.
+const MAX_ACTIVE_RADIUS := 9               # cap so an extreme zoom-out can't spawn a runaway
+                                           # number of entity nodes. Entities must reach the view
+                                           # edge (+1) so props never pop in on-camera.
 const NAV_RADIUS := 3                      # chunks of A* nav graph around the player. Decoupled
                                            # from (and much smaller than) the entity ring so the
                                            # debounced rebuild stays cheap no matter the zoom.

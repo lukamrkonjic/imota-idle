@@ -340,22 +340,19 @@ static func _draw_cliff_edges(canvas: Variant, p_chunk: RefCounted, lx: int, ly:
 	var s := Vector2(cx, cy + hh)
 	var w := Vector2(cx - hw, cy)
 	if elev - _elev_at(p_chunk, lx + 1, ly) > 0:
-		_edge_line(canvas, e, s)
+		_edge_line(canvas, e, s, top)
 	if elev - _elev_at(p_chunk, lx, ly + 1) > 0:
-		_edge_line(canvas, s, w)
+		_edge_line(canvas, s, w, top)
 
 
-static func _edge_line(canvas: Variant, a: Vector2, b: Vector2) -> void:
-	# A dark band sitting just inside the top surface (upper side of the lip),
-	# matching the biome-boundary bevel look but stronger since it marks a cliff.
-	var up := Vector2(0.0, -float(PixelPalette.PX))
-	var shadow := PixelPalette.pal("shadow")
-	shadow.a = 0.55
-	canvas.draw_colored_polygon(PackedVector2Array([a, b, b + up, a + up]), shadow)
-	# A crisp near-black contour right on the lip itself.
-	shadow.a = 0.7
-	canvas.draw_colored_polygon(PackedVector2Array([
-		a, b, b + up * 0.4, a + up * 0.4]), shadow)
+static func _edge_line(canvas: Variant, a: Vector2, b: Vector2, top: Color) -> void:
+	# Soft cliff-lip definition (A Short Hike style): a thin band of the GROUND
+	# colour darkened a touch — NOT a hard near-black outline, which read as ugly
+	# lines across the terrain. The riser face already supplies the drop's shading.
+	var up := Vector2(0.0, -float(PixelPalette.PX) * 0.6)
+	var band := PixelPalette.shade(top, 0.82)
+	band.a = 0.5
+	canvas.draw_colored_polygon(PackedVector2Array([a, b, b + up, a + up]), band)
 
 
 static func _draw_one_riser(canvas: Variant, a: Vector2, b: Vector2, drop_steps: int, face: Color) -> void:

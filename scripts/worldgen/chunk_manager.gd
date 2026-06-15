@@ -35,9 +35,9 @@ var _results_mutex := Mutex.new()
 # Incremental streaming: after the initial fill, new chunks are queued and loaded
 # a few per frame instead of all at once on the crossing frame. This trades a
 # slightly slower fill for no frame hiccup when the player walks into a new area.
-const LOADS_PER_FRAME := 1
+const LOADS_PER_FRAME := 3
 const LOAD_TIME_BUDGET_USEC := 1400
-const ACTIVATIONS_PER_FRAME := 1
+const ACTIVATIONS_PER_FRAME := 2
 const DEACTIVATIONS_PER_FRAME := 1
 const UNLOADS_PER_FRAME := 1
 const TERRAIN_REDRAWS_PER_FRAME := 2

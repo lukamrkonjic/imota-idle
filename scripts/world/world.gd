@@ -217,10 +217,11 @@ func _update_stream_radius() -> void:
 	var span_x: float = float(WG.CHUNK_TILES) * WG.ISO_HW
 	var span_y: float = float(WG.CHUNK_TILES) * WG.ISO_HH
 	var r: int = ceili((wx / span_x + wy / span_y) * 0.5)
-	# Terrain must fill the whole zoomed-out view, but interactive/entity chunks
-	# only need a modest buffer around the player. Expanding both was flooding the
-	# moving camera with hundreds of extra CanvasItems.
-	var active_r: int = WG.NAV_RADIUS if zoom < 0.7 else mini(r + 1, WG.ACTIVE_RADIUS + 1)
+	# Entities must spawn at least one chunk BEYOND the visible edge so props never
+	# pop in on-camera (the baked atlas makes the extra CanvasItems cheap to draw).
+	# When zoomed far out the view is huge and entities barely read, so fall back to
+	# the nav ring there to avoid a runaway node count.
+	var active_r: int = WG.NAV_RADIUS if zoom < 0.7 else mini(r + 1, WG.MAX_ACTIVE_RADIUS)
 	chunk_manager.set_radii(r + 2, active_r)
 	# Freeze entity animations when zoomed far out — the per-frame live redraw of
 	# hundreds of visible enemies/fish is the dominant cost there and invisible.

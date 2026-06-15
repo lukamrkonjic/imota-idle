@@ -21,8 +21,8 @@ func setup(w: Node2D) -> void:
 # Per-coroutine slice and shared frame budget for streaming a chunk's contents
 # in. Several chunk spawn coroutines can overlap while walking, so each one is
 # kept tiny and they all share a soft per-frame cap.
-const SPAWN_BUDGET_USEC := 450
-const STREAM_FRAME_BUDGET_USEC := 1200
+const SPAWN_BUDGET_USEC := 600
+const STREAM_FRAME_BUDGET_USEC := 1800
 var _stream_budget_frame := -1
 var _stream_budget_used_usec := 0
 
