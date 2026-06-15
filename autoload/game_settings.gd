@@ -35,6 +35,7 @@ var show_zone_banner: bool = true
 var show_chat: bool = true
 var show_hover_tooltip: bool = true
 var show_fps: bool = false
+var show_tile_debug: bool = true  # dev tile/zone/elev overlay (toggled from Admin)
 var fps_limit: int = DEFAULT_FPS_LIMIT
 
 # Idle automation (spec §12, §21). Auto-eat the best food when HP drops to/below
@@ -70,6 +71,7 @@ func load_settings() -> void:
 	show_chat = bool(data.get("show_chat", true))
 	show_hover_tooltip = bool(data.get("show_hover_tooltip", true))
 	show_fps = bool(data.get("show_fps", false))
+	show_tile_debug = bool(data.get("show_tile_debug", true))
 	fps_limit = int(data.get("fps_limit", DEFAULT_FPS_LIMIT))
 	if not _is_valid_fps_limit(fps_limit):
 		fps_limit = DEFAULT_FPS_LIMIT
@@ -93,6 +95,7 @@ func save_settings() -> void:
 		"show_chat": show_chat,
 		"show_hover_tooltip": show_hover_tooltip,
 		"show_fps": show_fps,
+		"show_tile_debug": show_tile_debug,
 		"fps_limit": fps_limit,
 		"auto_eat_enabled": auto_eat_enabled,
 		"auto_eat_threshold": auto_eat_threshold,
@@ -155,6 +158,12 @@ func set_show_fps(enabled: bool) -> void:
 	show_fps = enabled
 	save_settings()
 	changed.emit(&"show_fps")
+
+
+func set_show_tile_debug(enabled: bool) -> void:
+	show_tile_debug = enabled
+	save_settings()
+	changed.emit(&"show_tile_debug")
 
 
 func set_fps_limit(value: int) -> void:

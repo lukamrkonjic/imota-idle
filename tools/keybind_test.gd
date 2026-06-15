@@ -56,5 +56,15 @@ func _run() -> void:
 	print("J toggles (%s), old H no-ops (still %s)" % [v3 == false, v4])
 	ok = ok and v3 == false and v4 == false
 
+	# Tile debug overlay toggle (Admin setting).
+	var dbg: Label = hud.tile_debug_label
+	var d0: bool = dbg.visible
+	GameSettings.set_show_tile_debug(false)
+	var d1: bool = dbg.visible
+	GameSettings.set_show_tile_debug(true)
+	var d2: bool = dbg.visible
+	print("tile_debug visible: %s -> %s -> %s" % [d0, d1, d2])
+	ok = ok and d0 == true and d1 == false and d2 == true
+
 	print("KEYBIND TEST: %s" % ("PASSED" if ok else "FAILED"))
 	get_tree().quit(0 if ok else 1)

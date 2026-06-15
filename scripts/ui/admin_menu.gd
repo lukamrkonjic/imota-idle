@@ -466,6 +466,12 @@ func _build_misc_tab() -> void:
 			world.call("teleport_to", WorldGen.spawn_position())
 			_popup.hide())
 
+	var dbg := CheckBox.new()
+	dbg.text = "Show tile debug overlay"
+	dbg.button_pressed = GameSettings.show_tile_debug
+	dbg.toggled.connect(func(on: bool) -> void: GameSettings.set_show_tile_debug(on))
+	box.add_child(dbg)
+
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.add_child(box)

@@ -177,7 +177,7 @@ func update_world_tooltip(entity: Node2D) -> void:
 
 
 func update_tile_debug(world_pos: Vector2) -> void:
-	if tile_debug_label == null or world == null:
+	if tile_debug_label == null or world == null or not tile_debug_label.visible:
 		return
 	var d: Dictionary = WorldGen.tile_debug_at(world_pos, int(world.get("current_layer")))
 	if d.is_empty():
@@ -963,6 +963,7 @@ func _build_fps_overlay() -> void:
 	tile_debug_label.add_theme_font_size_override("font_size", UiScale.i(11))
 	tile_debug_label.add_theme_color_override("font_color", Color(0.82, 0.88, 0.95))
 	tile_debug_label.add_theme_color_override("font_shadow_color", Color.BLACK)
+	tile_debug_label.visible = GameSettings.show_tile_debug
 	add_child(tile_debug_label)
 
 
@@ -1023,6 +1024,8 @@ func _apply_hud_from_settings(_property: StringName = &"") -> void:
 		layer_label.visible = GameSettings.show_zone_banner
 	if chat_panel:
 		chat_panel.visible = GameSettings.show_chat
+	if tile_debug_label:
+		tile_debug_label.visible = GameSettings.show_tile_debug
 	if not GameSettings.show_hover_tooltip:
 		world_tooltip.hide_tooltip()
 
