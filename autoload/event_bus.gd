@@ -17,6 +17,9 @@ signal action_progress(fraction: float)
 signal loot_gained(item_name: String, qty: int)
 
 signal combat_log(text: String)
+## A damage splat to show in the world: amount (0 on a miss/block), miss flag for
+## the blue splat, and on_player to place it on the player vs the combat target.
+signal combat_hit_splat(amount: int, miss: bool, on_player: bool)
 signal enemy_hp_changed(current: float, max_hp: float)
 signal enemy_killed(enemy_name: String)
 signal enemy_respawning(seconds: float)

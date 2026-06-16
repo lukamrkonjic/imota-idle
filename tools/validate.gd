@@ -23,6 +23,7 @@ func _ready() -> void:
 	WorldGen.store.suppress = true
 	WorldGen.reset(WorldGen.DEFAULT_SEED)
 	CombatSim.rng.seed = 0xB100B5
+	TickSim.rng.seed = 0x6A7E12  # deterministic gathering rolls for tests
 	phase0_data()
 	phase0_content_schema()
 	phase0_stable_ids()
@@ -213,14 +214,16 @@ func phase5_combat_depth() -> void:
 	GameState.add_xp("strength", float(DataRegistry.xp_for_level(40)))
 	check(GameState.combat_level() > 3, "combat level rises with melee stats (%d)" % GameState.combat_level())
 
-	# Per-weapon attack speed: default 3s, or the weapon's data field when present.
+	# Per-weapon attack speed (OSRS ticks): default 4 ticks = 2.4s, or the weapon's
+	# data field (in ticks) when present.
 	GameState.reset_state()
-	check(absf(GameState.attack_interval() - 3.0) < 0.001, "default attack interval 3s")
+	check(GameState.attack_ticks() == 4, "default attack speed 4 ticks")
+	check(absf(GameState.attack_interval() - 2.4) < 0.001, "default attack interval 2.4s")
 	GameState.add_xp("attack", float(DataRegistry.xp_for_level(3)))
 	GameState.equip("Bronze Sword")
 	var sword := DataRegistry.get_item("Bronze Sword")
-	sword["attackSpeed"] = 2.4
-	check(absf(GameState.attack_interval() - 2.4) < 0.001, "weapon attackSpeed overrides default")
+	sword["attackSpeed"] = 3   # ticks
+	check(absf(GameState.attack_interval() - 1.8) < 0.001, "weapon tick speed overrides default")
 	sword.erase("attackSpeed")  # don't leak into other tests
 
 	# Death: one random equipped slot is destroyed (Protect Item negates).
@@ -283,6 +286,7 @@ func phase6_skill_loops() -> void:
 	check(GameState.count_item("Cotton Seed") == 0, "seed consumed on plant")
 	var farm_xp_before := GameState.xp("farming")
 	# Background-while-busy: a gather runs at the same time as farming growth.
+	TickSim.rng.seed = 0x6A7E12
 	TickSim.start_gather("woodcutting", "Regular Tree")
 	var safety := 400  # 40s > the 20-tick (20s) Cotton grow time
 	while GameState.count_item("Cotton") == 0 and safety > 0:
@@ -346,18 +350,24 @@ func phase2_skill_roster() -> void:
 func phase1_gathering() -> void:
 	print("== Phase 1: gathering tick loop ==")
 	GameState.reset_state()
+	TickSim.rng.seed = 0x6A7E12  # reproducible rolls regardless of prior phases
 	var started := TickSim.start_gather("woodcutting", "Regular Tree")
 	check(started, "started woodcutting Regular Tree")
+	# OSRS model: one success roll every 4 ticks (2.4s). Success chance is derived
+	# to preserve the old tuned economy (~10 Logs/min at L1 with a Bronze Axe).
+	check(absf(TickSim.success_chance(1) - 0.4013) < 0.005,
+		"L1 Bronze-Axe gather success ~0.40 (got %.4f)" % TickSim.success_chance(1))
+	check(TickSim.success_chance(99) > TickSim.success_chance(1),
+		"higher level raises gather success (OSRS: level helps, not swing speed)")
 	var xp_before := GameState.xp("woodcutting")
-	# Simulate 60 seconds in 0.1s frames.
-	for i: int in 600:
+	# Simulate 600 seconds in 0.1s frames -> ~250 rolls, expected ~100 Logs.
+	for i: int in 6000:
 		TickSim.advance(0.1)
-	# Level 1: action every 1.495s -> 40 actions in 60s; Bronze Axe progress 25
-	# -> a log every 4 actions = 10 logs, 250 XP.
 	var logs := GameState.count_item("Logs")
 	var xp_gained := GameState.xp("woodcutting") - xp_before
-	check(logs == 10, "60s WC at level 1 yields 10 Logs (got %d)" % logs)
-	check(absf(xp_gained - 250.0) < 0.01, "60s WC yields 250 XP (got %.1f)" % xp_gained)
+	check(logs >= 75 and logs <= 125, "600s WC at L1 yields ~100 Logs (got %d)" % logs)
+	check(absf(xp_gained - float(logs) * 25.0) < 0.01, "each Log awards its 25 XP (got %.1f)" % xp_gained)
+	check(TickSim.gather_interval() == 2.4, "gather roll cadence is 4 ticks (2.4s)")
 	check(TickSim.action_speed(1) == 1.495, "chop speed at level 1 == 1.495")
 	check(TickSim.action_speed(100) == 1.0, "chop speed floors at 1.0s")
 	TickSim.stop()
@@ -557,8 +567,9 @@ func phase3_ui_smoke() -> void:
 	var ui: Control = scene.instantiate()
 	add_child(ui)
 	await get_tree().process_frame
+	TickSim.rng.seed = 0x6A7E12
 	TickSim.start_gather("woodcutting", "Regular Tree")
-	for i: int in 100:
+	for i: int in 600:  # ~25 rolls; a Log is effectively certain at p~0.4
 		TickSim.advance(0.1)
 	await get_tree().process_frame
 	var activity: Label = ui.get("activity_label")
