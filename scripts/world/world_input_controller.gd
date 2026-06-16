@@ -43,10 +43,19 @@ func handle_input(event: InputEvent) -> void:
 				world.auto_task = {}
 				world.begin_action(target)
 			else:
-				world._activity_ctrl.stop_all_sims()
-				world._activity_ctrl.clear_combat_target()
 				world.pending_action = {}
 				world.auto_task = {}
+				if CombatSim.active:
+					# Walking off mid-fight doesn't end combat — the mob gives chase
+					# and the leash decides if you actually escape (handled in the
+					# activity controller). Only drop skilling sims here.
+					TickSim.stop()
+					RecipeSim.stop()
+				else:
+					world._activity_ctrl.stop_all_sims()
+					world._activity_ctrl.clear_combat_target()
+				# click_pos already comes from the 3D camera's screen_to_iso projection
+				# (mouse_world_pos), so walk straight there — no 2D elevation re-pick.
 				world.walk_to_pos(click_pos)
 			world.get_viewport().set_input_as_handled()
 
