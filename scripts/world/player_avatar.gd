@@ -146,8 +146,10 @@ func _draw() -> void:
 	IsoSprites.draw_player(
 		self, PixelPalette.pal("skin_a"), PixelPalette.pal("outfit_a"),
 		PixelPalette.pal("hair"), _mode(), _t, facing, cast_local)
-	if progress >= 0.0:
-		var bar_w := 36.0
-		var top := Vector2(-bar_w / 2.0, -48.0)
-		draw_rect(Rect2(top, Vector2(bar_w, 5)), Color(0.1, 0.1, 0.12, 0.85))
-		draw_rect(Rect2(top, Vector2(bar_w * clampf(progress, 0.0, 1.0), 5)), Color(0.91, 0.75, 0.25))
+	# Skilling progress bar — hidden to match OSRS (no per-action bar over the head).
+	# Kept commented in case we want it back for a specific skill later.
+	#if progress >= 0.0:
+		#var bar_w := 36.0
+		#var top := Vector2(-bar_w / 2.0, -48.0)
+		#draw_rect(Rect2(top, Vector2(bar_w, 5)), Color(0.1, 0.1, 0.12, 0.85))
+		#draw_rect(Rect2(top, Vector2(bar_w * clampf(progress, 0.0, 1.0), 5)), Color(0.91, 0.75, 0.25))

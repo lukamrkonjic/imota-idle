@@ -423,6 +423,14 @@ func _build_skills_tab() -> void:
 		_hud.call("_push_chat", "[color=#1a6e1a]All skills set to max level.[/color]"))
 	box.add_child(max_all)
 
+	var reset_all := Button.new()
+	reset_all.text = "Reset all skills (level 1)"
+	reset_all.pressed.connect(func() -> void:
+		GameState.admin_reset_all_skills()
+		_hud.call("_refresh_all")
+		_hud.call("_push_chat", "[color=#8a1a1a]All skills reset to level 1.[/color]"))
+	box.add_child(reset_all)
+
 	for skill: String in GameState.SKILLS:
 		var row := HBoxContainer.new()
 		var lbl := Label.new()

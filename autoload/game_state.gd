@@ -92,7 +92,9 @@ func _process(delta: float) -> void:
 # ---------------------------------------------------------------- skills ----
 
 func level(skill: String) -> int:
-	return int(skills[skill]["level"])
+	# Clamp to the cap: pre-cap saves (and the old admin "max") stored levels up
+	# to 1000, which read back as 1000+ damage. The cap is 99 everywhere now.
+	return mini(int(skills[skill]["level"]), DataRegistry.max_level)
 
 
 func xp(skill: String) -> float:
@@ -402,15 +404,31 @@ func combat_level() -> int:
 	return int(floorf(base + maxf(melee, maxf(ranged, magic))))
 
 
-## Seconds between player attacks: the equipped weapon's `attackSpeed` if the
-## data defines one, else the default 3s (spec §12 — per-weapon speed, tunable).
-func attack_interval() -> float:
+# OSRS-style timing: the game runs on 0.6s ticks and every action's speed is a
+# whole number of ticks. A standard melee weapon is 4 ticks (2.4s).
+const TICK := 0.6
+const DEFAULT_ATTACK_TICKS := 4
+
+
+## Snap a duration (seconds) to the nearest whole tick, minimum one tick.
+static func snap_to_tick(seconds: float) -> float:
+	return maxf(TICK, roundf(seconds / TICK) * TICK)
+
+
+## Player attack speed in ticks — the equipped weapon's `attackSpeed` (ticks) if
+## the data defines one, else the 4-tick default.
+func attack_ticks() -> int:
 	var wid := str(equipment.get("Weapon", ""))
 	if not wid.is_empty():
-		var spd := float(DataRegistry.get_item(wid).get("attackSpeed", 0.0))
-		if spd > 0.0:
+		var spd := int(DataRegistry.get_item(wid).get("attackSpeed", 0))
+		if spd > 0:
 			return spd
-	return 3.0
+	return DEFAULT_ATTACK_TICKS
+
+
+## Seconds between player attacks (attack speed in ticks × the tick length).
+func attack_interval() -> float:
+	return float(attack_ticks()) * TICK
 
 
 func is_prayer_active(prayer_name: String) -> bool:
@@ -496,6 +514,23 @@ func admin_max_all_skills() -> void:
 		admin_max_skill(s)
 
 
+func admin_reset_skill(skill: String) -> void:
+	if not skills.has(skill):
+		return
+	var base_lvl := 10 if skill == "hitpoints" else 1  # HP starts at 10 like a new save
+	skills[skill]["level"] = base_lvl
+	skills[skill]["xp"] = float(DataRegistry.xp_for_level(base_lvl))
+	if skill == "hitpoints":
+		current_hp = max_hp()
+		EventBus.hp_changed.emit(current_hp, max_hp())
+	EventBus.level_up.emit(skill, base_lvl)
+
+
+func admin_reset_all_skills() -> void:
+	for s: String in SKILLS:
+		admin_reset_skill(s)
+
+
 func admin_give_item(item_name_or_id: String, qty: int) -> int:
 	if qty <= 0:
 		return 0
@@ -532,7 +567,14 @@ func from_save_dict(d: Dictionary) -> void:
 	var loaded: Dictionary = d.get("skills", {})
 	for s: String in SKILLS:
 		if loaded.has(s):
-			skills[s] = {"xp": float(loaded[s]["xp"]), "level": int(loaded[s]["level"])}
+			# Normalize pre-cap saves: clamp level to the cap and trim overflow XP
+			# so a level-1000 save loads as a clean level 99.
+			var cap := DataRegistry.max_level
+			var lvl := mini(int(loaded[s]["level"]), cap)
+			var sx := float(loaded[s]["xp"])
+			if lvl >= cap:
+				sx = minf(sx, float(DataRegistry.xp_for_level(cap)))
+			skills[s] = {"xp": sx, "level": lvl}
 	inventory = []
 	for stack: Dictionary in d.get("inventory", []):
 		var raw: String = str(stack.get("id", stack.get("name", "")))

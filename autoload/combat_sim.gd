@@ -40,9 +40,13 @@ func start_combat(enemy_name: String, p_train_skill: String = "attack") -> bool:
 	var e := DataRegistry.get_enemy(enemy_name)
 	if e.is_empty():
 		return false
-	# Bloobs beastMasteryReq is now the per-enemy Slayer requirement (spec §5).
-	if int(e["beastMasteryReq"]) > GameState.level("slayer"):
-		EventBus.combat_log.emit("Slayer level %d required for %s" % [e["beastMasteryReq"], enemy_name])
+	# Per-enemy Slayer gate (spec §5). Currently OFF for every mob: the gate reads
+	# an explicit optional "slayerReq" which no enemy sets yet, so it defaults to 0.
+	# Re-enable it on specific enemies later by adding "slayerReq" to enemies.json.
+	# (The legacy beastMasteryReq values stay in the data as a reference for that.)
+	var slayer_req := int(e.get("slayerReq", 0))
+	if slayer_req > GameState.level("slayer"):
+		EventBus.combat_log.emit("Slayer level %d required for %s" % [slayer_req, enemy_name])
 		return false
 	stop("switching")
 	TickSim.stop("switching")
@@ -51,7 +55,9 @@ func start_combat(enemy_name: String, p_train_skill: String = "attack") -> bool:
 	train_skill = p_train_skill
 	GameState.combat_style = p_train_skill  # remember the style across sessions
 	enemy_hp = float(e["maxHealth"])
-	player_timer = 0.0
+	# Land the opening hit one tick after engaging (like clicking an NPC in OSRS),
+	# rather than waiting a full weapon cycle.
+	player_timer = maxf(0.0, GameState.attack_interval() - GameState.TICK)
 	enemy_timer = 0.0
 	respawning = false
 	first_attack_done = false
@@ -92,12 +98,12 @@ func advance(delta: float) -> void:
 		_player_attack()
 		if not active or respawning:
 			return
-	var cooldown := float(enemy["cooldown"])
+	var cooldown := GameState.snap_to_tick(float(enemy["cooldown"]))
 	if enemy_timer >= cooldown:
 		enemy_timer -= cooldown
 		_enemy_attack()
 		_auto_eat()
-	EventBus.action_progress.emit(player_timer / interval)
+	# No action-progress bar in combat — the head bar is for skilling only.
 
 
 ## Idle survival: after taking a hit, eat the best food if HP fell to/below the
@@ -177,6 +183,7 @@ func _player_attack() -> void:
 	else:
 		miss_streak += 1.0
 		EventBus.combat_log.emit("You miss.")
+		EventBus.combat_hit_splat.emit(0, true, false)
 		return
 	_apply_player_hit()
 	if active and not respawning and rng.randf() < double_hit_chance():
@@ -212,6 +219,7 @@ func _apply_player_hit() -> void:
 		GameState.add_xp("hitpoints", landed * CombatStyles.HP_XP_PER_DAMAGE)
 	enemy_hp = maxf(enemy_hp - dmg, 0.0)
 	EventBus.combat_log.emit("You hit %s for %.1f%s" % [_enemy_name(), dmg, " (CRIT!)" if is_crit else ""])
+	EventBus.combat_hit_splat.emit(int(roundf(dmg)), dmg <= 0.0, false)
 	EventBus.enemy_hp_changed.emit(enemy_hp, float(enemy["maxHealth"]))
 	if enemy_hp <= 0.0:
 		_on_enemy_killed()
@@ -220,6 +228,7 @@ func _apply_player_hit() -> void:
 func _enemy_attack() -> void:
 	if rng.randf() >= float(enemy["accuracy"]):
 		EventBus.combat_log.emit("%s misses you." % _enemy_name())
+		EventBus.combat_hit_splat.emit(0, true, true)
 		return
 	var dmg := float(enemy["damage"])
 	if rng.randf() < float(enemy["critChance"]):
@@ -228,6 +237,7 @@ func _enemy_attack() -> void:
 	dmg *= 1.0 - dr / 100.0
 	var final := maxi(int(ceil(dmg)), 0)
 	GameState.set_hp(GameState.current_hp - final)
+	EventBus.combat_hit_splat.emit(final, final <= 0, true)
 	EventBus.combat_log.emit("%s hits you for %d" % [_enemy_name(), final])
 	if GameState.current_hp <= 0:
 		_on_player_died()
