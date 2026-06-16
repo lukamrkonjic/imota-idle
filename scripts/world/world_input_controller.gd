@@ -38,10 +38,17 @@ func handle_input(event: InputEvent) -> void:
 				world.auto_task = {}
 				world.begin_action(target)
 			else:
-				world._activity_ctrl.stop_all_sims()
-				world._activity_ctrl.clear_combat_target()
 				world.pending_action = {}
 				world.auto_task = {}
+				if CombatSim.active:
+					# Walking off mid-fight doesn't end combat — the mob gives chase
+					# and the leash decides if you actually escape (handled in the
+					# activity controller). Only drop skilling sims here.
+					TickSim.stop()
+					RecipeSim.stop()
+				else:
+					world._activity_ctrl.stop_all_sims()
+					world._activity_ctrl.clear_combat_target()
 				# Resolve the raised tile drawn under the cursor so clicking a mountain
 				# walks onto it, not to the flat tile rendered in front of it.
 				var tile := WorldGen.tile_at_screen(click_pos, int(world.get("current_layer")))

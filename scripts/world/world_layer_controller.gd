@@ -65,6 +65,8 @@ func teleport_to(pos: Vector2) -> void:
 	world.player.position = WorldGen.nearest_admin_teleport_world(pos)
 	world.chunk_manager.update_center(world.player.position)
 	world._path_ctrl.rebuild()
+	if world._camera != null:
+		world._camera.reset_smoothing()   # snap, don't slow-pan across the world
 	EventBus.combat_log.emit("[color=#5a3a8a]You teleport.[/color]")
 
 
@@ -80,4 +82,6 @@ func on_player_died() -> void:
 	world.player.position = WorldGen.spawn_position()
 	world.chunk_manager.update_center(world.player.position)
 	world._path_ctrl.rebuild()
+	if world._camera != null:
+		world._camera.reset_smoothing()   # snap to the respawn point
 	EventBus.combat_log.emit("[color=#a01010]You wake up at the campsite.[/color]")

@@ -15,11 +15,17 @@ const STATION_OPEN := {
 
 const AGGRO_INTERVAL := 0.5
 const AGGRO_GRACE := 4.0
+const LEASH_RADIUS_TILES := 8.0  # player gets this far from the mob's spawn -> it gives up
+const CHASE_SPEED := 150.0        # px/s the mob chases — clearly slower than the player (230) so you can outrun it
+const RETURN_SPEED := 170.0       # px/s it walks back to spawn after de-aggro
+const ATTACK_GAP_TILES := 0.7     # how close beside you the chaser stops
 
 var world: Node2D
 
 var _aggro_timer := 0.0
 var _aggro_grace := 0.0
+var _last_chased: Node2D = null     # mob currently engaged, so we can send it home on combat end
+var _returning: Dictionary = {}     # entity -> home Vector2, walking back to its spawn
 
 
 func setup(w: Node2D) -> void:
@@ -28,10 +34,83 @@ func setup(w: Node2D) -> void:
 
 func process_tick(delta: float) -> void:
 	_aggro_grace = maxf(_aggro_grace - delta, 0.0)
+	_update_chase(delta)
+	_update_returning(delta)
 	_aggro_timer += delta
 	if _aggro_timer >= AGGRO_INTERVAL:
 		_aggro_timer = 0.0
 		_check_aggro()
+
+
+## OSRS chase + leash. While you're fighting (or have fled mid-fight), the mob
+## runs you down. It remembers its spawn tile; if you get further than the leash
+## radius FROM THAT SPAWN, it gives up, and walks back home. Killing it sends the
+## corpse home too so it respawns where it started.
+func _update_chase(delta: float) -> void:
+	var tgt: Node2D = world.combat_target_entity
+	if CombatSim.active and is_instance_valid(tgt):
+		_last_chased = tgt
+		_returning.erase(tgt)  # re-engaged before it got home
+		if not tgt.has_meta("home_pos"):
+			tgt.set_meta("home_pos", tgt.position)
+		var home: Vector2 = tgt.get_meta("home_pos")
+		if tgt.dimmed:
+			_step_toward(tgt, home, RETURN_SPEED * delta)  # dead: drift home before respawn
+			return
+		if world.player.position.distance_to(home) > _leash_radius():
+			var nm := str(CombatSim.enemy.get("displayName", CombatSim.enemy.get("name", "enemy")))
+			CombatSim.stop("fled")  # clears target; the else-branch walks it home next tick
+			_aggro_grace = AGGRO_GRACE  # don't instantly re-aggro the mob you just escaped
+			EventBus.combat_log.emit("[color=#7a7a30]The %s loses interest and returns home.[/color]" % nm)
+			return
+		_step_toward(tgt, world.player.position, CHASE_SPEED * delta, WG.TILE * ATTACK_GAP_TILES)
+	elif is_instance_valid(_last_chased):
+		_begin_return(_last_chased)  # combat just ended (kill / flee / switch) — send it home
+		_last_chased = null
+	else:
+		_last_chased = null
+
+
+func _begin_return(entity: Node2D) -> void:
+	if not entity.has_meta("home_pos"):
+		return
+	var home: Vector2 = entity.get_meta("home_pos")
+	if entity.position.distance_to(home) > 2.0:
+		_returning[entity] = home
+
+
+func _update_returning(delta: float) -> void:
+	if _returning.is_empty():
+		return
+	var done: Array = []
+	for entity: Node2D in _returning:
+		if not is_instance_valid(entity):
+			done.append(entity)
+			continue
+		var home: Vector2 = _returning[entity]
+		_step_toward(entity, home, RETURN_SPEED * delta)
+		if entity.position.distance_to(home) <= 2.0:
+			entity.position = home
+			entity.queue_redraw()
+			done.append(entity)
+	for e: Node2D in done:
+		_returning.erase(e)
+
+
+## Move an entity toward target, stopping `gap` short of it. Returns having moved
+## at most `max_step` this frame.
+func _step_toward(entity: Node2D, target: Vector2, max_step: float, gap: float = 0.0) -> void:
+	var to := target - entity.position
+	var dist := to.length()
+	var goal := dist - gap
+	if goal <= 1.0:
+		return
+	entity.position += to / dist * minf(max_step, goal)
+	entity.queue_redraw()
+
+
+func _leash_radius() -> float:
+	return float(WorldGen.reg.monster_cfg.get("leashRadiusTiles", LEASH_RADIUS_TILES)) * WG.TILE
 
 
 func begin_action(entity: Node2D) -> void:

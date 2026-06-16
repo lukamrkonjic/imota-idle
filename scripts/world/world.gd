@@ -17,6 +17,7 @@ const WorldVisualController := preload("res://scripts/world/world_visual_control
 const WorldAmbience := preload("res://scripts/world/world_ambience.gd")
 const BiomeDebugOverlay := preload("res://scripts/world/biome_debug_overlay.gd")
 const ClickMarkerNode := preload("res://scripts/ui/click_marker_node.gd")
+const HitSplat := preload("res://scripts/world/hit_splat.gd")
 const PerfLogger := preload("res://scripts/world/perf_logger.gd")
 const BakeQueue := preload("res://scripts/world/bake_queue.gd")
 const EntitySpriteCache := preload("res://scripts/world/entity_sprite_cache.gd")
@@ -147,8 +148,11 @@ func _build_scene() -> void:
 
 	_camera = Camera2D.new()
 	_camera.zoom = Vector2(1.65, 1.65)
+	# Near-fixed follow: the player stays centred, but a quick smoothing pass eases
+	# the per-frame motion so it isn't a rigid pixel-lock — just a touch softer than
+	# a fixed cam, without the sluggish drift of a dead zone.
 	_camera.position_smoothing_enabled = true
-	_camera.position_smoothing_speed = 8.0
+	_camera.position_smoothing_speed = 12.0
 	player.add_child(_camera)
 	unexplored_backdrop.set("camera", _camera)
 
@@ -179,6 +183,7 @@ func _connect_events() -> void:
 		_layer_ctrl.on_player_died())
 	EventBus.level_up.connect(func(_s: String, _l: int) -> void: _path_ctrl.on_level_up())
 	EventBus.site_respawned.connect(_auto_task_ctrl.on_site_respawned)
+	EventBus.combat_hit_splat.connect(_spawn_hit_splat)
 
 
 func _process(delta: float) -> void:
@@ -247,6 +252,27 @@ func show_click_fx(world_pos: Vector2, interactable: bool) -> void:
 	_click_fx_layer.add_child(marker)
 	marker.global_position = world_pos
 	marker.call("begin", interactable)
+
+
+## Pop a damage splat over the struck target — the enemy we're hitting, or the
+## player when the enemy lands a blow. Skips silently if there is no live target.
+func _spawn_hit_splat(amount: int, miss: bool, on_player: bool) -> void:
+	var anchor: Node2D = player if on_player else combat_target_entity
+	if not is_instance_valid(anchor):
+		return
+	# Sit the splat low over the body (close to the target), not floating above it.
+	var rise := 14.0
+	if not on_player and anchor.has_method("icon_height"):
+		rise = float(anchor.call("icon_height")) * 0.32
+	# Pin it to the target via a fixed local offset so it tracks movement.
+	var off := Vector2(randf_range(-3.0, 3.0), -rise + randf_range(-2.0, 2.0))
+	var splat: Node2D = HitSplat.new()
+	splat.set("amount", amount)
+	splat.set("miss", miss)
+	splat.set("anchor", anchor)
+	splat.set("follow_offset", off)
+	splat.position = anchor.position + off
+	_click_fx_layer.add_child(splat)
 
 
 func begin_action(entity: Node2D) -> void:
