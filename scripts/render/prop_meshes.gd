@@ -611,11 +611,11 @@ static func _hike_sign_parts() -> Array:
 
 
 static func _hike_flower_parts(variant: int) -> Array:
-	var bloom := _mat("wildflower", "wildflower_deep", "snow_a")
+	var bloom := _mat("leaf_gold", "dirt_b", "gold")
 	if variant % 3 == 1:
-		bloom = _mat("wildflower_deep", "shadow", "wildflower")
+		bloom = _mat("leaf_orange", "leaf_red", "path_light")
 	elif variant % 3 == 2:
-		bloom = _mat("cabin_trim", "gold", "snow_a")   # a few pale-cream flowers for variety
+		bloom = _mat("cabin_trim", "gold", "snow_a")
 	return [
 		_part(_sphere("hike_flower_leaf", 0.18), _mat("foliage_c", "grass_dark", "foliage_c"), Vector3(0, 0.1, 0), Vector3(1.2, 0.32, 0.9)),
 		_part(_sphere("hike_flower_bloom", 0.09), bloom, Vector3(-0.08, 0.28, 0.02), Vector3(1.0, 0.68, 1.0)),
@@ -685,17 +685,15 @@ static func _hike_pebble_parts() -> Array:
 
 
 static func _hike_leaf_mat(variant: int) -> ShaderMaterial:
-	# Natural lush-green canopies (varied shades) instead of autumn red/gold, to
-	# match the cool natural palette. One muted-gold accent for late-summer variety.
 	match variant % 4:
 		0:
-			return _mat("leaf_green", "forest_green", "moss_hi")
+			return _mat("leaf_orange", "leaf_red", "path_light")
 		1:
-			return _mat("mid_foliage", "forest_teal", "leaf_green")
+			return _mat("leaf_gold", "dirt_b", "gold")
 		2:
-			return _mat("moss_hi", "leaf_green", "sunlit_grass")
+			return _mat("leaf_red", "trunk_b", "leaf_orange")
 		_:
-			return _mat("foliage_c", "grass_dark", "moss_hi")
+			return _mat("foliage_c", "grass_dark", "leaf_gold")
 
 
 static func _fish_parts() -> Array:

@@ -611,6 +611,12 @@ func _build_settings_popup() -> void:
 	_settings_volume_slider = volume_row[0] as HSlider
 	_settings_volume_value = volume_row[1] as Label
 
+	# Pixelation: 0 = native (no pixelation), 1 = really crunchy (A Short Hike-style).
+	_add_settings_slider_row(
+		box, "Pixelation", 0.0, 1.0, 0.01, GameSettings.pixelation,
+		func(v: float) -> String: return "Native" if v < 0.01 else "%d%%" % int(roundf(v * 100.0)),
+		func(v: float) -> void: GameSettings.set_pixelation(v))
+
 	_settings_fullscreen = _add_settings_checkbox(box, "Fullscreen", GameSettings.fullscreen,
 		func(on: bool) -> void: GameSettings.set_fullscreen(on))
 	_settings_vsync = _add_settings_checkbox(box, "VSync", GameSettings.vsync,

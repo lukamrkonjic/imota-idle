@@ -46,6 +46,7 @@ var _mover_walk: Dictionary = {}     # key -> smoothed walk amount 0..1
 var _player_node: Node3D
 var _cam_yaw := PI / 4.0          # orbit angle around the player (Left/Right arrows)
 var _cam_pitch := 0.413           # elevation above horizon (Up/Down arrows); matches old iso
+var _pixel_scale := 2.4           # window px per render px (1 = native/no pixelation)
 var _static_sig := ""
 var _dressing_sig := ""
 var _spawn_placed := -1               # how many camp-dressing pieces have ground so far
@@ -81,11 +82,11 @@ func _build() -> void:
 	world3d = Node3D.new()
 	sub.add_child(world3d)
 
-	# Soft NATURAL gradient sky (cool daylight) using palette-derived colors.
+	# Soft warm gradient sky (A Short Hike-ish) using palette-derived colors.
 	var sky_mat := ProceduralSkyMaterial.new()
 	sky_mat.sky_top_color = PixelPalette.pal("water_a").lerp(PixelPalette.pal("snow_a"), 0.55)
-	sky_mat.sky_horizon_color = PixelPalette.pal("snow_a").lerp(PixelPalette.pal("sunlit_grass"), 0.18)
-	sky_mat.ground_horizon_color = PixelPalette.pal("snow_a").lerp(PixelPalette.pal("sunlit_grass"), 0.18)
+	sky_mat.sky_horizon_color = PixelPalette.pal("snow_a").lerp(PixelPalette.pal("gold"), 0.28)
+	sky_mat.ground_horizon_color = PixelPalette.pal("snow_a").lerp(PixelPalette.pal("gold"), 0.28)
 	sky_mat.ground_bottom_color = PixelPalette.pal("grass_a").lerp(PixelPalette.pal("snow_a"), 0.3)
 	sky_mat.sun_angle_max = 30.0
 	var sky := Sky.new()
@@ -96,12 +97,12 @@ func _build() -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_energy = 0.0
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
-	# Soft natural distance haze: distant terrain fades toward a cool pale tone
-	# (atmospheric perspective) instead of the old warm/golden cast.
+	# Warm distance haze (A Short Hike atmospheric perspective): distant terrain
+	# fades toward a soft warm tone, giving the world depth and coziness.
 	env.fog_enabled = true
-	env.fog_light_color = PixelPalette.pal("snow_a").lerp(PixelPalette.pal("sunlit_grass"), 0.22)
+	env.fog_light_color = PixelPalette.pal("snow_a").lerp(PixelPalette.pal("gold"), 0.4)
 	env.fog_light_energy = 1.0
-	env.fog_density = 0.0019
+	env.fog_density = 0.0014
 	env.fog_sky_affect = 0.04
 	env.fog_aerial_perspective = 0.06
 	var we := WorldEnvironment.new()
@@ -110,7 +111,7 @@ func _build() -> void:
 
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-38, 40, 0)   # lower afternoon sun -> longer soft shadows
-	sun.light_color = Color(0.99, 0.98, 0.95)   # soft neutral daylight (natural, not warm)
+	sun.light_color = Color(1.0, 0.94, 0.8)   # warm afternoon sun (A Short Hike)
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	sun.directional_shadow_max_distance = 90.0
@@ -138,10 +139,9 @@ func _build() -> void:
 
 	_ground_mat = ShaderMaterial.new()
 	_ground_mat.shader = TOON_GROUND
-	# Deep-forest floor: mossy greens, darker shaded bands (less pale lawn).
-	_ground_mat.set_shader_parameter("shadow_tint", PixelPalette.pal("forest_teal"))
-	_ground_mat.set_shader_parameter("light_tint", PixelPalette.pal("leaf_green"))
-	_ground_mat.set_shader_parameter("ambient", 0.1)
+	_ground_mat.set_shader_parameter("shadow_tint", PixelPalette.pal("forest_green"))
+	_ground_mat.set_shader_parameter("light_tint", PixelPalette.pal("sunlit_grass"))
+	_ground_mat.set_shader_parameter("ambient", 0.14)
 	_ground_mat.set_shader_parameter("softness", 0.03)
 
 	_water_mat = ShaderMaterial.new()
@@ -180,11 +180,38 @@ func _build() -> void:
 	_snap_mat.set_shader_parameter("palette_count", PixelPalette.PAL.size())
 	_snap_mat.set_shader_parameter("enabled", 1.0)
 	_snap_mat.set_shader_parameter("strength", 0.8)
-	_snap_mat.set_shader_parameter("contrast", 1.32)     # punchier, deeper shadows
-	_snap_mat.set_shader_parameter("saturation", 1.02)
-	_snap_mat.set_shader_parameter("brightness", 0.78)   # dark, moody forest
+	_snap_mat.set_shader_parameter("contrast", 1.22)
+	_snap_mat.set_shader_parameter("saturation", 1.06)
+	_snap_mat.set_shader_parameter("brightness", 0.88)
 	present.material = _snap_mat
 	layer.add_child(present)
+	# Pixelation is controlled from the Settings menu (GameSettings.pixelation).
+	_pixel_scale = _scale_from_setting(GameSettings.pixelation)
+	GameSettings.changed.connect(_on_settings_changed)
+
+
+## React to the Settings-menu pixelation slider (0 = native, 1 = really crunchy),
+## mapped to a 1x..8x render-pixel size relative to the window.
+func _on_settings_changed(prop: StringName) -> void:
+	if prop == &"pixelation":
+		_pixel_scale = _scale_from_setting(GameSettings.pixelation)
+
+
+func _scale_from_setting(v: float) -> float:
+	return 1.0 + clampf(v, 0.0, 1.0) * 7.0
+
+
+## Fit the SubViewport resolution to the window divided by the pixel scale. Matches
+## the window's aspect (no stretch distortion) and only reallocates when it changes.
+func _apply_pixelation() -> void:
+	if sub == null:
+		return
+	var win: Vector2 = world.get_viewport().get_visible_rect().size
+	if win.x < 1.0 or win.y < 1.0:
+		return
+	var sz := Vector2i(maxi(8, int(round(win.x / _pixel_scale))), maxi(8, int(round(win.y / _pixel_scale))))
+	if sz != sub.size:
+		sub.size = sz
 
 
 ## Hide the 2D world visuals — every CanvasItem child of the world root — while
@@ -201,6 +228,7 @@ func _process(delta: float) -> void:
 	if not _active or world.player == null:
 		return
 	_maybe_teleport_to_forest_preview()
+	_apply_pixelation()   # keeps render res matched to the window + pixelation slider
 	_update_camera_input(delta)
 	_sync_camera()
 	_sync_terrain()
@@ -617,14 +645,14 @@ func _grade_ground(col: Color, tile: String, gtx: int, gty: int) -> Color:
 	elif tile in ["sand", "sand_dune"]:
 		c = c.lerp(PixelPalette.pal("warm_stone"), 0.5)
 	else:
-		# Mossy deep-forest floor: medium foliage drifting to a muted moss highlight
-		# in the bright band (NOT a pale sunlit lawn — that read grey/washed), and
-		# sinking into leaf-green / dark forest-green in the shaded regions. No lime.
-		var grass := PixelPalette.pal("mid_foliage").lerp(PixelPalette.pal("moss_hi"), bright * 0.7)
-		grass = grass.lerp(PixelPalette.pal("leaf_green"), (1.0 - band2) * 0.4)
-		grass = grass.lerp(PixelPalette.pal("forest_green"), (1.0 - bright) * 0.4)
-		grass = grass.lerp(PixelPalette.pal("forest_teal"), warm * 0.12)
-		c = c.lerp(grass, 0.9)
+		# Deep-forest grass gradient: mid foliage -> sunlit grass across the broad
+		# bright band, drifting toward leaf-green/forest-green in shaded regions and
+		# a moss highlight in others. No lime.
+		var grass := PixelPalette.pal("mid_foliage").lerp(PixelPalette.pal("sunlit_grass"), bright)
+		grass = grass.lerp(PixelPalette.pal("leaf_green"), (1.0 - band2) * 0.45)
+		grass = grass.lerp(PixelPalette.pal("forest_green"), (1.0 - bright) * 0.2)
+		grass = grass.lerp(PixelPalette.pal("moss_hi"), warm * 0.18)
+		c = c.lerp(grass, 0.82)
 	return c
 
 
@@ -1031,7 +1059,7 @@ func screen_to_iso(screen: Vector2) -> Vector2:
 		return world.get_global_mouse_position()
 	# Window pixel -> SubViewport pixel (the present TextureRect fills the window,
 	# so the mapping is a straight proportional scale into the internal resolution).
-	var sub_px := Vector2(screen.x / win.x, screen.y / win.y) * Vector2(INTERNAL)
+	var sub_px := Vector2(screen.x / win.x, screen.y / win.y) * Vector2(sub.size)
 	var origin := cam.project_ray_origin(sub_px)
 	var dir := cam.project_ray_normal(sub_px)
 	var hit := _ray_to_ground(origin, dir)
