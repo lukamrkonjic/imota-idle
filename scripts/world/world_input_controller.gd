@@ -21,6 +21,13 @@ func handle_input(event: InputEvent) -> void:
 			world._biome_debug.call("toggle")
 			world.get_viewport().set_input_as_handled()
 		return
+	# Trackpad pinch-to-zoom (macOS): the gesture's factor is the relative
+	# magnification per tick (>1 pinch-out/zoom-in, <1 pinch-in/zoom-out), so
+	# multiplying the current zoom by it gives smooth continuous scaling.
+	if event is InputEventMagnifyGesture:
+		_set_zoom(world._camera.zoom.x * event.factor)
+		world.get_viewport().set_input_as_handled()
+		return
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			_set_zoom(world._camera.zoom.x + ZOOM_STEP)
