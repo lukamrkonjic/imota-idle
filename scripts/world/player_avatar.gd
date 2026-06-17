@@ -17,6 +17,8 @@ var walk_target := Vector2.ZERO
 var walking := false
 var progress := -1.0
 var facing := 1
+var _target_facing := 1     # desired facing; the flip animates toward it
+var _face_squash := 1.0      # horizontal scale during a turn (1 normal, dips to 0 mid-flip)
 var _t := 0.0
 var _fish_cast_local := Vector2.ZERO
 var _fish_casting := false
@@ -39,16 +41,35 @@ func _process(delta: float) -> void:
 	if walking:
 		var to_target := walk_target - position
 		var step := SPEED * delta
-		if absf(to_target.x) > 1.0:
-			facing = 1 if to_target.x >= 0.0 else -1
+		# While fighting, facing is driven toward the enemy (face_toward) instead.
+		if absf(to_target.x) > 1.0 and not CombatSim.active:
+			_target_facing = 1 if to_target.x >= 0.0 else -1
 		if to_target.length() <= step:
 			position = walk_target
 			walking = false
 			arrived.emit()
 		else:
 			position += to_target.normalized() * step
+	_animate_facing(delta)
 	_update_elevation(delta)
 	queue_redraw()
+
+
+## Aim the avatar at a world x (used by combat to keep him turned to the target).
+func face_toward(world_x: float) -> void:
+	if absf(world_x - position.x) > 1.0:
+		_target_facing = 1 if world_x >= position.x else -1
+
+
+## Smooth turn: squash horizontally to ~0, swap the facing at the midpoint, expand
+## back — so the side switch reads as a quick spin instead of an instant mirror.
+func _animate_facing(delta: float) -> void:
+	if facing != _target_facing:
+		_face_squash = move_toward(_face_squash, 0.0, delta * 14.0)
+		if _face_squash <= 0.05:
+			facing = _target_facing
+	else:
+		_face_squash = move_toward(_face_squash, 1.0, delta * 14.0)
 
 
 ## Ride the terraced terrain height. Snaps on the first frame / teleport, then
@@ -58,7 +79,9 @@ func _update_elevation(delta: float) -> void:
 	if _prev_elev == -9999:
 		_prev_elev = elev
 		_vis_y = -float(elev) * WG.ELEV_STEP_PX
-	if walking and elev - _prev_elev >= 2 and _jump_t < 0.0:
+	# Hop on every elevation change while walking — up OR down — so climbing and
+	# descending terraces reads as Minecraft-style step jumps.
+	if walking and absi(elev - _prev_elev) >= 1 and _jump_t < 0.0:
 		_jump_t = 0.0
 	_prev_elev = elev
 	_vis_y = lerpf(_vis_y, -float(elev) * WG.ELEV_STEP_PX, clampf(delta * 12.0, 0.0, 1.0))
@@ -131,7 +154,9 @@ func _mode() -> String:
 	if RecipeSim.active:
 		return "craft"
 	if CombatSim.active:
-		match CombatSim.train_skill:
+		# Stance follows the equipped weapon, not the trained stat — a bow always
+		# uses the ranged (draw-and-loose) pose even while training a melee skill.
+		match GameState.weapon_combat_style():
 			"ranged":
 				return "combat_range"
 			"magic":
@@ -141,7 +166,7 @@ func _mode() -> String:
 
 
 func _draw() -> void:
-	draw_set_transform(_visual_offset(), 0.0, Vector2.ONE)
+	draw_set_transform(_visual_offset(), 0.0, Vector2(maxf(_face_squash, 0.02), 1.0))
 	var cast_local := _fish_cast_local if _fish_casting else Vector2.ZERO
 	IsoSprites.draw_player(
 		self, PixelPalette.pal("skin_a"), PixelPalette.pal("outfit_a"),

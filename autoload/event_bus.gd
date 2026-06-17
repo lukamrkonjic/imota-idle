@@ -20,6 +20,9 @@ signal combat_log(text: String)
 ## A damage splat to show in the world: amount (0 on a miss/block), miss flag for
 ## the blue splat, and on_player to place it on the player vs the combat target.
 signal combat_hit_splat(amount: int, miss: bool, on_player: bool)
+## A ranged shot left the player's bow — the world flies an arrow to the target,
+## which triggers the damage splat on arrival (so it syncs with the attack tick).
+signal combat_ranged_shot(amount: int, miss: bool)
 signal enemy_hp_changed(current: float, max_hp: float)
 signal enemy_killed(enemy_name: String)
 signal enemy_respawning(seconds: float)

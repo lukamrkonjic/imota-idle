@@ -41,7 +41,7 @@ func start_gather(p_skill: String, node_name: String) -> bool:
 	if n.is_empty():
 		return false
 	if GameState.level(p_skill) < int(n["level"]):
-		EventBus.combat_log.emit("%s level %d required for %s" % [p_skill.capitalize(), n["level"], node_name])
+		EventBus.combat_log.emit("%s level %d required for %s" % [p_skill.capitalize(), n["level"], str(n.get("displayName", node_name))])
 		return false
 	if GameState.tool_progress(p_skill) <= 0:
 		EventBus.combat_log.emit("No suitable tool equipped for %s" % p_skill.capitalize())
@@ -53,7 +53,7 @@ func start_gather(p_skill: String, node_name: String) -> bool:
 	node = n
 	timer = 0.0
 	active = true
-	EventBus.activity_started.emit("gather", "%s — %s" % [skill.capitalize(), node["name"]])
+	EventBus.activity_started.emit("gather", "%s — %s" % [skill.capitalize(), str(node.get("displayName", node["name"]))])
 	return true
 
 

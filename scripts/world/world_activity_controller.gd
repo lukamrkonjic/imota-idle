@@ -19,6 +19,7 @@ const LEASH_RADIUS_TILES := 8.0  # player gets this far from the mob's spawn -> 
 const CHASE_SPEED := 150.0        # px/s the mob chases — clearly slower than the player (230) so you can outrun it
 const RETURN_SPEED := 170.0       # px/s it walks back to spawn after de-aggro
 const ATTACK_GAP_TILES := 0.7     # how close beside you the chaser stops
+const RANGED_RANGE_TILES := 11.0  # a bow can fire from this far; closer than this you don't move
 
 var world: Node2D
 
@@ -50,6 +51,7 @@ func _update_chase(delta: float) -> void:
 	var tgt: Node2D = world.combat_target_entity
 	if CombatSim.active and is_instance_valid(tgt):
 		_last_chased = tgt
+		world.player.face_toward(tgt.position.x)  # always turn to face the enemy
 		_returning.erase(tgt)  # re-engaged before it got home
 		if not tgt.has_meta("home_pos"):
 			tgt.set_meta("home_pos", tgt.position)
@@ -121,7 +123,17 @@ func begin_action(entity: Node2D) -> void:
 	world.pending_action["entity_path"] = entity.get_path()
 	var target := entity.position
 	var action: Dictionary = entity.action
-	if str(action.get("type", "")) == "gather" and str(action.get("skill", "")) == "fishing":
+	if str(action.get("type", "")) == "enemy" and GameState.weapon_combat_style() == "ranged":
+		# Ranged: shoot from where you stand if the target's already in range; if it's
+		# too far, close only to the farthest in-range tile instead of running into
+		# melee distance like a sword does.
+		var range_px := RANGED_RANGE_TILES * WG.TILE
+		var pp: Vector2 = world.player.position
+		if pp.distance_to(entity.position) <= range_px:
+			target = pp
+		else:
+			target = entity.position + (pp - entity.position).normalized() * range_px * 0.9
+	elif str(action.get("type", "")) == "gather" and str(action.get("skill", "")) == "fishing":
 		var chunk: RefCounted = WorldGen.chunks.get(str(action["chunk_key"]))
 		if chunk != null:
 			var i := int(action["site_index"])
@@ -270,5 +282,5 @@ func _check_aggro() -> void:
 		world.auto_task = {}
 		if CombatSim.start_combat(str(a["name"]), str(world.hud.call("train_style"))):
 			world.combat_target_entity = e
-			EventBus.combat_log.emit("[color=#a01010]A %s attacks you!" % str(a["name"]) + "[/color]")
+			EventBus.combat_log.emit("[color=#a01010]A %s attacks you!" % DataRegistry.enemy_display_name(str(a["name"])) + "[/color]")
 		return
