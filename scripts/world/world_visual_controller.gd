@@ -185,7 +185,9 @@ func _update_house_roofs(delta: float) -> void:
 		return
 	var pp: Vector2 = world.player.position
 	for e: Node2D in world._roofed_entities:
-		var radius := 58.0 if e.kind == "house" else maxf(90.0, float(e.display_size) * float(WG.ISO_HW) * 1.05)
+		# Tight radius so the roof only lifts when you're actually under the footprint,
+		# not flickering as you walk past or beside it.
+		var radius := 34.0 if e.kind == "house" else maxf(64.0, float(e.display_size) * float(WG.ISO_HW) * 0.8)
 		var target := 0.0 if pp.distance_to(e.position) < radius else 1.0
 		if not is_equal_approx(e.roof_alpha, target):
 			e.roof_alpha = move_toward(e.roof_alpha, target, delta * 4.5)

@@ -14,6 +14,7 @@ const WorldHoverTooltipScript := preload("res://scripts/ui/world_hover_tooltip.g
 const ClickMarkerNode := preload("res://scripts/ui/click_marker_node.gd")
 const AdminMenu := preload("res://scripts/ui/admin_menu.gd")
 const WorldMapPanel := preload("res://scripts/ui/world_map_panel.gd")
+const ItemIcon := preload("res://scripts/ui/item_icon.gd")  # preload, not class_name, so a fresh launch never fails to resolve it
 
 const SKILL_ABBREV := {
 	"attack": "Atk", "strength": "Str", "defence": "Def", "hitpoints": "HP",
@@ -22,6 +23,35 @@ const SKILL_ABBREV := {
 	"thieving": "Thv", "hunter": "Hunt", "farming": "Farm",
 	"cooking": "Cook", "smithing": "Smth", "firemaking": "FM", "fletching": "Flt",
 	"crafting": "Crft", "alchemy": "Alch", "agility": "Agi",
+}
+
+# Skill / equipment-slot -> ItemIcon shape, and a per-skill theme tint.
+const SKILL_ICON := {
+	"attack": "sword", "strength": "fist", "defence": "shield", "hitpoints": "heart",
+	"ranged": "bow", "magic": "staff", "prayer": "prayer", "slayer": "skull",
+	"woodcutting": "axe", "mining": "pickaxe", "fishing": "fish", "foraging": "leaf",
+	"thieving": "coin", "hunter": "bone", "farming": "seed", "cooking": "food",
+	"smithing": "bar", "firemaking": "fire", "fletching": "arrow", "crafting": "ring",
+	"alchemy": "potion", "agility": "boots",
+}
+const SLOT_ICON := {
+	"Helm": "helm", "Body": "body", "Boots": "boots", "Weapon": "sword",
+	"Shield": "shield", "Ring": "ring", "Gloves": "gloves", "Cape": "cape",
+	"Amulet": "ring", "Ammunition": "arrow", "Axe": "axe", "Pickaxe": "pickaxe",
+	"Rod": "staff", "Lens": "gem",
+}
+const SKILL_COLOR := {
+	"attack": Color(0.80, 0.32, 0.28), "strength": Color(0.62, 0.50, 0.40),
+	"defence": Color(0.42, 0.60, 0.80), "hitpoints": Color(0.84, 0.26, 0.30),
+	"ranged": Color(0.50, 0.62, 0.34), "magic": Color(0.56, 0.46, 0.80),
+	"prayer": Color(0.88, 0.85, 0.62), "slayer": Color(0.80, 0.80, 0.84),
+	"woodcutting": Color(0.56, 0.42, 0.26), "mining": Color(0.56, 0.57, 0.60),
+	"fishing": Color(0.46, 0.62, 0.80), "foraging": Color(0.46, 0.70, 0.32),
+	"thieving": Color(0.84, 0.70, 0.36), "hunter": Color(0.62, 0.52, 0.40),
+	"farming": Color(0.50, 0.70, 0.34), "cooking": Color(0.80, 0.56, 0.36),
+	"smithing": Color(0.60, 0.62, 0.66), "firemaking": Color(0.92, 0.52, 0.24),
+	"fletching": Color(0.62, 0.50, 0.32), "crafting": Color(0.82, 0.70, 0.40),
+	"alchemy": Color(0.60, 0.46, 0.76), "agility": Color(0.52, 0.56, 0.62),
 }
 
 var world: Node2D = null
@@ -444,11 +474,24 @@ func _build_skills_tab() -> Control:
 			if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 				show_ui_click_marker(event.global_position)
 				open_skill_guide(skill_copy))
+		var hb := HBoxContainer.new()
+		hb.alignment = BoxContainer.ALIGNMENT_CENTER
+		hb.add_theme_constant_override("separation", UiScale.i(5))
+		hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hb.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+		var icon := ItemIcon.new()
+		icon.kind = SKILL_ICON.get(skill, "misc")
+		icon.tint = SKILL_COLOR.get(skill, Color(0.72, 0.72, 0.74))
+		icon.custom_minimum_size = UiScale.v2(Vector2(26, 26))
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hb.add_child(icon)
 		var lbl := Label.new()
 		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		lbl.add_theme_font_size_override("font_size", UiScale.i(12))
+		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		lbl.add_theme_font_size_override("font_size", UiScale.i(14))
 		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		cell.add_child(lbl)
+		hb.add_child(lbl)
+		cell.add_child(hb)
 		skills_grid.add_child(cell)
 		skill_cells[skill] = lbl
 	return skills_grid
@@ -498,12 +541,32 @@ func _build_prayer_tab() -> Control:
 	]:
 		var name: String = str(p[0])
 		var req: int = int(p[1])
-		var row := Label.new()
-		row.add_theme_font_size_override("font_size", UiScale.i(12))
 		var unlocked := GameState.level("prayer") >= req
-		row.text = "%s  (Lvl %d)" % [name, req]
-		row.add_theme_color_override("font_color",
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", UiScale.i(6))
+		var icon := ItemIcon.new()
+		if name.contains("Skin") or name.contains("Protect from Melee"):
+			icon.kind = "shield"
+		elif name.contains("Strength"):
+			icon.kind = "fist"
+		elif name.contains("Eye"):
+			icon.kind = "bow"
+		elif name.contains("Mystic") or name.contains("Will"):
+			icon.kind = "staff"
+		elif name.contains("Protect Item"):
+			icon.kind = "ring"
+		else:
+			icon.kind = "prayer"
+		icon.tint = Color(0.88, 0.85, 0.62) if unlocked else Color(0.40, 0.40, 0.40)
+		icon.custom_minimum_size = UiScale.v2(Vector2(20, 20))
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(icon)
+		var lbl := Label.new()
+		lbl.add_theme_font_size_override("font_size", UiScale.i(12))
+		lbl.text = "%s  (Lvl %d)" % [name, req]
+		lbl.add_theme_color_override("font_color",
 			Color(0.9, 0.9, 0.8) if unlocked else Color(0.45, 0.45, 0.45))
+		row.add_child(lbl)
 		box.add_child(row)
 	var bury := Button.new()
 	bury.text = "Bury all bones"
@@ -1301,11 +1364,20 @@ func _refresh_skills() -> void:
 func _update_skill_cell(skill: String) -> void:
 	var lbl: Label = skill_cells[skill]
 	var lvl := GameState.level(skill)
-	lbl.text = "%s\n%d" % [SKILL_ABBREV.get(skill, skill), lvl]
+	lbl.text = str(lvl)
 	var cur := float(DataRegistry.xp_for_level(lvl))
 	var next := float(DataRegistry.xp_for_level(lvl + 1))
 	var frac := clampf((GameState.xp(skill) - cur) / maxf(next - cur, 1.0), 0.0, 1.0)
 	lbl.tooltip_text = "%s â€” level %d\n%.0f XP (%.0f%% to next)" % [skill.capitalize(), lvl, GameState.xp(skill), frac * 100.0]
+
+
+## Compact stack count (OSRS-ish): raw under 100k, then K / M.
+static func _fmt_qty(q: int) -> String:
+	if q >= 1000000:
+		return "%.1fM" % (q / 1000000.0)
+	if q >= 100000:
+		return "%dK" % (q / 1000)
+	return str(q)
 
 
 static func _abbrev(item_name: String) -> String:
@@ -1328,12 +1400,29 @@ func _refresh_inventory() -> void:
 			var stack: Dictionary = GameState.inventory[i]
 			var item_id: String = stack["id"]
 			var item_name := DataRegistry.item_display_name(item_id)
-			btn.text = "%s\n%d" % [_abbrev(item_name), int(stack["qty"])]
 			btn.tooltip_text = item_name
-			# OSRS-ish color coding by hash so stacks are tellable apart.
-			var h := _hash_color(item_name)
-			btn.add_theme_color_override("font_color", h)
-			btn.add_theme_color_override("font_hover_color", h.lightened(0.3))
+			# Procedural type icon, recolored by material tier (name on hover).
+			var icon := ItemIcon.new()
+			icon.kind = ItemIcon.classify(item_name, DataRegistry.get_item(item_id))
+			icon.tint = ItemIcon.material_color(item_name)
+			icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			icon.offset_top = UiScale.i(2)
+			icon.offset_bottom = UiScale.i(-11)
+			btn.add_child(icon)
+			var qty := int(stack["qty"])
+			if qty > 1:
+				var ql := Label.new()
+				ql.text = _fmt_qty(qty)
+				ql.add_theme_font_size_override("font_size", UiScale.i(11))
+				ql.add_theme_color_override("font_color", Color(1.0, 0.95, 0.55))
+				ql.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+				ql.add_theme_constant_override("outline_size", UiScale.i(3))
+				ql.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				ql.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+				ql.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+				ql.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+				btn.add_child(ql)
 			btn.gui_input.connect(_on_inv_slot_input.bind(item_id))
 			btn.pressed.connect(_inv_default_action.bind(item_id))
 		else:
@@ -1387,26 +1476,70 @@ func _on_inv_slot_input(event: InputEvent, item_id: String) -> void:
 		menu.popup(Rect2i(Vector2i(get_viewport().get_mouse_position()), Vector2i.ZERO))
 
 
+## OSRS-style paper-doll: worn items show their icon in-slot, empty slots show a
+## dim silhouette. Tool slots (axe/pick/rod/lens) sit in a row below.
+const _EQUIP_LAYOUT := [
+	["", "Helm", ""],
+	["Cape", "Amulet", "Ammunition"],
+	["Weapon", "Body", "Shield"],
+	["Gloves", "Boots", "Ring"],
+]
+
 func _refresh_equipment() -> void:
 	for c: Node in equip_list.get_children():
 		c.queue_free()
-	for slot: String in GameState.EQUIPMENT_SLOTS:
-		var row := HBoxContainer.new()
-		var lbl := Label.new()
-		var worn_id: String = str(GameState.equipment.get(slot, ""))
-		var worn := DataRegistry.item_display_name(worn_id) if not worn_id.is_empty() else "â€”"
-		lbl.text = "%s: %s" % [slot, worn]
-		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		lbl.clip_text = true
-		lbl.add_theme_font_size_override("font_size", UiScale.i(12))
-		row.add_child(lbl)
-		if GameState.equipment.has(slot):
-			var btn := Button.new()
-			btn.text = "X"
-			var slot_copy := slot
-			btn.pressed.connect(func() -> void: GameState.unequip(slot_copy))
-			row.add_child(btn)
-		equip_list.add_child(row)
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", UiScale.i(6))
+	grid.add_theme_constant_override("v_separation", UiScale.i(6))
+	for row: Array in _EQUIP_LAYOUT:
+		for slot: String in row:
+			grid.add_child(_make_equip_slot(slot))
+	var center := CenterContainer.new()
+	center.add_child(grid)
+	equip_list.add_child(center)
+	var tools_lbl := Label.new()
+	tools_lbl.text = "Tools"
+	tools_lbl.add_theme_font_size_override("font_size", UiScale.i(11))
+	tools_lbl.add_theme_color_override("font_color", Color(0.7, 0.66, 0.55))
+	equip_list.add_child(tools_lbl)
+	var tgrid := GridContainer.new()
+	tgrid.columns = 4
+	tgrid.add_theme_constant_override("h_separation", UiScale.i(6))
+	for slot: String in ["Axe", "Pickaxe", "Rod", "Lens"]:
+		tgrid.add_child(_make_equip_slot(slot))
+	var tcenter := CenterContainer.new()
+	tcenter.add_child(tgrid)
+	equip_list.add_child(tcenter)
+
+
+func _make_equip_slot(slot: String) -> Control:
+	if slot.is_empty():
+		var spacer := Control.new()
+		spacer.custom_minimum_size = UiScale.v2(Vector2(50, 50))
+		return spacer
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _style(STONE_DARK))
+	panel.custom_minimum_size = UiScale.v2(Vector2(50, 50))
+	var worn_id: String = str(GameState.equipment.get(slot, ""))
+	var icon := ItemIcon.new()
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if worn_id.is_empty():
+		icon.kind = SLOT_ICON.get(slot, "misc")
+		icon.tint = Color(0.36, 0.34, 0.31)  # dim silhouette
+		panel.tooltip_text = slot
+	else:
+		var worn := DataRegistry.item_display_name(worn_id)
+		icon.kind = ItemIcon.classify(worn, DataRegistry.get_item(worn_id))
+		icon.tint = ItemIcon.material_color(worn)
+		panel.tooltip_text = "%s  (%s)\nClick to unequip" % [worn, slot]
+		panel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		var slot_copy := slot
+		panel.gui_input.connect(func(event: InputEvent) -> void:
+			if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+				GameState.unequip(slot_copy))
+	panel.add_child(icon)
+	return panel
 
 
 func _refresh_combat_info() -> void:
