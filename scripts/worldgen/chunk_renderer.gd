@@ -34,7 +34,14 @@ var _placeholder: Color = Color(0.25, 0.35, 0.22)
 # call. Built on the CPU — NO render-to-texture, so no GPU readback and no stall
 # while terrain streams in during movement. Rebuilt only when a neighbour changes.
 var _mesh: ArrayMesh = null
+var _elev_mesh: ArrayMesh = null  # ONLY the raised mountain tiles — drawn by the y-sorted overlay
 var _mesh_dirty := true
+## The entity y_sort layer (set by World once, before streaming). When set, each
+## chunk's raised tiles render via an overlay node in THIS layer, so mountains
+## occlude entities behind them. Null in tests/preview -> the chunk draws its own
+## elevated mesh inline (terrain still complete, just no entity occlusion).
+static var elev_layer: Node2D = null
+var _elev_overlay: ElevOverlay = null
 # Static ground decor (grass/flowers/…) as {key, pos} — drawn node-free from the
 # shared atlas in _draw(), so a chunk's hundreds of clutter sprites cost a few
 # batched draws instead of hundreds of Node2Ds. Computed with the mesh.
@@ -47,6 +54,8 @@ var _build_reg: RefCounted = null   # captured on the main thread at dispatch
 var _build_seed := 0
 var _pending_verts := PackedVector3Array()
 var _pending_cols := PackedColorArray()
+var _pending_elev_verts := PackedVector3Array()
+var _pending_elev_cols := PackedColorArray()
 var _pending_props: Array = []
 # The triangle assembly runs on the worker; the ArrayMesh (GPU upload) is created
 # on the MAIN thread (creating GPU resources on workers contends with rendering).
@@ -114,7 +123,31 @@ static func _terrain_shadow(p_chunk: RefCounted, lx: int, ly: int, e: int) -> fl
 
 
 func _ready() -> void:
+	if elev_layer != null:
+		_elev_overlay = ElevOverlay.new()
+		_elev_overlay.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		_elev_overlay.tex = _white_texture()
+		# Sort anchor = chunk centre, so a mountain occludes entities north of it.
+		_elev_overlay.position = WG.tile_to_world(
+			chunk.cx * WG.CHUNK_TILES + WG.CHUNK_TILES / 2,
+			chunk.cy * WG.CHUNK_TILES + WG.CHUNK_TILES / 2)
+		_elev_overlay.mesh = _elev_mesh
+		elev_layer.add_child(_elev_overlay)
 	queue_redraw()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_VISIBILITY_CHANGED and _elev_overlay != null:
+		_elev_overlay.visible = is_visible_in_tree()
+
+
+func _exit_tree() -> void:
+	if _build_task != -1:
+		WorkerThreadPool.wait_for_task_completion(_build_task)
+		_build_task = -1
+	if _elev_overlay != null:
+		_elev_overlay.queue_free()
+		_elev_overlay = null
 
 
 func _draw() -> void:
@@ -127,6 +160,10 @@ func _draw() -> void:
 		_draw_fog_placeholder()
 		return
 	draw_mesh(_mesh, _white_texture())
+	# Raised tiles are drawn by the y-sorted overlay (so they occlude entities). Only
+	# when there's no overlay layer (tests/preview) draw them inline so terrain is whole.
+	if _elev_overlay == null and _elev_mesh != null:
+		draw_mesh(_elev_mesh, _white_texture())
 	_draw_loading_fog()
 	# Ground decor: batched atlas regions on top of the terrain (one shared page →
 	# Godot merges them into a few draw calls). Behind entities (chunk z is far
@@ -155,8 +192,12 @@ func set_fog_placeholder(enabled: bool) -> void:
 	fog_placeholder = enabled
 	if fog_placeholder:
 		_mesh = null
+		_elev_mesh = null
 		_static_props.clear()
 		loading_fog_alpha = 0.0
+		if _elev_overlay != null:
+			_elev_overlay.mesh = null
+			_elev_overlay.queue_redraw()
 	queue_redraw()
 
 
@@ -201,14 +242,17 @@ func _capture_neighbours() -> void:
 func _build_async() -> void:
 	var reg: RefCounted = _build_reg
 	var b := _MeshBuilder.new()
+	var be := _MeshBuilder.new()  # raised tiles go here, drawn by the y-sorted overlay
 	var props: Array = []
 	if detail_level == DETAIL_LOW:
 		_draw_chunk_lod(b, chunk, reg)
 	else:
-		_draw_chunk(b, chunk, reg)
+		_draw_chunk(b, be, chunk, reg)
 		props = DecorPlacement.compute(chunk, reg, _build_seed)
 	_pending_verts = b.verts
 	_pending_cols = b.cols
+	_pending_elev_verts = be.verts
+	_pending_elev_cols = be.cols
 	_pending_props = props
 
 
@@ -240,9 +284,24 @@ func _process(_delta: float) -> void:
 		var m := ArrayMesh.new()
 		m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
 		_mesh = m
+	if _pending_elev_verts.is_empty():
+		_elev_mesh = null
+	else:
+		var arr2 := []
+		arr2.resize(Mesh.ARRAY_MAX)
+		arr2[Mesh.ARRAY_VERTEX] = _pending_elev_verts
+		arr2[Mesh.ARRAY_COLOR] = _pending_elev_cols
+		var me := ArrayMesh.new()
+		me.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr2)
+		_elev_mesh = me
+	if _elev_overlay != null:
+		_elev_overlay.mesh = _elev_mesh
+		_elev_overlay.queue_redraw()
 	_static_props = _pending_props
 	_pending_verts = PackedVector3Array()
 	_pending_cols = PackedColorArray()
+	_pending_elev_verts = PackedVector3Array()
+	_pending_elev_cols = PackedColorArray()
 	_pending_props = []
 	chunk.render_neighbors = {}  # release neighbour refs
 	_fade_loading_fog()
@@ -252,11 +311,6 @@ func _process(_delta: float) -> void:
 		rebuild_mesh()
 
 
-func _exit_tree() -> void:
-	# Never let a worker task outlive the renderer (it touches our members).
-	if _build_task != -1:
-		WorkerThreadPool.wait_for_task_completion(_build_task)
-		_build_task = -1
 
 
 func _draw_coarse_lod(canvas: Variant) -> void:
@@ -317,6 +371,17 @@ static func _grid_to_world(gx: float, gy: float) -> Vector2:
 ## Duck-typed as a CanvasItem for the existing paint helpers (which only call
 ## draw_colored_polygon and draw_rect): instead of issuing draw commands it
 ## accumulates triangle soup with per-vertex colours for one ArrayMesh.
+## Draws a chunk's raised-tile mesh inside the entity y_sort layer. Its position is
+## the chunk centre (so y-sort puts a mountain in front of entities north of it);
+## the mesh holds world-space verts, so we offset by -position when drawing.
+class ElevOverlay extends Node2D:
+	var mesh: ArrayMesh = null
+	var tex: Texture2D = null
+	func _draw() -> void:
+		if mesh != null:
+			draw_mesh(mesh, tex, Transform2D(0.0, -position))
+
+
 class _MeshBuilder:
 	var verts := PackedVector3Array()
 	var cols := PackedColorArray()
@@ -374,7 +439,7 @@ static func _resolve_colors(reg: RefCounted, p_chunk: RefCounted, lx: int, ly: i
 	return [top, accent]
 
 
-static func _draw_chunk(canvas: Variant, p_chunk: RefCounted, reg: RefCounted) -> void:
+static func _draw_chunk(flat: Variant, elev: Variant, p_chunk: RefCounted, reg: RefCounted) -> void:
 	var base_tx: int = p_chunk.cx * WG.CHUNK_TILES
 	var base_ty: int = p_chunk.cy * WG.CHUNK_TILES
 	for diag: int in range(0, WG.CHUNK_TILES * 2 - 1):
@@ -385,7 +450,11 @@ static func _draw_chunk(canvas: Variant, p_chunk: RefCounted, reg: RefCounted) -
 			var tile_id: int = p_chunk.tile_id(tx, ty)
 			var tile_name: String = _tile_name(reg, tile_id)
 			var td: Dictionary = reg.tile_def(tile_id)
-			_draw_full_tile(canvas, p_chunk, reg, tx, ty, base_tx + tx, base_ty + ty, tile_name, td)
+			# NOTE: split reverted — all tiles draw into the base mesh as before, so
+			# terrain renders correctly. The y-sort overlay had a render bug; revisit.
+			_draw_full_tile(flat, p_chunk, reg, tx, ty, base_tx + tx, base_ty + ty, tile_name, td)
+			# (elev builder intentionally left unused for now)
+			var _unused: Variant = elev
 
 
 static func _draw_full_tile(

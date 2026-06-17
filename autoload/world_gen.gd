@@ -265,7 +265,8 @@ func _tile_elev(layer: int, t: Vector2i) -> int:
 ## resolves to the low tile in FRONT of it (reading elevation 0). A raised tile's
 ## top is shifted up by elev*ELEV_STEP_PX, so we add that back and test elevations
 ## tallest-first, returning the topmost tile actually drawn under the cursor.
-const ELEV_PICK_MAX := 42   # generator ELEV_MAX_STEPS — tallest possible peak
+const ELEV_PICK_MAX := 52   # MUST equal BiomeClassifier.ELEV_MAX_STEPS (tallest peak), or
+                            # peaks above this read as the flat tile in front (elev 0)
 
 func tile_at_screen(world_pos: Vector2, layer: int = 0) -> Vector2i:
 	if layer == 0:

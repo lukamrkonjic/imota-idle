@@ -19,6 +19,7 @@ const BiomeDebugOverlay := preload("res://scripts/world/biome_debug_overlay.gd")
 const ClickMarkerNode := preload("res://scripts/ui/click_marker_node.gd")
 const HitSplat := preload("res://scripts/world/hit_splat.gd")
 const ArrowProj := preload("res://scripts/world/arrow_proj.gd")
+const ChunkRenderer := preload("res://scripts/worldgen/chunk_renderer.gd")
 const PerfLogger := preload("res://scripts/world/perf_logger.gd")
 const BakeQueue := preload("res://scripts/world/bake_queue.gd")
 const EntitySpriteCache := preload("res://scripts/world/entity_sprite_cache.gd")
@@ -135,6 +136,9 @@ func _build_scene() -> void:
 	_entities_layer.name = "Entities"
 	_entities_layer.y_sort_enabled = true
 	add_child(_entities_layer)
+	# (Elevation-occlusion overlay disabled — the per-chunk y-sort overlay had a
+	# render bug; terrain draws normally via the base mesh until it's debugged.)
+	# ChunkRenderer.elev_layer = _entities_layer
 
 	_click_fx_layer = Node2D.new()
 	_click_fx_layer.name = "ClickFX"

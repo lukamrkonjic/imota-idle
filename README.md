@@ -5,15 +5,44 @@ recreated from the Bloobs Adventure Idle data export.
 
 ## Run
 
-```powershell
-# Play
-C:\Dev\Godot\Godot_v4.6.3-stable_win64.exe --path C:\Dev\bloobs-godot
+Needs **Godot 4.6** (standard build — pure GDScript, no .NET/C#). The project is
+cross-platform: it runs on macOS (Apple Silicon included), Linux, and Windows with
+the same engine.
 
-# Re-import game data from the export (writes res://data/*.json)
-C:\Dev\Godot\Godot_v4.6.3-stable_win64_console.exe --headless --path C:\Dev\bloobs-godot --script res://tools/import_bloobs_data.gd
+The `dev.sh` launcher finds your Godot binary so you don't hardcode a path. Works
+in any bash shell (macOS/Linux terminals, or Git Bash on Windows):
 
-# Headless test suite (49 checks across data, gathering, combat, crafting, save, UI)
-C:\Dev\Godot\Godot_v4.6.3-stable_win64_console.exe --headless --path C:\Dev\bloobs-godot res://tools/validate.tscn
+```bash
+./dev.sh run        # play the game
+./dev.sh editor     # open the Godot editor
+./dev.sh validate   # headless test suite
+./dev.sh bake       # re-bake the finite overworld (headless, CPU-only)
+./dev.sh atlas      # re-bake the sprite atlas (opens a window — needs a GPU)
+```
+
+If Godot isn't on your `PATH`, point the launcher at it: `GODOT=/path/to/Godot ./dev.sh run`.
+
+### Develop on a Mac (Apple Silicon — M1…M5)
+
+1. Download **Godot 4.6, macOS, Standard** from <https://godotengine.org/download/macos/>
+   and drag `Godot.app` into `/Applications`. (`dev.sh` auto-detects it there.)
+2. Clone the repo and `cd` into it.
+3. `./dev.sh editor` to open it, or `./dev.sh run` to play. First launch reimports
+   assets into `.godot/` (gitignored) — that's normal and only happens once.
+
+The renderer is **Forward+**, which runs natively on Apple Silicon via Metal — no
+config change needed. The baked overworld (`data/world/baked/`) and sprite atlas
+(`generated/sprite_atlas/`) are committed, so the game runs without re-baking; only
+re-run `./dev.sh bake` / `./dev.sh atlas` after editing worldspec or art.
+
+Raw invocation, if you skip the launcher:
+
+```bash
+# macOS
+/Applications/Godot.app/Contents/MacOS/Godot --path . res://tools/validate.tscn --headless
+
+# Windows
+C:\Dev\Godot\Godot_v4.6.3-stable_win64_console.exe --headless --path . res://tools/validate.tscn
 ```
 
 ## Architecture
@@ -57,5 +86,4 @@ documented in [docs/DATA_GAPS.md](docs/DATA_GAPS.md).
   the fishing sector), and OSRS-style HUD. Same sims as the Melvor UI —
   `scenes/main.tscn` remains for headless UI smoke tests.
 
-Run the game: "C:\Dev\Godot\Godot_v4.6.3-stable_win64.exe" --path C:\Dev\imota-idle
-Run the editor: "C:\Dev\Godot\Godot_v4.6.3-stable_win64.exe" --path C:\Dev\imota-idle res://tools/world_editor.tscn
+Run the game: `./dev.sh run` &nbsp;·&nbsp; Open the editor: `./dev.sh editor` &nbsp;·&nbsp; World editor tool: `./dev.sh world_editor`

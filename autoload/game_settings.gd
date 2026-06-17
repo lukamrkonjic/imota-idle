@@ -36,6 +36,7 @@ var show_chat: bool = true
 var show_hover_tooltip: bool = true
 var show_fps: bool = false
 var show_tile_debug: bool = true  # dev tile/zone/elev overlay (toggled from Admin)
+var noclip: bool = false  # dev fly: straight-line move over any terrain + 2x speed (NOT persisted)
 var fps_limit: int = DEFAULT_FPS_LIMIT
 
 # Idle automation (spec §12, §21). Auto-eat the best food when HP drops to/below
@@ -164,6 +165,12 @@ func set_show_tile_debug(enabled: bool) -> void:
 	show_tile_debug = enabled
 	save_settings()
 	changed.emit(&"show_tile_debug")
+
+
+## Dev fly toggle — not persisted (always off on a fresh launch).
+func set_noclip(enabled: bool) -> void:
+	noclip = enabled
+	changed.emit(&"noclip")
 
 
 func set_fps_limit(value: int) -> void:

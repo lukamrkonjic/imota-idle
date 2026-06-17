@@ -13,10 +13,10 @@ const MAX_REACHABLE_ELEV := 60             # any tile up to here can carry a nav
                                            # steep mountains impassable is MAX_CLIMB_STEP (you
                                            # can't cross a >1-step face), not an absolute height.
 const MAX_CLIMB_STEP := 1                  # biggest single-step elevation change the player can
-                                           # cross. NOTE: bumping this to 3 let players walk up
-                                           # whole peaks (terraces rise ~2-3/tile) — proper
-                                           # "jump up gentle slopes" needs a varied elevation
-                                           # profile (foothills vs cliffs), not a bigger limit.
+                                           # cross. Mountains are impassable because their faces
+                                           # rise faster than this. The bug to avoid is a thin
+                                           # low-elev apron at a cliff base (elev 1-4 tiles the
+                                           # player climbs onto) — handled in elevation_steps.
 const CHUNK_TILES := 16                    # tiles per chunk side
 const CHUNK_SIZE := TILE * float(CHUNK_TILES)  # legacy ortho estimate; use chunk_aabb()
 const ZONE_CELL := 6                       # zone Voronoi cell size, in chunks

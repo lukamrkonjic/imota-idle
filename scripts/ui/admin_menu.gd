@@ -480,6 +480,13 @@ func _build_misc_tab() -> void:
 	dbg.toggled.connect(func(on: bool) -> void: GameSettings.set_show_tile_debug(on))
 	box.add_child(dbg)
 
+	var fly := CheckBox.new()
+	fly.text = "Fly (noclip + 2× speed)"
+	fly.tooltip_text = "Click anywhere to fly there in a straight line over any terrain, at double speed."
+	fly.button_pressed = GameSettings.noclip
+	fly.toggled.connect(func(on: bool) -> void: GameSettings.set_noclip(on))
+	box.add_child(fly)
+
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.add_child(box)

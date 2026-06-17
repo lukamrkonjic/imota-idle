@@ -40,7 +40,7 @@ func _process(delta: float) -> void:
 	_t += delta
 	if walking:
 		var to_target := walk_target - position
-		var step := SPEED * delta
+		var step := SPEED * (2.0 if GameSettings.noclip else 1.0) * delta
 		# While fighting, facing is driven toward the enemy (face_toward) instead.
 		if absf(to_target.x) > 1.0 and not CombatSim.active:
 			_target_facing = 1 if to_target.x >= 0.0 else -1

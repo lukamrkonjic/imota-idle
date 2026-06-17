@@ -52,7 +52,11 @@ func handle_input(event: InputEvent) -> void:
 				# Resolve the raised tile drawn under the cursor so clicking a mountain
 				# walks onto it, not to the flat tile rendered in front of it.
 				var tile := WorldGen.tile_at_screen(click_pos, int(world.get("current_layer")))
-				world.walk_to_pos(WG.tile_to_world(tile.x, tile.y))
+				if GameSettings.noclip:
+					# Fly: straight line to the click, ignoring pathfinding/terrain.
+					world.player.walk_to(WG.tile_to_world(tile.x, tile.y))
+				else:
+					world.walk_to_pos(WG.tile_to_world(tile.x, tile.y))
 			world.get_viewport().set_input_as_handled()
 
 
