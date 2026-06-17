@@ -17,7 +17,7 @@ func auto_gather(skill: String, node_name: String) -> void:
 		return
 	if GameState.level(skill) < int(node["level"]):
 		EventBus.combat_log.emit("[color=#a01010]%s level %d required for %s.[/color]" % [
-			skill.capitalize(), int(node["level"]), node_name])
+			skill.capitalize(), int(node["level"]), str(node.get("displayName", node_name))])
 		return
 	world._activity_ctrl.stop_all_sims()
 	world._activity_ctrl.clear_combat_target()

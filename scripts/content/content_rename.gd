@@ -27,12 +27,22 @@ static func rename(original: String, map: Dictionary) -> String:
 	var exact: Dictionary = map.get("exact", {})
 	if exact.has(original):
 		return str(exact[original])
+	# Substring pass: apply the exact (boss / named-enemy) overrides even when the
+	# name is embedded in a derived item — e.g. "<Boss>'s Soul" or
+	# "Corrupted <Boss>'s Soul". Longest keys first so a full boss phrase wins over
+	# a shorter name contained inside it.
+	var working := original
+	var ekeys: Array = exact.keys()
+	ekeys.sort_custom(func(a: String, b: String) -> bool: return a.length() > b.length())
+	for k: String in ekeys:
+		if working.contains(k):
+			working = working.replace(k, str(exact[k]))
 	var tokens: Dictionary = map.get("tokens", {})
 	if tokens.is_empty():
-		return original
+		return working
 	# Split on spaces but preserve them; replace only whole words (trailing
 	# punctuation like a comma is kept).
-	var words := original.split(" ")
+	var words := working.split(" ")
 	var out: PackedStringArray = []
 	for w: String in words:
 		var lead := ""

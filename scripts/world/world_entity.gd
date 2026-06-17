@@ -466,9 +466,9 @@ func tooltip_content() -> Dictionary:
 func action_text() -> String:
 	match str(action.get("type", "")):
 		"gather":
-			return "%s %s" % [GATHER_VERB.get(str(action["skill"]), "Gather"), label]
+			return "%s %s" % [GATHER_VERB.get(str(action["skill"]), "Gather"), display_label()]
 		"enemy":
-			return "Attack %s (%s)" % [label, sub_label]
+			return "Attack %s (%s)" % [display_label(), sub_label]
 		"station":
 			var st := str(action["station"])
 			if st == "bank":
