@@ -19,6 +19,13 @@ func handle_input(event: InputEvent) -> void:
 			world._biome_debug.call("toggle")
 			world.get_viewport().set_input_as_handled()
 		return
+	# Trackpad pinch-to-zoom (macOS): the gesture's factor is the relative
+	# magnification per tick (>1 pinch-out/zoom-in, <1 pinch-in/zoom-out), so
+	# multiplying the current zoom by it gives smooth continuous scaling.
+	if event is InputEventMagnifyGesture:
+		_set_zoom(world._camera.zoom.x * event.factor)
+		world.get_viewport().set_input_as_handled()
+		return
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			_set_zoom(world._camera.zoom.x + ZOOM_STEP)
@@ -29,7 +36,7 @@ func handle_input(event: InputEvent) -> void:
 			world.get_viewport().set_input_as_handled()
 			return
 		if event.button_index == MOUSE_BUTTON_LEFT:
-			var click_pos := world.get_global_mouse_position()
+			var click_pos: Vector2 = world.mouse_world_pos()
 			var target := entity_at(click_pos)
 			world.show_click_fx(click_pos, target != null)
 			if target != null:
@@ -40,12 +47,12 @@ func handle_input(event: InputEvent) -> void:
 				world._activity_ctrl.clear_combat_target()
 				world.pending_action = {}
 				world.auto_task = {}
-				world.walk_to_pos(world.get_global_mouse_position())
+				world.walk_to_pos(click_pos)
 			world.get_viewport().set_input_as_handled()
 
 
 func update_hover() -> void:
-	var mouse := world.get_global_mouse_position()
+	var mouse: Vector2 = world.mouse_world_pos()
 	var found := entity_at(mouse)
 	if found != world.hovered_entity:
 		if world.hovered_entity != null:

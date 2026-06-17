@@ -218,7 +218,7 @@ static func _foliage_mat(base: Color) -> ShaderMaterial:
 		m.set_shader_parameter("base_color", base)
 		m.set_shader_parameter("shadow_color", base.darkened(0.34))
 		m.set_shader_parameter("light_color", base.lightened(0.2))
-		m.set_shader_parameter("wind", 0.06)
+		m.set_shader_parameter("wind", 0.11)
 		_mat_cache[ck] = m
 	return _mat_cache[ck]
 
@@ -611,11 +611,11 @@ static func _hike_sign_parts() -> Array:
 
 
 static func _hike_flower_parts(variant: int) -> Array:
-	var bloom := _mat("leaf_gold", "dirt_b", "gold")
+	var bloom := _mat("wildflower", "wildflower_deep", "snow_a")
 	if variant % 3 == 1:
-		bloom = _mat("leaf_orange", "leaf_red", "path_light")
+		bloom = _mat("wildflower_deep", "shadow", "wildflower")
 	elif variant % 3 == 2:
-		bloom = _mat("cabin_trim", "gold", "snow_a")
+		bloom = _mat("cabin_trim", "gold", "snow_a")   # a few pale-cream flowers for variety
 	return [
 		_part(_sphere("hike_flower_leaf", 0.18), _mat("foliage_c", "grass_dark", "foliage_c"), Vector3(0, 0.1, 0), Vector3(1.2, 0.32, 0.9)),
 		_part(_sphere("hike_flower_bloom", 0.09), bloom, Vector3(-0.08, 0.28, 0.02), Vector3(1.0, 0.68, 1.0)),
@@ -685,15 +685,17 @@ static func _hike_pebble_parts() -> Array:
 
 
 static func _hike_leaf_mat(variant: int) -> ShaderMaterial:
+	# Natural lush-green canopies (varied shades) instead of autumn red/gold, to
+	# match the cool natural palette. One muted-gold accent for late-summer variety.
 	match variant % 4:
 		0:
-			return _mat("leaf_orange", "leaf_red", "path_light")
+			return _mat("leaf_green", "forest_green", "moss_hi")
 		1:
-			return _mat("leaf_gold", "dirt_b", "gold")
+			return _mat("mid_foliage", "forest_teal", "leaf_green")
 		2:
-			return _mat("leaf_red", "trunk_b", "leaf_orange")
+			return _mat("moss_hi", "leaf_green", "sunlit_grass")
 		_:
-			return _mat("foliage_c", "grass_dark", "leaf_gold")
+			return _mat("foliage_c", "grass_dark", "moss_hi")
 
 
 static func _fish_parts() -> Array:
@@ -745,6 +747,58 @@ static func build_node(parts: Array) -> Node3D:
 		mi.scale = p["scl"]
 		root.add_child(mi)
 	return root
+
+
+## Articulated low-poly figure: torso/head/hair are fixed to the root; each leg
+## and arm hangs off a named pivot Node3D (leg_l/leg_r/arm_l/arm_r) so the walk
+## animation can swing them around X. body = outfit color, head = skin color.
+static func figure_rig(body: Color, head: Color) -> Node3D:
+	# Medieval villager: belted tunic (torso + flared hem skirt + sleeves) in the
+	# outfit color, dark hose, leather belt + boots, and a simple cloth cap. Legs
+	# and arms hang off named pivots (leg_l/leg_r/arm_l/arm_r) for the walk swing.
+	var tunic := _mat_from(body, body.darkened(0.35), body.lightened(0.2))
+	var hose := _mat_from(body.darkened(0.55).lerp(Color(0.17, 0.15, 0.13), 0.5), body.darkened(0.7), body.darkened(0.25))
+	var leather := _mat_from(Color(0.27, 0.18, 0.11), Color(0.16, 0.1, 0.06), Color(0.4, 0.29, 0.18))
+	var skin := _mat_from(head, head.darkened(0.28), head.lightened(0.18))
+	var capc := _mat_from(body.darkened(0.42), body.darkened(0.62), body.lightened(0.05))
+	var root := Node3D.new()
+	# Upper body: belted tunic with a flared hem (the medieval silhouette).
+	_attach(root, _box("rig_torso", Vector3(0.42, 0.5, 0.27)), tunic, Vector3(0, 1.0, 0))
+	_attach(root, _box("rig_belt", Vector3(0.46, 0.09, 0.31)), leather, Vector3(0, 0.78, 0))
+	_attach(root, _box("rig_skirt", Vector3(0.5, 0.34, 0.34)), tunic, Vector3(0, 0.62, 0))
+	_attach(root, _box("rig_neck", Vector3(0.16, 0.1, 0.16)), skin, Vector3(0, 1.3, 0))
+	_attach(root, _box("rig_head", Vector3(0.36, 0.36, 0.36)), skin, Vector3(0, 1.52, 0))
+	# Simple cloth cap (with a small brim) instead of bare hair.
+	_attach(root, _box("rig_cap", Vector3(0.42, 0.2, 0.42)), capc, Vector3(0, 1.76, 0))
+	_attach(root, _box("rig_cap_brim", Vector3(0.46, 0.06, 0.18)), capc, Vector3(0, 1.68, 0.16))
+	# Legs: hose + a tall leather boot, pivoting at the hip.
+	for side: int in [-1, 1]:
+		var leg := _limb(root, "leg_l" if side < 0 else "leg_r", Vector3(0.11 * side, 0.58, 0))
+		_attach(leg, _box("rig_shin", Vector3(0.15, 0.5, 0.17)), hose, Vector3(0, -0.25, 0))
+		_attach(leg, _box("rig_boot", Vector3(0.17, 0.24, 0.25)), leather, Vector3(0, -0.48, 0.03))
+	# Arms: tunic sleeves + skin hands, pivoting at the shoulder.
+	for side2: int in [-1, 1]:
+		var arm := _limb(root, "arm_l" if side2 < 0 else "arm_r", Vector3(0.29 * side2, 1.2, 0))
+		_attach(arm, _box("rig_arm", Vector3(0.12, 0.44, 0.14)), tunic, Vector3(0, -0.21, 0))
+		_attach(arm, _box("rig_hand", Vector3(0.12, 0.12, 0.13)), skin, Vector3(0, -0.46, 0))
+	return root
+
+
+static func _attach(parent: Node3D, mesh: Mesh, mat: Material, off: Vector3, scl := Vector3.ONE) -> void:
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = mat
+	mi.position = off
+	mi.scale = scl
+	parent.add_child(mi)
+
+
+static func _limb(parent: Node3D, pivot_name: String, pos: Vector3) -> Node3D:
+	var n := Node3D.new()
+	n.name = pivot_name
+	n.position = pos
+	parent.add_child(n)
+	return n
 
 
 # ------------------------------------------------------------------ helpers ----
@@ -836,9 +890,9 @@ static func _mat(base_key: String, shadow_key: String, light_key: String) -> Sha
 		m.set_shader_parameter("base_color", PixelPalette.pal(base_key))
 		m.set_shader_parameter("shadow_color", PixelPalette.pal(shadow_key))
 		m.set_shader_parameter("light_color", PixelPalette.pal(light_key))
-		# Foliage sways gently in the wind; trunks/stone/walls stay put.
-		if base_key.begins_with("foliage") or base_key.begins_with("fir") or base_key.begins_with("leaf") or base_key.begins_with("pine"):
-			m.set_shader_parameter("wind", 0.06)
+		# Foliage + grass sway in the wind; trunks/stone/walls stay put.
+		if base_key.begins_with("foliage") or base_key.begins_with("fir") or base_key.begins_with("leaf") or base_key.begins_with("pine") or base_key.begins_with("hike_grass") or base_key.begins_with("grass") or base_key.begins_with("fern") or base_key.begins_with("reed"):
+			m.set_shader_parameter("wind", 0.11)
 		_mat_cache[ck] = m
 	return _mat_cache[ck]
 

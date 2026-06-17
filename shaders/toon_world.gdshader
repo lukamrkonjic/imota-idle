@@ -24,14 +24,17 @@ uniform float posterize_steps : hint_range(2.0, 8.0) = 4.0;
 // Gentle canopy/grass sway. 0 = off (trunks, rocks, houses). Per-instance phase
 // from the model origin; taller verts sway more.
 uniform float wind : hint_range(0.0, 0.3) = 0.0;
-uniform float wind_speed = 1.2;
+uniform float wind_speed = 1.6;
 
 void vertex() {
 	if (wind > 0.0) {
 		vec2 wp = (MODEL_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).xz;
+		// Two summed frequencies give a livelier, less mechanical gust than a
+		// single sine; per-instance phase from world position decorrelates props.
 		float phase = TIME * wind_speed + wp.x * 0.6 + wp.y * 0.4;
+		float gust = sin(phase) * 0.75 + sin(phase * 2.3 + 1.1) * 0.25;
 		float lift = max(VERTEX.y + 0.4, 0.0);
-		VERTEX.x += sin(phase) * wind * lift;
+		VERTEX.x += gust * wind * lift;
 		VERTEX.z += cos(phase * 0.8) * wind * 0.5 * lift;
 	}
 }

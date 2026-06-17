@@ -14,10 +14,12 @@ const PALETTE_SNAP := preload("res://shaders/palette_snap.gdshader")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 const PropMeshes := preload("res://scripts/render/prop_meshes.gd")
 
-const INTERNAL := Vector2i(448, 252)   # crunchier (fewer pixels, A Short Hike-style)
+const INTERNAL := Vector2i(640, 360)   # internal render res (higher = finer/less chunky pixels)
 const TILE_S := 1.0                 # 3D units per tile
 const ELEV_H := 0.25                # height per elevation step (8px / 32px tile)
 const DRESSING_ANCHOR := 4          # visual set dressing snaps to this tile grid
+const SPAWN_LAYER := 0              # overworld layer the home-campsite dressing lives on
+const DRESSING_SPREAD := 1.7        # fan the camp pieces apart so nothing is squished
 const FOREST_PREVIEW_ARG := "--forest-preview"
 const TERRAIN_CULL_TILES := 34.0
 const PROP_CULL_TILES := 30.0
@@ -42,8 +44,13 @@ var _mover_prev: Dictionary = {}     # key -> last 3D pos (for walk detection)
 var _mover_yaw: Dictionary = {}      # key -> smoothed facing yaw
 var _mover_walk: Dictionary = {}     # key -> smoothed walk amount 0..1
 var _player_node: Node3D
+var _cam_yaw := PI / 4.0          # orbit angle around the player (Left/Right arrows)
+var _cam_pitch := 0.413           # elevation above horizon (Up/Down arrows); matches old iso
 var _static_sig := ""
 var _dressing_sig := ""
+var _spawn_placed := -1               # how many camp-dressing pieces have ground so far
+var _spawn_stable := 0                # frames the placed count has held steady
+var _spawn_dressing_built := false    # latched true once the whole camp scene is placed
 var _forest_preview_done := false
 var _frames := 0
 var _captured := false
@@ -74,11 +81,11 @@ func _build() -> void:
 	world3d = Node3D.new()
 	sub.add_child(world3d)
 
-	# Soft warm gradient sky (A Short Hike-ish) using palette-derived colors.
+	# Soft NATURAL gradient sky (cool daylight) using palette-derived colors.
 	var sky_mat := ProceduralSkyMaterial.new()
 	sky_mat.sky_top_color = PixelPalette.pal("water_a").lerp(PixelPalette.pal("snow_a"), 0.55)
-	sky_mat.sky_horizon_color = PixelPalette.pal("snow_a").lerp(PixelPalette.pal("gold"), 0.28)
-	sky_mat.ground_horizon_color = PixelPalette.pal("snow_a").lerp(PixelPalette.pal("gold"), 0.28)
+	sky_mat.sky_horizon_color = PixelPalette.pal("snow_a").lerp(PixelPalette.pal("sunlit_grass"), 0.18)
+	sky_mat.ground_horizon_color = PixelPalette.pal("snow_a").lerp(PixelPalette.pal("sunlit_grass"), 0.18)
 	sky_mat.ground_bottom_color = PixelPalette.pal("grass_a").lerp(PixelPalette.pal("snow_a"), 0.3)
 	sky_mat.sun_angle_max = 30.0
 	var sky := Sky.new()
@@ -89,12 +96,12 @@ func _build() -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_energy = 0.0
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
-	# Warm distance haze (A Short Hike atmospheric perspective): distant terrain
-	# fades toward a soft warm tone, giving the world depth and coziness.
+	# Soft natural distance haze: distant terrain fades toward a cool pale tone
+	# (atmospheric perspective) instead of the old warm/golden cast.
 	env.fog_enabled = true
-	env.fog_light_color = PixelPalette.pal("snow_a").lerp(PixelPalette.pal("gold"), 0.4)
+	env.fog_light_color = PixelPalette.pal("snow_a").lerp(PixelPalette.pal("sunlit_grass"), 0.22)
 	env.fog_light_energy = 1.0
-	env.fog_density = 0.0014
+	env.fog_density = 0.0019
 	env.fog_sky_affect = 0.04
 	env.fog_aerial_perspective = 0.06
 	var we := WorldEnvironment.new()
@@ -102,14 +109,14 @@ func _build() -> void:
 	world3d.add_child(we)
 
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-50, 40, 0)
-	sun.light_color = Color(1.0, 0.94, 0.8)   # warm afternoon sun (A Short Hike)
+	sun.rotation_degrees = Vector3(-38, 40, 0)   # lower afternoon sun -> longer soft shadows
+	sun.light_color = Color(0.99, 0.98, 0.95)   # soft neutral daylight (natural, not warm)
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	sun.directional_shadow_max_distance = 90.0
-	sun.shadow_bias = 0.03
-	sun.shadow_normal_bias = 0.6
-	sun.shadow_blur = 1.1   # softer shadow edge (the low-res render keeps it crisp enough)
+	sun.shadow_bias = 0.04
+	sun.shadow_normal_bias = 0.9
+	sun.shadow_blur = 1.5   # soft A Short Hike shadow edge (low-res render keeps it crisp)
 	world3d.add_child(sun)
 
 	# Orthographic camera at the game's 2:1 isometric angle (yaw 45, pitch ~30).
@@ -131,20 +138,27 @@ func _build() -> void:
 
 	_ground_mat = ShaderMaterial.new()
 	_ground_mat.shader = TOON_GROUND
-	_ground_mat.set_shader_parameter("shadow_tint", PixelPalette.pal("forest_green"))
-	_ground_mat.set_shader_parameter("light_tint", PixelPalette.pal("sunlit_grass"))
-	_ground_mat.set_shader_parameter("ambient", 0.14)
+	# Deep-forest floor: mossy greens, darker shaded bands (less pale lawn).
+	_ground_mat.set_shader_parameter("shadow_tint", PixelPalette.pal("forest_teal"))
+	_ground_mat.set_shader_parameter("light_tint", PixelPalette.pal("leaf_green"))
+	_ground_mat.set_shader_parameter("ambient", 0.1)
 	_ground_mat.set_shader_parameter("softness", 0.03)
 
 	_water_mat = ShaderMaterial.new()
 	_water_mat.shader = TOON_WATER
-	_water_mat.set_shader_parameter("base_color", PixelPalette.pal("water_deep").lerp(PixelPalette.pal("water_c"), 0.35))
-	_water_mat.set_shader_parameter("shadow_color", PixelPalette.pal("water_b"))
+	# Brighter A Short Hike teal + bold white foam where it meets the shore.
+	_water_mat.set_shader_parameter("base_color", PixelPalette.pal("water_c").lerp(PixelPalette.pal("water_deep"), 0.28))
+	_water_mat.set_shader_parameter("shadow_color", PixelPalette.pal("water_deep"))
 	_water_mat.set_shader_parameter("light_color", PixelPalette.pal("water_spark"))
+	_water_mat.set_shader_parameter("foam_color", Color(0.96, 0.98, 1.0))
+	_water_mat.set_shader_parameter("foam_strength", 0.6)
+	_water_mat.set_shader_parameter("foam_dist", 1.5)
+	_water_mat.set_shader_parameter("wave_amp", 0.05)
+	_water_mat.set_shader_parameter("wave_speed", 1.0)
 
 	_foam_mat = StandardMaterial3D.new()
 	_foam_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_foam_mat.albedo_color = PixelPalette.pal("water_spark")
+	_foam_mat.albedo_color = Color(0.96, 0.98, 1.0)   # crisp white foam ribbon
 	_foam_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_foam_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 
@@ -166,9 +180,9 @@ func _build() -> void:
 	_snap_mat.set_shader_parameter("palette_count", PixelPalette.PAL.size())
 	_snap_mat.set_shader_parameter("enabled", 1.0)
 	_snap_mat.set_shader_parameter("strength", 0.8)
-	_snap_mat.set_shader_parameter("contrast", 1.22)
-	_snap_mat.set_shader_parameter("saturation", 1.06)
-	_snap_mat.set_shader_parameter("brightness", 0.88)
+	_snap_mat.set_shader_parameter("contrast", 1.32)     # punchier, deeper shadows
+	_snap_mat.set_shader_parameter("saturation", 1.02)
+	_snap_mat.set_shader_parameter("brightness", 0.78)   # dark, moody forest
 	present.material = _snap_mat
 	layer.add_child(present)
 
@@ -183,16 +197,19 @@ func _hide_2d() -> void:
 
 # ----------------------------------------------------------------- runtime ----
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not _active or world.player == null:
 		return
 	_maybe_teleport_to_forest_preview()
+	_update_camera_input(delta)
 	_sync_camera()
 	_sync_terrain()
 	_sync_movers()
 	_sync_static_batches()
-	# (style-dressing diorama removed — it spawned canned hike props around the
-	#  camera everywhere; the real world content renders on its own now.)
+	# Compose the cozy A Short Hike camp ONCE around the spawn tile (the home
+	# campsite). Anchored to spawn, NOT the camera — so it's a finished place you
+	# arrive at, not canned props that follow you everywhere (the old failure mode).
+	_sync_spawn_dressing()
 	_frames += 1
 	var capture_frame := 150 if _forest_preview_enabled() else 90
 	if _frames == capture_frame and not _captured:
@@ -277,6 +294,27 @@ func _water_near_tile(gtx: int, gty: int, radius: int) -> bool:
 
 
 const CAM_SIZE_BASE := 19.5   # ortho size at the default 1.65 zoom
+const CAM_DIST := 31.0
+const CAM_YAW_SPEED := 1.7    # rad/sec — Left/Right orbit (full 360°)
+const CAM_PITCH_SPEED := 1.1  # rad/sec — Up/Down tilt
+const CAM_PITCH_MIN := 0.16   # near the horizon
+const CAM_PITCH_MAX := 1.40   # near top-down (kept off the gimbal pole)
+
+
+## Arrow keys orbit the camera around the player: Left/Right spin the yaw a full
+## 360°, Up/Down tilt the pitch (clamped). Picking adapts automatically because
+## screen_to_iso casts through the live camera.
+func _update_camera_input(delta: float) -> void:
+	if Input.is_key_pressed(KEY_LEFT):
+		_cam_yaw -= CAM_YAW_SPEED * delta
+	if Input.is_key_pressed(KEY_RIGHT):
+		_cam_yaw += CAM_YAW_SPEED * delta
+	if Input.is_key_pressed(KEY_UP):
+		_cam_pitch = clampf(_cam_pitch + CAM_PITCH_SPEED * delta, CAM_PITCH_MIN, CAM_PITCH_MAX)
+	if Input.is_key_pressed(KEY_DOWN):
+		_cam_pitch = clampf(_cam_pitch - CAM_PITCH_SPEED * delta, CAM_PITCH_MIN, CAM_PITCH_MAX)
+	_cam_yaw = wrapf(_cam_yaw, -PI, PI)
+
 
 func _sync_camera() -> void:
 	var c := iso_to_3d(world.player.position, height_at(world.player.position))
@@ -284,10 +322,9 @@ func _sync_camera() -> void:
 	# to the 3D ortho size so zoom works like before.
 	var zoom: float = float(world._camera.zoom.x) if world._camera != null and world._camera.zoom.x > 0.01 else 1.65
 	cam.size = CAM_SIZE_BASE / zoom
-	# Slightly lower and closer than the exact iso math so tall original props
-	# read as cozy hiking-place silhouettes instead of flattened map icons.
-	var dir := Vector3(1.0, 0.62, 1.0).normalized()
-	cam.position = c + dir * 31.0
+	# Orbit direction from the arrow-key yaw/pitch (default = the original iso angle).
+	var dir := Vector3(cos(_cam_pitch) * sin(_cam_yaw), sin(_cam_pitch), cos(_cam_pitch) * cos(_cam_yaw))
+	cam.position = c + dir * CAM_DIST
 	cam.look_at(c + Vector3(0, 0.75, 0), Vector3.UP)
 
 
@@ -333,7 +370,7 @@ func _update_terrain_visibility() -> void:
 
 
 const WATER_DROP := 0.45   # how far the ground floor dips under water (shore basin)
-const FOAM_INSET := 0.075
+const FOAM_INSET := 0.16   # width of the white shoreline foam ribbon
 const SHORE := Color(0.80, 0.75, 0.58)  # sandy shore tone under/at water edges
 const PATH_TILES := ["dirt", "cobble", "mud", "gravel", "badland_clay"]
 const ROCK_TILES := ["rock", "lava_rock", "ash"]
@@ -580,14 +617,14 @@ func _grade_ground(col: Color, tile: String, gtx: int, gty: int) -> Color:
 	elif tile in ["sand", "sand_dune"]:
 		c = c.lerp(PixelPalette.pal("warm_stone"), 0.5)
 	else:
-		# Deep-forest grass gradient: mid foliage -> sunlit grass across the broad
-		# bright band, drifting toward leaf-green/forest-green in shaded regions and
-		# a moss highlight in others. No lime.
-		var grass := PixelPalette.pal("mid_foliage").lerp(PixelPalette.pal("sunlit_grass"), bright)
-		grass = grass.lerp(PixelPalette.pal("leaf_green"), (1.0 - band2) * 0.45)
-		grass = grass.lerp(PixelPalette.pal("forest_green"), (1.0 - bright) * 0.2)
-		grass = grass.lerp(PixelPalette.pal("moss_hi"), warm * 0.18)
-		c = c.lerp(grass, 0.82)
+		# Mossy deep-forest floor: medium foliage drifting to a muted moss highlight
+		# in the bright band (NOT a pale sunlit lawn — that read grey/washed), and
+		# sinking into leaf-green / dark forest-green in the shaded regions. No lime.
+		var grass := PixelPalette.pal("mid_foliage").lerp(PixelPalette.pal("moss_hi"), bright * 0.7)
+		grass = grass.lerp(PixelPalette.pal("leaf_green"), (1.0 - band2) * 0.4)
+		grass = grass.lerp(PixelPalette.pal("forest_green"), (1.0 - bright) * 0.4)
+		grass = grass.lerp(PixelPalette.pal("forest_teal"), warm * 0.12)
+		c = c.lerp(grass, 0.9)
 	return c
 
 
@@ -608,7 +645,7 @@ func _sync_movers() -> void:
 	var dt := get_process_delta_time()
 	var t := Time.get_ticks_msec() / 1000.0
 	if _player_node == null:
-		_player_node = PropMeshes.build_node(PropMeshes.figure_parts(PixelPalette.pal("outfit_a"), PixelPalette.pal("skin_a")))
+		_player_node = PropMeshes.figure_rig(PixelPalette.pal("outfit_a"), PixelPalette.pal("skin_a"))
 		props_root.add_child(_player_node)
 	_animate_mover(_player_node, "player", world.player.position, t, dt)
 	var live := {}
@@ -619,7 +656,7 @@ func _sync_movers() -> void:
 		live[id] = true
 		var n: Node3D = _mover_nodes.get(id)
 		if n == null:
-			n = PropMeshes.build_node(PropMeshes.figure_parts(PixelPalette.pal("outfit_b"), PixelPalette.pal("skin_a")))
+			n = PropMeshes.figure_rig(PixelPalette.pal("outfit_b"), PixelPalette.pal("skin_a"))
 			props_root.add_child(n)
 			_mover_nodes[id] = n
 		_animate_mover(n, str(id), e.position, t, dt)
@@ -655,6 +692,22 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 	var idle := (1.0 - walk) * sin(t * 2.2) * 0.018
 	node.position = pos3 + Vector3(0, bob, 0)
 	node.scale = Vector3(1.0 - sq * 0.5, 1.0 + sq + idle, 1.0 - sq * 0.5)
+	# Walking gait: legs swing around the hips, arms counter-swing at the shoulders.
+	# Amplitude scales with walk speed (idle = limbs at rest + a faint arm sway).
+	# Per-mover phase offset so multiple figures don't march in lockstep.
+	var stride := t * 8.5 + float(absi(hash(key)) % 1000) * 0.006283
+	var swing := sin(stride) * 0.7 * walk
+	var idle_arm := (1.0 - walk) * sin(t * 2.0) * 0.05
+	_set_pivot(node, "leg_l", swing)
+	_set_pivot(node, "leg_r", -swing)
+	_set_pivot(node, "arm_l", -swing * 0.85 + idle_arm)
+	_set_pivot(node, "arm_r", swing * 0.85 - idle_arm)
+
+
+func _set_pivot(node: Node3D, pivot_name: String, angle: float) -> void:
+	var p: Node3D = node.get_node_or_null(NodePath(pivot_name))
+	if p != null:
+		p.rotation.x = angle
 
 
 ## Batch all static decor + props into per-(mesh,material) MultiMeshes. Rebuilt
@@ -723,6 +776,57 @@ func _sync_style_dressing() -> void:
 	_emit_groups(groups, dressing_root)
 
 
+## Build the composed hiking-camp diorama anchored to the spawn tile, ONE time.
+## Rebuilt only while chunks stream in (more pieces find ground each pass), then
+## latched. Hidden when the player is on another layer (caves), shown on the
+## overworld where the home campsite lives.
+func _sync_spawn_dressing() -> void:
+	dressing_root.visible = (world.current_layer == SPAWN_LAYER)
+	if _spawn_dressing_built or world.current_layer != SPAWN_LAYER:
+		return
+	var specs := _hike_dressing_specs()
+	var sg := _world_to_grid(WorldGen.spawn_position())
+	var anchor := Vector2(roundi(sg.x), roundi(sg.y))
+	# Cheap pre-pass: which pieces currently have loaded ground under them. Pieces
+	# are fanned out from the anchor by DRESSING_SPREAD so nothing overlaps. This
+	# count grows as the spawn chunks finish streaming, then settles.
+	var placeable := []
+	for spec: Dictionary in specs:
+		var off: Vector2i = spec["off"]
+		var cgx := anchor.x + float(off.x) * DRESSING_SPREAD + 0.5
+		var cgy := anchor.y + float(off.y) * DRESSING_SPREAD + 0.5
+		var info := _tile_info(floori(cgx), floori(cgy))
+		if info.is_empty():
+			continue
+		if bool(info["water"]) and str(spec["kind"]) != "hike_pool":
+			continue
+		placeable.append(spec)
+	# Latch once the placed set holds steady (all reachable ground has loaded), so
+	# we stop re-evaluating every frame even if a far backdrop tile never streams.
+	if placeable.size() == _spawn_placed:
+		_spawn_stable += 1
+		if _spawn_stable > 90 or placeable.size() >= specs.size():
+			_spawn_dressing_built = true
+		return
+	_spawn_placed = placeable.size()
+	_spawn_stable = 0
+	var groups := {}
+	for spec: Dictionary in placeable:
+		var off: Vector2i = spec["off"]
+		var cgx := anchor.x + float(off.x) * DRESSING_SPREAD + 0.5
+		var cgy := anchor.y + float(off.y) * DRESSING_SPREAD + 0.5
+		var angle := float(spec.get("angle", 0.0))
+		var scale := float(spec.get("scale", 1.0))
+		var lift := float(spec.get("lift", 0.0))
+		var pos := Vector3(cgx * TILE_S, _grid_height(cgx, cgy) + lift, cgy * TILE_S)
+		var basis := Basis(Vector3.UP, angle).scaled(Vector3.ONE * scale)
+		var parts := PropMeshes.dressing_parts(str(spec["kind"]), int(spec.get("variant", 0)))
+		_collect(parts, Transform3D(basis, pos), groups)
+	for c: Node in dressing_root.get_children():
+		c.queue_free()
+	_emit_groups(groups, dressing_root)
+
+
 func _emit_groups(groups: Dictionary, root: Node3D) -> void:
 	for key: String in groups:
 		var g: Dictionary = groups[key]
@@ -736,80 +840,114 @@ func _emit_groups(groups: Dictionary, root: Node3D) -> void:
 		var mmi := MultiMeshInstance3D.new()
 		mmi.multimesh = mm
 		mmi.material_override = g["mat"]
-		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		# A Short Hike-style soft drop shadows: props/trees/buildings cast onto the
+		# ground (the toon shaders fold the cast region into their shadow band).
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		root.add_child(mmi)
 
 
+## The composed home-camp diorama, laid out in concentric rings around spawn so
+## it reads like a real A Short Hike clearing from any zoom: an OPEN middle
+## (campfire, sign, low props), the hero buildings set just back, a vivid autumn
+## color band, then a dense conifer + layered-cliff backdrop framing the bowl.
+## Camera looks from +X/+Z, so −X/−Z is the visible "back wall"; big trees live
+## there and on the wings, never in the foreground covering the camp.
 func _hike_dressing_specs() -> Array:
 	var specs := []
-	var path := [
-		Vector2i(-6, 4), Vector2i(-5, 3), Vector2i(-4, 2), Vector2i(-3, 2),
-		Vector2i(-2, 1), Vector2i(-1, 1), Vector2i(0, 0), Vector2i(1, 0),
-		Vector2i(2, -1), Vector2i(3, -1), Vector2i(4, -2), Vector2i(5, -3),
-		Vector2i(-2, -1), Vector2i(-1, -1), Vector2i(0, -2)]
-	for i: int in path.size():
-		specs.append({"kind": "hike_path", "off": path[i], "angle": -0.55 + float(i % 5) * 0.14, "scale": 1.2 + float(i % 4) * 0.08, "lift": 0.035, "variant": i})
 
+	# --- Paths: two soft trails meeting at the camp, then out to the trailhead.
+	var path := [
+		# trailhead coming in from the front-left, curving up to the cabin door
+		Vector2i(-2, 5), Vector2i(-2, 4), Vector2i(-3, 3), Vector2i(-3, 2),
+		Vector2i(-4, 1), Vector2i(-4, 0), Vector2i(-4, -1),
+		# spur across the clearing to the lodge on the right
+		Vector2i(-2, 1), Vector2i(-1, 1), Vector2i(0, 0), Vector2i(1, 0),
+		Vector2i(2, -1), Vector2i(3, -1), Vector2i(4, -2)]
+	for i: int in path.size():
+		specs.append({"kind": "hike_path", "off": path[i], "angle": -0.55 + float(i % 5) * 0.14, "scale": 0.92 + float(i % 4) * 0.06, "lift": 0.035, "variant": i})
+
+	# --- Hero structures + the open central clearing (campfire & seating).
 	specs.append_array([
-		{"kind": "hike_cabin", "off": Vector2i(-4, -2), "angle": -0.58, "scale": 0.96, "variant": 0},
-		{"kind": "hike_lodge", "off": Vector2i(3, -1), "angle": -0.72, "scale": 0.98, "variant": 1},
-		{"kind": "hike_campfire", "off": Vector2i(-1, 1), "angle": 0.2, "scale": 1.28, "lift": 0.04, "variant": 1},
-		{"kind": "hike_sign", "off": Vector2i(-3, 2), "angle": -0.35, "scale": 1.05, "variant": 0},
-		{"kind": "hike_pool", "off": Vector2i(4, 6), "angle": 0.24, "scale": 1.65, "lift": 0.02, "variant": 0},
-		{"kind": "hike_boulder", "off": Vector2i(2, 2), "angle": 0.4, "scale": 1.15, "variant": 0},
-		{"kind": "hike_boulder", "off": Vector2i(5, 2), "angle": -0.2, "scale": 0.9, "variant": 1},
-		{"kind": "hike_bench", "off": Vector2i(2, 1), "angle": -0.7, "scale": 1.1, "variant": 0},
-		{"kind": "hike_log", "off": Vector2i(-3, 2), "angle": 0.5, "scale": 1.3, "variant": 1},
-		{"kind": "hike_log", "off": Vector2i(-2, 3), "angle": -0.25, "scale": 0.95, "variant": 2},
-		{"kind": "hike_stump", "off": Vector2i(-5, -1), "angle": 0.0, "scale": 1.05, "variant": 0},
-		{"kind": "hike_stump", "off": Vector2i(3, 3), "angle": 0.0, "scale": 0.9, "variant": 1},
-		{"kind": "hike_mushroom", "off": Vector2i(-6, 4), "angle": 0.2, "scale": 1.05, "variant": 0},
-		{"kind": "hike_mushroom", "off": Vector2i(5, 0), "angle": -0.3, "scale": 0.92, "variant": 1},
+		{"kind": "hike_cabin", "off": Vector2i(-4, -2), "angle": -0.58, "scale": 1.0, "variant": 0},
+		{"kind": "hike_lodge", "off": Vector2i(4, -2), "angle": -0.72, "scale": 0.96, "variant": 1},
+		{"kind": "hike_campfire", "off": Vector2i(-1, 0), "angle": 0.2, "scale": 1.3, "lift": 0.04, "variant": 1},
+		{"kind": "hike_sign", "off": Vector2i(-2, 4), "angle": -0.35, "scale": 1.08, "variant": 0},
+		{"kind": "hike_bench", "off": Vector2i(0, 1), "angle": -0.7, "scale": 1.12, "variant": 0},
+		{"kind": "hike_bench", "off": Vector2i(-2, -1), "angle": 0.55, "scale": 1.05, "variant": 1},
+		{"kind": "hike_log", "off": Vector2i(1, 1), "angle": 0.5, "scale": 1.3, "variant": 1},
+		{"kind": "hike_log", "off": Vector2i(-2, 2), "angle": -0.25, "scale": 1.0, "variant": 2},
+		{"kind": "hike_stump", "off": Vector2i(2, 1), "angle": 0.0, "scale": 1.05, "variant": 0},
+		{"kind": "hike_stump", "off": Vector2i(-5, 1), "angle": 0.0, "scale": 0.95, "variant": 1},
+		# a teal hiking pool tucked into the front-left, foam-edged by the terrain
+		{"kind": "hike_pool", "off": Vector2i(-6, 5), "angle": 0.24, "scale": 1.8, "lift": 0.02, "variant": 0},
 	])
 
+	# --- Boulders: a few big warm slabs bedding the camp into the slope.
+	for b: Dictionary in [
+			{"off": Vector2i(3, 2), "angle": 0.4, "scale": 1.2},
+			{"off": Vector2i(-6, -1), "angle": -0.2, "scale": 1.05},
+			{"off": Vector2i(5, 1), "angle": 0.9, "scale": 0.95},
+			{"off": Vector2i(-5, 3), "angle": 0.1, "scale": 0.85}]:
+		specs.append({"kind": "hike_boulder", "off": b["off"], "angle": b["angle"], "scale": b["scale"], "variant": int(b["off"].x) & 1})
+
+	# --- Autumn color band: the vivid red/orange/gold canopies ringing the bowl
+	#     (mid radius). Kept out of the near-foreground so they frame, not cover.
+	var leaves := [
+		Vector2i(-7, 2), Vector2i(-7, 0), Vector2i(-6, -3), Vector2i(-4, -4),
+		Vector2i(-1, -4), Vector2i(2, -4), Vector2i(5, -4), Vector2i(7, -2),
+		Vector2i(7, 0), Vector2i(6, 2), Vector2i(-8, 4), Vector2i(8, 3),
+		Vector2i(-3, -3), Vector2i(3, -3)]
+	for i: int in leaves.size():
+		specs.append({"kind": "hike_deciduous", "off": leaves[i], "angle": float(i) * 0.29, "scale": 0.95 + float(i % 4) * 0.13, "variant": i})
+
+	# --- Conifer backdrop: a dense pine wall behind and along the wings (image 2).
 	var conifers := [
 		Vector2i(-10, -3), Vector2i(-9, -5), Vector2i(-8, -7), Vector2i(-6, -6),
-		Vector2i(-5, -4), Vector2i(-3, -7), Vector2i(-1, -6), Vector2i(1, -7),
-		Vector2i(3, -6), Vector2i(5, -5), Vector2i(7, -5), Vector2i(9, -3),
-		Vector2i(10, -1), Vector2i(9, 1), Vector2i(8, 3), Vector2i(-9, 2)]
+		Vector2i(-5, -5), Vector2i(-3, -6), Vector2i(-1, -7), Vector2i(1, -7),
+		Vector2i(3, -6), Vector2i(5, -6), Vector2i(6, -5), Vector2i(8, -5),
+		Vector2i(9, -3), Vector2i(10, -1), Vector2i(9, 1), Vector2i(-9, 1),
+		Vector2i(-10, 3), Vector2i(10, 2), Vector2i(-7, -8), Vector2i(7, -7)]
 	for i: int in conifers.size():
-		specs.append({"kind": "hike_conifer", "off": conifers[i], "angle": float(i) * 0.37, "scale": 1.08 + float(i % 4) * 0.1, "variant": i})
+		specs.append({"kind": "hike_conifer", "off": conifers[i], "angle": float(i) * 0.37, "scale": 1.12 + float(i % 4) * 0.12, "variant": i})
 
-	var leaves := [
-		Vector2i(-9, 5), Vector2i(-7, 3), Vector2i(-4, 5), Vector2i(-2, 4),
-		Vector2i(1, 3), Vector2i(3, 2), Vector2i(5, 4), Vector2i(7, 5),
-		Vector2i(7, -1), Vector2i(5, -2), Vector2i(-6, -2), Vector2i(0, -4)]
-	for i: int in leaves.size():
-		specs.append({"kind": "hike_deciduous", "off": leaves[i], "angle": float(i) * 0.29, "scale": 0.92 + float(i % 4) * 0.12, "variant": i})
-
+	# --- Layered cliff back-wall: warm stone slabs across the deep background.
 	var cliffs := [
-		Vector2i(-10, -8), Vector2i(-8, -8), Vector2i(-6, -9), Vector2i(-4, -9),
-		Vector2i(-2, -9), Vector2i(0, -9), Vector2i(2, -9), Vector2i(4, -8),
-		Vector2i(6, -8), Vector2i(8, -7), Vector2i(9, -5), Vector2i(-10, -5)]
+		Vector2i(-10, -8), Vector2i(-8, -9), Vector2i(-6, -9), Vector2i(-4, -9),
+		Vector2i(-2, -10), Vector2i(0, -10), Vector2i(2, -9), Vector2i(4, -9),
+		Vector2i(6, -8), Vector2i(8, -8), Vector2i(9, -6), Vector2i(-10, -6),
+		Vector2i(-11, -3), Vector2i(10, -4)]
 	for i: int in cliffs.size():
-		specs.append({"kind": "hike_cliff", "off": cliffs[i], "angle": 0.08 + float(i) * 0.14, "scale": 1.26 - float(i % 3) * 0.08, "variant": i})
+		specs.append({"kind": "hike_cliff", "off": cliffs[i], "angle": 0.08 + float(i) * 0.14, "scale": 1.3 - float(i % 3) * 0.08, "variant": i})
 
+	# --- Split-rail fence arcing around the front edge of the clearing.
 	var fences := [
-		{"off": Vector2i(-1, 6), "angle": -0.25}, {"off": Vector2i(1, 6), "angle": -0.12},
-		{"off": Vector2i(3, 6), "angle": 0.08}, {"off": Vector2i(5, 6), "angle": 0.2},
-		{"off": Vector2i(7, 4), "angle": 0.88}, {"off": Vector2i(-7, 3), "angle": 0.78},
-		{"off": Vector2i(-8, 1), "angle": 0.88}, {"off": Vector2i(6, 1), "angle": 0.7}]
+		{"off": Vector2i(-4, 4), "angle": 0.55}, {"off": Vector2i(-2, 5), "angle": -0.12},
+		{"off": Vector2i(0, 5), "angle": 0.0}, {"off": Vector2i(2, 4), "angle": 0.2},
+		{"off": Vector2i(4, 3), "angle": 0.7}, {"off": Vector2i(5, 2), "angle": 0.88},
+		{"off": Vector2i(-6, 2), "angle": 0.78}, {"off": Vector2i(-6, 0), "angle": 0.88}]
 	for i: int in fences.size():
 		var f: Dictionary = fences[i]
 		specs.append({"kind": "hike_fence", "off": f["off"], "angle": f["angle"], "scale": 1.08, "variant": i})
 
+	# --- Flower beds and mushrooms freshening the clearing edges.
 	var flowers := [
-		Vector2i(-5, 5), Vector2i(-4, 5), Vector2i(-2, 4), Vector2i(0, 3),
-		Vector2i(2, 2), Vector2i(4, 3), Vector2i(6, 5), Vector2i(-7, 0),
-		Vector2i(-6, 2), Vector2i(5, 2), Vector2i(7, 1), Vector2i(-1, 4)]
+		Vector2i(-3, 1), Vector2i(-1, 2), Vector2i(0, 3), Vector2i(2, 2),
+		Vector2i(-4, 3), Vector2i(1, 3), Vector2i(3, 1), Vector2i(-5, 0),
+		Vector2i(-3, 3), Vector2i(2, 3), Vector2i(-2, 3), Vector2i(4, 2)]
 	for i: int in flowers.size():
-		specs.append({"kind": "hike_flower", "off": flowers[i], "angle": float(i) * 0.2, "scale": 1.0 + float(i % 2) * 0.18, "lift": 0.02, "variant": i})
+		specs.append({"kind": "hike_flower", "off": flowers[i], "angle": float(i) * 0.2, "scale": 1.0 + float(i % 2) * 0.2, "lift": 0.02, "variant": i})
+	specs.append_array([
+		{"kind": "hike_mushroom", "off": Vector2i(-5, 4), "angle": 0.2, "scale": 1.05, "variant": 0},
+		{"kind": "hike_mushroom", "off": Vector2i(3, 3), "angle": -0.3, "scale": 0.92, "variant": 1},
+	])
 
+	# --- Scattered ground clutter (leaf litter, grass tufts, pebbles), thinned
+	#     out of the central clearing so the camp stays readable.
 	var clutter := ["hike_leaf_litter", "hike_grass", "hike_pebbles", "hike_grass", "hike_leaf_litter", "hike_mushroom"]
-	for i: int in range(54):
-		var ox := int((i * 5) % 19) - 9
-		var oy := int((i * 7 + int(i / 3)) % 17) - 8
-		if absi(ox) < 2 and absi(oy) < 2:
+	for i: int in range(58):
+		var ox := int((i * 5) % 21) - 10
+		var oy := int((i * 7 + int(i / 3)) % 19) - 9
+		if absi(ox) <= 2 and absi(oy) <= 2:
 			continue
 		var kind: String = clutter[i % clutter.size()]
 		var scale := 0.72 + float((i * 3) % 5) * 0.09
@@ -860,6 +998,11 @@ func _tile_center_pos(gtx: int, gty: int, lift := 0.0) -> Vector3:
 func height_at(pos: Vector2) -> float:
 	var gx := (pos.x / WG.ISO_HW + pos.y / WG.ISO_HH) * 0.5
 	var gy := (pos.y / WG.ISO_HH - pos.x / WG.ISO_HW) * 0.5
+	return _grid_height(gx, gy)
+
+
+## Terrain height (3D Y) at fractional grid coordinates (gx,gy = 3D x/z over TILE_S).
+func _grid_height(gx: float, gy: float) -> float:
 	var t := Vector2i(floori(gx), floori(gy))
 	var info := _tile_info(t.x, t.y)
 	if not info.is_empty() and bool(info["water"]):
@@ -872,6 +1015,47 @@ func height_at(pos: Vector2) -> float:
 	var h01 := _corner_height(t.x, t.y + 1, hc)
 	var h11 := _corner_height(t.x + 1, t.y + 1, hc)
 	return lerpf(lerpf(h00, h10, fx), lerpf(h01, h11, fx), fy)
+
+
+## --- Picking: map a screen pixel to the 2D iso world position it visually points
+## at, by casting through the 3D camera onto the terrain. The 2D substrate still
+## owns movement/picking, but its Camera2D no longer matches what's on screen
+## (the 3D camera does), so clicks must be projected through THIS camera instead.
+func is_active() -> bool:
+	return _active and cam != null
+
+
+func screen_to_iso(screen: Vector2) -> Vector2:
+	var win: Vector2 = world.get_viewport().get_visible_rect().size
+	if win.x <= 0.0 or win.y <= 0.0:
+		return world.get_global_mouse_position()
+	# Window pixel -> SubViewport pixel (the present TextureRect fills the window,
+	# so the mapping is a straight proportional scale into the internal resolution).
+	var sub_px := Vector2(screen.x / win.x, screen.y / win.y) * Vector2(INTERNAL)
+	var origin := cam.project_ray_origin(sub_px)
+	var dir := cam.project_ray_normal(sub_px)
+	var hit := _ray_to_ground(origin, dir)
+	# 3D (x,z) -> grid -> iso world position (inverse of iso_to_3d / WG.tile_to_world).
+	var gx := hit.x / TILE_S
+	var gy := hit.z / TILE_S
+	return Vector2((gx - gy) * WG.ISO_HW, (gx + gy) * WG.ISO_HH)
+
+
+## Intersect a ray with the terrain height field. The surface isn't flat, so we
+## intersect a horizontal plane, sample the ground height there, and re-intersect
+## a couple of times — converges fast on the gentle hike terrain.
+func _ray_to_ground(origin: Vector3, dir: Vector3) -> Vector3:
+	if absf(dir.y) < 0.00001:
+		return origin
+	var y := 0.0
+	var hit := origin
+	for _i: int in 4:
+		var t: float = (y - origin.y) / dir.y
+		if t < 0.0:
+			t = 0.0
+		hit = origin + dir * t
+		y = _grid_height(hit.x / TILE_S, hit.z / TILE_S)
+	return hit
 
 
 func _palette_texture() -> ImageTexture:

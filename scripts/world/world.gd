@@ -45,6 +45,7 @@ var _water_decor_nodes: Array = []
 var _roofed_entities: Array = []  # houses/buildings only — for per-frame roof fade
 var _click_fx_layer: Node2D
 var _camera: Camera2D
+var render_3d: Node                 # 3D pixel-art renderer (null/headless = 2D path)
 var _ambient: CanvasModulate
 var _ambience: Node2D
 var _biome_debug: Node2D
@@ -163,10 +164,10 @@ func _build_scene() -> void:
 
 	# 3D pixel-art renderer (committed port). No-ops in headless; hides the 2D
 	# world visuals and presents the 3D world under the HUD.
-	var render3d := WorldRender3D.new()
-	render3d.name = "WorldRender3D"
-	add_child(render3d)
-	render3d.setup(self)
+	render_3d = WorldRender3D.new()
+	render_3d.name = "WorldRender3D"
+	add_child(render_3d)
+	render_3d.setup(self)
 
 
 func _connect_events() -> void:
@@ -252,6 +253,15 @@ func begin_action(entity: Node2D) -> void:
 
 func walk_to_pos(target: Vector2) -> bool:
 	return _path_ctrl.walk_to_pos(target)
+
+
+## Mouse position in 2D iso world space. With the 3D renderer active, the on-screen
+## image comes from the 3D camera, so we project the cursor through THAT camera onto
+## the terrain instead of trusting the (hidden) Camera2D's screen mapping.
+func mouse_world_pos() -> Vector2:
+	if render_3d != null and render_3d.is_active():
+		return render_3d.screen_to_iso(get_viewport().get_mouse_position())
+	return get_global_mouse_position()
 
 
 func auto_gather(skill: String, node_name: String) -> void:
