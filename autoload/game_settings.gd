@@ -220,10 +220,13 @@ func _apply_audio() -> void:
 
 
 func _apply_display() -> void:
+	# Default (fullscreen off) is a MAXIMIZED window — "fullscreen windowed" that
+	# still shows the OS title bar — rather than a small floating window. The
+	# Fullscreen toggle switches to true borderless fullscreen.
 	if fullscreen:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 	else:
-		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_MAXIMIZED)
 	DisplayServer.window_set_vsync_mode(
 		DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED)
 

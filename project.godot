@@ -37,6 +37,8 @@ gdscript/warnings/untyped_declaration=0
 
 window/size/viewport_width=1280
 window/size/viewport_height=720
+; 2 = Maximized: launch as a fullscreen-windowed view that keeps the OS title bar.
+window/size/mode=2
 window/stretch/mode="disabled"
 
 [rendering]

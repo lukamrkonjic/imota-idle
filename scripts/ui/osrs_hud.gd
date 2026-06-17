@@ -15,6 +15,7 @@ const ClickMarkerNode := preload("res://scripts/ui/click_marker_node.gd")
 const AdminMenu := preload("res://scripts/ui/admin_menu.gd")
 const WorldMapPanel := preload("res://scripts/ui/world_map_panel.gd")
 const ItemIcon := preload("res://scripts/ui/item_icon.gd")  # preload, not class_name, so a fresh launch never fails to resolve it
+const WG := preload("res://scripts/worldgen/wg.gd")  # TEMP path-probe helper
 
 const SKILL_ABBREV := {
 	"attack": "Atk", "strength": "Str", "defence": "Def", "hitpoints": "HP",
@@ -85,6 +86,13 @@ var admin_menu: AdminMenu
 var world_map: WorldMapPanel
 var fps_label: Label
 var tile_debug_label: Label
+# --- TEMP path-probe debug. Remove: this block, _build_path_probe/_arm/_disarm/_run_path_probe,
+#     the _input hook, the _build_path_probe() call in _ready, and the line in _apply_hud_from_settings. ---
+var _path_probe_armed := false
+var _path_probe_btn: Button
+var _path_probe_popup: PopupPanel
+var _path_probe_text: RichTextLabel
+# --- end TEMP path-probe ---
 var _hud_tl: Control
 var _hud_tr: Control
 var _hud_bl: Control
@@ -142,6 +150,7 @@ func _ready() -> void:
 	GameSettings.changed.connect(_apply_hud_from_settings)
 	_apply_hud_from_settings()
 	_build_fps_overlay()
+	_build_path_probe()  # TEMP path-probe debug
 	world_map = WorldMapPanel.new()
 	world_map.name = "WorldMap"
 	add_child(world_map)
@@ -151,6 +160,17 @@ func _ready() -> void:
 ## Captures the next key while a settings rebind row is armed. Runs ahead of GUI /
 ## unhandled input so the chosen key rebinds instead of triggering its old action.
 func _input(event: InputEvent) -> void:
+	# TEMP path-probe: when armed, swallow the next world click and dump its path.
+	if _path_probe_armed:
+		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			_run_path_probe()
+			get_viewport().set_input_as_handled()
+			return
+		if event is InputEventKey and event.pressed and (event as InputEventKey).keycode == KEY_ESCAPE:
+			_disarm_path_probe()
+			get_viewport().set_input_as_handled()
+			return
+	# end TEMP path-probe
 	if _rebinding_action == "":
 		return
 	if not (event is InputEventKey and event.pressed and not event.echo):
@@ -209,23 +229,49 @@ func update_world_tooltip(entity: Node2D) -> void:
 func update_tile_debug(world_pos: Vector2) -> void:
 	if tile_debug_label == null or world == null or not tile_debug_label.visible:
 		return
-	var d: Dictionary = WorldGen.tile_debug_at(world_pos, int(world.get("current_layer")))
+	var layer := int(world.get("current_layer"))
+	var d: Dictionary = WorldGen.tile_debug_at(world_pos, layer)
 	if d.is_empty():
 		tile_debug_label.text = "Tile: (off map)"
 		return
 	var sub_line := "" if str(d["sub_biome"]).is_empty() else "  Sub: %s" % d["sub_biome"]
-	var tile_elev: int = int(d.get("elev", 0))   # elevation of the picked (raised) tile
-	var player_elev: int = WorldGen.elevation_at(world.player.position) if world.player != null else 0
+
+	# --- Elevation diagnostics (cursor tile vs player, neighbours, climb limits) ---
+	var el: Dictionary = WorldGen.elevation_report(world_pos, layer)
+	var tile_elev: int = int(el.get("elev", 0))
+	var max_step: int = int(el.get("max_step", 0))
+	var climb_limit: int = int(el.get("climb_limit", 1))
+	var player_pos: Vector2 = world.player.position if world.player != null else Vector2.ZERO
+	var player_elev: int = WorldGen.elevation_at(player_pos, layer) if world.player != null else 0
+	var raw_t: Vector2i = el.get("raw_tile", el["tile"])
+	var picked_t: Vector2i = el["tile"]
+	var pick_note := "" if raw_t == picked_t else "  (flat %d,%d)" % [raw_t.x, raw_t.y]
+	var step_flag := ""
+	if max_step > climb_limit:
+		step_flag = "  <! CLIFF (step %d > %d)" % [max_step, climb_limit]
+	if bool(el.get("over_cap", false)):
+		step_flag += "  <! OVER CAP %d" % int(el.get("reach_cap", 0))
+
 	tile_debug_label.text = (
-		"Tile (%d, %d)  %s\nParent: %s%s  ·  Zone: %s (lvl %d)\nWalk: %s  Water: %s  ·  Elev: %d\nPlayer elev: %d"
-		% [
-			int(d["tile"].x), int(d["tile"].y), d["tile_name"],
-			d["parent_biome"], sub_line, d["zone"], int(d["zone_lvl"]),
-			"yes" if d["walkable"] else "no",
-			"yes" if d["water"] else "no",
-			tile_elev, player_elev,
-		]
-	)
+		"Tile (%d, %d)%s  %s\n"
+		+ "Parent: %s%s  ·  Zone: %s (lvl %d)\n"
+		+ "Walk: %s   Water: %s\n"
+		+ "── Elevation ──\n"
+		+ "Cursor elev: %d   Player elev: %d   Δ: %+d\n"
+		+ "Neighbours  N:%d  E:%d  S:%d  W:%d\n"
+		+ "Max step: %d  (climb ≤ %d, cap %d)%s"
+	) % [
+		picked_t.x, picked_t.y, pick_note, d["tile_name"],
+		d["parent_biome"], sub_line, d["zone"], int(d["zone_lvl"]),
+		"yes" if d["walkable"] else "no",
+		"yes" if d["water"] else "no",
+		tile_elev, player_elev, tile_elev - player_elev,
+		int(el.get("n", 0)), int(el.get("e", 0)), int(el.get("s", 0)), int(el.get("w", 0)),
+		max_step, climb_limit, int(el.get("reach_cap", 0)), step_flag,
+	]
+	# Tint red when the cursor tile is unclimbable, so cliffs jump out.
+	tile_debug_label.add_theme_color_override("font_color",
+		Color(1.0, 0.55, 0.5) if not bool(el.get("climbable", true)) else Color(0.82, 0.88, 0.95))
 
 
 func train_style() -> String:
@@ -733,75 +779,87 @@ func _build_settings_popup() -> void:
 func _build_minimap_cluster() -> void:
 	var cluster := Control.new()
 	cluster.name = "MinimapCluster"
-	_anchor(cluster, Control.PRESET_TOP_RIGHT, Vector2(-252, 8), Vector2(252, 210))
+	_anchor(cluster, Control.PRESET_TOP_RIGHT, Vector2(-286, 8), Vector2(286, 200))
 	_hud_tr.add_child(cluster)
 
-	# Minimap (right).
-	var map_panel := MinimapPanel.new()
-	map_panel.setup(self)
-	map_panel.position = UiScale.v2(Vector2(88, 0))
-	cluster.add_child(map_panel)
-	minimap = map_panel.minimap
+	# OSRS layout: status orbs in a column on the LEFT, the minimap in the centre,
+	# and the menu buttons in a column on the RIGHT.
+	const ORB := 46.0
+	const ORB_X := 4.0
+	const MAP_X := 56.0
+	const BTN_X := 222.0
 
-	# Status orbs (left column), OSRS-style.
+	# Status orbs (left column): filled circles with the value drawn in the middle.
 	hp_orb = _Orb.new()
 	hp_orb.kind = "hp"
-	hp_orb.position = UiScale.v2(Vector2(6, 2))
+	hp_orb.position = UiScale.v2(Vector2(ORB_X, 4))
 	hp_orb.tooltip_text = "Hitpoints"
 	cluster.add_child(hp_orb)
 
 	prayer_orb = _Orb.new()
 	prayer_orb.kind = "prayer"
-	prayer_orb.position = UiScale.v2(Vector2(6, 48))
+	prayer_orb.position = UiScale.v2(Vector2(ORB_X, 4 + ORB + 6))
 	prayer_orb.tooltip_text = "Prayer"
 	cluster.add_child(prayer_orb)
 
 	run_orb = _Orb.new()
 	run_orb.kind = "run"
-	run_orb.position = UiScale.v2(Vector2(6, 94))
+	run_orb.position = UiScale.v2(Vector2(ORB_X, 4 + (ORB + 6) * 2.0))
 	run_orb.tooltip_text = "Run energy"
 	cluster.add_child(run_orb)
 
 	coins_label = Label.new()
-	coins_label.position = UiScale.v2(Vector2(2, 142))
-	coins_label.custom_minimum_size = UiScale.v2(Vector2(82, 20))
+	coins_label.position = UiScale.v2(Vector2(ORB_X - 4, 4 + (ORB + 6) * 3.0))
+	coins_label.custom_minimum_size = UiScale.v2(Vector2(ORB + 8, 20))
 	coins_label.size = coins_label.custom_minimum_size
-	coins_label.add_theme_font_size_override("font_size", UiScale.i(11))
+	coins_label.add_theme_font_size_override("font_size", UiScale.i(12))
 	coins_label.add_theme_color_override("font_color", Color(1, 0.85, 0.3))
 	coins_label.add_theme_color_override("font_shadow_color", Color.BLACK)
+	coins_label.add_theme_constant_override("shadow_offset_x", 1)
+	coins_label.add_theme_constant_override("shadow_offset_y", 1)
 	coins_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	coins_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cluster.add_child(coins_label)
 
-	# Action buttons under the minimap.
-	var bank := _IconButton.new()
-	bank.kind = "bank"
-	bank.label = "Bank"
-	bank.tooltip_text = "Auto-walk to the nearest bank"
-	bank.position = UiScale.v2(Vector2(88, 166))
+	# Minimap (centre).
+	var map_panel := MinimapPanel.new()
+	map_panel.setup(self)
+	map_panel.position = UiScale.v2(Vector2(MAP_X, 2))
+	cluster.add_child(map_panel)
+	minimap = map_panel.minimap
+
+	# Menu buttons (right column), OSRS-style stack beside the minimap.
+	var bank := _make_menu_button(cluster, "bank", "Bank",
+		"Auto-walk to the nearest bank", Vector2(BTN_X, 2))
 	bank.on_press = func() -> void:
 		if world != null:
 			world.call("auto_bank")
-	cluster.add_child(bank)
 
-	var slay := _IconButton.new()
-	slay.kind = "slayer"
-	slay.label = "Slayer"
-	slay.tooltip_text = "Slayer master — browse monsters you can fight"
-	slay.position = UiScale.v2(Vector2(140, 166))
+	var slay := _make_menu_button(cluster, "slayer", "Slayer",
+		"Slayer master — browse monsters you can fight", Vector2(BTN_X, 2 + 46.0))
 	slay.on_press = func() -> void:
 		open_slayer()
-	cluster.add_child(slay)
 
-	var map_btn := _IconButton.new()
-	map_btn.kind = "map"
-	map_btn.label = "Map"
-	map_btn.tooltip_text = "Open the world map (M)"
-	map_btn.position = UiScale.v2(Vector2(192, 166))
+	var map_btn := _make_menu_button(cluster, "map", "Map",
+		"Open the world map (M)", Vector2(BTN_X, 2 + 92.0))
 	map_btn.on_press = func() -> void:
 		if world_map != null:
 			world_map.toggle()
-	cluster.add_child(map_btn)
+
+	var menu_btn := _make_menu_button(cluster, "menu", "Menu",
+		"Game menu — save, teleport, settings (Esc)", Vector2(BTN_X, 2 + 138.0))
+	menu_btn.on_press = func() -> void:
+		toggle_game_menu()
+
+
+func _make_menu_button(parent: Control, kind: String, label: String, tip: String, pos: Vector2) -> _IconButton:
+	var btn := _IconButton.new()
+	btn.kind = kind
+	btn.label = label
+	btn.tooltip_text = tip
+	btn.position = UiScale.v2(pos)
+	parent.add_child(btn)
+	return btn
 
 
 func _build_game_menu() -> void:
@@ -1010,24 +1068,157 @@ func _refresh_keybind_buttons() -> void:
 			btn.text = OS.get_keycode_string(kc) if kc != 0 else "Unbound"
 
 
+# Debug overlays use a doubled font (DEBUG_FONT_* ) with a black outline so the
+# readout stays legible over bright terrain. Bump these to scale the debug text.
+const DEBUG_FPS_FONT := 26      # was 13 — x2
+const DEBUG_TILE_FONT := 22     # was 11 — x2
+
 func _build_fps_overlay() -> void:
 	fps_label = Label.new()
 	fps_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_anchor(fps_label, Control.PRESET_TOP_LEFT, Vector2(10, 36), Vector2(168, 20))
-	fps_label.add_theme_font_size_override("font_size", UiScale.i(13))
+	_anchor(fps_label, Control.PRESET_TOP_LEFT, Vector2(10, 40), Vector2(340, 36))
+	fps_label.add_theme_font_size_override("font_size", UiScale.i(DEBUG_FPS_FONT))
 	fps_label.add_theme_color_override("font_color", Color(0.75, 1.0, 0.75))
-	fps_label.add_theme_color_override("font_shadow_color", Color.BLACK)
+	fps_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	fps_label.add_theme_constant_override("outline_size", UiScale.i(4))
 	fps_label.visible = false
 	add_child(fps_label)
 
 	tile_debug_label = Label.new()
 	tile_debug_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_anchor(tile_debug_label, Control.PRESET_TOP_LEFT, Vector2(10, 58), Vector2(360, 52))
-	tile_debug_label.add_theme_font_size_override("font_size", UiScale.i(11))
+	_anchor(tile_debug_label, Control.PRESET_TOP_LEFT, Vector2(10, 84), Vector2(640, 360))
+	tile_debug_label.add_theme_font_size_override("font_size", UiScale.i(DEBUG_TILE_FONT))
 	tile_debug_label.add_theme_color_override("font_color", Color(0.82, 0.88, 0.95))
-	tile_debug_label.add_theme_color_override("font_shadow_color", Color.BLACK)
+	tile_debug_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	tile_debug_label.add_theme_constant_override("outline_size", UiScale.i(4))
+	tile_debug_label.add_theme_constant_override("line_spacing", UiScale.i(2))
 	tile_debug_label.visible = GameSettings.show_tile_debug
 	add_child(tile_debug_label)
+
+
+# ============================ TEMP PATH-PROBE (debug) ============================
+# A throwaway diagnostic: a button under the debug text arms a one-shot world
+# probe; the next click in the world computes the A* path from the player to that
+# tile (without walking) and pops a dialog listing every waypoint's tile coords
+# and elevation, the per-step elevation delta (red if it exceeds the climb limit),
+# and reachability flags. Delete this whole region + the hooks noted by the member
+# vars to remove it.
+func _build_path_probe() -> void:
+	_path_probe_btn = Button.new()
+	_path_probe_btn.text = "Probe path"
+	_path_probe_btn.tooltip_text = "Click, then click a spot in the world to dump the A* path + elevations to it"
+	_anchor(_path_probe_btn, Control.PRESET_TOP_LEFT, Vector2(10, 360), Vector2(240, 40))
+	_path_probe_btn.add_theme_font_size_override("font_size", UiScale.i(18))
+	_path_probe_btn.pressed.connect(_arm_path_probe)
+	_path_probe_btn.visible = GameSettings.show_tile_debug
+	add_child(_path_probe_btn)
+
+	_path_probe_popup = PopupPanel.new()
+	_path_probe_popup.add_theme_stylebox_override("panel", _style(STONE, STONE_DARK))
+	var box := VBoxContainer.new()
+	box.custom_minimum_size = UiScale.v2(Vector2(560, 540))
+	var title := Label.new()
+	title.text = "Path probe"
+	title.add_theme_font_size_override("font_size", UiScale.i(18))
+	title.add_theme_color_override("font_color", Color(0.85, 0.72, 0.3))
+	box.add_child(title)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_path_probe_text = RichTextLabel.new()
+	_path_probe_text.bbcode_enabled = true
+	_path_probe_text.fit_content = true
+	_path_probe_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_path_probe_text.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_path_probe_text.custom_minimum_size = UiScale.v2(Vector2(540, 470))
+	_path_probe_text.add_theme_font_size_override("normal_font_size", UiScale.i(15))
+	_path_probe_text.add_theme_font_size_override("bold_font_size", UiScale.i(15))
+	_path_probe_text.add_theme_color_override("default_color", Color(0.88, 0.92, 0.96))
+	scroll.add_child(_path_probe_text)
+	box.add_child(scroll)
+	var close := Button.new()
+	close.text = "Close"
+	close.pressed.connect(func() -> void: _path_probe_popup.hide())
+	box.add_child(close)
+	_path_probe_popup.add_child(box)
+	add_child(_path_probe_popup)
+
+
+func _arm_path_probe() -> void:
+	_path_probe_armed = true
+	if _path_probe_btn != null:
+		_path_probe_btn.text = "Armed: click in world  (Esc cancels)"
+		_path_probe_btn.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+
+
+func _disarm_path_probe() -> void:
+	_path_probe_armed = false
+	if _path_probe_btn != null:
+		_path_probe_btn.text = "Probe path"
+		_path_probe_btn.remove_theme_color_override("font_color")
+
+
+func _run_path_probe() -> void:
+	if world == null or world.player == null:
+		return
+	var layer := int(world.get("current_layer"))
+	var click: Vector2 = world.get_global_mouse_position()
+	var target_tile: Vector2i = WorldGen.tile_at_screen(click, layer)
+	var raw_tile: Vector2i = WG.world_to_tile(click)
+	var target: Vector2 = WG.tile_to_world(target_tile.x, target_tile.y)
+
+	var p_pos: Vector2 = world.player.position
+	var p_tile: Vector2i = WG.world_to_tile(p_pos)
+	var p_elev: int = WorldGen.elevation_at(p_pos, layer)
+	var t_elev: int = WorldGen.elevation_at(target, layer)
+
+	var pf: RefCounted = world._path_ctrl.path_finder
+	var in_region: bool = pf.in_region(target_tile)
+	var reachable: bool = pf.has_reachable_tile(target_tile)
+	var lock: int = pf.lock_req_at(target_tile)
+
+	var snapped := false
+	var path := PackedVector2Array(pf.find_path(p_pos, target, false))
+	if path.is_empty():
+		path = PackedVector2Array(pf.find_path(p_pos, target, true))
+		snapped = true
+
+	var lines: PackedStringArray = []
+	lines.append("[b]Player[/b]  tile (%d, %d)   elev %d" % [p_tile.x, p_tile.y, p_elev])
+	var pick_note := "" if raw_tile == target_tile else "   [color=#c8a23c](flat pick %d,%d)[/color]" % [raw_tile.x, raw_tile.y]
+	lines.append("[b]Target[/b]  tile (%d, %d)   elev %d%s" % [target_tile.x, target_tile.y, t_elev, pick_note])
+	lines.append("in_region: %s    reachable_node: %s    lock_req: %d" % [
+		"yes" if in_region else "[color=#ff8080]no[/color]",
+		"yes" if reachable else "[color=#ff8080]no[/color]", lock])
+	lines.append("[color=#9aa]climb step ≤ %d,  reach cap %d[/color]" % [WG.MAX_CLIMB_STEP, WG.MAX_REACHABLE_ELEV])
+	lines.append("")
+	if path.is_empty():
+		lines.append("[color=#ff6464][b]NO PATH FOUND[/b] — target unreachable from the player's tile.[/color]")
+	else:
+		var head := "[b]Path[/b]: %d waypoints" % path.size()
+		if snapped:
+			head += "   [color=#c8a23c](snapped to nearest reachable tile)[/color]"
+		lines.append(head)
+		var prev_elev := p_elev
+		var total := 0.0
+		for i: int in path.size():
+			var wp: Vector2 = path[i]
+			var wt: Vector2i = WG.world_to_tile(wp)
+			var e: int = WorldGen.elevation_at(wp, layer)
+			var d: int = e - prev_elev
+			if i > 0:
+				total += path[i - 1].distance_to(wp)
+			# A delta beyond the climb limit means the path crosses an edge the player
+			# can't legally step — a real pathing/elevation bug. Flag it red.
+			var dcol := "#9fe0a0" if absi(d) <= WG.MAX_CLIMB_STEP else "#ff6464"
+			lines.append("%3d:  (%d, %d)   e=%d   [color=%s]Δ%+d[/color]" % [i, wt.x, wt.y, e, dcol, d])
+			prev_elev = e
+		lines.append("")
+		lines.append("[color=#9aa]length %.0f px  (%.1f tiles)[/color]" % [total, total / WG.TILE])
+	_path_probe_text.text = "\n".join(lines)
+	_path_probe_popup.popup_centered()
+	_disarm_path_probe()
+# ========================== end TEMP PATH-PROBE ==========================
 
 
 func _process(_delta: float) -> void:
@@ -1089,6 +1280,8 @@ func _apply_hud_from_settings(_property: StringName = &"") -> void:
 		chat_panel.visible = GameSettings.show_chat
 	if tile_debug_label:
 		tile_debug_label.visible = GameSettings.show_tile_debug
+	if _path_probe_btn:
+		_path_probe_btn.visible = GameSettings.show_tile_debug  # TEMP path-probe
 	if not GameSettings.show_hover_tooltip:
 		world_tooltip.hide_tooltip()
 
@@ -1672,12 +1865,14 @@ class _TabIcon extends Control:
 					draw_line(c - Vector2(cos(a), sin(a)) * s, c + Vector2(cos(a), sin(a)) * s, ink, 2.0)
 
 
-## A drawn status orb (HP / Prayer / Run energy) for the minimap cluster.
+## A drawn status orb (HP / Prayer / Run energy) for the minimap cluster: a filled
+## circle whose coloured liquid rises with the value, with the value drawn in the
+## centre — OSRS-style.
 class _Orb extends Control:
 	var kind := "hp"
 
 	func _ready() -> void:
-		custom_minimum_size = UiScale.v2(Vector2(42, 42))
+		custom_minimum_size = UiScale.v2(Vector2(46, 46))
 		size = custom_minimum_size
 		mouse_filter = Control.MOUSE_FILTER_STOP  # STOP so the tooltip shows
 
@@ -1688,28 +1883,42 @@ class _Orb extends Control:
 		var r := size.x / 2.0
 		var c := size / 2.0
 		var frac := 1.0
-		var col := Color(0.7, 0.12, 0.12)
+		var col := Color(0.78, 0.16, 0.16)
 		var text := ""
 		match kind:
 			"hp":
 				frac = float(GameState.current_hp) / maxf(float(GameState.max_hp()), 1.0)
-				col = Color(0.7, 0.12, 0.12)
+				col = Color(0.78, 0.16, 0.16)
 				text = str(GameState.current_hp)
 			"prayer":
-				col = Color(0.3, 0.55, 0.85)
+				col = Color(0.32, 0.58, 0.88)
 				text = str(GameState.level("prayer"))
 			"run":
-				col = Color(0.85, 0.78, 0.2)
+				col = Color(0.88, 0.80, 0.22)
 				text = "100"
-		draw_circle(c, r, Color(0.09, 0.09, 0.09, 0.92))
-		var fill_h := size.y * clampf(frac, 0.0, 1.0)
-		draw_rect(Rect2(Vector2(0, size.y - fill_h), Vector2(size.x, fill_h)).intersection(Rect2(Vector2.ZERO, size)), col)
-		draw_arc(c, r - 1.0, 0.0, TAU, 36, Color(0.55, 0.5, 0.35), 2.0)
+		frac = clampf(frac, 0.0, 1.0)
+		# Empty (dark) orb base.
+		draw_circle(c, r, Color(0.08, 0.08, 0.08, 0.94))
+		# Coloured liquid, masked to the circle, rising from the bottom.
+		var fill_top := size.y * (1.0 - frac)
+		var y := size.y - 1.0
+		while y > fill_top:
+			var dy := y - c.y
+			if absf(dy) < r:
+				var half := sqrt(r * r - dy * dy)
+				draw_line(Vector2(c.x - half, y), Vector2(c.x + half, y), col, 1.0)
+			y -= 1.0
+		# Soft top gloss + gold rim.
+		draw_circle(c - Vector2(0, r * 0.42), r * 0.30, Color(1, 1, 1, 0.10))
+		draw_arc(c, r - 1.0, 0.0, TAU, 40, Color(0.62, 0.55, 0.38), 2.5)
+		# Centred value with a black outline so it reads over any fill level.
 		var font := ThemeDB.fallback_font
-		var fs := UiScale.i(13)
+		var fs := UiScale.i(16)
 		var tw := font.get_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, -1, fs).x
-		draw_string(font, c + Vector2(-tw / 2.0, fs * 0.4), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
-		draw_string(font, c + Vector2(-tw / 2.0 + 1, fs * 0.4 + 1), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.0))
+		var base := c + Vector2(-tw / 2.0, fs * 0.36)
+		for o: Vector2 in [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1)]:
+			draw_string(font, base + o, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.85))
+		draw_string(font, base, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
 
 
 ## A drawn icon action button beside the minimap (Bank / Slayer / World map).
@@ -1748,6 +1957,9 @@ class _IconButton extends Control:
 				draw_arc(c, s, 0.0, TAU, 22, ink, 1.5)
 				draw_line(c + Vector2(0, -s), c + Vector2(0, s), ink, 1.0)
 				draw_line(c + Vector2(-s, 0), c + Vector2(s, 0), ink, 1.0)
+			"menu":  # hamburger (three bars)
+				for oy: float in [-s * 0.7, 0.0, s * 0.7]:
+					draw_rect(Rect2(c + Vector2(-s, oy - s * 0.16), Vector2(s * 2.0, s * 0.32)), ink)
 		var font := ThemeDB.fallback_font
 		var fs := UiScale.i(10)
 		var tw := font.get_string_size(label, HORIZONTAL_ALIGNMENT_CENTER, -1, fs).x

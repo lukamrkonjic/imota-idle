@@ -282,6 +282,33 @@ func is_water_world(pos: Vector2, layer: int = 0) -> bool:
 	return not td.is_empty() and bool(td.get("water", false))
 
 
+## Rich elevation diagnostics for the picked (raised) tile under a world/cursor
+## position — for the debug overlay. Reports the tile's elevation, its 4-neighbour
+## elevations, the steepest single-step change to a neighbour (vs the climbable
+## MAX_CLIMB_STEP), and whether the tile is above the reachable cap. Lets you see
+## exactly where/why a climb is blocked. Player tile/elev are added by the caller.
+func elevation_report(world_pos: Vector2, layer: int = 0) -> Dictionary:
+	var t: Vector2i = tile_at_screen(world_pos, layer)
+	var e: int = _tile_elev(layer, t)
+	var n: int = _tile_elev(layer, t + Vector2i(0, -1))
+	var s: int = _tile_elev(layer, t + Vector2i(0, 1))
+	var w: int = _tile_elev(layer, t + Vector2i(-1, 0))
+	var east: int = _tile_elev(layer, t + Vector2i(1, 0))
+	var max_step: int = maxi(maxi(absi(e - n), absi(e - s)), maxi(absi(e - w), absi(e - east)))
+	var raw: Vector2i = WG.world_to_tile(world_pos)   # flat projection (pre peak-pick)
+	return {
+		"tile": t,
+		"raw_tile": raw,
+		"elev": e,
+		"n": n, "e": east, "s": s, "w": w,
+		"max_step": max_step,
+		"climb_limit": WG.MAX_CLIMB_STEP,
+		"reach_cap": WG.MAX_REACHABLE_ELEV,
+		"over_cap": e > WG.MAX_REACHABLE_ELEV,
+		"climbable": max_step <= WG.MAX_CLIMB_STEP and e <= WG.MAX_REACHABLE_ELEV,
+	}
+
+
 ## Safe admin landing: walkable dry ground at elevation 0 on the surface.
 func is_admin_teleport_floor(pos: Vector2, layer: int = 0) -> bool:
 	if not is_walkable_world(pos, layer):
