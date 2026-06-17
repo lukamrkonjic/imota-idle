@@ -38,6 +38,7 @@ var label := ""
 var sub_label := ""
 var click_radius := 30.0
 var enemy_shape := "humanoid"
+var facing := 1   # enemy art faces +x by default; -1 mirrors it to face left
 var is_boss := false
 var tent_color := Color(0.64, 0.47, 0.31)
 var glow_color := Color(0.7, 0.55, 0.95)  # altars/shrines
@@ -312,7 +313,7 @@ func _draw_sprite_to(canvas: CanvasItem) -> void:
 					canvas, EnemyArt._shadow_half_width(enemy_shape, display_size, is_boss), 4.0, 0.28)
 			else:
 				var enemy_name := label if not label.is_empty() else str(action.get("name", ""))
-				IsoSprites.draw_enemy(canvas, enemy_name, enemy_shape, display_size, tier_color, is_boss, _t)
+				IsoSprites.draw_enemy(canvas, enemy_name, enemy_shape, display_size, tier_color, is_boss, _t, facing)
 		"tent":
 			IsoSprites.draw_tent(canvas, display_size, tent_color)
 		"campfire":

@@ -61,13 +61,15 @@ static func variant_scale(name: String) -> float:
 	return 1.0
 
 
-static func draw(canvas: CanvasItem, name: String, size: float, tint: Color, boss: bool, t: float) -> void:
+static func draw(canvas: CanvasItem, name: String, size: float, tint: Color, boss: bool, t: float, facing: int = 1) -> void:
 	var species := species_for_name(name)
 	if species.is_empty():
 		return
 	var s := size * variant_scale(name)
 	var bob := sin(t * 3.0) * 1.5
-	canvas.draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.12, 1.12))
+	# Negative facing mirrors the creature so it turns to face its target; art is
+	# authored facing +x.
+	canvas.draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.12 * float(facing), 1.12))
 	PixelDraw.draw_tight_character_shadow(canvas, shadow_half_width(species, size, boss))
 	match species:
 		"chicken":

@@ -58,8 +58,8 @@ static func draw_player(canvas: CanvasItem, skin: Color, outfit: Color, hair: Co
 	PlayerArt.draw(canvas, skin, outfit, hair, mode, t, facing, cast_local)
 
 
-static func draw_enemy(canvas: CanvasItem, name: String, shape: String, size: float, color: Color, boss: bool, t: float) -> void:
-	EnemyArt.draw(canvas, name, shape, size, color, boss, t)
+static func draw_enemy(canvas: CanvasItem, name: String, shape: String, size: float, color: Color, boss: bool, t: float, facing: int = 1) -> void:
+	EnemyArt.draw(canvas, name, shape, size, color, boss, t, facing)
 
 
 static func enemy_shape(name: String) -> String:

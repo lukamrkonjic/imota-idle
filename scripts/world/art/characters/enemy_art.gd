@@ -37,17 +37,19 @@ static func _shadow_half_width(shape: String, size: float, boss: bool) -> float:
 			return size * 0.22 * scale
 
 
-static func draw(canvas: CanvasItem, name: String, shape: String, size: float, color: Color, boss: bool, t: float) -> void:
+static func draw(canvas: CanvasItem, name: String, shape: String, size: float, color: Color, boss: bool, t: float, facing: int = 1) -> void:
 	if not EnemyCreatureArt.species_for_name(name).is_empty():
-		EnemyCreatureArt.draw(canvas, name, size, color, boss, t)
+		EnemyCreatureArt.draw(canvas, name, size, color, boss, t, facing)
 		return
-	_draw_generic(canvas, shape, size, color, boss, t)
+	_draw_generic(canvas, shape, size, color, boss, t, facing)
 
 
-static func _draw_generic(canvas: CanvasItem, shape: String, size: float, color: Color, boss: bool, t: float) -> void:
+static func _draw_generic(canvas: CanvasItem, shape: String, size: float, color: Color, boss: bool, t: float, facing: int = 1) -> void:
 	if not SilhouetteDraw.active:
 		color = PixelPalette.enrich_entity(color)
-	canvas.draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.12, 1.12))
+	# Negative facing mirrors the whole creature horizontally so it turns to face
+	# its target (e.g. the player it's fighting); art is authored facing +x.
+	canvas.draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.12 * float(facing), 1.12))
 	PixelDraw.draw_tight_character_shadow(canvas, _shadow_half_width(shape, size, boss))
 	var bob := sin(t * 3.0) * 1.5
 	var s := size

@@ -52,6 +52,7 @@ func _update_chase(delta: float) -> void:
 	if CombatSim.active and is_instance_valid(tgt):
 		_last_chased = tgt
 		world.player.face_toward(tgt.position.x)  # always turn to face the enemy
+		_face_entity_toward(tgt, world.player.position.x)  # mob turns to face you, even if hit from behind
 		_returning.erase(tgt)  # re-engaged before it got home
 		if not tgt.has_meta("home_pos"):
 			tgt.set_meta("home_pos", tgt.position)
@@ -107,8 +108,21 @@ func _step_toward(entity: Node2D, target: Vector2, max_step: float, gap: float =
 	var goal := dist - gap
 	if goal <= 1.0:
 		return
+	_face_entity_toward(entity, target.x)  # turn the way it's walking
 	entity.position += to / dist * minf(max_step, goal)
 	entity.queue_redraw()
+
+
+## Turn an entity to face a world x. Enemy art is authored facing +x, so facing 1
+## looks right and -1 mirrors it left. No-op (and no redraw) when already facing it
+## or the target is essentially level, to avoid flip jitter when standing beside you.
+func _face_entity_toward(entity: Node2D, world_x: float) -> void:
+	if absf(world_x - entity.position.x) <= 1.0:
+		return
+	var want := 1 if world_x >= entity.position.x else -1
+	if int(entity.get("facing")) != want:
+		entity.set("facing", want)
+		entity.queue_redraw()
 
 
 func _leash_radius() -> float:
