@@ -734,9 +734,10 @@ func phase6_worldgen() -> void:
 	check(has_bank, "home campsite includes a bank chest")
 	check(WorldGen.find_nearest_station(0, Vector2.ZERO, "bank").size() > 0, "find_nearest_station locates a bank")
 
-	# Terrain pathing: water carries no node; a one-step change links only across the
-	# camera-facing (+x/+y) face the renderer draws a cliff for, never the hidden back
-	# (-x/-y) face; a two-step cliff never links.
+	# Terrain pathing: water carries no node; a one-step elevation change links in
+	# BOTH directions (symmetric per-tile rule — no camera-facing exception), so a
+	# 1-high tile connects to its lower neighbour on every side; a two-step cliff
+	# never links.
 	var pf_chunk: RefCounted = Chunk.new()
 	pf_chunk.setup(0, 200, 200)
 	pf_chunk.zone = {"req": 1}
@@ -749,12 +750,12 @@ func phase6_worldgen() -> void:
 	var base := Vector2i(pf_chunk.cx, pf_chunk.cy) * WG.CHUNK_TILES
 	check(not pf.has_reachable_tile(base + Vector2i(1, 0)), "pathfinder rejects shallow water nodes")
 	var hi: int = int(pf._ids.get(base + Vector2i(2, 2), -1))
-	var front: int = int(pf._ids.get(base + Vector2i(3, 2), -1))   # +x neighbour (visible face)
-	var back: int = int(pf._ids.get(base + Vector2i(1, 2), -1))    # -x neighbour (hidden back face)
+	var front: int = int(pf._ids.get(base + Vector2i(3, 2), -1))   # +x neighbour
+	var back: int = int(pf._ids.get(base + Vector2i(1, 2), -1))    # -x neighbour
 	check(hi >= 0 and front >= 0 and pf.astar.are_points_connected(hi, front),
-		"pathfinder links a one-step visible front face")
-	check(hi >= 0 and back >= 0 and not pf.astar.are_points_connected(hi, back),
-		"pathfinder seals the one-step hidden back face")
+		"pathfinder links a one-step change on the +x side")
+	check(hi >= 0 and back >= 0 and pf.astar.are_points_connected(hi, back),
+		"pathfinder links a one-step change on the -x side (symmetric)")
 	var cliff: int = int(pf._ids.get(base + Vector2i(6, 2), -1))
 	var cliff_lo: int = int(pf._ids.get(base + Vector2i(5, 2), -1))
 	check(cliff >= 0 and cliff_lo >= 0 and not pf.astar.are_points_connected(cliff, cliff_lo),

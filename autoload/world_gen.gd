@@ -270,9 +270,17 @@ const ELEV_PICK_MAX := 52   # MUST equal BiomeClassifier.ELEV_MAX_STEPS (tallest
 
 func tile_at_screen(world_pos: Vector2, layer: int = 0) -> Vector2i:
 	if layer == 0:
-		for e: int in range(ELEV_PICK_MAX, 0, -1):
-			var t := WG.world_to_tile(world_pos + Vector2(0.0, float(e) * WG.ELEV_STEP_PX))
-			if _tile_elev(layer, t) == e:
+		# Scan downward-front of the cursor: a tile drawn at elevation e sits e steps
+		# higher than its flat projection, so a tile whose flat position is k steps
+		# down-front of the cursor is drawn up over the cursor whenever its elevation
+		# is >= k. Using >= (not ==) means a hover/click anywhere on a tall tile's
+		# RISER FACE — not just its narrow top edge — resolves to that tall tile rather
+		# than the low ground the face visually occludes (the "side reads as elev 0/1"
+		# bug). The largest matching k is the frontmost/topmost drawn tile, so we scan
+		# tallest-first and take the first hit.
+		for k: int in range(ELEV_PICK_MAX, 0, -1):
+			var t := WG.world_to_tile(world_pos + Vector2(0.0, float(k) * WG.ELEV_STEP_PX))
+			if _tile_elev(layer, t) >= k:
 				return t
 	return WG.world_to_tile(world_pos)
 
