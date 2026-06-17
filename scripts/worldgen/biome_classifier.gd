@@ -54,14 +54,26 @@ var _radius := 512.0          # tiles from centre to the rim
 # explicit land guarantee (plus connecting corridors) so content never drowns and
 # the mainland stays one walkable body. Tune these to reshape every world:
 const _SHORE_R := 0.80          # norm_dist at the nominal coastline
-const _FALL_SLOPE := 0.92       # gentle => low-freq noise carves deep gulfs/capes
-const _SEA_LEVEL := 0.46        # landmass threshold; higher => more/deeper bays
+const _FALL_SLOPE := 0.80       # gentle => low-freq noise carves deep gulfs/capes
+const _SEA_LEVEL := 0.435       # landmass threshold; lower => more solid dominant landmass
+const _ASPECT := 1.5            # continent ~1.5:1 wider than tall (per spec)
 const _COAST_BAND := 0.12       # landmass span of the beach/shallow transition
 const _ISLAND_REACH := 0.34     # how far offshore (landmass units) islands form
 const _ISLAND_LIFT := 0.50      # how strongly an island peak rises from the sea
 const _GUARANTEE_LAND := 0.20   # solid-land value forced under authored content
 var _land_discs: Array = []     # [{c:Vector2, r:float}] forced-land discs (tiles)
 var _land_corridors: Array = [] # [{a,b:Vector2, r:float}] connecting land bridges
+
+# --- tectonic mountain ranges (connected dividing spines) ---------------------
+# Mountains are NOT blob noise. A handful of seed-derived spine polylines sweep
+# wiggly chords across the continent (like fault lines); mountain mass rises near
+# a spine and falls off with distance, textured by ridged noise. Low spots along
+# a spine become PASSES (walkable gaps), and land-guarantee corridors carve the
+# ranges so the mainland stays connected. Result: ranges that wall off regions
+# and force travel through passes, instead of random isolated peaks.
+var _mtn_spines: Array = []     # [PackedVector2Array of tile points]
+var _mtn_crest := 8.0           # tiles: half-width of the high crest band
+var _mtn_width := 40.0          # tiles: foothill reach from the spine line
 
 
 func setup(p_reg: RefCounted, p_seed: int) -> void:
@@ -102,6 +114,7 @@ func setup(p_reg: RefCounted, p_seed: int) -> void:
 	_t_rock = int(reg.tile_index["rock"])
 	_t_cobble = int(reg.tile_index["cobble"])
 	_build_land_guarantees()
+	_build_mountain_spines()
 
 
 ## Precompute the forced-land discs (every authored region + the home core) and
@@ -118,6 +131,69 @@ func _build_land_guarantees() -> void:
 		var c := Vector2(float(r["cx"]) * ct + ct * 0.5, float(r["cy"]) * ct + ct * 0.5)
 		_land_discs.append({"c": c, "r": (float(r["radius"]) + 0.5) * ct})
 		_land_corridors.append({"a": _center, "b": c, "r": 1.4 * ct})
+
+
+## Seed-derived tectonic spines: wiggly chords sweeping across the continent.
+## Each becomes a mountain range; mountain_field() raises terrain near these lines.
+func _build_mountain_spines() -> void:
+	_mtn_spines.clear()
+	if not _finite:
+		return
+	_mtn_crest = maxf(5.0, _radius * 0.022)
+	_mtn_width = maxf(24.0, _radius * 0.11)
+	var n_spines: int = 3 + (WG.hash_i(world_seed, 7001) % 3)   # 3..5 ranges
+	for i: int in n_spines:
+		var a0: float = WG.r01(world_seed, i, 7100) * TAU
+		# End roughly opposite so the range crosses the landmass, with spread.
+		var a1: float = a0 + PI + (WG.r01(world_seed, i, 7101) - 0.5) * 1.6
+		var r0: float = _radius * lerpf(0.55, 1.05, WG.r01(world_seed, i, 7102))
+		var r1: float = _radius * lerpf(0.55, 1.05, WG.r01(world_seed, i, 7103))
+		var p0: Vector2 = _center + Vector2(cos(a0), sin(a0)) * r0
+		var p1: Vector2 = _center + Vector2(cos(a1), sin(a1)) * r1
+		var dir: Vector2 = (p1 - p0).normalized()
+		var perp: Vector2 = Vector2(-dir.y, dir.x)
+		var amp: float = _radius * lerpf(0.14, 0.30, WG.r01(world_seed, i, 7104))
+		var segs: int = 8 + (WG.hash_i(world_seed, i, 7105) % 4)   # 8..11
+		var pts: PackedVector2Array = PackedVector2Array()
+		var bmin := Vector2(1.0e9, 1.0e9)
+		var bmax := Vector2(-1.0e9, -1.0e9)
+		for s: int in segs + 1:
+			var f: float = float(s) / float(segs)
+			var base: Vector2 = p0.lerp(p1, f)
+			# Perpendicular wander, max at the middle, 0 at the ends (endpoints anchor).
+			var wob: float = _mtn_range.get_noise_2d(base.x * 0.6 + float(i) * 97.0, base.y * 0.6)
+			base += perp * amp * sin(f * PI) * wob
+			pts.append(base)
+			bmin = bmin.min(base)
+			bmax = bmax.max(base)
+		_mtn_spines.append({"pts": pts, "bmin": bmin, "bmax": bmax})
+
+
+## Nearest mountain spine to a tile: {d: distance in tiles, near: closest point}.
+## Spines whose bounds are far from the tile are skipped, so off-range tiles are
+## cheap (most of the map is nowhere near a range).
+func _spine_proximity(tx: float, ty: float) -> Dictionary:
+	var p := Vector2(tx, ty)
+	var best := 1.0e9
+	var near := p
+	for spine: Dictionary in _mtn_spines:
+		var bmin: Vector2 = spine["bmin"]
+		var bmax: Vector2 = spine["bmax"]
+		if tx < bmin.x - _mtn_width or tx > bmax.x + _mtn_width \
+				or ty < bmin.y - _mtn_width or ty > bmax.y + _mtn_width:
+			continue
+		var pts: PackedVector2Array = spine["pts"]
+		for s: int in pts.size() - 1:
+			var a: Vector2 = pts[s]
+			var ab: Vector2 = pts[s + 1] - a
+			var l2: float = ab.length_squared()
+			var t: float = 0.0 if l2 < 0.0001 else clampf((p - a).dot(ab) / l2, 0.0, 1.0)
+			var q: Vector2 = a + ab * t
+			var d: float = p.distance_to(q)
+			if d < best:
+				best = d
+				near = q
+	return {"d": best, "near": near}
 
 
 static func _noise(p_seed: int, freq: float, octaves: int) -> FastNoiseLite:
@@ -139,9 +215,7 @@ func classify_fields_warped(tx: float, ty: float) -> Vector3:
 func fields(tx: float, ty: float) -> Vector3:
 	var h := _height.get_noise_2d(tx, ty) * 0.5 + 0.5
 	var m := _moist.get_noise_2d(tx, ty) * 0.5 + 0.5
-	var t_local := _temp.get_noise_2d(tx, ty) * 0.5 + 0.5
-	var t_region := _climate.get_noise_2d(tx, ty) * 0.5 + 0.5
-	var t := _temperature_for_tile(t_local, t_region)
+	var t := latitude_climate(tx, ty)
 	var dist_chunks := Vector2(tx, ty).length() / float(WG.CHUNK_TILES)
 	if dist_chunks < SPAWN_SHAPE_CHUNKS:
 		var s := 1.0 - smoothstep(0.0, SPAWN_SHAPE_CHUNKS, dist_chunks)
@@ -159,7 +233,11 @@ func norm_dist(tx: float, ty: float) -> float:
 		return 0.0
 	var wx := _domain_warp.get_noise_2d(tx * 0.004, ty * 0.004) * 90.0
 	var wy := _domain_warp.get_noise_2d(tx * 0.004 + 71.0, ty * 0.004 + 23.0) * 90.0
-	return clampf(Vector2(tx + wx, ty + wy).distance_to(_center) / maxf(_radius * 0.92, 1.0), 0.0, 1.6)
+	# Elliptical falloff: the continent is ~1.5:1 wider than tall, so the vertical
+	# axis hits the rim sooner — more open ocean to the north and south.
+	var dx := (tx + wx) - _center.x
+	var dy := ((ty + wy) - _center.y) * _ASPECT
+	return clampf(sqrt(dx * dx + dy * dy) / maxf(_radius * 0.92, 1.0), 0.0, 1.6)
 
 
 ## 0 at the safe green core, 1 at the dangerous rim — drives biome harshness,
@@ -200,18 +278,22 @@ func _landmass(tx: float, ty: float) -> float:
 		return 1.0
 	# Heavy, low-frequency domain warp twists the coast into peninsulas and gulfs
 	# rather than a clean disc.
-	var wx := _domain_warp.get_noise_2d(tx * 0.0016, ty * 0.0016) * 300.0
-	var wy := _domain_warp.get_noise_2d(tx * 0.0016 + 131.0, ty * 0.0016 + 57.0) * 300.0
+	var wx := _domain_warp.get_noise_2d(tx * 0.0016, ty * 0.0016) * 430.0
+	var wy := _domain_warp.get_noise_2d(tx * 0.0016 + 131.0, ty * 0.0016 + 57.0) * 430.0
 	var sx := tx + wx
 	var sy := ty + wy
 	var base := _continent.get_noise_2d(sx, sy) * 0.5 + 0.5          # 0..1 big blobs
 	var detail := 1.0 - absf(_coast_detail.get_noise_2d(sx, sy))     # 0..1 ridged fingers
-	var shape := base * 0.86 + detail * 0.14
+	var shape := base * 0.80 + detail * 0.20
 	# Radial term: strongly positive in the core, ~0 at the shore radius, negative
 	# past it (uses the warped norm_dist so the falloff is itself irregular).
 	var d := norm_dist(tx, ty)
 	var fall := (d - _SHORE_R) * _FALL_SLOPE
-	var lm := shape - _SEA_LEVEL - fall
+	# Solid dominant interior: a core plateau keeps the inland from punching below
+	# sea level (no inland sea-holes / beach speckle), fading out before the rim so
+	# the coastline still wiggles into bays and peninsulas.
+	var core_bonus := smoothstep(0.84, 0.24, d) * 0.30
+	var lm := shape - _SEA_LEVEL - fall + core_bonus
 	# Offshore archipelago: in the shallow band just past the coast, strong noise
 	# peaks lift back above sea level into scattered islands of varying size.
 	if lm < 0.0 and lm > -_ISLAND_REACH:
@@ -274,34 +356,41 @@ func geo(tx: float, ty: float) -> Dictionary:
 ## than the visible ridge crest so mountains have foothills and hidden back-side
 ## depth instead of a tall front face sitting beside flat walkable tiles.
 func mountain_field(tx: float, ty: float) -> float:
-	if not _finite:
+	if not _finite or _mtn_spines.is_empty():
 		return 0.0
-	var g: Dictionary = geo(tx, ty)
-	var nn: float = g["n"]
-	var dd: float = g["d"]
-	var range_mask := _mtn_range.get_noise_2d(tx, ty) * 0.5 + 0.5     # 0..1
-	if dd < 0.24:
+	var dd: float = geo(tx, ty)["d"]
+	if dd < 0.20:                       # keep the safe central hub flat
 		return 0.0
 	var shore := coast_sink(tx, ty)
 	if shore > 0.88:
 		return 0.0
-	# Smooth range gates create shoulders and foothills on every side of the
-	# crest, so the hidden/back side of an isometric mountain has real depth.
-	var north_belt := smoothstep(0.16, 0.42, nn) \
-		* smoothstep(0.28, 0.46, dd) \
-		* (1.0 - smoothstep(0.86, 1.06, dd))
-	var spine := smoothstep(0.58, 0.82, range_mask) \
-		* smoothstep(0.30, 0.48, dd) \
-		* (1.0 - smoothstep(0.90, 1.08, dd))
-	var gate: float = clampf(maxf(north_belt, spine), 0.0, 1.0)
-	if gate <= 0.01:
+	var prox := _spine_proximity(tx, ty)
+	var dist: float = prox["d"]
+	if dist > _mtn_width:               # beyond the foothills of every range
 		return 0.0
-	var ridged := 1.0 - absf(_mtn_ridge.get_noise_2d(tx, ty))          # ~0..1, peaks ~1
-	var ridge := smoothstep(0.42, 0.92, ridged)
-	var shoulder := smoothstep(0.50, 0.76, range_mask)
+	# Cross-section profile: full mass in the crest band, tapering out to foothills.
+	var core := 1.0 - smoothstep(_mtn_crest, _mtn_width, dist)
+	# Passes: a low-freq value sampled along the spine dips here and there; where
+	# it's low the range drops to a walkable saddle so regions aren't fully sealed.
+	var near: Vector2 = prox["near"]
+	var pv := _mtn_range.get_noise_2d(near.x * 0.9 + 311.0, near.y * 0.9 - 211.0) * 0.5 + 0.5
+	var pass_h := smoothstep(0.30, 0.50, pv)
+	# Ridge texture + macro variation for crests, shoulders and saddles.
+	var ridged := 1.0 - absf(_mtn_ridge.get_noise_2d(tx, ty))
+	var ridge := smoothstep(0.38, 0.92, ridged)
 	var macro := _height_macro.get_noise_2d(tx * 0.7, ty * 0.7) * 0.5 + 0.5
-	var mass := gate * (0.22 + shoulder * 0.34 + ridge * 0.48 + macro * 0.16)
-	mass *= 1.0 - smoothstep(0.18, 0.76, shore)
+	var mass := core * pass_h * (0.30 + ridge * 0.55 + macro * 0.15)
+	# Fade mountain MASS into lowland/water by the broad continental height, so a
+	# range always slopes DOWN to any shore — ocean OR inland lake — over several
+	# tiles. Because elevation is derived straight from this (no value-scaling
+	# taper), the steps decrease cleanly 30->27->...->0 instead of a 30->0 wall.
+	# Steep where the lowland band is narrow, gradual where it's wide; always
+	# terraced, never a single cliff into the water.
+	var bh := _apply_continent(tx, ty, _height_macro.get_noise_2d(tx, ty) * 0.5 + 0.5)
+	mass *= smoothstep(0.36, 0.60, bh)
+	# Carve ranges out of authored land (hub, region cores, connecting corridors)
+	# so settlements stay flat and the mainland stays one walkable body.
+	mass *= 1.0 - _land_guarantee01(tx, ty) * 0.85
 	return clampf(mass, 0.0, 1.20)
 
 
@@ -314,19 +403,17 @@ func mountain_field(tx: float, ty: float) -> float:
 ## Smoothed heightfield used by elevation_steps(). Neighbour samples give the
 ## ridge physical shoulders on all sides, not just a thin visible crest.
 func mountain_height_field(tx: float, ty: float) -> float:
+	# Smoothed with 4 neighbour samples only (was 12) — the spine field is the heavy
+	# per-tile cost, sampled ~13x per elevation query, which made bakes crawl.
 	var total := mountain_field(tx, ty) * 4.0
 	var weight := 4.0
-	for off: Vector2 in [Vector2(2, 0), Vector2(-2, 0), Vector2(0, 2), Vector2(0, -2)]:
-		total += mountain_field(tx + off.x, ty + off.y) * 1.4
-		weight += 1.4
-	for off: Vector2 in [Vector2(4, 0), Vector2(-4, 0), Vector2(0, 4), Vector2(0, -4),
-			Vector2(3, 3), Vector2(-3, 3), Vector2(3, -3), Vector2(-3, -3)]:
-		total += mountain_field(tx + off.x, ty + off.y) * 0.55
-		weight += 0.55
+	for off: Vector2 in [Vector2(3, 0), Vector2(-3, 0), Vector2(0, 3), Vector2(0, -3)]:
+		total += mountain_field(tx + off.x, ty + off.y) * 1.5
+		weight += 1.5
 	return clampf(total / weight, 0.0, 1.20)
 
 
-const ELEV_MAX_STEPS := 42
+const ELEV_MAX_STEPS := 52   # taller peaks (per request); slope-off comes from mass fade
 const ELEV_FOOT_THRESHOLD := 0.18
 const ELEV_PEAK_THRESHOLD := 0.92
 const ELEV_BAND := 1
@@ -339,12 +426,11 @@ func elevation_steps(tx: float, ty: float) -> int:
 	# Steep exponent so foothills stay low but the cold alpine ridges (high mf)
 	# climb to a towering height; quantise into bands for big readable terraces.
 	var shaped := smoothstep(ELEV_FOOT_THRESHOLD, ELEV_PEAK_THRESHOLD, mh)
+	# Elevation is the TRUE height — never scaled by a coast taper. That value-
+	# scaling was exactly what made shore tiles read 2-3 instead of 30. The slope-
+	# off to water now comes from the mountain MASS fading (mountain_field), so the
+	# quantised steps decrease cleanly toward the shore with correct values.
 	var raw := pow(shaped, 1.18) * float(ELEV_MAX_STEPS)
-	# Slope down toward the sea using the SMOOTH coastline. (The old version keyed
-	# off the fine height noise, which fluctuates everywhere and randomly flattened
-	# inland mountains to elevation 0 — letting the player walk straight up peaks.)
-	# Inland: full height. Approaching the shore: tapers to 0.
-	raw *= 1.0 - smoothstep(0.10, 0.70, coast_sink(tx, ty))
 	var steps := int(round(raw / float(ELEV_BAND))) * ELEV_BAND
 	return clampi(steps, 0, ELEV_MAX_STEPS)
 
@@ -355,11 +441,11 @@ func mountain_level(tx: float, ty: float) -> int:
 	var e := elevation_steps(tx, ty)
 	if e <= 0:
 		return 0
-	var g: Dictionary = geo(tx, ty)
-	if e > WG.MAX_REACHABLE_ELEV and e >= int(float(ELEV_MAX_STEPS) * 0.58) \
-			and (float(g["n"]) > 0.36 or float(g["d"]) > 0.62):
-		return 3                                                       # snow cap
 	if e > WG.MAX_REACHABLE_ELEV:
+		# Snow caps on the tallest peaks anywhere (altitude makes its own cold) and
+		# on every peak in cold northern climate.
+		if e >= int(float(ELEV_MAX_STEPS) * 0.6) or latitude_climate(tx, ty) < 0.30:
+			return 3                                                   # snow cap
 		return 2                                                       # rock peak (impassable)
 	return 1                                                           # foothill
 
@@ -367,9 +453,7 @@ func mountain_level(tx: float, ty: float) -> int:
 func classify_fields(tx: float, ty: float) -> Vector3:
 	var h := _height_macro.get_noise_2d(tx, ty) * 0.5 + 0.5
 	var m := _moist_macro.get_noise_2d(tx, ty) * 0.5 + 0.5
-	var t_local := _temp.get_noise_2d(tx * 0.08, ty * 0.08) * 0.5 + 0.5
-	var t_region := climate_region(tx, ty)
-	var t := _temperature_for_tile(t_local, t_region)
+	var t := latitude_climate(tx, ty)
 	var dist_chunks := Vector2(tx, ty).length() / float(WG.CHUNK_TILES)
 	if dist_chunks < SPAWN_SHAPE_CHUNKS:
 		var s := 1.0 - smoothstep(0.0, SPAWN_SHAPE_CHUNKS, dist_chunks)
@@ -406,6 +490,23 @@ func biome_idx_jittered(tx: float, ty: float, _jitter: float) -> int:
 
 func climate_region(tx: float, ty: float) -> float:
 	return _climate.get_noise_2d(tx, ty) * 0.5 + 0.5
+
+
+## Latitude-driven temperature, 0 = frozen .. 1 = scorching. This is the climate
+## BACKBONE (spec): cold far north, temperate heartland, hot/arid far south. The
+## north-south axis is warped by low-freq noise so the bands bulge and wave rather
+## than running as straight horizontal stripes. Altitude (mountains -> colder) is
+## applied by the biome picker, not here, so "altitude overrides latitude".
+func latitude_climate(tx: float, ty: float) -> float:
+	if not _finite:
+		return 0.5
+	var warp := _climate.get_noise_2d(tx, ty) * _radius * 0.20
+	# rel spans roughly -1 (far north) .. +1 (far south) over the continent height
+	# (height is _radius/_ASPECT because the landmass is wider than tall).
+	var rel := clampf(((ty + warp) - _center.y) * _ASPECT / maxf(_radius, 1.0), -1.3, 1.3)
+	var base := 0.5 + rel * 0.6
+	base += _temp.get_noise_2d(tx, ty) * 0.05   # small organic jitter on the band edges
+	return clampf(base, 0.0, 1.0)
 
 
 func continent_kind(tx: float, ty: float) -> String:

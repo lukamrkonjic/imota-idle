@@ -8,10 +8,15 @@ const ISO_HW := TILE * 0.5                 # half-width of top diamond face
 const ISO_HH := TILE * 0.25                # half-height (2:1 isometric ratio)
 const BLOCK_RISE := 6.0                    # vertical extrusion for solid blocks
 const ELEV_STEP_PX := 8.0                  # screen px a terrain raises per elevation step
-const MAX_REACHABLE_ELEV := 15             # player can climb up to this elevation; higher
-                                           # rock/snow is unreachable (routed around)
-const MAX_CLIMB_STEP := 1                  # biggest single-step elevation change the player
-                                           # can hop up; Minecraft-style one-block steps
+const MAX_REACHABLE_ELEV := 60             # any tile up to here can carry a nav node, so FLAT
+                                           # plateaus/peaks are walkable once reached. What makes
+                                           # steep mountains impassable is MAX_CLIMB_STEP (you
+                                           # can't cross a >1-step face), not an absolute height.
+const MAX_CLIMB_STEP := 1                  # biggest single-step elevation change the player can
+                                           # cross. NOTE: bumping this to 3 let players walk up
+                                           # whole peaks (terraces rise ~2-3/tile) — proper
+                                           # "jump up gentle slopes" needs a varied elevation
+                                           # profile (foothills vs cliffs), not a bigger limit.
 const CHUNK_TILES := 16                    # tiles per chunk side
 const CHUNK_SIZE := TILE * float(CHUNK_TILES)  # legacy ortho estimate; use chunk_aabb()
 const ZONE_CELL := 6                       # zone Voronoi cell size, in chunks

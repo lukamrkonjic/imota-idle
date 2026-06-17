@@ -8,6 +8,8 @@ const Chunk := preload("res://scripts/worldgen/chunk.gd")
 const SMOOTH_PAD := 16
 const SMOOTH_PASSES := 2
 const MACRO_TILES := 12
+const SUB_RARITY := 0.5   # global multiplier on sub-biome spawn chance — keep them
+                          # rare "what's that over there" pockets, not map-wide speckle
 
 
 var reg: RefCounted
@@ -130,50 +132,53 @@ func _parent_id(gtx: int, gty: int) -> String:
 ##              swamp (S) · jungle (SE)
 ##                  ocean (rim)              volcanic = NE corner
 func _pick_parent_id(h: float, m: float, t: float, tx: float, ty: float) -> String:
+	# Sea & shore from the continent height field.
 	if h < 0.30:
 		return "ocean"
 	if h < 0.345:
 		return "beach"
 	var g: Dictionary = classifier.geo(tx, ty)
-	var n: float = g["n"]            # +north / -south
-	var e: float = g["e"]            # +east / -west
-	var d: float = g["d"]            # 0 centre .. 1 rim
+	var d: float = g["d"]            # 0 centre .. 1 rim (progression only, not climate)
 	var rg: float = g["region"]      # organic boundary jitter
 
-	# High ground reads as hills/mountains wherever it rises.
-	if h >= 0.80:
-		return "rocky_hills"
 	# Safe central hub — rolling plains and farmland.
-	if d < 0.20 + (rg - 0.5) * 0.06:
-		return "wheatfield" if (h < 0.52 and m >= 0.40 and m <= 0.58) else "plains"
-	# Far NE corner — the volcano.
-	if n > 0.22 and e > 0.40 and d > 0.55 and classifier.volcanic_region_ok(tx, ty, Vector3(h, m, t)):
+	if d < 0.18 + (rg - 0.5) * 0.06:
+		return "wheatfield" if (m >= 0.40 and m <= 0.58) else "plains"
+
+	# ALTITUDE OVERRIDES LATITUDE: connected ranges read as rocky highland (snow
+	# caps are added at render by mountain_level where it's cold/high).
+	if classifier.mountain_field(tx, ty) >= 0.50:
+		return "rocky_hills"
+
+	# Rare volcanic blackland (placement gated by cfg / volcanic rift noise).
+	if classifier.volcanic_region_ok(tx, ty, Vector3(h, m, t)):
 		return "volcanic"
 
-	# NORTH — woods give way to grey hills and then snow.
-	if n > 0.42:
-		if d > 0.70: return "tundra"
-		if d > 0.46 or t < 0.30: return "rocky_hills" if t >= 0.26 else "tundra"
-		return "boreal_forest" if t < 0.36 else "forest"
-	# EAST — plains warm into savanna, then a dry desert corner.
-	if e > 0.42:
-		if d > 0.60: return "desert"
-		if d > 0.38: return "savanna"
+	# Whittaker by LATITUDE temperature (t: 0 frozen .. 1 scorching) + moisture.
+	# Frozen far north.
+	if t < 0.27:
+		if t < 0.15 or m < 0.34:
+			return "tundra"
+		return "boreal_forest"
+	# Cool sub-boreal.
+	if t < 0.40:
+		return "boreal_forest" if m >= 0.44 else "plains"
+	# Temperate heartland (the big default zone).
+	if t < 0.60:
+		if m > 0.72 and h < 0.42:
+			return "swamp"
+		if m >= 0.52:
+			return "forest"
 		return "plains"
-	# SOUTH — wet lowlands: swamp, then steamy jungle toward the SE.
-	if n < -0.42:
-		if d > 0.58: return "jungle"
-		if d > 0.36: return "swamp"
-		return "plains"
-	# WEST — broadleaf forest country.
-	if e < -0.42:
-		return "forest"
-
-	# Diagonal seams / mid-ring filler by climate, kept mostly green.
-	if d > 0.5:
-		if m >= 0.58: return "forest"
-		if t >= 0.6 and m <= 0.36: return "savanna"
-	return "plains"
+	# Hot south: a rain-shadow belt where dryness grows with heat. Desert where it's
+	# dry, savanna in the mid-band, jungle only in genuinely wet pockets. This makes
+	# the far south read as an arid desert region.
+	var arid: float = m - maxf(0.0, t - 0.54) * 0.95
+	if arid < 0.40:
+		return "desert"
+	if arid < 0.58:
+		return "savanna"
+	return "jungle" if t >= 0.72 else "forest"
 
 
 func _sub_idx_for(parent_idx: int, gtx: int, gty: int) -> int:
@@ -216,13 +221,13 @@ func _sub_stamp_covers(rule: Dictionary, gtx: int, gty: int) -> bool:
 			var dy: float = float(gty - center.y)
 			var dist: float = sqrt(dx * dx + dy * dy)
 			var wobble: float = WG.r01(world_seed, cmx * 17 + salt, cmy * 19 + salt, 901) * 0.32 + 0.78
-			if dist <= size * wobble * 0.55:
+			if dist <= size * wobble * 0.46:
 				return true
 	return false
 
 
 func _macro_stamp_active(rule: Dictionary, mx: int, my: int, spacing: int, salt: int) -> bool:
-	if WG.r01(world_seed, mx, my, 500 + salt) > float(rule.get("chance", 0.1)):
+	if WG.r01(world_seed, mx, my, 500 + salt) > float(rule.get("chance", 0.1)) * SUB_RARITY:
 		return false
 	var center: Vector2i = _macro_stamp_center(mx, my, spacing, salt)
 	var allowed: Array = rule.get("allowedParents", [])
