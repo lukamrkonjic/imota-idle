@@ -46,7 +46,7 @@ func start_combat(enemy_name: String, p_train_skill: String = "attack") -> bool:
 	# (The legacy beastMasteryReq values stay in the data as a reference for that.)
 	var slayer_req := int(e.get("slayerReq", 0))
 	if slayer_req > GameState.level("slayer"):
-		EventBus.combat_log.emit("Slayer level %d required for %s" % [slayer_req, enemy_name])
+		EventBus.combat_log.emit("Slayer level %d required for %s" % [slayer_req, str(e.get("displayName", enemy_name))])
 		return false
 	stop("switching")
 	TickSim.stop("switching")
@@ -64,7 +64,7 @@ func start_combat(enemy_name: String, p_train_skill: String = "attack") -> bool:
 	miss_streak = 0.0
 	kills = 0
 	active = true
-	EventBus.activity_started.emit("combat", "Fighting %s (training %s)" % [enemy_name, train_skill.capitalize()])
+	EventBus.activity_started.emit("combat", "Fighting %s (training %s)" % [_enemy_name(), train_skill.capitalize()])
 	EventBus.enemy_hp_changed.emit(enemy_hp, float(enemy["maxHealth"]))
 	return true
 
@@ -118,6 +118,12 @@ func _auto_eat() -> void:
 # ---------------------------------------------------------- player stats ----
 
 func _style() -> String:
+	# The equipped weapon dictates melee/ranged/magic — a bow always shoots, even if
+	# the player is set to train a melee stat. Falls back to the training style when
+	# unarmed or holding a plain melee weapon.
+	var ws := GameState.weapon_combat_style()
+	if ws != "melee":
+		return ws
 	if train_skill in ["attack", "strength", "defence"]:
 		return "melee"
 	return train_skill  # "ranged" or "magic"
@@ -169,7 +175,19 @@ func crit_chance() -> float:
 
 # --------------------------------------------------------------- attacks ----
 
+## Player damage feedback: melee/magic pop the splat immediately; ranged flies an
+## arrow to the target first, and the arrow triggers the splat on arrival, so the
+## hit lands in sync with the attack tick that fired it.
+func _emit_player_splat(amount: int, miss: bool) -> void:
+	if _style() == "ranged":
+		EventBus.combat_ranged_shot.emit(amount, miss)
+	else:
+		EventBus.combat_hit_splat.emit(amount, miss, false)
+
+
 func _player_attack() -> void:
+	if _style() == "ranged":
+		GameState.remove_item("Arrows", 1)  # spend one arrow per shot (no-op if none)
 	var acc := player_accuracy()
 	# Miss-streak pity (CombatManager.meleeAccuracyBias): +10% after 3 misses,
 	# +20% after 6.
@@ -183,7 +201,7 @@ func _player_attack() -> void:
 	else:
 		miss_streak += 1.0
 		EventBus.combat_log.emit("You miss.")
-		EventBus.combat_hit_splat.emit(0, true, false)
+		_emit_player_splat(0, true)
 		return
 	_apply_player_hit()
 	if active and not respawning and rng.randf() < double_hit_chance():
@@ -219,7 +237,7 @@ func _apply_player_hit() -> void:
 		GameState.add_xp("hitpoints", landed * CombatStyles.HP_XP_PER_DAMAGE)
 	enemy_hp = maxf(enemy_hp - dmg, 0.0)
 	EventBus.combat_log.emit("You hit %s for %.1f%s" % [_enemy_name(), dmg, " (CRIT!)" if is_crit else ""])
-	EventBus.combat_hit_splat.emit(int(roundf(dmg)), dmg <= 0.0, false)
+	_emit_player_splat(int(roundf(dmg)), dmg <= 0.0)
 	EventBus.enemy_hp_changed.emit(enemy_hp, float(enemy["maxHealth"]))
 	if enemy_hp <= 0.0:
 		_on_enemy_killed()

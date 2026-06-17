@@ -198,8 +198,20 @@ static func draw_hand_item(
 			PixelDraw.px_rect(canvas, -6, -1, 2, 3, PixelPalette.shade(metal, 0.82))
 			canvas.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		"bow":
-			var pull := (sin(t * 6.0) * 0.5 + 0.5) if mode == "combat_range" else 0.15
-			_draw_bow(canvas, hx, hy, f, metal, pull)
+			# Charge-to-shot, all on the BOW (the player keeps its normal pose): the
+			# string draws back as the attack tick fills, the bow trembles harder the
+			# more it's drawn, then kicks back with recoil as the arrow looses —
+			# driven by the real combat timer so the release lands on the shot.
+			var pull := 0.12
+			var bx := hx
+			var by := hy
+			if mode == "combat_range" and CombatSim.active:
+				pull = clampf(CombatSim.player_timer / maxf(GameState.attack_interval(), 0.01), 0.0, 1.0)
+				var tremble := sin(t * 46.0) * 0.9 * pull          # draw-tension shake
+				var recoil := (1.0 - smoothstep(0.0, 0.16, pull)) * 3.2  # kick just after release
+				bx += (tremble - recoil) * f
+				by += cos(t * 41.0) * 0.7 * pull
+			_draw_bow(canvas, bx, by, f, metal, pull)
 		"staff":
 			var pulse := sin(t * 5.0) * 1.5 if mode == "combat_magic" else 0.0
 			_draw_staff(canvas, hx, hy, f, pulse, metal)
@@ -269,23 +281,34 @@ static func _draw_fishing_line(canvas: CanvasItem, hand: Vector2, tip: Vector2, 
 
 
 static func _draw_bow(canvas: CanvasItem, gx: float, gy: float, facing: int, metal: Color, pull: float) -> void:
+	# Curve/belly faces FORWARD toward the enemy, dark string + nocked arrow on the
+	# player's side (mirrored on the Y axis from the prior version).
 	var s := float(facing)
 	var wood := PixelPalette.pal("trunk_a")
-	var wood_hi := PixelPalette.shade(wood, 1.12)
+	var wood_hi := PixelPalette.shade(wood, 1.18)
 	var string_col := Color(0.10, 0.08, 0.07)
-	# Mirrored: limbs toward the body, dark string on the outer side.
-	PixelDraw.px_rect(canvas, gx + 9.0 * s, gy - 11.0, 2.0, 14.0, string_col)
-	PixelDraw.px_rect(canvas, gx - 9.0 * s, gy + 1.0, 3.0 * s, 3.0, wood)
-	PixelDraw.px_rect(canvas, gx - 6.0 * s, gy + 3.0, 5.0 * s, 3.0, wood)
-	PixelDraw.px_rect(canvas, gx - 2.0 * s, gy + 4.0, 6.0 * s, 3.0, wood_hi)
-	PixelDraw.px_rect(canvas, gx - 9.0 * s, gy - 7.0, 3.0 * s, 3.0, wood)
-	PixelDraw.px_rect(canvas, gx - 5.0 * s, gy - 10.0, 5.0 * s, 3.0, wood)
-	PixelDraw.px_rect(canvas, gx - 1.0 * s, gy - 12.0, 6.0 * s, 3.0, wood_hi)
-	PixelDraw.px_rect(canvas, gx + 4.0 * s, gy - 13.0, 4.0 * s, 3.0, wood)
-	PixelDraw.px_rect(canvas, gx + 7.0 * s, gy - 12.0, 3.0 * s, 2.0, wood_hi)
-	PixelDraw.px_rect(canvas, gx - 2.0 * s, gy - 2.0, 5.0 * s, 4.0, metal)
+	var cx := gx + 6.0 * s   # bow held a little forward of the grip hand
+	# Tall recurve limb: a vertical bow whose belly bulges FORWARD in the middle and
+	# whose tips curl back toward the string — drawn as a column of short segments.
+	# Each entry is (row_y, forward_bulge).
+	const LIMB := [
+		[-14, 1], [-12, 3], [-10, 4], [-7, 5], [-4, 6], [-1, 6],
+		[2, 6], [5, 5], [8, 4], [11, 3], [13, 1],
+	]
+	for i: int in LIMB.size():
+		var ry: float = float(LIMB[i][0])
+		var fx: float = float(LIMB[i][1])
+		var col: Color = wood_hi if (ry > -5.0 and ry < 3.0) else wood
+		PixelDraw.px_rect(canvas, cx + fx * s, gy + ry, 2.0, 3.0, col)
+	# Bowstring: a straight line down the body side, tip to tip.
+	PixelDraw.px_rect(canvas, cx - 1.0 * s, gy - 14.0, 1.0, 28.0, string_col)
+	# Grip wrap at the belly.
+	PixelDraw.px_rect(canvas, cx + 5.0 * s, gy - 2.0, 3.0, 6.0, PixelPalette.shade(wood, 0.76))
+	# Nocked arrow, drawn back with the string as the shot charges.
 	if pull > 0.05:
-		PixelDraw.px_rect(canvas, gx + 12.0 * s + pull * 5.0 * s, gy - 1.0, 9.0 * s, 2.0, metal)
+		var ax := cx - (1.0 + pull * 6.0) * s
+		PixelDraw.px_rect(canvas, ax, gy - 0.5, (13.0 + pull * 6.0) * s, 1.5, Color(0.45, 0.32, 0.18))
+		PixelDraw.px_rect(canvas, ax + (13.0 + pull * 6.0) * s, gy - 1.5, 2.5 * s, 3.0, PixelPalette.shade(metal, 1.2))
 
 
 static func _draw_staff(canvas: CanvasItem, gx: float, gy: float, facing: int, pulse: float, metal: Color) -> void:

@@ -308,6 +308,22 @@ func equipment_magic_damage() -> float: return _sum_equipment("magicDamage")
 func equipment_crit_chance() -> float: return _sum_equipment("critChance")
 
 
+## Combat style dictated by the EQUIPPED WEAPON: "ranged" for a bow/crossbow,
+## "magic" for a staff/wand, else "melee". This overrides which stat the player is
+## set to train — a bow always shoots at range, it can't be swung as a melee weapon.
+func weapon_combat_style() -> String:
+	var wid := str(equipment.get("Weapon", ""))
+	if wid.is_empty():
+		return "melee"
+	var item: Dictionary = DataRegistry.get_item(wid)
+	var n := str(item.get("name", "")).to_lower()
+	if int(item.get("rangeDamage", 0)) > 0 or n.contains("bow") or n.contains("crossbow") or n.contains("dart") or n.contains("knife"):
+		return "ranged"
+	if int(item.get("magicDamage", 0)) > 0 or n.contains("staff") or n.contains("wand"):
+		return "magic"
+	return "melee"
+
+
 func equipment_bonus_xp(skill: String) -> float:
 	var total := 0.0
 	for slot: String in equipment:

@@ -18,6 +18,7 @@ const WorldAmbience := preload("res://scripts/world/world_ambience.gd")
 const BiomeDebugOverlay := preload("res://scripts/world/biome_debug_overlay.gd")
 const ClickMarkerNode := preload("res://scripts/ui/click_marker_node.gd")
 const HitSplat := preload("res://scripts/world/hit_splat.gd")
+const ArrowProj := preload("res://scripts/world/arrow_proj.gd")
 const PerfLogger := preload("res://scripts/world/perf_logger.gd")
 const BakeQueue := preload("res://scripts/world/bake_queue.gd")
 const EntitySpriteCache := preload("res://scripts/world/entity_sprite_cache.gd")
@@ -186,6 +187,7 @@ func _connect_events() -> void:
 	EventBus.level_up.connect(func(_s: String, _l: int) -> void: _path_ctrl.on_level_up())
 	EventBus.site_respawned.connect(_auto_task_ctrl.on_site_respawned)
 	EventBus.combat_hit_splat.connect(_spawn_hit_splat)
+	EventBus.combat_ranged_shot.connect(_spawn_arrow)
 
 
 func _process(delta: float) -> void:
@@ -271,6 +273,21 @@ func _spawn_hit_splat(amount: int, miss: bool, on_player: bool) -> void:
 	splat.set("follow_offset", off)
 	splat.position = anchor.position + off
 	_click_fx_layer.add_child(splat)
+
+
+## Fly an arrow from the player's bow to the current combat target; the arrow pops
+## the damage splat on arrival (see arrow_proj.gd). Falls back to an instant splat
+## if the target vanished mid-flight.
+func _spawn_arrow(amount: int, miss: bool) -> void:
+	if not is_instance_valid(combat_target_entity):
+		EventBus.combat_hit_splat.emit(amount, miss, false)
+		return
+	var arrow: Node2D = ArrowProj.new()
+	arrow.set("start", player.position + Vector2(0.0, -16.0))
+	arrow.set("end", combat_target_entity.position - Vector2(0.0, 16.0))
+	arrow.set("amount", amount)
+	arrow.set("miss", miss)
+	_click_fx_layer.add_child(arrow)
 
 
 func begin_action(entity: Node2D) -> void:
