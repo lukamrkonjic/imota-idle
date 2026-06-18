@@ -1033,14 +1033,21 @@ static func apply_equipment(rig: Node3D, loadout: Dictionary) -> void:
 		if sock2 == null:
 			continue
 		var spec: Dictionary = loadout[slot]
-		var parts := equip_parts(slot, str(spec.get("kind", "")), str(spec.get("material", "iron")), spec.get("tint", Color(0, 0, 0, 0)), profile)
-		if parts.is_empty():
-			continue
-		var holder := build_node(parts)
+		var kind := str(spec.get("kind", ""))
+		var holder: Node3D
+		if kind == "cape":
+			# A cape is a segmented chain so the renderer can ripple a cheap wave down
+			# it (real flow, not a rigid plank swing) — see _flow_cloth.
+			holder = build_cape(equip_material(str(spec.get("material", "cloth")), spec.get("tint", Color(0, 0, 0, 0))), profile)
+		else:
+			var parts := equip_parts(slot, kind, str(spec.get("material", "iron")), spec.get("tint", Color(0, 0, 0, 0)), profile)
+			if parts.is_empty():
+				continue
+			holder = build_node(parts)
 		holder.name = "equip"
 		# Flag flowing cloth pieces so the renderer can sway them (cheap procedural
 		# secondary motion — no physics). Skirts and capes are the big flowy ones.
-		holder.set_meta("cloth", str(spec.get("kind", "")) in ["robe_bottom", "robe_top", "cape", "hood"])
+		holder.set_meta("cloth", kind in ["robe_bottom", "robe_top", "cape", "hood"])
 		for mi: Node in holder.get_children():
 			if mi is MeshInstance3D:
 				(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -1265,6 +1272,45 @@ static func equip_parts(slot: String, kind: String, mat_key: String, tint: Color
 				_part(_box("eq_cape_clasp", Vector3(cw * 0.5, 0.08, 0.06)), equip_material("gold"), Vector3(0, 0.16, -0.02))]
 		_:
 			return []
+
+
+## A cape built as a short vertical CHAIN of segment pivots (cape_seg0 -> cape_seg1
+## -> ...), each holding one plate, hung from the shoulders. The renderer ripples a
+## cheap traveling sine wave down the chain (a few sin() calls, no physics, no
+## per-vertex work) so the cape billows and trails — cheap enough for potato builds.
+## Sized to the wearer (shoulder width, torso length) so it drapes right on any rig.
+static func build_cape(m: Material, profile: Dictionary) -> Node3D:
+	var shoulder: float = float(profile.get("shoulder", 0.64))
+	var torso: Vector3 = profile.get("torso", Vector3(0.5, 0.56, 0.32))
+	var cw := shoulder * 0.94
+	var segs := 4
+	var seg_len := (torso.y + 0.46) / float(segs)
+	var root := Node3D.new()
+	# Static gold clasp at the collar.
+	var clasp := MeshInstance3D.new()
+	clasp.mesh = _box("eq_cape_clasp", Vector3(cw * 0.5, 0.08, 0.06))
+	clasp.material_override = equip_material("gold")
+	clasp.position = Vector3(0, 0.12, -0.02)
+	clasp.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(clasp)
+	# The chain: each segment hangs off the bottom of the previous one. Slight taper
+	# so it reads as a draped cape, not a board.
+	var parent := root
+	for i: int in segs:
+		var pivot := Node3D.new()
+		pivot.name = "cape_seg%d" % i
+		pivot.position = Vector3(0, 0.08, -0.04) if i == 0 else Vector3(0, -seg_len, 0)
+		parent.add_child(pivot)
+		var width := cw * (1.0 - 0.08 * float(i))
+		var mi := MeshInstance3D.new()
+		mi.mesh = _box("eq_cape_seg%d" % i, Vector3(width, seg_len + 0.02, 0.05))
+		mi.material_override = m
+		mi.position = Vector3(0, -seg_len * 0.5, 0)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		pivot.add_child(mi)
+		parent = pivot
+	root.set_meta("cape_segments", segs)
+	return root
 
 
 ## Beast-folk biped (gnolls): a hunched, muscular hyena-man with a snouted head,

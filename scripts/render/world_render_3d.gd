@@ -898,11 +898,33 @@ func _flow_cloth(node: Node3D, walk: float, t: float, phase: float) -> void:
 		var eq: Node3D = sock.get_node_or_null(^"equip")
 		if eq == null or not bool(eq.get_meta("cloth", false)):
 			continue
+		if int(eq.get_meta("cape_segments", 0)) > 0:
+			_flow_cape(eq, walk, t, phase)
+			continue
 		var amp := 0.45 + walk * 1.7
 		eq.rotation = Vector3(
 			-walk * 0.24 + sin(t * 4.2 + phase) * 0.07 * amp,
 			sin(t * 3.1 + phase) * 0.04 * amp,
 			sin(t * 2.6 + phase * 1.7) * 0.06 * amp)
+
+
+## Cheap cape "cloth sim": a traveling sine wave rolled down the segment chain. Each
+## link lags the one above it (phase offset by depth), so a ripple propagates from
+## the shoulders to the hem; the segments compound, so the cape billows BACK as you
+## move and settles to a gentle idle wave. ~8 sin() calls total — no physics.
+func _flow_cape(eq: Node3D, walk: float, t: float, phase: float) -> void:
+	var trail := 0.07 + walk * 0.24       # backward billow added per link (compounds down)
+	var amp := 0.05 + walk * 0.14         # ripple amplitude per link
+	var seg: Node3D = eq.get_node_or_null(^"cape_seg0")
+	var d := 0
+	while seg != null:
+		var lag := float(d) * 0.7
+		seg.rotation = Vector3(
+			trail + sin(t * 3.4 + phase - lag) * amp,
+			0.0,
+			sin(t * 2.6 + phase * 1.3 - lag) * amp * 0.8)
+		seg = seg.get_node_or_null(NodePath("cape_seg%d" % (d + 1)))
+		d += 1
 
 
 ## Ground-plane (x,z) offset a blob shadow is pushed, matching the direction the
