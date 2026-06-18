@@ -19,7 +19,7 @@ uniform float light_threshold : hint_range(0.0, 1.0)  = 0.62;
 uniform float softness : hint_range(0.0, 0.4) = 0.045;
 // Ambient fill lifts the floor so shadow-facing surfaces stay readable (soft,
 // warm A Short Hike shadows rather than near-black).
-uniform float ambient : hint_range(0.0, 1.0) = 0.16;
+uniform float ambient : hint_range(0.0, 1.0) = 0.12;
 uniform float posterize_steps : hint_range(2.0, 8.0) = 4.0;
 // Gentle canopy/grass sway. 0 = off (trunks, rocks, houses). Per-instance phase
 // from the model origin; taller verts sway more.

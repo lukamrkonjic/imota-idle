@@ -102,7 +102,7 @@ func _build() -> void:
 	env.fog_enabled = true
 	env.fog_light_color = PixelPalette.pal("snow_a").lerp(PixelPalette.pal("gold"), 0.4)
 	env.fog_light_energy = 1.0
-	env.fog_density = 0.0014
+	env.fog_density = 0.0022
 	env.fog_sky_affect = 0.04
 	env.fog_aerial_perspective = 0.06
 	var we := WorldEnvironment.new()
@@ -111,7 +111,8 @@ func _build() -> void:
 
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-38, 40, 0)   # lower afternoon sun -> longer soft shadows
-	sun.light_color = Color(1.0, 0.94, 0.8)   # warm afternoon sun (A Short Hike)
+	sun.light_color = Color(1.0, 0.9, 0.74)   # warm but dim — cozy low-sun glow
+	sun.light_energy = 0.9                     # dimmer key light for a moody mood
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	sun.directional_shadow_max_distance = 90.0
@@ -139,9 +140,9 @@ func _build() -> void:
 
 	_ground_mat = ShaderMaterial.new()
 	_ground_mat.shader = TOON_GROUND
-	_ground_mat.set_shader_parameter("shadow_tint", PixelPalette.pal("forest_green"))
+	_ground_mat.set_shader_parameter("shadow_tint", PixelPalette.pal("forest_teal"))
 	_ground_mat.set_shader_parameter("light_tint", PixelPalette.pal("sunlit_grass"))
-	_ground_mat.set_shader_parameter("ambient", 0.14)
+	_ground_mat.set_shader_parameter("ambient", 0.1)
 	_ground_mat.set_shader_parameter("softness", 0.03)
 
 	_water_mat = ShaderMaterial.new()
@@ -180,9 +181,9 @@ func _build() -> void:
 	_snap_mat.set_shader_parameter("palette_count", PixelPalette.PAL.size())
 	_snap_mat.set_shader_parameter("enabled", 1.0)
 	_snap_mat.set_shader_parameter("strength", 0.8)
-	_snap_mat.set_shader_parameter("contrast", 1.22)
-	_snap_mat.set_shader_parameter("saturation", 1.06)
-	_snap_mat.set_shader_parameter("brightness", 0.88)
+	_snap_mat.set_shader_parameter("contrast", 1.3)
+	_snap_mat.set_shader_parameter("saturation", 1.05)
+	_snap_mat.set_shader_parameter("brightness", 0.74)   # moody dark forest
 	present.material = _snap_mat
 	layer.add_child(present)
 	# Pixelation is controlled from the Settings menu (GameSettings.pixelation).

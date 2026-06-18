@@ -23,15 +23,23 @@ static var _part_cache: Dictionary = {}
 # Soft warm canopy variety (A Short Hike vibe): mostly greens with autumn
 # accents. Original colors — not copied from any game.
 const CANOPY := [
-	Color8(83, 123, 57), Color8(72, 114, 63), Color8(106, 141, 77),    # leaf/mid/moss greens (weighted)
-	Color8(83, 123, 57), Color8(72, 114, 63), Color8(45, 76, 43),
-	Color8(196, 150, 60), Color8(180, 95, 45), Color8(150, 60, 45)]    # deeper gold / orange / red accents
+	Color8(46, 72, 34), Color8(40, 62, 32), Color8(58, 84, 40),    # deep forest greens (weighted)
+	Color8(46, 72, 34), Color8(34, 54, 28), Color8(28, 46, 24),
+	Color8(70, 90, 40), Color8(150, 96, 52), Color8(54, 78, 36)]    # mostly green, one warm accent
 
 static func entity_parts(e: Node) -> Array:
 	match str(e.kind):
 		"tree", "landmark_tree":
-			if TreeArt.classify(str(e.get("label"))) == "fir":
-				return _conifer_parts()
+			var species := TreeArt.classify(str(e.get("label")))
+			var th := absi(hash(str(e.get("label")) + str(int(e.position.x)) + "," + str(int(e.position.y))))
+			if species == "fir":
+				# Conifers split into firs (full cone) and pines (tall, bare trunk).
+				return _pine_parts() if (th % 5) < 2 else _conifer_parts()
+			if species == "maple":
+				return _maple_parts(_maple_mat())
+			# Sprinkle occasional warm maples through the generic broadleaf as accents.
+			if species == "broadleaf" and th % 6 == 0:
+				return _maple_parts(_maple_mat())
 			return _tree_parts(_canopy_mat(e))
 		"rock":
 			return _rock_parts()
@@ -155,9 +163,11 @@ static func dressing_parts(kind: String, variant := 0) -> Array:
 		"hike_lodge":
 			parts = _hike_lodge_parts()
 		"hike_conifer":
-			parts = _hike_conifer_parts(variant)
+			# Replace the old dressing conifer with the real fir/pine models (mixed).
+			parts = _pine_parts() if variant % 2 == 0 else _conifer_parts()
 		"hike_deciduous":
-			parts = _hike_deciduous_parts(variant)
+			# A few camp broadleaves become warm maple accents; the rest stay green.
+			parts = _maple_parts(_maple_mat()) if variant % 4 == 0 else _hike_deciduous_parts(variant)
 		"hike_fence":
 			parts = _hike_fence_parts()
 		"hike_cliff":
@@ -248,6 +258,38 @@ static func _conifer_parts() -> Array:
 		_part(_cone("fir3", 0.36, 0.05, 0.85), dark, Vector3(0.02, 2.95, 0)),
 		_part(_cone("fir_sap_a", 0.42, 0.08, 0.86), dark, Vector3(-0.72, 0.45, 0.38), Vector3(0.85, 0.85, 0.85)),
 		_part(_cone("fir_sap_b", 0.36, 0.06, 0.72), dark, Vector3(0.76, 0.36, -0.26), Vector3(0.82, 0.82, 0.82))]
+
+
+## Pine: tall, with a bare reddish lower trunk and a few broad, well-separated
+## tiers high up (distinct from the full-to-ground fir cone-stack).
+static func _pine_parts() -> Array:
+	var needle := _mat("pine_dark", "forest_teal", "pine_mid")
+	var bark := _mat("trunk_a", "trunk_b", "bark_brown")
+	return [
+		_part(_cyl("pine_trunk", 0.12, 0.2, 2.4), bark, Vector3(0, 1.2, 0)),
+		_part(_cone("pine_t0", 1.1, 0.72, 0.62), needle, Vector3(0, 2.15, 0)),
+		_part(_cone("pine_t1", 0.86, 0.5, 0.56), needle, Vector3(0.05, 2.68, 0)),
+		_part(_cone("pine_t2", 0.6, 0.28, 0.52), needle, Vector3(-0.04, 3.16, 0.02)),
+		_part(_cone("pine_t3", 0.34, 0.04, 0.5), needle, Vector3(0.02, 3.6, 0)),
+		_part(_cone("pine_low", 0.5, 0.12, 0.6), needle, Vector3(-0.62, 1.5, 0.34), Vector3(0.8, 0.8, 0.8))]
+
+
+## Maple: a broad, slightly flattened dome on a stout trunk — warm autumnal
+## foliage so it reads as a cozy accent among the dark firs/pines.
+static func _maple_parts(leaf: ShaderMaterial) -> Array:
+	var bark := _mat("bark_brown", "dark_bark", "trunk_a")
+	return [
+		_part(_cyl("maple_trunk", 0.18, 0.3, 1.45), bark, Vector3(0, 0.72, 0)),
+		_part(_sphere("maple_dome", 1.5), leaf, Vector3(0, 1.95, 0), Vector3(1.3, 0.74, 1.3)),
+		_part(_sphere("maple_l", 1.02), leaf, Vector3(-0.96, 1.66, 0.22), Vector3(1.1, 0.7, 1.1)),
+		_part(_sphere("maple_r", 1.0), leaf, Vector3(0.96, 1.72, -0.2), Vector3(1.1, 0.7, 1.1)),
+		_part(_sphere("maple_top", 0.92), leaf, Vector3(0.04, 2.46, -0.02), Vector3(1.1, 0.82, 1.1)),
+		_part(_sphere("maple_under", 0.52), leaf, Vector3(0.62, 0.66, 0.5), Vector3(1.3, 0.4, 1.0))]
+
+
+## Warm russet/gold canopy for maples (the cozy warm pop in the dark forest).
+static func _maple_mat() -> ShaderMaterial:
+	return _mat("leaf_orange", "leaf_red", "leaf_gold")
 
 
 static func _bush_parts() -> Array:
@@ -685,15 +727,16 @@ static func _hike_pebble_parts() -> Array:
 
 
 static func _hike_leaf_mat(variant: int) -> ShaderMaterial:
+	# Deep-forest greens (moody). Warm autumn now lives only on the maple accents.
 	match variant % 4:
 		0:
-			return _mat("leaf_orange", "leaf_red", "path_light")
+			return _mat("leaf_green", "forest_green", "moss_hi")
 		1:
-			return _mat("leaf_gold", "dirt_b", "gold")
+			return _mat("mid_foliage", "forest_teal", "leaf_green")
 		2:
-			return _mat("leaf_red", "trunk_b", "leaf_orange")
+			return _mat("forest_green", "forest_teal", "mid_foliage")
 		_:
-			return _mat("foliage_c", "grass_dark", "leaf_gold")
+			return _mat("foliage_c", "grass_dark", "moss_hi")
 
 
 static func _fish_parts() -> Array:
