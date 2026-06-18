@@ -82,8 +82,26 @@ var _vfh_cache: Dictionary = {}      # per-frame memo: Vector2i tile -> visual f
 var _batch_xf: Dictionary = {}       # static prop instance_id -> cached world Transform3D
 const _IDENTITY_XF := Transform3D()  # sentinel for "not yet cached" (props never sit at identity)
 var _terrain_built := false          # did a chunk mesh build this frame (stagger batch rebuild off it)
-var _batch_rebuild_t := 0.0          # last static-batch rebuild time (throttle)
+var _batch_rebuild_t := 0.0          # last static-batch rebuild START time (throttle)
 const BATCH_REBUILD_MIN := 0.35      # min seconds between static-batch rebuilds
+# Staged (time-sliced) batch rebuild: the full rebuild is O(all visible props) and spiked to
+# ~70ms at close zoom. We spread it over frames — collect a slice of props, then emit a few
+# MultiMesh groups per frame into a HIDDEN staging node — and swap it in only when complete,
+# so the old batch stays visible meanwhile (no gap) and no single frame does the whole rebuild.
+const RB_COLLECT_PER_FRAME := 150     # props collected per frame (caps height_at samples/frame)
+const RB_EMIT_INSTANCES_PER_FRAME := 500  # instances buffered per frame (caps a giant group's fill)
+var _rb_active := false
+var _rb_phase := 0                   # 0 = collecting, 1 = emitting
+var _rb_list: Array = []             # snapshot [[kind:int 0=decor/1=water/2=ent, node], …]
+var _rb_i := 0                       # phase 0: list index;  phase 1: group-key index
+var _rb_groups: Dictionary = {}
+var _rb_xf: Dictionary = {}
+var _rb_keys: Array = []
+var _rb_sig := ""
+var _rb_staging: Node3D = null
+var _rb_g: Dictionary = {}           # group currently being emitted (filled incrementally)
+var _rb_gbuf := PackedFloat32Array() # its instance buffer, filled across frames
+var _rb_gi := 0                      # instance index within the current group
 var _dressing_sig := ""
 var _spawn_placed := -1               # how many camp-dressing pieces have ground so far
 var _spawn_stable := 0                # frames the placed count has held steady
@@ -1787,67 +1805,141 @@ func _pivot(node: Node3D, pivot_name: String) -> Node3D:
 	return p
 
 
-## Batch all static decor + props into per-(mesh,material) MultiMeshes. Rebuilt
-## only when the static set changes (or a periodic safety pass), not every frame.
-## Static props are batched into MultiMeshes ONCE per change of the prop SET — NOT
-## per player move. The old trigger keyed on the player's chunk + a per-prop distance
-## cull, so crossing any chunk boundary rebuilt every batch (an 8-18ms hitch on every
-## few steps). Now the trigger is just the loaded prop counts (which change only when
-## chunks stream in/out or async decor finishes spawning), the props are gated by
-## chunk-load not player distance (instanced rendering makes the extra props ~free),
-## and rebuilds are throttled so a burst of streaming can't hitch every frame.
+## Batch all static decor + props into per-(mesh,material) MultiMeshes, merged across the
+## whole visible set (draw calls stay minimal — important for low-end GPUs). The rebuild is
+## TIME-SLICED across frames (see RB_* state) so no single frame does the full O(all props)
+## work; the old batch stays visible until the new one is fully built, then swaps in.
 func _sync_static_batches() -> void:
-	var sig := "%s:%d:%d:%d" % [str(world.current_layer), int(world._decor_nodes.size()), int(world._water_decor_nodes.size()), int(world.entities.size())]
-	if sig == _static_sig:
-		return
+	if not _rb_active:
+		var sig := "%s:%d:%d:%d" % [str(world.current_layer), int(world._decor_nodes.size()), int(world._water_decor_nodes.size()), int(world.entities.size())]
+		if sig == _static_sig:
+			return
+		var now := Time.get_ticks_msec() / 1000.0
+		if now - _batch_rebuild_t < BATCH_REBUILD_MIN:
+			return                              # throttle: let a streaming burst settle
+		_batch_rebuild_t = now
+		_start_staged_rebuild(sig)
 	if _terrain_built:
-		return                                  # stagger: never rebuild the batch on a frame
-		                                        # that already built a chunk mesh (avoids the spikes stacking)
-	var now := Time.get_ticks_msec() / 1000.0
-	if now - _batch_rebuild_t < BATCH_REBUILD_MIN:
-		return                                  # throttle: let a streaming burst settle
-	_static_sig = sig
-	_batch_rebuild_t = now
-	for c: Node in batches_root.get_children():
-		c.queue_free()
-	# Static props NEVER move, so their world transform (incl. the costly per-prop terrain
-	# height sample) is computed ONCE and cached by node. A rebuild then only samples the
-	# handful that newly streamed in; persisting props reuse their cached placement. Stale
-	# entries (despawned props) drop out because we rebuild the cache from the live set.
-	var groups := {}
-	var new_xf := {}
+		return                                  # stagger: don't run a slice on a chunk-build frame
+	_advance_staged_rebuild()
+
+
+## Snapshot the current static-prop set for a fresh staged rebuild.
+func _start_staged_rebuild(sig: String) -> void:
+	_rb_active = true
+	_rb_phase = 0
+	_rb_i = 0
+	_rb_groups = {}
+	_rb_xf = {}
+	_rb_sig = sig
+	_rb_list = []
 	for d: Node in world._decor_nodes:
-		if not is_instance_valid(d):
-			continue
-		var id := d.get_instance_id()
-		var pl: Transform3D = _batch_xf.get(id, _IDENTITY_XF)
-		if pl == _IDENTITY_XF:
-			pl = Transform3D(Basis(Vector3.UP, float(int(d.variant)) * 0.131), iso_to_3d(d.position, height_at(d.position)))
-		new_xf[id] = pl
-		_collect(PropMeshes.decor_parts(str(d.kind)), pl, groups)
+		_rb_list.append([0, d])
 	for d: Node in world._water_decor_nodes:
-		if not is_instance_valid(d):
-			continue
-		var id := d.get_instance_id()
-		var pl: Transform3D = _batch_xf.get(id, _IDENTITY_XF)
-		if pl == _IDENTITY_XF:
-			pl = Transform3D(Basis(Vector3.UP, float(int(d.variant)) * 0.17), iso_to_3d(d.position, height_at(d.position) + 0.04))
-		new_xf[id] = pl
-		_collect(PropMeshes.water_decor_parts(str(d.kind)), pl, groups)
+		_rb_list.append([1, d])
 	for e: Node in world.entities:
-		if not is_instance_valid(e) or PropMeshes.is_moving(e):
-			continue
-		var parts: Array = PropMeshes.entity_parts(e)
-		if parts.is_empty():
-			continue
-		var id := e.get_instance_id()
-		var pl: Transform3D = _batch_xf.get(id, _IDENTITY_XF)
-		if pl == _IDENTITY_XF:
-			pl = Transform3D(Basis.IDENTITY, iso_to_3d(e.position, height_at(e.position)))
-		new_xf[id] = pl
-		_collect(parts, pl, groups)
-	_batch_xf = new_xf
-	_emit_groups(groups, batches_root)
+		if is_instance_valid(e) and not PropMeshes.is_moving(e):
+			_rb_list.append([2, e])
+
+
+func _advance_staged_rebuild() -> void:
+	if _rb_phase == 0:
+		# Collect a slice of props into groups. Cached transforms (the costly per-prop terrain
+		# height sample) are reused for props that persisted from the last build.
+		var processed := 0
+		while _rb_i < _rb_list.size() and processed < RB_COLLECT_PER_FRAME:
+			var item: Array = _rb_list[_rb_i]
+			_rb_i += 1
+			processed += 1
+			var kind: int = item[0]
+			var d = item[1]   # UNTYPED: nodes can be freed between snapshot and processing
+			                  # (chunk unloads mid-build); a typed assign would error pre-guard.
+			if not is_instance_valid(d):
+				continue
+			var id: int = d.get_instance_id()
+			var pl: Transform3D = _batch_xf.get(id, _IDENTITY_XF)
+			if kind == 0:
+				if pl == _IDENTITY_XF:
+					pl = Transform3D(Basis(Vector3.UP, float(int(d.variant)) * 0.131), iso_to_3d(d.position, height_at(d.position)))
+				_rb_xf[id] = pl
+				_collect(PropMeshes.decor_parts(str(d.kind)), pl, _rb_groups)
+			elif kind == 1:
+				if pl == _IDENTITY_XF:
+					pl = Transform3D(Basis(Vector3.UP, float(int(d.variant)) * 0.17), iso_to_3d(d.position, height_at(d.position) + 0.04))
+				_rb_xf[id] = pl
+				_collect(PropMeshes.water_decor_parts(str(d.kind)), pl, _rb_groups)
+			else:
+				var parts: Array = PropMeshes.entity_parts(d)
+				if parts.is_empty():
+					continue
+				if pl == _IDENTITY_XF:
+					pl = Transform3D(Basis.IDENTITY, iso_to_3d(d.position, height_at(d.position)))
+				_rb_xf[id] = pl
+				_collect(parts, pl, _rb_groups)
+		if _rb_i >= _rb_list.size():
+			_rb_phase = 1
+			_rb_keys = _rb_groups.keys()
+			_rb_i = 0
+			_rb_staging = Node3D.new()
+			_rb_staging.visible = false         # hidden until fully built — old batch stays up
+			batches_root.add_child(_rb_staging)
+	else:
+		# Emit into the hidden staging node, budgeted by INSTANCES so even one giant group
+		# (e.g. all grass) fills across several frames instead of spiking a single frame.
+		var budget := RB_EMIT_INSTANCES_PER_FRAME
+		while budget > 0 and _rb_i < _rb_keys.size():
+			if _rb_g.is_empty():
+				_rb_g = _rb_groups[_rb_keys[_rb_i]]
+				_rb_gbuf = PackedFloat32Array()
+				_rb_gbuf.resize((_rb_g["xf"] as Array).size() * 12)
+				_rb_gi = 0
+			var xf: Array = _rb_g["xf"]
+			while _rb_gi < xf.size() and budget > 0:
+				var t: Transform3D = xf[_rb_gi]
+				var b := t.basis
+				var o := t.origin
+				var j := _rb_gi * 12
+				_rb_gbuf[j] = b.x.x;     _rb_gbuf[j + 1] = b.y.x;  _rb_gbuf[j + 2] = b.z.x;   _rb_gbuf[j + 3] = o.x
+				_rb_gbuf[j + 4] = b.x.y; _rb_gbuf[j + 5] = b.y.y;  _rb_gbuf[j + 6] = b.z.y;   _rb_gbuf[j + 7] = o.y
+				_rb_gbuf[j + 8] = b.x.z; _rb_gbuf[j + 9] = b.y.z;  _rb_gbuf[j + 10] = b.z.z;  _rb_gbuf[j + 11] = o.z
+				_rb_gi += 1
+				budget -= 1
+			if _rb_gi >= xf.size():
+				_finish_group_mmi(_rb_g, _rb_gbuf, _rb_staging)
+				_rb_g = {}
+				_rb_i += 1
+		if _rb_i >= _rb_keys.size() and _rb_g.is_empty():
+			# Done: reveal the new batch and drop the old one (hide first to avoid a 1-frame
+			# double-draw while queue_free is deferred).
+			for c: Node in batches_root.get_children():
+				if c != _rb_staging:
+					(c as Node3D).visible = false
+					c.queue_free()
+			_rb_staging.visible = true
+			_batch_xf = _rb_xf
+			_static_sig = _rb_sig
+			_rb_active = false
+			_rb_groups = {}
+			_rb_list = []
+			_rb_keys = []
+			_rb_staging = null
+			_rb_gbuf = PackedFloat32Array()
+
+
+## Create a MultiMeshInstance3D for a group from a pre-filled transform buffer.
+func _finish_group_mmi(g: Dictionary, buf: PackedFloat32Array, root: Node3D) -> void:
+	var n := (g["xf"] as Array).size()
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = g["mesh"]
+	mm.instance_count = n
+	if n > 0:
+		mm.buffer = buf
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	mmi.material_override = g["mat"]
+	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	root.add_child(mmi)
 
 
 func _sync_style_dressing() -> void:
@@ -1932,21 +2024,40 @@ func _sync_spawn_dressing() -> void:
 
 func _emit_groups(groups: Dictionary, root: Node3D) -> void:
 	for key: String in groups:
-		var g: Dictionary = groups[key]
-		var mm := MultiMesh.new()
-		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.mesh = g["mesh"]
-		var xf: Array = g["xf"]
-		mm.instance_count = xf.size()
-		for i: int in xf.size():
-			mm.set_instance_transform(i, xf[i])
-		var mmi := MultiMeshInstance3D.new()
-		mmi.multimesh = mm
-		mmi.material_override = g["mat"]
-		# A Short Hike-style soft drop shadows: props/trees/buildings cast onto the
-		# ground (the toon shaders fold the cast region into their shadow band).
-		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-		root.add_child(mmi)
+		_emit_one_group(groups[key], root)
+
+
+## Emit one (mesh,material) group as a MultiMeshInstance3D under `root`.
+func _emit_one_group(g: Dictionary, root: Node3D) -> void:
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = g["mesh"]
+	var xf: Array = g["xf"]
+	var n := xf.size()
+	mm.instance_count = n
+	# Bulk-upload all instance transforms via the buffer in one call. The per-instance
+	# set_instance_transform() loop was far slower; filling a flat PackedFloat32Array
+	# (12 floats = the 3x4 affine, row-major) and assigning it once is cheaper. Layout
+	# per Godot MultiMesh TRANSFORM_3D.
+	var buf := PackedFloat32Array()
+	buf.resize(n * 12)
+	for i: int in n:
+		var t: Transform3D = xf[i]
+		var b := t.basis
+		var o := t.origin
+		var j := i * 12
+		buf[j] = b.x.x;   buf[j + 1] = b.y.x;   buf[j + 2] = b.z.x;   buf[j + 3] = o.x
+		buf[j + 4] = b.x.y; buf[j + 5] = b.y.y;  buf[j + 6] = b.z.y;   buf[j + 7] = o.y
+		buf[j + 8] = b.x.z; buf[j + 9] = b.y.z;  buf[j + 10] = b.z.z;  buf[j + 11] = o.z
+	if n > 0:
+		mm.buffer = buf
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	mmi.material_override = g["mat"]
+	# A Short Hike-style soft drop shadows: props/trees/buildings cast onto the
+	# ground (the toon shaders fold the cast region into their shadow band).
+	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	root.add_child(mmi)
 
 
 func _collect(parts: Array, placement: Transform3D, groups: Dictionary) -> void:
