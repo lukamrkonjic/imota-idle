@@ -42,7 +42,8 @@ var _shore_mat: ShaderMaterial
 var _snap_mat: ShaderMaterial
 var _occ_cache: Dictionary = {}   # global tile -> is_water (deterministic; persists)
 var _chunk_meshes: Dictionary = {}   # chunk key -> Node3D (ground + water)
-var _chunk_nbr: Dictionary = {}      # chunk key -> loaded-neighbour count at last build (seam rebuild)
+var _chunk_nbr: Dictionary = {}      # chunk key -> neighbour-data count at last build (seam reconcile)
+var _chunk_wait: Dictionary = {}     # chunk key -> frames waited for neighbour data (defer fallback)
 var _chunk_by_key: Dictionary = {}   # chunk key -> chunk RefCounted (O(1) height lookup)
 var batches_root: Node3D             # holds the per-(mesh,material) MultiMeshInstance3D
 var dressing_root: Node3D            # visual-only hiking-diorama silhouettes near camera
@@ -462,38 +463,51 @@ func _sync_camera() -> void:
 
 
 ## Build/free per-chunk terrain meshes to match the currently loaded chunks.
+const DEFER_MAX_WAIT := 24   # frames a chunk may wait for neighbour data before force-building
+
 func _sync_terrain() -> void:
-	var live := {}
-	# Pass 1: index ALL loaded chunks first, so terrain sampling sees neighbors
-	# (seamless smooth terrain across chunk borders).
-	_chunk_by_key.clear()
+	var live := {}   # the build set: chunks that should have a terrain mesh (nav ring)
 	for chunk: RefCounted in world.chunk_manager.loaded_chunks():
-		var key: String = chunk.key()
-		live[key] = true
-		_chunk_by_key[key] = chunk
-	# Pass 2: build missing chunk terrain — but only ONE per frame. Each SurfaceTool
-	# build is ~2ms; building several in a frame (fast travel streaming a burst of
-	# chunks) was a visible hitch, so we amortise them across frames.
-	var built := false
+		live[chunk.key()] = true
+	# APRON / HALO: index EVERY chunk with loaded data (a ring larger than the build set),
+	# so building a chunk can sample its neighbour tiles one ring out and compute complete,
+	# matching shared-border corners on the FIRST build — no later seam, no rebuild heal.
+	_chunk_by_key.clear()
+	for chunk: RefCounted in world.chunk_manager.data_chunks():
+		_chunk_by_key[chunk.key()] = chunk
+	# Pass 2 (DEFER): build at most one mesh per frame (each SurfaceTool build is a few ms),
+	# and ONLY a chunk whose 8 neighbours' data is already present, so its borders are
+	# seamless the first time. If nothing qualifies for a while (a world-edge chunk whose
+	# neighbour will never load), fall back to the longest-waiting chunk so terrain still
+	# appears; such a partial build is reconciled by the rebuild pass once data arrives.
+	var pick := ""
 	for key2: String in live:
-		if not _chunk_meshes.has(key2):
-			var node := _build_chunk_terrain(_chunk_by_key[key2])
-			terrain_root.add_child(node)
-			_chunk_meshes[key2] = node
-			_chunk_nbr[key2] = _loaded_nbr_count(key2, live)
-			built = true
+		if not _chunk_meshes.has(key2) and _data_nbr_count(key2) == 8:
+			pick = key2
 			break
-	# Pass 2b: a chunk built BEFORE its neighbours streamed in computed its border corners
-	# from PARTIAL data (heights/colours averaged over fewer tiles, since unloaded tiles
-	# are skipped), leaving a height crack (see-through on steep peaks) and a colour seam
-	# against the neighbour built later with full data. Once more of a chunk's neighbours
-	# are loaded, rebuild it so every shared border uses complete data and matches exactly.
-	# One rebuild per frame, only when no fresh chunk needed building (streaming wins).
-	if not built:
+	if pick == "":
+		var best_w := DEFER_MAX_WAIT
+		for key2: String in live:
+			if _chunk_meshes.has(key2):
+				continue
+			var w := int(_chunk_wait.get(key2, 0)) + 1
+			_chunk_wait[key2] = w
+			if w > best_w:
+				best_w = w
+				pick = key2
+	if pick != "":
+		var node := _build_chunk_terrain(_chunk_by_key[pick])
+		terrain_root.add_child(node)
+		_chunk_meshes[pick] = node
+		_chunk_nbr[pick] = _data_nbr_count(pick)
+		_chunk_wait.erase(pick)
+	else:
+		# Pass 2b: nothing new to build this frame -> reconcile any chunk that was
+		# force-built with partial neighbour data once more of its neighbours have loaded.
 		for key2: String in _chunk_meshes.keys():
 			if not live.has(key2):
 				continue
-			var nc := _loaded_nbr_count(key2, live)
+			var nc := _data_nbr_count(key2)
 			if nc > int(_chunk_nbr.get(key2, -1)):
 				var old: Node = _chunk_meshes[key2]
 				if is_instance_valid(old):
@@ -510,12 +524,13 @@ func _sync_terrain() -> void:
 				mi.queue_free()
 			_chunk_meshes.erase(key)
 			_chunk_nbr.erase(key)
+			_chunk_wait.erase(key)
 	_update_terrain_visibility()
 
 
-# How many of a chunk's 8 neighbours currently have their data loaded. Used to decide
-# when a chunk's terrain must be rebuilt so its shared borders use complete data.
-func _loaded_nbr_count(key: String, live: Dictionary) -> int:
+# How many of a chunk's 8 neighbours currently have their DATA loaded (indexed in the
+# apron). 8 => the chunk can be built with fully complete, seamless shared borders.
+func _data_nbr_count(key: String) -> int:
 	var parts := key.split(":")
 	if parts.size() < 3:
 		return 0
@@ -527,7 +542,7 @@ func _loaded_nbr_count(key: String, live: Dictionary) -> int:
 		for dx: int in [-1, 0, 1]:
 			if dx == 0 and dy == 0:
 				continue
-			if live.has(WG.key(layer, cx + dx, cy + dy)):
+			if _chunk_by_key.has(WG.key(layer, cx + dx, cy + dy)):
 				c += 1
 	return c
 

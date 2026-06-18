@@ -225,6 +225,7 @@ func on_chunk_unloaded(chunk: RefCounted) -> void:
 			world._decor_nodes = world._decor_nodes.filter(keep)
 			world._water_decor_nodes = world._water_decor_nodes.filter(keep)
 			world._roofed_entities = world._roofed_entities.filter(keep)
+			world._activity_ctrl.forget_entities(kids)  # drop despawned mobs from AI state
 		container.queue_free()
 	world._chunk_containers.erase(key)
 	for sk: String in world._site_entities.keys():

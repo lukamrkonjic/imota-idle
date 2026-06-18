@@ -112,7 +112,10 @@ func _update_returning(delta: float) -> void:
 	if _returning.is_empty():
 		return
 	var done: Array = []
-	for entity: Node2D in _returning:
+	# Iterate a key SNAPSHOT with an UNTYPED var: a mob can be freed (its chunk unloaded
+	# while it walked home) and linger as a key here; a typed `Node2D` loop var would
+	# validate-assign that freed instance and crash before the is_instance_valid guard.
+	for entity in _returning.keys():
 		if not is_instance_valid(entity):
 			done.append(entity)
 			continue
@@ -123,7 +126,16 @@ func _update_returning(delta: float) -> void:
 			entity.set_meta("ai_state", "idle")  # reached spawn — free to acquire targets again
 			entity.queue_redraw()
 			done.append(entity)
-	for e: Node2D in done:
+	for e in done:
+		_returning.erase(e)
+
+
+## Drop despawned entities from the AI tracking (called when a chunk unloads and frees
+## its mobs) so the next tick never touches a freed instance.
+func forget_entities(ents: Dictionary) -> void:
+	if _returning.is_empty():
+		return
+	for e in ents.keys():
 		_returning.erase(e)
 
 

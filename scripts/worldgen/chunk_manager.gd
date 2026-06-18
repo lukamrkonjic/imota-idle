@@ -81,6 +81,13 @@ func loaded_chunks() -> Array:
 	return out
 
 
+## Every chunk with loaded DATA — the larger streaming ring, a superset of loaded_chunks().
+## Renderers index this so they can sample a built chunk's NEIGHBOUR tiles (one ring out)
+## and produce seamless shared borders on the first build (the apron / halo pattern).
+func data_chunks() -> Array:
+	return _chunks.values()
+
+
 func terrain_chunk_count() -> int:
 	return _renderers.size()
 
