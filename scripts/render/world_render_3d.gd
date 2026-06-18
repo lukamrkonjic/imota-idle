@@ -508,6 +508,23 @@ func _sync_camera() -> void:
 ## final presented image by it, rounded to whole DISPLAY pixels: the apparent motion is
 ## then smooth to display-pixel precision while every internal texel stays a clean block.
 ## The 2D gameplay world, player position and camera orientation are untouched.
+# Quantise a world position onto the internal PIXEL GRID along the camera's screen axes
+# (depth preserved). Same grid the camera snaps to, so anything snapped with this lands on
+# stable internal texels instead of crawling sub-pixel. Used for moving rigs (the static
+# world is already stable via the camera snap).
+func _snap_to_pixel_grid(pos: Vector3) -> Vector3:
+	if sub == null or sub.size.y <= 0:
+		return pos
+	var wupp := cam.size / float(sub.size.y)
+	if wupp <= 0.0:
+		return pos
+	var b := cam.global_transform.basis
+	var right := b.x
+	var up := b.y
+	var fwd := -b.z
+	return right * (round(pos.dot(right) / wupp) * wupp) + up * (round(pos.dot(up) / wupp) * wupp) + fwd * pos.dot(fwd)
+
+
 func _snap_camera() -> void:
 	if sub == null or sub.size.y <= 0:
 		return
@@ -1227,6 +1244,11 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 		yaw = wrapf(yaw + yvel * sdt, -PI, PI)
 		_mover_yaw_vel[key] = yvel
 		_mover_yaw[key] = yaw
+	# Snap the RENDER position onto the pixel grid so the rig's edges stay crisp instead of
+	# crawling sub-pixel while it walks. Done AFTER the velocity/turn logic above (which used
+	# the smooth position), so walk detection and facing aren't affected; the pose + blob
+	# shadow below both derive from pos3, so they stay aligned.
+	pos3 = _snap_to_pixel_grid(pos3)
 	var phase := float(absi(hash(key)) % 1000) * 0.006283
 	var base: float = float(node.get_meta("base_scale", 1.0))
 	var atk := _attack_progress(key, t)
