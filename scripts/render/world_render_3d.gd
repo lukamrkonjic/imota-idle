@@ -189,19 +189,30 @@ func _build() -> void:
 
 	_water_mat = ShaderMaterial.new()
 	_water_mat.shader = TOON_WATER
-	# Stylized toon ocean: travelling-wave normals shade rolling crests/troughs.
-	_water_mat.set_shader_parameter("base_color", PixelPalette.pal("water_c").lerp(PixelPalette.pal("water_deep"), 0.4))
-	_water_mat.set_shader_parameter("shadow_color", PixelPalette.pal("water_deep"))
-	_water_mat.set_shader_parameter("light_color", PixelPalette.pal("water_spark"))
-	_water_mat.set_shader_parameter("wave_scale", 1.0)
-	_water_mat.set_shader_parameter("wave_speed", 0.9)
-	_water_mat.set_shader_parameter("choppiness", 1.0)
-	_water_mat.set_shader_parameter("foam", 0.3)
+	# Illustrated contour-line water: deep-blue fill + thin domain-warped isolines that
+	# read as hand-drawn topographic loops, plus a narrow turquoise shallow rim. The
+	# pattern is sampled from world-space xz, so it stays glued to the world. Two seamless
+	# FastNoiseLite textures feed it: one shapes the lines, one (coarser) warps + tints.
+	_water_mat.set_shader_parameter("base_color", Color(0.094, 0.345, 0.471))      # #185878 deep
+	_water_mat.set_shader_parameter("secondary_color", Color(0.149, 0.435, 0.557)) # lighter blue
+	_water_mat.set_shader_parameter("line_color", Color(0.235, 0.471, 0.596))      # #3C7898 lines
+	_water_mat.set_shader_parameter("shoreline_color", Color(0.439, 0.753, 0.737)) # #70C0BC rim
+	_water_mat.set_shader_parameter("pattern_scale", 0.15)
+	_water_mat.set_shader_parameter("secondary_pattern_scale", 0.085)
+	_water_mat.set_shader_parameter("contour_count", 6.0)
+	_water_mat.set_shader_parameter("line_width", 0.05)
+	_water_mat.set_shader_parameter("domain_warp_strength", 0.55)
+	_water_mat.set_shader_parameter("animation_strength", 1.0)
+	_water_mat.set_shader_parameter("primary_speed", 0.6)
+	_water_mat.set_shader_parameter("secondary_speed", 0.45)
+	_water_mat.set_shader_parameter("noise_tex", _make_water_noise(0.9, 4, 1))
+	_water_mat.set_shader_parameter("warp_tex", _make_water_noise(0.35, 2, 2))
 
+	# Shoreline rim: a flat turquoise ribbon (#70C0BC) along the coast — the shallow-water
+	# band of the illustrated look. Unshaded so it stays a clean flat colour.
 	_foam_mat = StandardMaterial3D.new()
 	_foam_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_foam_mat.albedo_color = Color(0.96, 0.98, 1.0)   # crisp white foam ribbon
-	_foam_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_foam_mat.albedo_color = Color(0.439, 0.753, 0.737)   # turquoise shallow rim
 	_foam_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 
 	# Present the low-res 3D world at nearest-neighbour, under the HUD (layer 1).
@@ -715,12 +726,33 @@ func _is_rock(tile: String) -> bool:
 	return tile in ROCK_TILES
 
 
+# Build one seamless tiling noise texture for the water shader. `freq_mul` scales the
+# feature size, `oct` the fractal detail, `seed` decorrelates the layers. Generated once
+# at setup; seamless+normalized so it tiles across the whole world without visible seams.
+func _make_water_noise(freq_mul: float, oct: int, seed: int) -> NoiseTexture2D:
+	var fnl := FastNoiseLite.new()
+	fnl.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	fnl.seed = seed
+	fnl.frequency = 0.012 * freq_mul
+	fnl.fractal_type = FastNoiseLite.FRACTAL_FBM
+	fnl.fractal_octaves = oct
+	var tex := NoiseTexture2D.new()
+	tex.width = 256
+	tex.height = 256
+	tex.seamless = true
+	tex.normalize = true
+	tex.noise = fnl
+	return tex
+
+
+# The shoreline turquoise rim is a thin geometry ribbon laid along every water/land tile
+# boundary (more reliable than a depth read, which paints whole shallow basins and shifts
+# with camera angle). Emit only at a CONFIRMED land/shallow neighbour: if the neighbour
+# tile isn't loaded yet (empty) we must NOT assume shore, or a chunk built before its
+# neighbour streamed in would bake a permanent diagonal "chunk line" rim along that
+# interior border.
 func _shoreline_edge(gtx: int, gty: int, edge: Vector2i) -> bool:
 	var other := _tile_info(gtx + edge.x, gty + edge.y)
-	# Foam only at a CONFIRMED land/shallow neighbour. If the neighbour tile isn't
-	# loaded yet (empty) we must NOT assume shore — a chunk built before its neighbour
-	# streamed in would otherwise bake a foam strip along that interior border, leaving
-	# permanent diagonal "chunk line" foam seams once the neighbour loaded.
 	return not other.is_empty() and not bool(other["water"])
 
 

@@ -1,87 +1,86 @@
 shader_type spatial;
-// Stylized toon ocean. Modern approach: sum several directional travelling waves and
-// derive the surface SLOPE analytically, building a smooth PER-PIXEL normal. The toon
-// light ramp then shades real rolling crests and troughs (lit faces toward the sun,
-// shaded faces away), and a height-based foam picks out the wave caps. Everything is
-// world-space + sun-relative — no screen depth, fresnel or view vector — so it reads
-// the SAME from any camera pitch/zoom. Coarse water mesh is fine: the wave detail
-// lives in the fragment normal, not the geometry. Shore foam is separate ribbon mesh.
+// Illustrated stylized water (A Short Hike feel). A mostly-uniform deep-blue surface
+// covered in thin, irregular, INTERCONNECTED wave LINES — like animated topographic
+// contours / hand-drawn loops. The lines come from CONTOUR THRESHOLDS over two layers
+// of domain-warped noise, NOT from sine waves (those read as regular rings/stripes).
+//
+// Everything is sampled from WORLD-SPACE xz + a slow TIME term, so the pattern is glued
+// to the world and never slides when the camera moves/zooms. Flat & graphic: a tiny
+// limited palette, hard edges, just enough AA to stop the low-res buffer flickering.
+// No reflections, normals, gloss or geometry displacement. A narrow depth-based
+// turquoise rim marks the shallow shoreline.
 
-render_mode specular_disabled, ambient_light_disabled, diffuse_lambert, cull_back, blend_mix, depth_prepass_alpha;
+render_mode unshaded, cull_back, blend_mix, depth_prepass_alpha;
 
-uniform vec4 base_color : source_color = vec4(0.31, 0.37, 0.47, 1.0);
-uniform vec4 shadow_color : source_color = vec4(0.23, 0.27, 0.35, 1.0);
-uniform vec4 light_color : source_color = vec4(0.42, 0.48, 0.57, 1.0);
-uniform float ambient : hint_range(0.0, 1.0) = 0.34;
-uniform float alpha : hint_range(0.0, 1.0) = 0.92;
-uniform float posterize_steps : hint_range(2.0, 8.0) = 4.0;
-uniform float wave_scale = 1.0;    // overall ripple size (bigger = smaller waves)
-uniform float wave_speed = 1.0;
-uniform float choppiness : hint_range(0.0, 2.0) = 1.0;   // normal tilt / wave steepness
-uniform float foam : hint_range(0.0, 1.0) = 0.35;        // white wave-cap strength
+// --- palette (4 flat colours) -------------------------------------------------
+uniform vec4 base_color : source_color = vec4(0.094, 0.345, 0.471, 1.0);       // #185878 deep water
+uniform vec4 secondary_color : source_color = vec4(0.149, 0.435, 0.557, 1.0);  // slightly lighter blue
+uniform vec4 line_color : source_color = vec4(0.235, 0.471, 0.596, 1.0);       // #3C7898 contour lines
+uniform vec4 shoreline_color : source_color = vec4(0.439, 0.753, 0.737, 1.0);  // #70C0BC shallow rim
+
+// --- pattern ------------------------------------------------------------------
+uniform float pattern_scale = 0.13;             // world->noise freq for layer 1 (bigger = denser)
+uniform float secondary_pattern_scale = 0.072;  // layer 2 freq (different so it never tiles obviously)
+uniform float contour_count = 5.0;              // isolines drawn across the 0..1 noise range
+uniform float line_width : hint_range(0.0, 0.5) = 0.05;  // half-thickness of a line, in contour units
+uniform float domain_warp_strength = 0.55;      // how much the warp layer bends the lines
+uniform float animation_strength : hint_range(0.0, 2.0) = 1.0;  // global motion multiplier (0 = frozen)
+uniform float primary_speed = 0.6;              // layer 1 + warp drift speed
+uniform float secondary_speed = 0.45;           // layer 2 drift speed (different -> shape morphs)
+
+uniform float alpha : hint_range(0.0, 1.0) = 1.0;  // 1 = solid (no glassy see-through)
+
+// Seamless tiling noise (NoiseTexture2D, single channel). One drives the pattern, the
+// other (lower frequency) bends the sample space and adds the slow colour variation.
+uniform sampler2D noise_tex : repeat_enable, filter_linear;
+uniform sampler2D warp_tex : repeat_enable, filter_linear;
 
 varying vec3 v_world;
 
-// One travelling wave: accumulates height into h and slope (d height / d world.xz)
-// into g. Slope of amp*sin(dot(p,dir)*freq + t) is amp*freq*dir*cos(...).
-void add_wave(vec2 p, vec2 dir, float freq, float amp, float spd, float t, inout float h, inout vec2 g) {
-	float ph = dot(p, dir) * freq + t * spd;
-	h += amp * sin(ph);
-	g += amp * freq * dir * cos(ph);
-}
-
-// Sum of waves -> total height + slope. Big slow swells carry the motion; finer,
-// faster, cross-cutting ripples add detail. Returns height; writes slope to g.
-float ocean(vec2 p, float t, out vec2 g) {
-	// Domain warp: bend the sample space with a slow cross-flow so the wave crests
-	// become long, organic, wandering fronts instead of regular rings or straight
-	// stripes (the "weird lines" look).
-	vec2 q = p + vec2(sin(p.y * 0.13 + t * 0.5), sin(p.x * 0.11 - t * 0.4)) * 1.7;
-	g = vec2(0.0);
-	float h = 0.0;
-	// Dominant swells in SIMILAR directions -> long rolling crests that march across.
-	add_wave(q, normalize(vec2(1.0,  0.32)), 0.34, 0.60, 1.0, t, h, g);   // ~18u swell
-	add_wave(q, normalize(vec2(0.82, 0.58)), 0.52, 0.40, 1.3, t, h, g);   // ~12u swell
-	// Cross chop + fine ripple for surface life.
-	add_wave(q, normalize(vec2(-0.45, 1.0)), 0.95, 0.18, 1.9, t, h, g);   // ~6.6u chop
-	add_wave(q, normalize(vec2( 0.25, 1.0)), 1.60, 0.09, 2.5, t, h, g);   // ~3.9u ripple
-	return h;
-}
-
 void vertex() {
+	// World-space position of this surface point (mesh is built in world coords, but go
+	// through MODEL_MATRIX so it's correct regardless of mesh placement/scale).
 	v_world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	vec2 g;
-	float h = ocean(v_world.xz * wave_scale, TIME * wave_speed, g);
-	VERTEX.y += h * 0.06;   // gentle gross bob (the look comes from the fragment normal)
 }
 
-// Toward the (fixed) sun — a world-space constant, so shading never depends on the
-// camera. Matches the scene's directional light bearing.
-const vec3 SUN = vec3(0.55, 0.66, 0.51);
+// Turn a 0..1 noise field into thin isolines: slice it into `contour_count` levels and
+// light up only the narrow band hugging each level crossing. Width is kept ~constant on
+// screen via fwidth so lines stay 1-2 px at the game's low internal resolution.
+float contour(float n) {
+	float v = n * contour_count;
+	float d = min(fract(v), 1.0 - fract(v));      // distance to nearest isoline (0 = on the line)
+	float aa = fwidth(v) * 0.7 + 0.0008;          // just enough AA to stop low-res flicker
+	return 1.0 - smoothstep(line_width, line_width + aa, d);
+}
 
 void fragment() {
+	vec2 wp = v_world.xz;
+	float t = TIME * animation_strength;
+
+	// Domain warp: a slow low-frequency noise offsets the sample coords so the contour
+	// lines wander into organic loops/bends instead of smooth blobs. Two decorrelated
+	// taps give an x and y offset. Drifts gently along one diagonal.
+	vec2 wuv = wp * (pattern_scale * 0.45) + vec2(0.013, 0.009) * primary_speed * t;
+	float wx = texture(warp_tex, wuv).r;
+	float wy = texture(warp_tex, wuv + vec2(0.37, 0.21)).r;
+	vec2 warp = (vec2(wx, wy) - 0.5) * domain_warp_strength;
+
+	// Layer 1: drifts one way. Layer 2: coarser, drifts a near-perpendicular way at a
+	// different speed, so the combined pattern slowly morphs and never looks repetitive.
+	vec2 uv1 = wp * pattern_scale + warp + vec2(0.006, -0.004) * primary_speed * t;
+	vec2 uv2 = wp * secondary_pattern_scale - warp * 0.6 + vec2(-0.004, 0.007) * secondary_speed * t;
+	float n1 = texture(noise_tex, uv1).r;
+	float n2 = texture(noise_tex, uv2).r;
+	float lines = max(contour(n1), contour(n2));
+
+	// Base: deep blue, with a faint secondary-blue variation from a very low-freq noise
+	// so the field isn't a dead-flat fill (kept subtle — no large gradients/patches).
+	float varn = texture(warp_tex, wp * (pattern_scale * 0.3) + vec2(-0.01, 0.006) * t).r;
+	vec3 col = mix(base_color.rgb, secondary_color.rgb, smoothstep(0.42, 0.66, varn) * 0.6);
+	col = mix(col, line_color.rgb, lines);
+	// Shoreline rim is a separate geometry ribbon (see world_render_3d.gd) using
+	// shoreline_color — reliable narrow width that follows the coast from any angle.
+
+	ALBEDO = col;
 	ALPHA = alpha;
-	ROUGHNESS = 1.0;
-	SPECULAR = 0.0;
-	vec2 g;
-	float h = ocean(v_world.xz * wave_scale, TIME * wave_speed, g);
-	// Surface normal from the wave slope (world space).
-	vec3 wn = normalize(vec3(-g.x * choppiness, 1.0, -g.y * choppiness));
-	// Cell-shaded toon water: posterise a blend of the wave HEIGHT (so crests read
-	// light, troughs dark — flowing filled bands, not thin lines) and a gentle sun
-	// lift off the wave normal. Both world-space -> identical from any camera angle.
-	float v = clamp(h * 0.5 + 0.5, 0.0, 1.0) * 0.65 + clamp(dot(wn, normalize(SUN)), 0.0, 1.0) * 0.35;
-	v = floor(v * posterize_steps + 0.5) / posterize_steps;
-	vec3 col = mix(shadow_color.rgb, base_color.rgb, smoothstep(0.26, 0.46, v));
-	col = mix(col, light_color.rgb, smoothstep(0.62, 0.84, v));
-	// Thin foam crest LINES along the leading face of the tallest waves (height near a
-	// peak AND sloping down-sun) plus soft white caps right at the peaks.
-	float hn = h * 0.5 + 0.5;
-	float crest_line = smoothstep(0.7, 0.78, hn) * (1.0 - smoothstep(0.86, 0.93, hn));
-	float caps = smoothstep(0.9, 0.99, hn);
-	col = mix(col, vec3(0.95, 0.98, 1.0), clamp(crest_line + caps, 0.0, 1.0) * foam);
-	// Unlit: drive the colour entirely through EMISSION so it's fully controlled and
-	// view-independent (no scene light/ambient term creeping in).
-	ALBEDO = vec3(0.0);
-	EMISSION = col;
 }
