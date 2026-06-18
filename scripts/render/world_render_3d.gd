@@ -64,7 +64,11 @@ var _prop_cull := 30.0               # visible prop/decor radius (tiles)
 var _player_node: Node3D
 var _cam_yaw := PI / 4.0          # orbit angle around the player (Left/Right arrows)
 var _cam_pitch := 0.413           # elevation above horizon (Up/Down arrows); matches old iso
-var _pixel_scale := 2.4           # window px per render px (1 = native/no pixelation)
+var _pixel_scale := 3             # INTEGER display px per internal px (nearest-neighbour, no fractional stretch)
+# How the low-res image is placed on the window: an exact integer scale + centred offset.
+# Kept here so screen<->internal-pixel picking math accounts for the integer presentation.
+var _present_scale := 1.0
+var _present_off := Vector2.ZERO
 var _static_sig := ""
 var _ti_cache: Dictionary = {}       # per-frame memo: "gtx,gty" -> tile info (cleared each frame)
 var _cc_cache: Dictionary = {}       # per-frame memo: "ci,cj" -> corner colour
@@ -248,7 +252,10 @@ func _build() -> void:
 	layer.layer = 0
 	world.add_child(layer)
 	present = TextureRect.new()
-	present.set_anchors_preset(Control.PRESET_FULL_RECT)
+	# Sized/positioned explicitly in _apply_pixelation to an EXACT integer scale (centred,
+	# slight overscan) so every internal texel becomes a uniform block — no fractional
+	# stretch (the root cause of pixel crawl). Nearest-neighbour, no mipmaps.
+	present.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	present.texture = sub.get_texture()
 	present.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	present.stretch_mode = TextureRect.STRETCH_SCALE
@@ -294,26 +301,41 @@ func _on_settings_changed(prop: StringName) -> void:
 		_pixel_scale = _scale_from_setting(GameSettings.pixelation)
 
 
-func _scale_from_setting(v: float) -> float:
-	# Verification override: launch with `-- --crisp` to render the world at near
-	# native resolution (no chunky pixelation) so model/equipment detail is legible
-	# in screenshots. Real gameplay keeps the player's Settings pixelation.
+# Discrete INTEGER pixel scales the slider snaps to. Godot recommends integer viewport
+# scaling for pixel art — fractional scales give texels uneven displayed sizes, which is
+# exactly what crawls during motion. Each level is an exact display:internal ratio.
+const PIXEL_LEVELS := [1, 2, 3, 4, 5, 6, 8]
+
+func _scale_from_setting(v: float) -> int:
+	# Verification override: `-- --crisp` renders near-native so detail is legible in shots.
 	if "--crisp" in OS.get_cmdline_args() or "--crisp" in OS.get_cmdline_user_args():
-		return 1.25
-	return 1.0 + clampf(v, 0.0, 1.0) * 7.0
+		return 1
+	var idx := int(round(clampf(v, 0.0, 1.0) * float(PIXEL_LEVELS.size() - 1)))
+	return PIXEL_LEVELS[clampi(idx, 0, PIXEL_LEVELS.size() - 1)]
 
 
-## Fit the SubViewport resolution to the window divided by the pixel scale. Matches
-## the window's aspect (no stretch distortion) and only reallocates when it changes.
+## Size the SubViewport to an INTEGER fraction of the window and present it at that exact
+## integer scale (centred, slight overscan so the integer-scaled image always covers the
+## window — no black bars, no fractional stretch). This is the stable pixel grid: every
+## internal texel maps to a uniform `scale x scale` block of display pixels.
 func _apply_pixelation() -> void:
-	if sub == null:
+	if sub == null or present == null:
 		return
 	var win: Vector2 = world.get_viewport().get_visible_rect().size
 	if win.x < 1.0 or win.y < 1.0:
 		return
-	var sz := Vector2i(maxi(8, int(round(win.x / _pixel_scale))), maxi(8, int(round(win.y / _pixel_scale))))
-	if sz != sub.size:
-		sub.size = sz
+	var scale: int = _pixel_scale
+	# Overscan (ceil) so display = internal * scale >= window: covers it fully, crops
+	# <(scale) px at the edges instead of letterboxing. Both dims are integers.
+	var internal := Vector2i(maxi(8, int(ceil(win.x / float(scale)))), maxi(8, int(ceil(win.y / float(scale)))))
+	if internal != sub.size:
+		sub.size = internal
+	var displayed := internal * scale
+	var off := Vector2(floor((win.x - float(displayed.x)) * 0.5), floor((win.y - float(displayed.y)) * 0.5))
+	present.size = Vector2(displayed)
+	present.position = off
+	_present_scale = float(scale)
+	_present_off = off
 
 
 ## Hide the 2D world visuals — every CanvasItem child of the world root — while
@@ -460,6 +482,30 @@ func _sync_camera() -> void:
 	var dir := Vector3(cos(_cam_pitch) * sin(_cam_yaw), sin(_cam_pitch), cos(_cam_pitch) * cos(_cam_yaw))
 	cam.position = c + dir * CAM_DIST
 	cam.look_at(c + Vector3(0, 0.75, 0), Vector3.UP)
+	_snap_camera()
+
+
+## Pixel-snapped RENDER camera. The follow above is the smooth LOGICAL transform; here we
+## snap only the render camera's screen-plane translation to the internal pixel grid, so
+## coast edges / contour lines / sprites land on the SAME internal texels frame to frame
+## instead of crawling across sub-pixel boundaries. The 2D gameplay world, the player's
+## position, and the camera's orientation are untouched — only this 3D camera's XY-in-view
+## offset is quantised (depth preserved), and everything renders relative to it together.
+func _snap_camera() -> void:
+	if sub == null or sub.size.y <= 0:
+		return
+	var wupp := cam.size / float(sub.size.y)   # world units per internal pixel (KEEP_HEIGHT)
+	if wupp <= 0.0:
+		return
+	var b := cam.global_transform.basis
+	var right := b.x   # camera screen-right (orthonormal)
+	var up := b.y      # camera screen-up
+	var fwd := -b.z    # camera forward (depth) — left unsnapped
+	var p := cam.position
+	var r: float = round(p.dot(right) / wupp) * wupp
+	var u: float = round(p.dot(up) / wupp) * wupp
+	var f: float = p.dot(fwd)
+	cam.position = right * r + up * u + fwd * f
 
 
 ## Build/free per-chunk terrain meshes to match the currently loaded chunks.
@@ -1951,9 +1997,10 @@ func screen_to_iso(screen: Vector2) -> Vector2:
 	var win: Vector2 = world.get_viewport().get_visible_rect().size
 	if win.x <= 0.0 or win.y <= 0.0:
 		return world.get_global_mouse_position()
-	# Window pixel -> SubViewport pixel (the present TextureRect fills the window,
-	# so the mapping is a straight proportional scale into the internal resolution).
-	var sub_px := Vector2(screen.x / win.x, screen.y / win.y) * Vector2(sub.size)
+	# Window pixel -> SubViewport pixel. The present rect is an exact integer scale placed
+	# at `_present_off`, so invert that affine mapping (subtract offset, divide by scale)
+	# rather than assuming it fills the window proportionally.
+	var sub_px := (screen - _present_off) / _present_scale
 	var origin := cam.project_ray_origin(sub_px)
 	var dir := cam.project_ray_normal(sub_px)
 	var hit := _ray_to_ground(origin, dir)
@@ -1972,8 +2019,9 @@ func screen_to_iso(screen: Vector2) -> Vector2:
 func iso_to_screen(pos: Vector2, lift := 0.0) -> Vector2:
 	var p3 := iso_to_3d(pos, height_at(pos) + lift)
 	var sub_px: Vector2 = cam.unproject_position(p3)
-	var win: Vector2 = world.get_viewport().get_visible_rect().size
-	return sub_px / Vector2(sub.size) * win
+	# Internal pixel -> window pixel: the inverse of screen_to_iso's mapping (integer
+	# scale + centred offset), so picking stays aligned with the presented image.
+	return sub_px * _present_scale + _present_off
 
 
 ## World-Y to anchor a hitsplat at, scaled to the mover's size so the splat sits ON
@@ -2004,10 +2052,10 @@ func mover_top(entity: Node) -> float:
 ## Window pixels per world unit (orthographic, vertical) — turns a world-space
 ## pick radius into a screen-space one so tolerance is consistent at any zoom.
 func world_px_per_unit() -> float:
-	if cam == null or cam.size <= 0.0:
+	if cam == null or cam.size <= 0.0 or sub == null:
 		return 1.0
-	var win: Vector2 = world.get_viewport().get_visible_rect().size
-	return win.y / cam.size
+	# Display px per world unit = (internal px per world unit) * integer present scale.
+	return float(sub.size.y) * _present_scale / cam.size
 
 
 ## Intersect a ray with the terrain height field. The surface isn't flat, so we

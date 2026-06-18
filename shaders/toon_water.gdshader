@@ -48,13 +48,22 @@ void vertex() {
 	v_wf = UV.x;
 }
 
-// 0..1 noise -> thin isolines. Slice into `count` levels, light up the narrow band at
-// each crossing. fwidth keeps the line ~1px on screen at any zoom (no fixed-AA flicker).
+// 0..1 noise -> thin isolines. Slice into `count` levels and light up the narrow band at
+// each crossing. The AA half-width is derived from the per-pixel footprint of the contour
+// value (fwidth) and applied SYMMETRICALLY around line_width, so a line ramps smoothly in/
+// out as it crosses an internal pixel instead of popping between 0 and 1 (the crawl/shimmer
+// source). Sub-pixel loops — where the field sweeps a full contour period in under ~1px
+// (w large) — are faded out, since they can only alias, never resolve.
+uniform float aa_strength = 1.1;
+uniform float min_aa = 0.0015;
 float contour(float n, float count) {
 	float v = n * count;
 	float d = min(fract(v), 1.0 - fract(v));
-	float aa = fwidth(v) * 0.8 + 0.0008;
-	return 1.0 - smoothstep(line_width, line_width + aa, d);
+	float w = fwidth(v);
+	float aa = max(w * aa_strength, min_aa);
+	float line = 1.0 - smoothstep(line_width - aa, line_width + aa, d);
+	float tiny = 1.0 - smoothstep(0.45, 0.95, w);   // suppress < ~2px loops (pure aliasing)
+	return line * tiny;
 }
 
 void fragment() {
