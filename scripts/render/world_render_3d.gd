@@ -62,6 +62,10 @@ var _cam_yaw := PI / 4.0          # orbit angle around the player (Left/Right ar
 var _cam_pitch := 0.413           # elevation above horizon (Up/Down arrows); matches old iso
 var _pixel_scale := 2.4           # window px per render px (1 = native/no pixelation)
 var _static_sig := ""
+var _ti_cache: Dictionary = {}       # per-frame memo: "gtx,gty" -> tile info (cleared each frame)
+var _cc_cache: Dictionary = {}       # per-frame memo: "ci,cj" -> corner colour
+var _batch_rebuild_t := 0.0          # last static-batch rebuild time (throttle)
+const BATCH_REBUILD_MIN := 0.35      # min seconds between static-batch rebuilds
 var _dressing_sig := ""
 var _spawn_placed := -1               # how many camp-dressing pieces have ground so far
 var _spawn_stable := 0                # frames the placed count has held steady
@@ -288,6 +292,10 @@ func _process(delta: float) -> void:
 	if not _active or world.player == null:
 		return
 	_maybe_teleport_to_forest_preview()
+	# Per-frame memo for tile-info/corner-colour sampling (terrain build + every mover
+	# height sample hit the same tiles thousands of times in a frame).
+	_ti_cache.clear()
+	_cc_cache.clear()
 	_apply_pixelation()   # keeps render res matched to the window + pixelation slider
 	_update_camera_input(delta)
 	_sync_camera()
@@ -426,12 +434,15 @@ func _sync_terrain() -> void:
 		var key: String = chunk.key()
 		live[key] = true
 		_chunk_by_key[key] = chunk
-	# Pass 2: build any missing chunk terrain.
+	# Pass 2: build missing chunk terrain — but only ONE per frame. Each SurfaceTool
+	# build is ~2ms; building several in a frame (fast travel streaming a burst of
+	# chunks) was a visible hitch, so we amortise them across frames.
 	for key2: String in live:
 		if not _chunk_meshes.has(key2):
 			var node := _build_chunk_terrain(_chunk_by_key[key2])
 			terrain_root.add_child(node)
 			_chunk_meshes[key2] = node
+			break
 	for key: String in _chunk_meshes.keys():
 		if not live.has(key):
 			var mi: Node = _chunk_meshes[key]
@@ -570,6 +581,15 @@ func _corner_height(ci: int, cj: int, hc: Dictionary) -> float:
 
 
 func _corner_color(ci: int, cj: int) -> Color:
+	var ck := "%d,%d" % [ci, cj]
+	if _cc_cache.has(ck):
+		return _cc_cache[ck]
+	var col := _corner_color_compute(ci, cj)
+	_cc_cache[ck] = col
+	return col
+
+
+func _corner_color_compute(ci: int, cj: int) -> Color:
 	var infos := []
 	var families := {}
 	for off: Vector2i in [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(0, 0)]:
@@ -601,7 +621,18 @@ func _corner_color(ci: int, cj: int) -> Color:
 
 
 ## Per-global-tile info {top, water, tile, col}, or {} if the chunk isn't loaded.
+## Memoised for the frame: the terrain build + every mover's height sample hit the
+## same tiles thousands of times, and grading the colour (_grade_ground) is not free.
 func _tile_info(gtx: int, gty: int) -> Dictionary:
+	var cache_key := "%d,%d" % [gtx, gty]
+	if _ti_cache.has(cache_key):
+		return _ti_cache[cache_key]
+	var info := _tile_info_compute(gtx, gty)
+	_ti_cache[cache_key] = info
+	return info
+
+
+func _tile_info_compute(gtx: int, gty: int) -> Dictionary:
 	var ck := WG.tile_to_chunk(Vector2i(gtx, gty))
 	var chunk: RefCounted = _chunk_by_key.get(WG.key(world.current_layer, ck.x, ck.y))
 	if chunk == null:
@@ -942,7 +973,7 @@ func _death_anim(node: Node3D, key: String, pos3: Vector3, t: float, base: float
 	# Limbs relax out of their gait into a loose sprawl as it goes limp.
 	for pv: String in ["leg_l", "leg_r", "arm_l", "arm_r"]:
 		_set_pivot(node, pv, lerpf(0.0, 0.25, p))
-	var spine: Node3D = node.find_child("spine", true, false)
+	var spine: Node3D = _pivot(node, "spine")
 	if spine != null:
 		spine.rotation = spine.rotation.lerp(Vector3.ZERO, clampf(p, 0.0, 1.0))
 	node.rotation = Vector3(tilt, yaw, roll)
@@ -993,7 +1024,7 @@ func _sway_hair(node: Node3D, walk: float, t: float, phase: float) -> void:
 	for hp: String in ["hair", "beard", "mane"]:
 		var p: Node3D = node.get_node_or_null(NodePath(hp))
 		if p == null:
-			p = node.find_child(hp, true, false) as Node3D   # may sit under the spine pivot
+			p = _pivot(node, hp)
 		if p == null:
 			continue
 		var amp := 0.5 + walk * 1.4
@@ -1011,7 +1042,7 @@ func _flow_cloth(node: Node3D, walk: float, t: float, phase: float) -> void:
 	for sock_name: String in ["socket_legs", "socket_back"]:
 		var sock: Node = node.get_node_or_null(NodePath(sock_name))
 		if sock == null:
-			sock = node.find_child(sock_name, true, false)   # back socket sits under the spine pivot
+			sock = _pivot(node, sock_name)
 		if sock == null:
 			continue
 		var eq: Node3D = sock.get_node_or_null(^"equip")
@@ -1162,7 +1193,7 @@ func _pose_goblin(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float
 	node.position = pos3 + Vector3(0, bob + skip + 0.09 - crouch * 0.14, 0)
 	# Spine: near-vertical (just a hint of forward attitude) that twists to glance +
 	# a quick scheming jitter — upright, never toppling.
-	var spine: Node3D = node.find_child("spine", true, false)
+	var spine: Node3D = _pivot(node, "spine")
 	if spine != null:
 		spine.rotation = Vector3(0.12 + walk * 0.05 + twitch, glance, rest * sin(t * 3.0 + phase) * 0.05)
 	# Legs: a fast, light, high-knee scamper from a wide bent-knee stance.
@@ -1209,7 +1240,7 @@ func _pose_gnoll(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float,
 	# Spine: stands UPRIGHT and imposing — chest up, only a slight forward set (ready,
 	# not falling). The snout already juts from the rig; the head dips a touch on each
 	# footfall and snaps up to cackle. Heavy breathing rocks the shoulders.
-	var spine: Node3D = node.find_child("spine", true, false)
+	var spine: Node3D = _pivot(node, "spine")
 	if spine != null:
 		var dip := absf(sin(stride)) * 0.1 * walk
 		spine.rotation = Vector3(0.15 + breathe + dip - cackle, sway * 0.5, 0)
@@ -1350,10 +1381,26 @@ func _combat_face_pos(key: String, moving: bool) -> Variant:
 
 
 func _set_pivot(node: Node3D, pivot_name: String, angle: float) -> void:
+	var p := _pivot(node, pivot_name)
+	if p != null:
+		p.rotation.x = angle
+
+
+## Resolve a named rig pivot, CACHED per rig. Pivots like "arm_l" now sit under the
+## `spine` pivot, so a plain path lookup misses and needs a recursive search — doing
+## that every frame for every mover was the dominant per-frame cost. We resolve once
+## (path, then recursive fallback for nested names) and cache the node (incl. nulls)
+## on the rig, so subsequent frames are a dictionary hit.
+func _pivot(node: Node3D, pivot_name: String) -> Node3D:
+	var cache: Variant = node.get_meta("pivot_cache", null)
+	if cache == null:
+		cache = {}
+		node.set_meta("pivot_cache", cache)
+	if cache.has(pivot_name):
+		var c: Variant = cache[pivot_name]
+		if c == null or is_instance_valid(c):
+			return c
 	var p: Node3D = node.get_node_or_null(NodePath(pivot_name))
-	# Fallback: the named pivot may now sit deeper in the rig (e.g. arms re-parented
-	# under a `spine` pivot for the hunch). Resolve each path segment by recursive
-	# name search so callers keep using short names ("arm_l", "leg_l/knee_l").
 	if p == null:
 		var segs := pivot_name.split("/")
 		var cur: Node = node.find_child(segs[0], true, false)
@@ -1362,39 +1409,43 @@ func _set_pivot(node: Node3D, pivot_name: String, angle: float) -> void:
 				break
 			cur = cur.get_node_or_null(NodePath(segs[i]))
 		p = cur as Node3D
-	if p != null:
-		p.rotation.x = angle
+	cache[pivot_name] = p
+	return p
 
 
 ## Batch all static decor + props into per-(mesh,material) MultiMeshes. Rebuilt
 ## only when the static set changes (or a periodic safety pass), not every frame.
+## Static props are batched into MultiMeshes ONCE per change of the prop SET — NOT
+## per player move. The old trigger keyed on the player's chunk + a per-prop distance
+## cull, so crossing any chunk boundary rebuilt every batch (an 8-18ms hitch on every
+## few steps). Now the trigger is just the loaded prop counts (which change only when
+## chunks stream in/out or async decor finishes spawning), the props are gated by
+## chunk-load not player distance (instanced rendering makes the extra props ~free),
+## and rebuilds are throttled so a burst of streaming can't hitch every frame.
 func _sync_static_batches() -> void:
-	var center := WG.world_to_chunk(world.player.position)
-	var sig := "%s:%d,%d:%d:%d:%d" % [str(world.current_layer), center.x, center.y, int(world._decor_nodes.size()), int(world._water_decor_nodes.size()), int(world.entities.size())]
+	var sig := "%s:%d:%d:%d" % [str(world.current_layer), int(world._decor_nodes.size()), int(world._water_decor_nodes.size()), int(world.entities.size())]
 	if sig == _static_sig:
 		return
+	var now := Time.get_ticks_msec() / 1000.0
+	if now - _batch_rebuild_t < BATCH_REBUILD_MIN:
+		return                                  # throttle: let a streaming burst settle
 	_static_sig = sig
+	_batch_rebuild_t = now
 	for c: Node in batches_root.get_children():
 		c.queue_free()
 	var groups := {}
 	for d: Node in world._decor_nodes:
 		if not is_instance_valid(d):
 			continue
-		if not _near_visual_grid(d.position, _prop_cull):
-			continue
 		var pl := Transform3D(Basis(Vector3.UP, float(int(d.variant)) * 0.131), iso_to_3d(d.position, height_at(d.position)))
 		_collect(PropMeshes.decor_parts(str(d.kind)), pl, groups)
 	for d: Node in world._water_decor_nodes:
 		if not is_instance_valid(d):
 			continue
-		if not _near_visual_grid(d.position, _prop_cull):
-			continue
 		var pl := Transform3D(Basis(Vector3.UP, float(int(d.variant)) * 0.17), iso_to_3d(d.position, height_at(d.position) + 0.04))
 		_collect(PropMeshes.water_decor_parts(str(d.kind)), pl, groups)
 	for e: Node in world.entities:
 		if not is_instance_valid(e) or PropMeshes.is_moving(e):
-			continue
-		if not _near_visual_grid(e.position, _prop_cull):
 			continue
 		var parts: Array = PropMeshes.entity_parts(e)
 		if parts.is_empty():
