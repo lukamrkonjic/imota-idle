@@ -53,9 +53,13 @@ static func _is_cloth(item_name: String) -> bool:
 ## armor overrides these per slot, so the outfit "lives separately" from the body
 ## and from equipped gear. Expand this for alternate player looks later.
 static func player_default() -> Dictionary:
+	# Showcase: a full bronze plate harness (horned great-helm + spiked pauldrons +
+	# cape) so the 3D armour potential is visible by default. Worn items still
+	# override per slot. Swap back to {"body": jerkin, "back": cape} for the plain look.
 	return {
-		"body": {"kind": "jerkin", "material": "leather"},
-		"back": {"kind": "cape", "material": "cloth", "tint": Color(0.78, 0.72, 0.56)},
+		"head": {"kind": "helm", "material": "bronze"},
+		"body": {"kind": "chest", "material": "bronze"},
+		"back": {"kind": "cape", "material": "cloth", "tint": Color(0.62, 0.15, 0.13)},
 	}
 
 

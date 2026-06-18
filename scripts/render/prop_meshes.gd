@@ -891,6 +891,9 @@ static func figure_rig(body: Color, head: Color, cape := Color(0, 0, 0, 0)) -> N
 	_socket(spine, "socket_body", Vector3(0, 0.29, 0))
 	_socket(root, "socket_legs", Vector3(0, 0.95, 0))
 	_socket(spine, "socket_back", Vector3(0, 0.39, -0.16))
+	root.set_meta("body_profile", {
+		"torso": Vector3(0.5, 0.56, 0.32), "head": Vector3(0.36, 0.42, 0.36),
+		"shoulder": 0.6, "hips": Vector3(0.42, 0.18, 0.27)})
 	return root
 
 
@@ -953,6 +956,11 @@ static func player_rig(skin_col: Color) -> Node3D:
 	_socket(root, "socket_body", Vector3(0, 1.24, 0))
 	_socket(root, "socket_legs", Vector3(0, 0.9, 0))
 	_socket(root, "socket_back", Vector3(0, 1.36, -0.16))
+	# Body profile: the bounding boxes worn armor is sized FROM so a piece always
+	# wraps this body (never crops). Read by apply_equipment -> equip_parts.
+	root.set_meta("body_profile", {
+		"torso": Vector3(0.5, 0.6, 0.32), "head": Vector3(0.36, 0.42, 0.36),
+		"shoulder": 0.66, "hips": Vector3(0.46, 0.22, 0.3)})
 	# Posture: the player stands near-upright but relaxed (a touch of lean + arms
 	# resting slightly forward), not ramrod-straight. Read by _pose_humanoid.
 	root.set_meta("lean", 0.04)
@@ -1010,12 +1018,13 @@ static func apply_equipment(rig: Node3D, loadout: Dictionary) -> void:
 		var lp: Node = rig.get_node_or_null(NodePath(legn))
 		if lp != null:
 			(lp as Node3D).visible = not hide_legs
+	var profile: Dictionary = rig.get_meta("body_profile", {})
 	for slot: String in loadout:
 		var sock2: Node3D = rig.get_node_or_null(NodePath("socket_" + slot))
 		if sock2 == null:
 			continue
 		var spec: Dictionary = loadout[slot]
-		var parts := equip_parts(slot, str(spec.get("kind", "")), str(spec.get("material", "iron")), spec.get("tint", Color(0, 0, 0, 0)))
+		var parts := equip_parts(slot, str(spec.get("kind", "")), str(spec.get("material", "iron")), spec.get("tint", Color(0, 0, 0, 0)), profile)
 		if parts.is_empty():
 			continue
 		var holder := build_node(parts)
@@ -1043,6 +1052,7 @@ static func equip_material(mat_key: String, tint := Color(0, 0, 0, 0)) -> Shader
 		"rune": base = Color(0.34, 0.64, 0.72)
 		"gold": base = Color(0.86, 0.7, 0.26)
 		"wood": base = Color(0.46, 0.32, 0.18)
+		"bone": base = Color(0.9, 0.86, 0.73)        # horns / ivory trim
 		"gem": base = tint if tint.a > 0.0 else Color(0.45, 0.74, 0.95)
 		_: base = Color(0.52, 0.52, 0.58)
 	return _mat_from(base, base.darkened(0.4), base.lightened(0.3))
@@ -1050,10 +1060,15 @@ static func equip_material(mat_key: String, tint := Color(0, 0, 0, 0)) -> Shader
 
 ## Build the meshes for one equipped piece. Weapons are built extending +Y from the
 ## grip so they swing naturally from the hand socket; armor wraps its socket centre.
-static func equip_parts(slot: String, kind: String, mat_key: String, tint: Color) -> Array:
+static func equip_parts(slot: String, kind: String, mat_key: String, tint: Color, profile := {}) -> Array:
 	var m := equip_material(mat_key, tint)
 	var gold := equip_material("gold")
 	var dark := equip_material("leather")
+	# Body dimensions this armor must wrap (so it never crops the model it's worn on).
+	# Falls back to a generic humanoid when a rig declares no profile.
+	var torso: Vector3 = profile.get("torso", Vector3(0.5, 0.56, 0.32))
+	var headb: Vector3 = profile.get("head", Vector3(0.36, 0.4, 0.36))
+	var shoulder: float = float(profile.get("shoulder", 0.64))
 	match kind:
 		"staff":
 			var wood := equip_material("wood")
@@ -1118,14 +1133,39 @@ static func equip_parts(slot: String, kind: String, mat_key: String, tint: Color
 				_part(_box("eq_shield_" + mat_key, Vector3(0.36, 0.46, 0.06)), m, Vector3(0, 0, 0.04)),
 				_part(_box("eq_shield_boss", Vector3(0.12, 0.12, 0.04)), gold, Vector3(0, 0, 0.09))]
 		"helm":
-			return [
-				_part(_box("eq_helm", Vector3(0.37, 0.27, 0.37)), m, Vector3(0, 0.05, 0)),
-				_part(_box("eq_helm_nasal", Vector3(0.05, 0.18, 0.04)), m, Vector3(0, -0.02, 0.19))]
+			# Epic horned great-helm, sized to wrap the head (never crops). A full dome,
+			# a brow ridge over a dark visor slit, a crest fin, and two big curved horns.
+			var bone := equip_material("bone")
+			var hw := headb.x
+			var hh := headb.y
+			var hd := headb.z
+			var ph: Array = [
+				_part(_box("eq_gh_dome", Vector3(hw + 0.1, hh + 0.08, hd + 0.1)), m, Vector3(0, 0.06, 0)),
+				# Tapered face mask (narrower at the chin) so it reads as a forged helm.
+				_part(_box("eq_gh_face", Vector3(hw - 0.04, hh * 0.5, hd + 0.06)), m, Vector3(0, -hh * 0.22, 0.03)),
+				_part(_box("eq_gh_brow", Vector3(hw + 0.12, 0.08, hd + 0.07)), gold, Vector3(0, hh * 0.18, 0.02)),
+				_part(_box("eq_gh_visor", Vector3(hw * 0.72, 0.06, 0.05)), dark, Vector3(0, hh * 0.04, hd * 0.5 + 0.07)),
+				_part(_box("eq_gh_nasal", Vector3(0.07, hh * 0.34, 0.05)), gold, Vector3(0, -hh * 0.16, hd * 0.5 + 0.06)),
+				_part(_box("eq_gh_crest", Vector3(0.07, 0.2, hd * 0.95)), gold, Vector3(0, hh * 0.58 + 0.04, 0))]
+			# Cheek guards angling in toward the chin.
+			for cs: int in [-1, 1]:
+				ph.append(_part(_box("eq_gh_cheek", Vector3(0.06, hh * 0.4, hd * 0.5)), m, Vector3((hw * 0.5 - 0.01) * cs, -hh * 0.14, hd * 0.3), Vector3.ONE, Vector3(0, 0, 0.18 * cs)))
+			# Two heavy horns: a thick base sweeping outward, then curling up to a point.
+			for hsd: int in [-1, 1]:
+				var bx := (hw * 0.5) * hsd
+				ph.append(_part(_cone("eq_horn_b", 0.09, 0.062, 0.24), bone, Vector3(bx, hh * 0.18, 0.0), Vector3.ONE, Vector3(0, 0, -0.5 * hsd)))
+				ph.append(_part(_cone("eq_horn_m", 0.062, 0.04, 0.28), bone, Vector3(bx + 0.15 * hsd, hh * 0.44, 0.0), Vector3.ONE, Vector3(0, 0, -0.9 * hsd)))
+				ph.append(_part(_cone("eq_horn_t", 0.04, 0.004, 0.3), bone, Vector3(bx + 0.3 * hsd, hh * 0.82, -0.01), Vector3.ONE, Vector3(0, 0, -0.4 * hsd)))
+			return ph
 		"hood":
+			# Sized from the head box so the cowl always covers it.
+			var hw := headb.x
+			var hh := headb.y
+			var hd := headb.z
 			return [
-				_part(_box("eq_hood", Vector3(0.42, 0.38, 0.42)), m, Vector3(0, 0.05, -0.02)),
-				_part(_box("eq_hood_pt", Vector3(0.16, 0.22, 0.16)), m, Vector3(0, 0.22, -0.1), Vector3.ONE, Vector3(-0.5, 0, 0)),
-				_part(_box("eq_hood_drape", Vector3(0.38, 0.36, 0.08)), m, Vector3(0, -0.08, -0.22))]
+				_part(_box("eq_hood", Vector3(hw + 0.1, hh + 0.0, hd + 0.1)), m, Vector3(0, 0.04, -0.02)),
+				_part(_box("eq_hood_pt", Vector3(0.16, 0.22, 0.16)), m, Vector3(0, hh * 0.55, -0.1), Vector3.ONE, Vector3(-0.5, 0, 0)),
+				_part(_box("eq_hood_drape", Vector3(hw, hh * 0.9, 0.08)), m, Vector3(0, -hh * 0.5, -hd * 0.55))]
 		"wizard_hat":
 			# Tall pointed witch hat: a wide drooping brim that shadows the face, a
 			# cone that bends forward at the tip, and a buckled hat band.
@@ -1137,34 +1177,64 @@ static func equip_parts(slot: String, kind: String, mat_key: String, tint: Color
 				_part(_box("eq_what_band", Vector3(0.35, 0.08, 0.35)), band, Vector3(0, 0.12, 0)),
 				_part(_box("eq_what_buckle", Vector3(0.11, 0.1, 0.04)), gold, Vector3(0, 0.12, 0.19))]
 		"chest":
-			return [
-				_part(_box("eq_chest_" + mat_key, Vector3(0.5, 0.52, 0.32)), m, Vector3(0, 0, 0)),
-				_part(_box("eq_pauld", Vector3(0.62, 0.14, 0.36)), m, Vector3(0, 0.24, 0))]
+			# Epic full plate, sized to wrap the torso (never crops): a full back/side
+			# shell, a sculpted domed breastplate + abs, layered faulds over the hips, a
+			# gorget closing the neck, gold trim, and big spiked pauldrons on the shoulders.
+			var trimm := equip_material("gold")
+			var w := torso.x
+			var hh := torso.y
+			var d := torso.z
+			var pc: Array = [
+				_part(_box("eq_pl_shell_" + mat_key, Vector3(w + 0.12, hh + 0.02, d + 0.14)), m, Vector3(0, 0, -0.01)),
+				_part(_box("eq_pl_chest_" + mat_key, Vector3(w + 0.09, hh * 0.5, d + 0.18)), m, Vector3(0, hh * 0.16, 0.03)),
+				_part(_box("eq_pl_ab_" + mat_key, Vector3(w - 0.02, hh * 0.32, d + 0.14)), m, Vector3(0, -hh * 0.12, 0.03)),
+				_part(_box("eq_pl_fauld1_" + mat_key, Vector3(w + 0.06, hh * 0.18, d + 0.16)), m, Vector3(0, -hh * 0.4, 0.0)),
+				_part(_box("eq_pl_fauld2_" + mat_key, Vector3(w - 0.04, hh * 0.18, d + 0.12)), m, Vector3(0, -hh * 0.54, 0.0)),
+				_part(_box("eq_pl_gorget_" + mat_key, Vector3(w * 0.64, 0.16, d * 0.94)), m, Vector3(0, hh * 0.46, 0.0)),
+				_part(_box("eq_pl_collar", Vector3(w * 0.82, 0.08, d + 0.1)), trimm, Vector3(0, hh * 0.33, 0.03)),
+				_part(_box("eq_pl_ridge", Vector3(0.06, hh * 0.48, 0.05)), trimm, Vector3(0, hh * 0.02, d * 0.5 + 0.07)),
+				_part(_box("eq_pl_emblem", Vector3(0.2, 0.22, 0.05)), trimm, Vector3(0, -hh * 0.02, d * 0.5 + 0.08)),
+				_part(_box("eq_pl_belt", Vector3(w + 0.02, 0.09, d + 0.1)), trimm, Vector3(0, -hh * 0.3, 0.0))]
+			# Big layered pauldrons: a broad dome + a lower lame skirt, gold rim, big spike.
+			for ssd: int in [-1, 1]:
+				var px := (shoulder * 0.5) * ssd
+				pc.append(_part(_sphere("eq_pauld_dome", 0.27), m, Vector3(px, hh * 0.44, 0.0), Vector3(1.3, 1.0, 1.35)))
+				pc.append(_part(_sphere("eq_pauld_lame", 0.23), m, Vector3(px + 0.02 * ssd, hh * 0.28, 0.0), Vector3(1.35, 0.62, 1.4)))
+				pc.append(_part(_box("eq_pauld_lip", Vector3(0.42, 0.07, 0.46)), trimm, Vector3(px, hh * 0.2, 0.0)))
+				pc.append(_part(_cone("eq_pauld_spike", 0.09, 0.003, 0.42), trimm, Vector3(px + 0.07 * ssd, hh * 0.72, 0.0), Vector3.ONE, Vector3(0, 0, -0.3 * ssd)))
+			return pc
 		"jerkin":
-			# Adventurer's leather vest: a jerkin + shoulder yoke, a diagonal bandolier
-			# strap across the chest, a buckled waist belt and a belt pouch.
+			# Adventurer's leather vest, sized to wrap the torso (no crop): a jerkin +
+			# shoulder yoke, a diagonal bandolier strap, a buckled waist belt and a pouch.
 			var hide := equip_material("leather")
 			var strap := _mat_from(Color(0.3, 0.2, 0.12), Color(0.18, 0.11, 0.06), Color(0.44, 0.31, 0.18))
 			var buckle := equip_material("gold")
+			var w := torso.x
+			var hh := torso.y
+			var d := torso.z
 			return [
-				_part(_box("eq_jerkin", Vector3(0.5, 0.5, 0.33)), hide, Vector3(0, 0.0, 0)),
-				_part(_box("eq_jerkin_yoke", Vector3(0.6, 0.15, 0.38)), hide, Vector3(0, 0.26, 0)),
-				_part(_box("eq_baldric", Vector3(0.09, 0.66, 0.36)), strap, Vector3(0, 0.0, 0.0), Vector3.ONE, Vector3(0, 0, 0.5)),
-				_part(_box("eq_belt", Vector3(0.54, 0.1, 0.36)), strap, Vector3(0, -0.22, 0)),
-				_part(_box("eq_belt_buckle", Vector3(0.1, 0.1, 0.04)), buckle, Vector3(0, -0.22, 0.19)),
-				_part(_box("eq_pouch", Vector3(0.13, 0.14, 0.08)), hide, Vector3(0.18, -0.27, 0.17))]
+				_part(_box("eq_jerkin", Vector3(w + 0.06, hh + 0.0, d + 0.06)), hide, Vector3(0, 0.0, 0)),
+				_part(_box("eq_jerkin_yoke", Vector3(w + 0.16, 0.16, d + 0.1)), hide, Vector3(0, hh * 0.44, 0)),
+				_part(_box("eq_baldric", Vector3(0.09, hh + 0.12, d + 0.06)), strap, Vector3(0, 0.0, 0.0), Vector3.ONE, Vector3(0, 0, 0.5)),
+				_part(_box("eq_belt", Vector3(w + 0.1, 0.1, d + 0.08)), strap, Vector3(0, -hh * 0.42, 0)),
+				_part(_box("eq_belt_buckle", Vector3(0.1, 0.1, 0.04)), buckle, Vector3(0, -hh * 0.42, d * 0.5 + 0.05)),
+				_part(_box("eq_pouch", Vector3(0.13, 0.14, 0.08)), hide, Vector3(0.18, -hh * 0.5, d * 0.5 + 0.03))]
 		"robe_top":
 			# A full robe that encloses the torso, a shoulder mantle + high collar that
 			# hide the neck gap, a red scarf, and a couple of belt straps for layering.
 			var trim := equip_material(mat_key, tint.darkened(0.22) if tint.a > 0.0 else Color(0, 0, 0, 0))
 			var scarf := _mat_from(Color(0.74, 0.16, 0.14), Color(0.5, 0.08, 0.08), Color(0.86, 0.32, 0.26))
+			# Sized to wrap the torso generously (cloth drapes a touch looser than plate).
+			var w := torso.x + 0.1
+			var hh := torso.y + 0.08
+			var d := torso.z + 0.1
 			return [
-				_part(_box("eq_robetop", Vector3(0.56, 0.66, 0.4)), m, Vector3(0, 0.02, 0)),
-				_part(_box("eq_robe_mantle", Vector3(0.66, 0.2, 0.46)), trim, Vector3(0, 0.3, 0)),
-				_part(_box("eq_robe_collar", Vector3(0.26, 0.2, 0.26)), trim, Vector3(0, 0.43, 0)),
-				_part(_box("eq_robe_scarf", Vector3(0.14, 0.24, 0.1)), scarf, Vector3(0, 0.1, 0.21)),
-				_part(_box("eq_robe_strap1", Vector3(0.58, 0.05, 0.42)), trim, Vector3(0, -0.1, 0)),
-				_part(_box("eq_robe_strap2", Vector3(0.58, 0.05, 0.42)), trim, Vector3(0, -0.24, 0))]
+				_part(_box("eq_robetop", Vector3(w, hh, d)), m, Vector3(0, 0.02, 0)),
+				_part(_box("eq_robe_mantle", Vector3(w + 0.1, 0.2, d + 0.06)), trim, Vector3(0, hh * 0.44, 0)),
+				_part(_box("eq_robe_collar", Vector3(0.26, 0.2, 0.26)), trim, Vector3(0, hh * 0.62, 0)),
+				_part(_box("eq_robe_scarf", Vector3(0.14, 0.24, 0.1)), scarf, Vector3(0, hh * 0.15, d * 0.5 + 0.01)),
+				_part(_box("eq_robe_strap1", Vector3(w + 0.02, 0.05, d + 0.02)), trim, Vector3(0, -hh * 0.18, 0)),
+				_part(_box("eq_robe_strap2", Vector3(w + 0.02, 0.05, d + 0.02)), trim, Vector3(0, -hh * 0.36, 0))]
 		"robe_bottom":
 			# Long, wide skirt that fully covers the legs to the ground, with a darker
 			# layered hem, a waist band, and little curled boot tips peeking out front.
@@ -1177,7 +1247,13 @@ static func equip_parts(slot: String, kind: String, mat_key: String, tint: Color
 				_part(_box("eq_robe_boot", Vector3(0.13, 0.1, 0.2)), boot, Vector3(-0.12, -0.97, 0.15)),
 				_part(_box("eq_robe_boot", Vector3(0.13, 0.1, 0.2)), boot, Vector3(0.12, -0.97, 0.15))]
 		"cape":
-			return [_part(_box("eq_cape", Vector3(0.36, 0.62, 0.06)), m, Vector3(0, -0.18, -0.02), Vector3.ONE, Vector3(0.16, 0, 0))]
+			# Hangs from the shoulders (socket_back) and drapes down past the hips, as
+			# wide as the shoulders — scales to the wearer so it never sits oddly.
+			var cw := shoulder * 0.92
+			var cl := torso.y + 0.55
+			return [
+				_part(_box("eq_cape", Vector3(cw, cl, 0.05)), m, Vector3(0, -cl * 0.36, -0.03), Vector3.ONE, Vector3(0.16, 0, 0)),
+				_part(_box("eq_cape_clasp", Vector3(cw * 0.5, 0.08, 0.06)), equip_material("gold"), Vector3(0, 0.16, -0.02))]
 		_:
 			return []
 
@@ -1228,6 +1304,9 @@ static func beastman_rig(spec: Dictionary) -> Node3D:
 	_socket(spine, "socket_body", Vector3(0, 0.32, 0.06))
 	_socket(root, "socket_legs", Vector3(0, 0.86, 0))
 	_socket(spine, "socket_back", Vector3(0, 0.46, -0.14))
+	root.set_meta("body_profile", {
+		"torso": Vector3(0.58, 0.62, 0.42), "head": Vector3(0.36, 0.36, 0.4),
+		"shoulder": 0.72, "hips": Vector3(0.48, 0.28, 0.32)})
 	return root
 
 
