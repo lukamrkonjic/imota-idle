@@ -213,8 +213,11 @@ func execute_action(action: Dictionary) -> void:
 		"gather":
 			_start_gather(action)
 		"enemy":
-			if CombatSim.start_combat(str(action["name"]), str(world.hud.call("train_style"))):
-				world.combat_target_entity = entity
+			# If the target entity was freed before we arrived (its chunk unloaded), don't
+			# start a phantom fight against a null target — there's nothing left to fight.
+			if entity != null and is_instance_valid(entity):
+				if CombatSim.start_combat(str(action["name"]), str(world.hud.call("train_style"))):
+					world.combat_target_entity = entity
 		"station":
 			var st := str(action["station"])
 			var open := str(STATION_OPEN.get(st, ""))
