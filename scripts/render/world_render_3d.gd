@@ -193,12 +193,10 @@ func _build() -> void:
 	_water_mat.set_shader_parameter("base_color", PixelPalette.pal("water_c").lerp(PixelPalette.pal("water_deep"), 0.28))
 	_water_mat.set_shader_parameter("shadow_color", PixelPalette.pal("water_deep"))
 	_water_mat.set_shader_parameter("light_color", PixelPalette.pal("water_spark"))
-	_water_mat.set_shader_parameter("foam_color", Color(0.96, 0.98, 1.0))
-	_water_mat.set_shader_parameter("foam_strength", 0.35)
-	_water_mat.set_shader_parameter("foam_dist", 1.5)
 	_water_mat.set_shader_parameter("wave_amp", 0.05)
 	_water_mat.set_shader_parameter("wave_speed", 1.0)
 	# Flowing world-space contour lines (the surface texture) — camera-independent.
+	# (Shore foam is the separate foam-ribbon geometry, not a view-dependent depth test.)
 	_water_mat.set_shader_parameter("line_strength", 0.32)
 
 	_foam_mat = StandardMaterial3D.new()
