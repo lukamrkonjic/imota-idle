@@ -100,6 +100,11 @@ static func entity_parts(e: Node) -> Array:
 			return _bridge_parts()
 		"city_prop":
 			return _city_prop_parts(str(e.get("prop_kind")))
+		"decor":
+			# A single ground-clutter model placed as a standalone entity (so the world
+			# editor can drop any decor kind — mushroom, fern, reeds, flowers, …). Same
+			# meshes the procedural ground scatter uses.
+			return decor_parts(str(e.get("prop_kind")))
 		_:
 			return []
 

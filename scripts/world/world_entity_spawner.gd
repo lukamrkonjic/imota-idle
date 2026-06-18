@@ -502,6 +502,19 @@ func _spawn_poi_part(chunk: RefCounted, poi: Dictionary, part: Dictionary, conta
 		"city_prop":
 			e.prop_kind = str(part.get("prop", "crate"))
 			e.variant = absi(hash(e.prop_kind + chunk.key() + str(part["tx"]) + ":" + str(part["ty"]))) % 1000
+		"decor":
+			# A standalone ground-clutter model (editor-placed). prop carries the decor
+			# kind (mushroom/fern/reed/flower/shrub/grass/pebble/…). Not interactable.
+			e.prop_kind = str(part.get("prop", "grass"))
+			e.display_size = 22.0
+			e.click_radius = 0.0
+			e.variant = absi(hash("decor" + e.prop_kind + chunk.key() + str(part["tx"]) + ":" + str(part["ty"]))) % 1000
+		"tree", "rock", "bush", "node":
+			# Editor-placed decorative nature (label picks the tree species); varied per
+			# tile, not a gather node, so it just stands there as scenery.
+			e.variant = absi(hash(kind + str(e.label) + chunk.key() + str(part["tx"]) + ":" + str(part["ty"]))) % 1000
+			if kind == "tree":
+				e.display_size = 90.0
 		"bridge":
 			pass  # purely decorative deck over the canal
 		"fountain":

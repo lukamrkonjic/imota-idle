@@ -54,6 +54,19 @@ const STRUCTURES := [
 	["Broken arch", {"kind": "ruin_arch", "label": "Ruins"}], ["Broken pillar", {"kind": "ruin_pillar"}],
 	["Broken wall", {"kind": "broken_wall"}], ["Rubble", {"kind": "rubble_pile"}],
 	["Broken statue", {"kind": "broken_statue", "label": "Statue"}],
+	# Props/scenery models (each renders as its own 3D entity in-game).
+	["Stall", {"kind": "stall", "label": "Stall"}], ["Lantern", {"kind": "lantern"}],
+	["Bridge", {"kind": "bridge"}], ["Mammoth", {"kind": "mammoth", "label": "Mammoth"}],
+	["Meteor", {"kind": "meteor", "label": "Meteor"}],
+	# Nature models (decorative — tree label picks the species).
+	["Tree (oak)", {"kind": "tree", "label": "Oak Tree"}], ["Tree (pine)", {"kind": "tree", "label": "Pine Tree"}],
+	["Tree (fir)", {"kind": "tree", "label": "Fir Tree"}], ["Tree (maple)", {"kind": "tree", "label": "Maple Tree"}],
+	["Rock", {"kind": "rock"}], ["Bush", {"kind": "bush"}],
+	# Ground-clutter decor placed as standalone models.
+	["Mushroom", {"kind": "decor", "prop": "mushroom"}], ["Flowers", {"kind": "decor", "prop": "flower"}],
+	["Fern", {"kind": "decor", "prop": "fern"}], ["Reeds", {"kind": "decor", "prop": "reed"}],
+	["Shrub", {"kind": "decor", "prop": "shrub"}], ["Grass tuft", {"kind": "decor", "prop": "grass"}],
+	["Pebbles", {"kind": "decor", "prop": "pebble"}],
 ]
 
 const ROOF_COLORS := ["7a3b3b", "3b5a7a", "4a6b3a", "6b5a3a", "5a3b6b", "7a6b3a"]
