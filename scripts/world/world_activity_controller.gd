@@ -153,7 +153,10 @@ func _attack_gap(entity: Node2D) -> float:
 	var size := float(entity.get("display_size")) if entity.get("display_size") != null else 40.0
 	if bool(entity.get("is_boss")):
 		size *= 1.2
-	return WG.TILE * (0.85 + size / 130.0)
+	# Small fixed margin (the player's half-width) + a term that grows with the mob's
+	# footprint, so normal mobs fight up close while big/huge mobs automatically keep
+	# enough distance not to clip. Tuned closer than before per feedback.
+	return WG.TILE * (0.55 + size / 115.0)
 
 
 func begin_action(entity: Node2D) -> void:
