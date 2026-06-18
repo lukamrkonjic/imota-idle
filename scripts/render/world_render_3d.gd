@@ -10,6 +10,7 @@ extends Node
 const WG := preload("res://scripts/worldgen/wg.gd")
 const TOON_GROUND := preload("res://shaders/toon_ground.gdshader")
 const TOON_WATER := preload("res://shaders/toon_water.gdshader")
+const TOON_SHORE := preload("res://shaders/toon_shore.gdshader")
 const PALETTE_SNAP := preload("res://shaders/palette_snap.gdshader")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 const PropMeshes := preload("res://scripts/render/prop_meshes.gd")
@@ -37,7 +38,9 @@ var terrain_root: Node3D
 var props_root: Node3D
 var _ground_mat: ShaderMaterial
 var _water_mat: ShaderMaterial
+var _shore_mat: ShaderMaterial
 var _snap_mat: ShaderMaterial
+var _occ_cache: Dictionary = {}   # global tile -> is_water (deterministic; persists)
 var _chunk_meshes: Dictionary = {}   # chunk key -> Node3D (ground + water)
 var _chunk_by_key: Dictionary = {}   # chunk key -> chunk RefCounted (O(1) height lookup)
 var batches_root: Node3D             # holds the per-(mesh,material) MultiMeshInstance3D
@@ -188,28 +191,38 @@ func _build() -> void:
 
 	_water_mat = ShaderMaterial.new()
 	_water_mat.shader = TOON_WATER
-	# Illustrated calm-ocean water: a deep-blue fill with a few LARGE, widely-spaced
-	# domain-warped contour loops (hand-drawn topographic feel), plus a clean turquoise
-	# shallow band. The contour pattern is sampled from world-space xz (camera-stable);
-	# the shallow band comes from a per-vertex distance-to-land field (UV.x), independent
-	# of the contours. Restrained palette so the lines never read as neon scribbles.
-	_water_mat.set_shader_parameter("base_color", Color(0.078, 0.353, 0.471))      # #145A78 deep
-	_water_mat.set_shader_parameter("secondary_color", Color(0.106, 0.400, 0.518)) # #1B6684 subtle var
-	_water_mat.set_shader_parameter("line_color", Color(0.239, 0.506, 0.604))      # #3D819A lines
-	_water_mat.set_shader_parameter("shoreline_color", Color(0.384, 0.757, 0.741)) # #62C1BD shallow
-	_water_mat.set_shader_parameter("pattern_scale", 0.032)       # big features (was 0.105 -> ~3.3x)
-	_water_mat.set_shader_parameter("contour_count", 2.0)         # few thresholds (was 4 -> 50% fewer)
-	_water_mat.set_shader_parameter("line_width", 0.035)
-	_water_mat.set_shader_parameter("line_opacity", 0.6)
-	_water_mat.set_shader_parameter("domain_warp_strength", 0.5)
+	# Deep-blue ocean with MID-scale domain-warped contour loops (between the old dense
+	# version and the over-large one): clear medium/large irregular loops, plenty of dark
+	# negative space. World-space sampled (camera-stable). The visible shallow band is the
+	# separate shore overlay below — this just fades its own contours out near the coast.
+	_water_mat.set_shader_parameter("base_color", Color(0.078, 0.369, 0.490))      # #145E7D deep
+	_water_mat.set_shader_parameter("secondary_color", Color(0.090, 0.412, 0.529)) # #176987 subtle var
+	_water_mat.set_shader_parameter("line_color", Color(0.267, 0.565, 0.663))      # ~#4490A9 lines (clearer)
+	_water_mat.set_shader_parameter("pattern_scale", 0.072)       # mid features (dense 0.105 .. sparse 0.032)
+	_water_mat.set_shader_parameter("contour_count", 3.5)         # medium line density / spacing
+	_water_mat.set_shader_parameter("line_width", 0.038)
+	_water_mat.set_shader_parameter("line_opacity", 0.65)         # clearly visible, not neon
+	_water_mat.set_shader_parameter("domain_warp_strength", 0.6)
 	_water_mat.set_shader_parameter("secondary_strength", 0.3)    # weak secondary detail only
 	_water_mat.set_shader_parameter("secondary_scale", 1.7)
 	_water_mat.set_shader_parameter("primary_speed", Vector2(0.006, 0.003))
 	_water_mat.set_shader_parameter("secondary_speed", Vector2(-0.003, 0.005))
-	_water_mat.set_shader_parameter("shallow_start", 0.05)        # tiles from land where shallow begins
-	_water_mat.set_shader_parameter("shallow_end", 0.34)          # tiles where it fades to deep (~4-5px band)
+	_water_mat.set_shader_parameter("shallow_start", 0.0)         # contour fade handled by overlay cover
+	_water_mat.set_shader_parameter("shallow_end", 0.5)           # fade contours within ~0.5 cell of land
 	_water_mat.set_shader_parameter("noise_tex", _make_water_noise(0.9, 2, 1))
 	_water_mat.set_shader_parameter("warp_tex", _make_water_noise(0.35, 2, 2))
+
+	# Render-only coastal overlay: two-tone aqua shallow band that hides the tan coastline
+	# teeth (see _build_shore_overlay). Driven by a smoothed water-occupancy field (UV.x).
+	_shore_mat = ShaderMaterial.new()
+	_shore_mat.shader = TOON_SHORE
+	_shore_mat.set_shader_parameter("inner_color", Color(0.482, 0.796, 0.773))  # #7BCBC5 light aqua
+	_shore_mat.set_shader_parameter("outer_color", Color(0.275, 0.686, 0.686))  # #46AFAF turquoise
+	_shore_mat.set_shader_parameter("sd_scale", 4.0)
+	_shore_mat.set_shader_parameter("inland_cells", 0.45)
+	_shore_mat.set_shader_parameter("inner_cells", 0.30)
+	_shore_mat.set_shader_parameter("outer_cells", 0.42)
+	_shore_mat.set_shader_parameter("fade_cells", 0.20)
 
 	# Present the low-res 3D world at nearest-neighbour, under the HUD (layer 1).
 	var layer := CanvasLayer.new()
@@ -546,6 +559,43 @@ func _build_chunk_terrain(chunk: RefCounted) -> Node3D:
 					wst.set_normal(Vector3.UP)
 					wst.set_uv(Vector2(float(p[1]), 0.0))
 					wst.add_vertex(p[0])
+	# Coastal overlay: a smooth two-tone aqua band draped just above the coast that hides
+	# the ground mesh's per-tile triangulation teeth. Covers any tile straddling/near the
+	# smoothed coastline; the shader (driven by the per-vertex smoothed water-fraction in
+	# UV.x) decides where it's land (transparent), inner aqua, outer turquoise, or deep.
+	var wfc := {}  # memoized corner water-fraction
+	var sst := SurfaceTool.new()
+	sst.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var has_shore := false
+	for ty: int in n:
+		for tx: int in n:
+			var gtx := cx0 + tx
+			var gty := cy0 + ty
+			var w00 := _coast_wf(gtx, gty, wfc)
+			var w10 := _coast_wf(gtx + 1, gty, wfc)
+			var w11 := _coast_wf(gtx + 1, gty + 1, wfc)
+			var w01 := _coast_wf(gtx, gty + 1, wfc)
+			var wmax: float = maxf(maxf(w00, w10), maxf(w11, w01))
+			var wmin: float = minf(minf(w00, w10), minf(w11, w01))
+			if wmax <= 0.16 or wmin >= 0.97:
+				continue   # fully inland (no aqua) or open deep water (deep mesh only)
+			has_shore = true
+			var x0 := float(gtx) * TILE_S
+			var z0 := float(gty) * TILE_S
+			var x1 := x0 + TILE_S
+			var z1 := z0 + TILE_S
+			var yA := _coast_corner_height(gtx, gty, hc)
+			var yB := _coast_corner_height(gtx + 1, gty, hc)
+			var yC := _coast_corner_height(gtx + 1, gty + 1, hc)
+			var yD := _coast_corner_height(gtx, gty + 1, hc)
+			var quad := [
+				[Vector3(x0, yA, z0), w00], [Vector3(x1, yB, z0), w10], [Vector3(x1, yC, z1), w11],
+				[Vector3(x0, yA, z0), w00], [Vector3(x1, yC, z1), w11], [Vector3(x0, yD, z1), w01],
+			]
+			for p: Array in quad:
+				sst.set_normal(Vector3.UP)
+				sst.set_uv(Vector2(float(p[1]), 0.0))
+				sst.add_vertex(p[0])
 	var root := Node3D.new()
 	var ground := MeshInstance3D.new()
 	ground.mesh = st.commit()
@@ -558,6 +608,12 @@ func _build_chunk_terrain(chunk: RefCounted) -> Node3D:
 		water.material_override = _water_mat
 		water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(water)
+	if has_shore:
+		var shore := MeshInstance3D.new()
+		shore.mesh = sst.commit()
+		shore.material_override = _shore_mat
+		shore.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(shore)
 	return root
 
 
@@ -765,6 +821,58 @@ func _corner_land_distance(ci: int, cj: int, dc: Dictionary) -> float:
 			best = minf(best, sqrt(dx * dx + dy * dy))
 	dc[key] = best
 	return best
+
+
+# Deterministic water occupancy for ANY global tile (no chunk load needed), so the
+# coastline overlay is identical regardless of streaming order -> seamless across chunk
+# borders. Cached for the whole session (the worldgen result never changes).
+func _coast_water(gtx: int, gty: int) -> bool:
+	var key := Vector2i(gtx, gty)
+	if _occ_cache.has(key):
+		return _occ_cache[key]
+	var td := WorldGen.surface_tile_def_at(gtx, gty)
+	var w := not td.is_empty() and bool(td.get("water", false))
+	_occ_cache[key] = w
+	return w
+
+
+# Low-passed water fraction (0 land .. 1 open water) at a grid CORNER: a box average of
+# the occupancy over a 4x4 tile kernel centred on the corner. This smooths the blocky
+# tile boundary into a soft field whose 0.5 iso-level is a gentle coastline curve (the
+# kernel size bounds how far it can move from the real edge, ~<1 cell). Memoized per
+# chunk build over shared corners so neighbouring overlay tiles agree (no cracks).
+const SHORE_SMOOTH := 2   # kernel reaches [c-2, c+1] tiles around the corner (4x4)
+func _coast_wf(ci: int, cj: int, wfc: Dictionary) -> float:
+	var key := Vector2i(ci, cj)
+	if wfc.has(key):
+		return wfc[key]
+	var sum := 0.0
+	var cnt := 0
+	for ty: int in range(cj - SHORE_SMOOTH, cj + SHORE_SMOOTH):
+		for tx: int in range(ci - SHORE_SMOOTH, ci + SHORE_SMOOTH):
+			if _coast_water(tx, ty):
+				sum += 1.0
+			cnt += 1
+	var wf: float = sum / float(cnt) if cnt > 0 else 0.0
+	wfc[key] = wf
+	return wf
+
+
+# Drape height for the coastal overlay at a grid corner: sit just above BOTH the local
+# terrain and the water surface so the aqua reliably covers the tan teeth and never
+# z-fights. Over water corners the terrain floor is the basin (below sea) so the sea
+# level wins; over the low beach the terrain wins.
+const COAST_LIFT := 0.06
+func _coast_corner_height(ci: int, cj: int, hc: Dictionary) -> float:
+	var g := _corner_height(ci, cj, hc)
+	var sea := -1.0e9
+	for off: Vector2i in [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(0, 0)]:
+		var info := _tile_info(ci + off.x, cj + off.y)
+		if not info.is_empty() and bool(info["water"]):
+			sea = maxf(sea, _water_surface_height(info))
+	if sea < -1.0e8:
+		return g + COAST_LIFT
+	return maxf(sea, g) + COAST_LIFT
 
 
 ## Warm + enrich a terrain tile color and add BROAD low-frequency variation
