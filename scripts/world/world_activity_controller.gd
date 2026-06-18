@@ -16,8 +16,8 @@ const STATION_OPEN := {
 const AGGRO_INTERVAL := 0.5
 const AGGRO_GRACE := 4.0
 const LEASH_RADIUS_TILES := 8.0  # player gets this far from the mob's spawn -> it gives up
-const CHASE_SPEED := 150.0        # px/s the mob chases — clearly slower than the player (230) so you can outrun it
-const RETURN_SPEED := 170.0       # px/s it walks back to spawn after de-aggro
+const CHASE_SPEED := 88.0         # px/s the mob chases — clearly slower than the player (130) so you can outrun it
+const RETURN_SPEED := 100.0       # px/s it walks back to spawn after de-aggro
 const ATTACK_GAP_TILES := 0.7     # how close beside you the chaser stops
 const RANGED_RANGE_TILES := 11.0  # a bow can fire from this far; closer than this you don't move
 

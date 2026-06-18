@@ -43,6 +43,9 @@ var _mover_nodes: Dictionary = {}    # moving entity id -> Node3D (player/enemie
 var _mover_prev: Dictionary = {}     # key -> last 3D pos (for walk detection)
 var _mover_yaw: Dictionary = {}      # key -> smoothed facing yaw
 var _mover_walk: Dictionary = {}     # key -> smoothed walk amount 0..1
+var _attack_t: Dictionary = {}       # key -> time (s) the last attack lunge started
+var _shadow_nodes: Dictionary = {}   # key -> blob-shadow MeshInstance3D pinned to ground
+var fx_layer: CanvasLayer            # screen-space overlay for hitsplats over the 3D world
 var _player_node: Node3D
 var _cam_yaw := PI / 4.0          # orbit angle around the player (Left/Right arrows)
 var _cam_pitch := 0.413           # elevation above horizon (Up/Down arrows); matches old iso
@@ -186,6 +189,16 @@ func _build() -> void:
 	_snap_mat.set_shader_parameter("brightness", 0.74)   # moody dark forest
 	present.material = _snap_mat
 	layer.add_child(present)
+	# Screen-space overlay for combat hitsplats: sits above the world image (added
+	# after `present` in the same layer 0) and below the HUD (layer 1). Splats are
+	# projected onto here through the 3D camera so they land over the right body.
+	fx_layer = CanvasLayer.new()
+	fx_layer.name = "FxOverlay"
+	fx_layer.layer = 0
+	world.add_child(fx_layer)
+	# Drive attack lunges off the combat ticks: each hit splat is one swing landing.
+	EventBus.combat_hit_splat.connect(_on_combat_swing)
+	EventBus.combat_ranged_shot.connect(func(_a: int, _m: bool) -> void: _mark_attack("player"))
 	# Pixelation is controlled from the Settings menu (GameSettings.pixelation).
 	_pixel_scale = _scale_from_setting(GameSettings.pixelation)
 	GameSettings.changed.connect(_on_settings_changed)
@@ -674,8 +687,9 @@ func _sync_movers() -> void:
 	var dt := get_process_delta_time()
 	var t := Time.get_ticks_msec() / 1000.0
 	if _player_node == null:
-		_player_node = PropMeshes.figure_rig(PixelPalette.pal("outfit_a"), PixelPalette.pal("skin_a"))
-		props_root.add_child(_player_node)
+		# The player gets the iconic red scarf/cape; enemies don't.
+		_player_node = PropMeshes.figure_rig(PixelPalette.pal("outfit_a"), PixelPalette.pal("skin_a"), Color(0.74, 0.16, 0.14))
+		_prep_mover(_player_node, "player")
 	_animate_mover(_player_node, "player", world.player.position, t, dt)
 	var live := {}
 	for e: Node in world.entities:
@@ -686,7 +700,7 @@ func _sync_movers() -> void:
 		var n: Node3D = _mover_nodes.get(id)
 		if n == null:
 			n = PropMeshes.enemy_rig(e)
-			props_root.add_child(n)
+			_prep_mover(n, str(id))
 			_mover_nodes[id] = n
 		_animate_mover(n, str(id), e.position, t, dt)
 	for id: int in _mover_nodes.keys():
@@ -696,6 +710,31 @@ func _sync_movers() -> void:
 				n.queue_free()
 			_mover_nodes.erase(id)
 			_mover_prev.erase(id); _mover_yaw.erase(id); _mover_walk.erase(id)
+			_free_shadow(str(id))
+
+
+## Add a mover rig to the scene, drop a blob shadow under it, and turn off its
+## real cast shadow (the blob replaces it for the clean A Short Hike look).
+func _prep_mover(node: Node3D, key: String) -> void:
+	props_root.add_child(node)
+	_disable_cast_shadows(node)
+	var shadow := PropMeshes.blob_shadow()
+	props_root.add_child(shadow)
+	_shadow_nodes[key] = shadow
+
+
+func _disable_cast_shadows(node: Node) -> void:
+	if node is MeshInstance3D:
+		(node as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	for c: Node in node.get_children():
+		_disable_cast_shadows(c)
+
+
+func _free_shadow(key: String) -> void:
+	var s: Node = _shadow_nodes.get(key)
+	if is_instance_valid(s):
+		s.queue_free()
+	_shadow_nodes.erase(key)
 
 
 ## A Short Hike-style walk feel: gentle bob + squash-stretch while moving, body
@@ -716,68 +755,152 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 	if vel.length() > 0.0005:
 		yaw = lerp_angle(yaw, atan2(vel.x, vel.z), clampf(dt * 12.0, 0.0, 1.0))
 		_mover_yaw[key] = yaw
+	# During a fight, the player and its target square up and face each other
+	# regardless of which way either is drifting.
+	var face: Variant = _combat_face_pos(key)
+	if face != null:
+		var f3 := iso_to_3d(face, 0.0)
+		yaw = lerp_angle(yaw, atan2(f3.x - pos3.x, f3.z - pos3.z), clampf(dt * 14.0, 0.0, 1.0))
+		_mover_yaw[key] = yaw
 	var phase := float(absi(hash(key)) % 1000) * 0.006283
 	var base: float = float(node.get_meta("base_scale", 1.0))
-	match str(node.get_meta("body3d", "humanoid")):
+	var atk := _attack_progress(key, t)
+	var btype := str(node.get_meta("body3d", "humanoid"))
+	match btype:
 		"bird":
-			_pose_bird(node, pos3, yaw, walk, t, phase, base)
+			_pose_bird(node, pos3, yaw, walk, t, phase, base, atk)
 		"humanoid":
-			_pose_humanoid(node, pos3, yaw, walk, t, phase, base)
+			_pose_humanoid(node, pos3, yaw, walk, t, phase, base, atk)
 		_:
-			_pose_quadruped(node, pos3, yaw, walk, t, phase, base)
+			_pose_quadruped(node, pos3, yaw, walk, t, phase, base, atk)
+	# A swing steps the body into the target — the lunge that sells the hit.
+	if atk > 0.0:
+		node.position += Vector3(sin(yaw), 0.0, cos(yaw)) * (sin(atk * PI) * 0.22)
+	# Pin the blob shadow to the ground under the mover (it never bobs), oriented
+	# with the body and sized to its footprint.
+	var shadow: Node3D = _shadow_nodes.get(key)
+	if shadow != null:
+		shadow.position = Vector3(pos3.x, pos3.y + 0.04, pos3.z)
+		shadow.rotation.y = yaw
+		var fp := _shadow_footprint(btype)
+		shadow.scale = Vector3(fp.x * base, 1.0, fp.y * base)
+
+
+## Footprint (x = width, y = length-along-Z) of the blob shadow per body type.
+func _shadow_footprint(btype: String) -> Vector2:
+	match btype:
+		"bird":
+			return Vector2(0.58, 0.64)
+		"humanoid":
+			return Vector2(0.78, 0.86)
+		_:
+			return Vector2(1.05, 1.62)  # four-legged: a longer oval along the spine
 
 
 ## Upright biped: vertical bob + squash, legs swing at the hips and arms counter-
-## swing at the shoulders (player + goblins/skeletons).
-func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float) -> void:
-	node.rotation = Vector3(0, yaw, 0)
-	var bob := absf(sin(t * 11.0)) * 0.09 * walk
-	var sq := sin(t * 11.0) * 0.06 * walk
-	var idle := (1.0 - walk) * sin(t * 2.2) * 0.018
+## swing at the shoulders (player + goblins/skeletons). On a swing (`atk`) the lead
+## arm chops overarm into the target.
+func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float) -> void:
+	var rest := 1.0 - walk
+	# Idle is no longer static: a slow breathing rise/fall and a gentle weight-shift
+	# sway so the character always has a little life even standing still.
+	var breathe := rest * sin(t * 1.9 + phase) * 0.03
+	var sway := rest * sin(t * 1.15 + phase) * 0.05
+	node.rotation = Vector3(0, yaw, sway)
+	var bob := absf(sin(t * 7.0)) * 0.09 * walk
+	var sq := sin(t * 7.0) * 0.06 * walk
 	node.position = pos3 + Vector3(0, bob, 0)
-	node.scale = Vector3(base * (1.0 - sq * 0.5), base * (1.0 + sq + idle), base * (1.0 - sq * 0.5))
-	var stride := t * 8.5 + phase
+	node.scale = Vector3(base * (1.0 - sq * 0.5), base * (1.0 + sq + breathe), base * (1.0 - sq * 0.5))
+	var stride := t * 5.6 + phase
 	var swing := sin(stride) * 0.7 * walk
-	var idle_arm := (1.0 - walk) * sin(t * 2.0) * 0.05
+	# Arms drift a little even at rest (counter to the sway) so they're never frozen.
+	var idle_arm := rest * sin(t * 1.5 + phase) * 0.14
 	_set_pivot(node, "leg_l", swing)
 	_set_pivot(node, "leg_r", -swing)
-	_set_pivot(node, "arm_l", -swing * 0.85 + idle_arm)
-	_set_pivot(node, "arm_r", swing * 0.85 - idle_arm)
+	var arm_l := -swing * 0.85 + idle_arm
+	var arm_r := swing * 0.85 - idle_arm
+	if atk > 0.0:
+		var strike := sin(atk * PI)
+		arm_r = lerpf(arm_r, -1.7, strike)   # lead arm chops forward
+		arm_l = lerpf(arm_l, 0.5, strike)    # trail arm pulls back for the wind-up
+	_set_pivot(node, "arm_l", arm_l)
+	_set_pivot(node, "arm_r", arm_r)
 
 
 ## Four-legged trot: diagonal leg pairs swing together (FL+BR vs FR+BL), low body
-## bob, the back dips a touch on each push, and the tail wags.
-func _pose_quadruped(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float) -> void:
-	node.rotation = Vector3(0, yaw, 0)
-	var stride := t * 9.0 + phase
+## bob, the back dips a touch on each push, and the tail wags. A swing leans the
+## whole body in for a headbutt/bite.
+func _pose_quadruped(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float) -> void:
+	node.rotation = Vector3(-0.28 * sin(atk * PI), yaw, 0)
+	var stride := t * 6.0 + phase
 	var bob := absf(sin(stride)) * 0.05 * walk
-	var breathe := (1.0 - walk) * sin(t * 1.8 + phase) * 0.012
+	var breathe := (1.0 - walk) * sin(t * 1.4 + phase) * 0.012
 	node.position = pos3 + Vector3(0, bob, 0)
 	var sq := sin(stride * 2.0) * 0.03 * walk
 	node.scale = Vector3(base * (1.0 + sq * 0.4), base * (1.0 - sq * 0.5 + breathe), base * (1.0 + sq * 0.4))
 	var swing := sin(stride) * 0.8 * walk
-	var idle_leg := (1.0 - walk) * sin(t * 1.6 + phase) * 0.03
+	var idle_leg := (1.0 - walk) * sin(t * 1.3 + phase) * 0.03
 	_set_pivot(node, "leg_fl", swing + idle_leg)
 	_set_pivot(node, "leg_br", swing - idle_leg)
 	_set_pivot(node, "leg_fr", -swing - idle_leg)
 	_set_pivot(node, "leg_bl", -swing + idle_leg)
 	var tail: Node3D = node.get_node_or_null(^"tail")
 	if tail != null:
-		tail.rotation = Vector3(0.18 * sin(stride * 0.5) * walk, 0.5 * sin(t * 3.0), 0)
+		tail.rotation = Vector3(0.18 * sin(stride * 0.5) * walk, 0.5 * sin(t * 2.0), 0)
 
 
 ## Bird waddle: quick alternating steps, a side-to-side roll, and a brisk bob —
-## smaller and twitchier than the beasts.
-func _pose_bird(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float) -> void:
-	var stride := t * 11.0 + phase
-	var bob := absf(sin(stride)) * 0.05 * walk + (1.0 - walk) * sin(t * 2.5 + phase) * 0.01
+## smaller and twitchier than the beasts. A swing is a sharp forward peck.
+func _pose_bird(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float) -> void:
+	var stride := t * 7.5 + phase
+	var bob := absf(sin(stride)) * 0.05 * walk + (1.0 - walk) * sin(t * 2.0 + phase) * 0.01
 	node.position = pos3 + Vector3(0, bob, 0)
 	var roll := sin(stride) * 0.18 * walk
-	node.rotation = Vector3(0, yaw, roll)
+	node.rotation = Vector3(-0.35 * sin(atk * PI), yaw, roll)
 	node.scale = Vector3(base, base, base)
 	var swing := sin(stride) * 0.7 * walk
 	_set_pivot(node, "leg_l", swing)
 	_set_pivot(node, "leg_r", -swing)
+
+
+# --- combat animation: lunges driven by the tick-combat hit splats -------------
+
+const ATTACK_DUR := 0.42  # seconds one swing lunge plays over
+
+
+## A hit splat means a swing just landed: lunge the attacker. on_player = the enemy
+## hit us (so the enemy lunges); otherwise the player's swing landed.
+func _on_combat_swing(_amount: int, _miss: bool, on_player: bool) -> void:
+	if on_player:
+		var tgt: Node = world.combat_target_entity
+		if is_instance_valid(tgt):
+			_mark_attack(str(tgt.get_instance_id()))
+	else:
+		_mark_attack("player")
+
+
+func _mark_attack(key: String) -> void:
+	_attack_t[key] = Time.get_ticks_msec() / 1000.0
+
+
+func _attack_progress(key: String, t: float) -> float:
+	var p := (t - float(_attack_t.get(key, -99.0))) / ATTACK_DUR
+	return p if p >= 0.0 and p <= 1.0 else 0.0
+
+
+## The iso position a mover should face mid-fight, or null when not in combat:
+## the player faces its target, the target faces the player.
+func _combat_face_pos(key: String) -> Variant:
+	if not CombatSim.active:
+		return null
+	var tgt: Node = world.combat_target_entity
+	if not is_instance_valid(tgt):
+		return null
+	if key == "player":
+		return tgt.position
+	if key == str(tgt.get_instance_id()):
+		return world.player.position
+	return null
 
 
 func _set_pivot(node: Node3D, pivot_name: String, angle: float) -> void:

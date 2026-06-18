@@ -260,19 +260,26 @@ func _spawn_hit_splat(amount: int, miss: bool, on_player: bool) -> void:
 	var anchor: Node2D = player if on_player else combat_target_entity
 	if not is_instance_valid(anchor):
 		return
-	# Sit the splat low over the body (close to the target), not floating above it.
-	var rise := 14.0
-	if not on_player and anchor.has_method("icon_height"):
-		rise = float(anchor.call("icon_height")) * 0.32
-	# Pin it to the target via a fixed local offset so it tracks movement.
-	var off := Vector2(randf_range(-3.0, 3.0), -rise + randf_range(-2.0, 2.0))
 	var splat: Node2D = HitSplat.new()
 	splat.set("amount", amount)
 	splat.set("miss", miss)
 	splat.set("anchor", anchor)
-	splat.set("follow_offset", off)
-	splat.position = anchor.position + off
-	_click_fx_layer.add_child(splat)
+	if render_3d != null and render_3d.is_active():
+		# 3D: the 2D world is hidden, so the splat lives on a screen-space overlay and
+		# projects the target's body through the 3D camera each frame (screen-px jitter).
+		splat.set("projector", render_3d)
+		splat.set("lift", 1.55)
+		splat.set("follow_offset", Vector2(randf_range(-6.0, 6.0), randf_range(-4.0, 2.0)))
+		render_3d.fx_layer.add_child(splat)
+	else:
+		# 2D: sit the splat low over the body, pinned via a fixed local offset.
+		var rise := 14.0
+		if not on_player and anchor.has_method("icon_height"):
+			rise = float(anchor.call("icon_height")) * 0.32
+		var off := Vector2(randf_range(-3.0, 3.0), -rise + randf_range(-2.0, 2.0))
+		splat.set("follow_offset", off)
+		splat.position = anchor.position + off
+		_click_fx_layer.add_child(splat)
 
 
 ## Fly an arrow from the player's bow to the current combat target; the arrow pops

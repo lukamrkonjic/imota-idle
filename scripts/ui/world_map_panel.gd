@@ -35,12 +35,15 @@ func setup(p_hud: CanvasLayer) -> void:
 		_tiles_w = spec.bounds.size.x * WG.CHUNK_TILES
 		_tiles_h = spec.bounds.size.y * WG.CHUNK_TILES
 	var path: String = BAKED_DIR + str(spec.id) + "_map.png"
-	if ResourceLoader.exists(path):
-		_tex = load(path)
-	elif FileAccess.file_exists(path):
+	# Load the baked map straight from the PNG on disk. Going through the import
+	# system (ResourceLoader.exists -> load) errors at runtime when the .import
+	# points at a .ctex that was never generated — the raw read always works.
+	if FileAccess.file_exists(path):
 		var img := Image.load_from_file(ProjectSettings.globalize_path(path))
 		if img != null:
 			_tex = ImageTexture.create_from_image(img)
+	elif ResourceLoader.exists(path):
+		_tex = load(path)
 
 
 func toggle() -> void:

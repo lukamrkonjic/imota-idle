@@ -38,6 +38,8 @@ var amount: int = 0
 var miss: bool = false
 var anchor: Node2D = null        # the target this splat is pinned to (player/enemy)
 var follow_offset := Vector2.ZERO  # local offset above the anchor's feet
+var projector: Node = null       # 3D renderer; when set, project anchor -> screen px
+var lift := 1.5                  # world-Y above the anchor's feet to anchor the splat (3D)
 
 var _t := 0.0
 var _font: Font
@@ -56,9 +58,14 @@ func _process(delta: float) -> void:
 	if _t >= LIFETIME:
 		queue_free()
 		return
-	# Stay pinned to the target so the splat rides along as it moves/chases.
+	# Stay pinned to the target so the splat rides along as it moves/chases. With the
+	# 3D renderer active the splat is on a screen-space overlay, so project the
+	# target's body through the 3D camera; otherwise track its 2D world position.
 	if is_instance_valid(anchor):
-		position = anchor.position + follow_offset
+		if projector != null and projector.is_active():
+			position = projector.iso_to_screen(anchor.position, lift) + follow_offset
+		else:
+			position = anchor.position + follow_offset
 	queue_redraw()
 
 

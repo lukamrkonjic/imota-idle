@@ -13,6 +13,8 @@ const TreeArt := preload("res://scripts/world/art/trees/tree_art.gd")
 
 static var _mesh_cache: Dictionary = {}
 static var _mat_cache: Dictionary = {}
+static var _shadow_material: StandardMaterial3D = null
+static var _shadow_tex_cache: ImageTexture = null
 static var _part_cache: Dictionary = {}
 
 
@@ -794,39 +796,95 @@ static func build_node(parts: Array) -> Node3D:
 	return root
 
 
-## Articulated low-poly figure: torso/head/hair are fixed to the root; each leg
-## and arm hangs off a named pivot Node3D (leg_l/leg_r/arm_l/arm_r) so the walk
-## animation can swing them around X. body = outfit color, head = skin color.
-static func figure_rig(body: Color, head: Color) -> Node3D:
-	# Medieval villager: belted tunic (torso + flared hem skirt + sleeves) in the
-	# outfit color, dark hose, leather belt + boots, and a simple cloth cap. Legs
-	# and arms hang off named pivots (leg_l/leg_r/arm_l/arm_r) for the walk swing.
-	var tunic := _mat_from(body, body.darkened(0.35), body.lightened(0.2))
-	var hose := _mat_from(body.darkened(0.55).lerp(Color(0.17, 0.15, 0.13), 0.5), body.darkened(0.7), body.darkened(0.25))
-	var leather := _mat_from(Color(0.27, 0.18, 0.11), Color(0.16, 0.1, 0.06), Color(0.4, 0.29, 0.18))
-	var skin := _mat_from(head, head.darkened(0.28), head.lightened(0.18))
-	var capc := _mat_from(body.darkened(0.42), body.darkened(0.62), body.lightened(0.05))
+## Articulated low-poly figure in the A Short Hike spirit: a big rounded head over
+## a small chunky body, stubby rounded limbs, an optional flowing cape. Each leg
+## and arm hangs off a named pivot (leg_l/leg_r/arm_l/arm_r) so the walk + attack
+## anim can swing it. body = outfit color, head = skin color, cape = scarf colour
+## (alpha 0 = none). Faces +Z.
+static func figure_rig(body: Color, head: Color, cape := Color(0, 0, 0, 0)) -> Node3D:
+	var cloth := _mat_from(body, body.darkened(0.42), body.lightened(0.22))
+	var pants := _mat_from(body.darkened(0.6).lerp(Color(0.16, 0.14, 0.12), 0.5), body.darkened(0.72), body.darkened(0.3))
+	var boot := _mat_from(Color(0.24, 0.16, 0.1), Color(0.14, 0.09, 0.05), Color(0.36, 0.26, 0.16))
+	var skin := _mat_from(head, head.darkened(0.3), head.lightened(0.2))
+	var hairc: Color = PixelPalette.pal("hair")
+	var hairm := _mat_from(hairc, hairc.darkened(0.38), hairc.lightened(0.16))
+	var eyew := _mat_from(Color(0.96, 0.96, 0.98), Color(0.78, 0.78, 0.84), Color(1, 1, 1))
+	var eyed := _mat_from(Color(0.08, 0.09, 0.13), Color(0.04, 0.04, 0.06), Color(0.16, 0.17, 0.22))
 	var root := Node3D.new()
-	# Upper body: belted tunic with a flared hem (the medieval silhouette).
-	_attach(root, _box("rig_torso", Vector3(0.42, 0.5, 0.27)), tunic, Vector3(0, 1.0, 0))
-	_attach(root, _box("rig_belt", Vector3(0.46, 0.09, 0.31)), leather, Vector3(0, 0.78, 0))
-	_attach(root, _box("rig_skirt", Vector3(0.5, 0.34, 0.34)), tunic, Vector3(0, 0.62, 0))
-	_attach(root, _box("rig_neck", Vector3(0.16, 0.1, 0.16)), skin, Vector3(0, 1.3, 0))
-	_attach(root, _box("rig_head", Vector3(0.36, 0.36, 0.36)), skin, Vector3(0, 1.52, 0))
-	# Simple cloth cap (with a small brim) instead of bare hair.
-	_attach(root, _box("rig_cap", Vector3(0.42, 0.2, 0.42)), capc, Vector3(0, 1.76, 0))
-	_attach(root, _box("rig_cap_brim", Vector3(0.46, 0.06, 0.18)), capc, Vector3(0, 1.68, 0.16))
-	# Legs: hose + a tall leather boot, pivoting at the hip.
+	# Small chunky torso, tapering up toward the shoulders.
+	_attach(root, _sphere("fig_torso", 0.24), cloth, Vector3(0, 0.74, 0), Vector3(1.06, 1.4, 0.86))
+	# Big rounded head — the chibi proportion that carries the charm.
+	_attach(root, _sphere("fig_head", 0.4), skin, Vector3(0, 1.3, 0), Vector3(1.0, 1.04, 1.0))
+	# Hair as a rounded cap over the crown and back, leaving the face (+Z) clear.
+	_attach(root, _sphere("fig_hair", 0.42), hairm, Vector3(0, 1.41, -0.07), Vector3(1.05, 0.92, 1.05))
+	# Two big expressive eyes on the face: white with a dark pupil set just proud.
+	for ex: int in [-1, 1]:
+		_attach(root, _sphere("fig_eyew", 0.09), eyew, Vector3(0.12 * ex, 1.32, 0.31), Vector3(0.82, 1.0, 0.55))
+		_attach(root, _sphere("fig_eyed", 0.045), eyed, Vector3(0.13 * ex, 1.32, 0.37), Vector3(0.95, 1.0, 0.7))
+	# Optional flowing cape/scarf down the back (the red-silhouette accent).
+	if cape.a > 0.0:
+		var capem := _mat_from(Color(cape.r, cape.g, cape.b), cape.darkened(0.34), cape.lightened(0.22))
+		_attach(root, _box("fig_collar", Vector3(0.34, 0.13, 0.22)), capem, Vector3(0, 1.0, -0.02))
+		_attach(root, _box("fig_cape", Vector3(0.3, 0.52, 0.07)), capem, Vector3(0, 0.64, -0.17), Vector3.ONE, Vector3(0.3, 0, 0))
+	# Legs: short hose + a rounded boot, pivoting at the hip.
 	for side: int in [-1, 1]:
-		var leg := _limb(root, "leg_l" if side < 0 else "leg_r", Vector3(0.11 * side, 0.58, 0))
-		_attach(leg, _box("rig_shin", Vector3(0.15, 0.5, 0.17)), hose, Vector3(0, -0.25, 0))
-		_attach(leg, _box("rig_boot", Vector3(0.17, 0.24, 0.25)), leather, Vector3(0, -0.48, 0.03))
-	# Arms: tunic sleeves + skin hands, pivoting at the shoulder.
+		var leg := _limb(root, "leg_l" if side < 0 else "leg_r", Vector3(0.12 * side, 0.5, 0))
+		_attach(leg, _box("rig_shin", Vector3(0.16, 0.4, 0.17)), pants, Vector3(0, -0.2, 0))
+		_attach(leg, _sphere("rig_foot", 0.12), boot, Vector3(0, -0.4, 0.04), Vector3(1.0, 0.7, 1.3))
+	# Arms: stubby sleeves + a rounded hand, pivoting at the shoulder.
 	for side2: int in [-1, 1]:
-		var arm := _limb(root, "arm_l" if side2 < 0 else "arm_r", Vector3(0.29 * side2, 1.2, 0))
-		_attach(arm, _box("rig_arm", Vector3(0.12, 0.44, 0.14)), tunic, Vector3(0, -0.21, 0))
-		_attach(arm, _box("rig_hand", Vector3(0.12, 0.12, 0.13)), skin, Vector3(0, -0.46, 0))
+		var arm := _limb(root, "arm_l" if side2 < 0 else "arm_r", Vector3(0.26 * side2, 1.0, 0))
+		_attach(arm, _box("fig_arm", Vector3(0.12, 0.34, 0.13)), cloth, Vector3(0, -0.15, 0))
+		_attach(arm, _sphere("fig_hand", 0.09), skin, Vector3(0, -0.34, 0))
 	return root
+
+
+# ---------------------------------------------------------------- shadows ----
+
+## A soft round blob shadow (A Short Hike style): a flat ground quad with a radial
+## dark-to-clear gradient, dropped under each mover so it reads as grounded. The
+## renderer scales/orients it per creature and keeps it pinned to the ground.
+static func blob_shadow() -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = _shadow_quad()
+	mi.material_override = _shadow_mat()
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return mi
+
+
+static func _shadow_quad() -> Mesh:
+	if not _mesh_cache.has("blob_shadow"):
+		var m := PlaneMesh.new()
+		m.size = Vector2.ONE
+		_mesh_cache["blob_shadow"] = m
+	return _mesh_cache["blob_shadow"]
+
+
+static func _shadow_mat() -> StandardMaterial3D:
+	if _shadow_material == null:
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.albedo_texture = _shadow_texture()
+		m.albedo_color = Color(0.03, 0.04, 0.07, 0.58)
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_shadow_material = m
+	return _shadow_material
+
+
+## Radial alpha falloff (opaque centre -> clear rim) so the blob has soft edges.
+static func _shadow_texture() -> ImageTexture:
+	if _shadow_tex_cache == null:
+		var n := 48
+		var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
+		var c := float(n) * 0.5
+		for y: int in n:
+			for x: int in n:
+				var d := Vector2(float(x) - c + 0.5, float(y) - c + 0.5).length() / c
+				var a := clampf(1.0 - d, 0.0, 1.0)
+				img.set_pixel(x, y, Color(1, 1, 1, a * a))
+		_shadow_tex_cache = ImageTexture.create_from_image(img)
+	return _shadow_tex_cache
 
 
 # -------------------------------------------------------- enemy creatures ----
@@ -868,6 +926,7 @@ static func enemy_rig(e: Node) -> Node3D:
 	var n := name.to_lower()
 	var boss := bool(e.get("is_boss"))
 	var rider := n.contains("rider")
+	# Per-species base size (a human ≈ 1.0): cows tower, chickens and moles are small.
 	var size := 1.0
 	var node: Node3D
 	match type:
@@ -875,42 +934,66 @@ static func enemy_rig(e: Node) -> Node3D:
 			var dark := n.contains("black") or n.contains("toxic") or n.contains("cave")
 			var hide := Color(0.30, 0.31, 0.34) if dark else Color(0.55, 0.55, 0.60)
 			node = quadruped_rig({"hide": hide, "belly": hide.lightened(0.32), "ears": "perk", "tail": "bushy", "snout": 0.28})
-			size = 1.16 if n.contains("amaruq") else 1.0
+			size = 1.2 if n.contains("amaruq") else 1.0
 		"boar":
 			var pinkish := n.contains("pig")
 			var hide := Color(0.90, 0.66, 0.70) if pinkish else Color(0.40, 0.31, 0.27)
 			node = quadruped_rig({
 				"hide": hide, "belly": hide.darkened(0.12), "ears": "perk", "tail": "short",
 				"snout": 0.22, "tusks": not pinkish, "humped": not pinkish, "snout_pink": pinkish})
-			size = 0.92
+			size = 0.9 if pinkish else 1.05
 		"cow":
 			node = quadruped_rig({"hide": Color(0.66, 0.46, 0.32), "belly": Color(0.84, 0.81, 0.76), "ears": "floppy", "horns": "cow", "tail": "tuft", "snout": 0.2})
-			size = 1.16
+			size = 1.4
 		"sheep":
 			node = quadruped_rig({"hide": Color(0.92, 0.91, 0.88), "belly": Color(0.88, 0.87, 0.84), "ears": "floppy", "tail": "short", "snout": 0.14, "wool": true, "head_dark": true})
-			size = 1.02
+			size = 0.98
 		"goat":
 			node = quadruped_rig({"hide": Color(0.80, 0.78, 0.80), "belly": Color(0.88, 0.87, 0.86), "ears": "perk", "horns": "goat", "tail": "short", "snout": 0.16, "beard": true})
+			size = 0.9
 		"mole":
 			node = quadruped_rig({"hide": Color(0.34, 0.27, 0.31), "belly": Color(0.46, 0.39, 0.42), "ears": "none", "tail": "short", "snout": 0.22})
-			size = 0.74
+			size = 0.6
 		"bird":
 			var brown := n.contains("mumma") or n.contains("momma")
 			node = bird_rig({"body": Color(0.84, 0.72, 0.58) if brown else Color(0.93, 0.89, 0.80)})
-			size = 1.12 if brown else 0.9
+			size = 0.62
 		_:
 			type = "humanoid"
-			if n.contains("goblin") or n.contains("hob") or n.contains("gnoll"):
+			if n.contains("goblin") or n.contains("hob"):
 				node = figure_rig(Color(0.40, 0.31, 0.23), Color(0.44, 0.66, 0.34))
+				size = 0.86
+			elif n.contains("gnoll"):
+				node = figure_rig(Color(0.46, 0.4, 0.3), Color(0.52, 0.46, 0.34))
+				size = 0.98
 			elif n.contains("skelet") or n.contains("bone"):
 				node = figure_rig(Color(0.62, 0.60, 0.56), Color(0.86, 0.85, 0.80))
 			else:
 				node = figure_rig(PixelPalette.pal("outfit_b"), PixelPalette.pal("skin_a"))
+	size *= _variant_size(n)
 	if rider and type == "wolf":
 		_add_rider(node)
 	node.set_meta("body3d", type)
 	node.set_meta("base_scale", size * (1.22 if boss else 1.0))
 	return node
+
+
+## Name-based size multiplier layered on the per-species base: 'Giant'/'Mega'/
+## 'Dire' tower, 'Mumma'/'Momma'/'Alpha' are bigger parents, young ones shrink.
+static func _variant_size(n: String) -> float:
+	for kw: String in ["giant", "mega", "great", "elder", "ancient", "king", "dire"]:
+		if n.contains(kw):
+			return 1.35
+	for kw2: String in ["mumma", "momma", "mother", "queen", "alpha"]:
+		if n.contains(kw2):
+			return 1.24
+	for kw3: String in ["brawler", "brute", "big"]:
+		if n.contains(kw3):
+			return 1.12
+	for kw4: String in ["baby", "young", "pup", "runt", "mini", "tiny"]:
+		if n.contains(kw4):
+			return 0.72
+	return 1.0
 
 
 ## Reusable four-legged beast. Legs hang off hip pivots (leg_fl/leg_fr/leg_bl/
