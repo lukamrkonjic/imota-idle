@@ -18,6 +18,10 @@ const EquipLoadout := preload("res://scripts/render/equip_loadout.gd")
 const INTERNAL := Vector2i(640, 360)   # internal render res (higher = finer/less chunky pixels)
 const TILE_S := 1.0                 # 3D units per tile
 const ELEV_H := 0.25                # height per elevation step (8px / 32px tile)
+# Turn spring: a body accelerates into a turn and damps out of it (slightly
+# underdamped for a snappy-but-physical settle), so facing changes are never instant.
+const TURN_STIFFNESS := 62.0
+const TURN_DAMPING := 14.0
 const DRESSING_ANCHOR := 4          # visual set dressing snaps to this tile grid
 const SPAWN_LAYER := 0              # overworld layer the home-campsite dressing lives on
 const DRESSING_SPREAD := 1.7        # fan the camp pieces apart so nothing is squished
@@ -40,7 +44,8 @@ var batches_root: Node3D             # holds the per-(mesh,material) MultiMeshIn
 var dressing_root: Node3D            # visual-only hiking-diorama silhouettes near camera
 var _mover_nodes: Dictionary = {}    # moving entity id -> Node3D (player/enemies)
 var _mover_prev: Dictionary = {}     # key -> last 3D pos (for walk detection)
-var _mover_yaw: Dictionary = {}      # key -> smoothed facing yaw
+var _mover_yaw: Dictionary = {}      # key -> facing yaw (turned with spring inertia)
+var _mover_yaw_vel: Dictionary = {}  # key -> angular velocity for the turn spring
 var _mover_walk: Dictionary = {}     # key -> smoothed walk amount 0..1
 var _attack_t: Dictionary = {}       # key -> time (s) the last attack lunge started
 var _mover_death: Dictionary = {}    # key -> {t0, pos} while a defeated mover plays its death topple
@@ -775,7 +780,8 @@ func _sync_movers() -> void:
 			if is_instance_valid(n):
 				n.queue_free()
 			_mover_nodes.erase(id)
-			_mover_prev.erase(id); _mover_yaw.erase(id); _mover_walk.erase(id)
+			_mover_prev.erase(id); _mover_yaw.erase(id); _mover_yaw_vel.erase(id); _mover_walk.erase(id)
+			_mover_death.erase(str(id))
 			_free_shadow(str(id))
 
 
@@ -838,17 +844,30 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 	var target_walk := clampf(speed / 3.0, 0.0, 1.0)
 	var walk: float = lerpf(float(_mover_walk.get(key, 0.0)), target_walk, clampf(dt * 10.0, 0.0, 1.0))
 	_mover_walk[key] = walk
-	# Face the movement direction (smoothed), keep last facing when idle.
+	# Desired heading: face where you're moving; in a fight the foe's bearing wins —
+	# an enemy keeps facing you, while the PLAYER only squares up to the foe when
+	# standing its ground, so walking/running away turns it to its travel direction.
+	# The turn itself is driven by a spring (angular accel + damping) so every body
+	# rotates with real inertia and is always animated turning — never an instant snap.
 	var yaw: float = float(_mover_yaw.get(key, 0.0))
-	if vel.length() > 0.0005:
-		yaw = lerp_angle(yaw, atan2(vel.x, vel.z), clampf(dt * 12.0, 0.0, 1.0))
-		_mover_yaw[key] = yaw
-	# During a fight, the player and its target square up and face each other
-	# regardless of which way either is drifting.
-	var face: Variant = _combat_face_pos(key)
+	var moving := speed > 0.35
+	var desired := yaw
+	var want := false
+	if moving:
+		desired = atan2(vel.x, vel.z)
+		want = true
+	var face: Variant = _combat_face_pos(key, moving)
 	if face != null:
 		var f3 := iso_to_3d(face, 0.0)
-		yaw = lerp_angle(yaw, atan2(f3.x - pos3.x, f3.z - pos3.z), clampf(dt * 14.0, 0.0, 1.0))
+		desired = atan2(f3.x - pos3.x, f3.z - pos3.z)
+		want = true
+	if want:
+		var sdt := minf(dt, 0.04)                 # clamp so a frame spike can't blow up the spring
+		var yvel: float = float(_mover_yaw_vel.get(key, 0.0))
+		var diff := wrapf(desired - yaw, -PI, PI)
+		yvel += (diff * TURN_STIFFNESS - yvel * TURN_DAMPING) * sdt
+		yaw = wrapf(yaw + yvel * sdt, -PI, PI)
+		_mover_yaw_vel[key] = yvel
 		_mover_yaw[key] = yaw
 	var phase := float(absi(hash(key)) % 1000) * 0.006283
 	var base: float = float(node.get_meta("base_scale", 1.0))
@@ -1273,14 +1292,16 @@ func _attack_progress(key: String, t: float) -> float:
 
 ## The iso position a mover should face mid-fight, or null when not in combat:
 ## the player faces its target, the target faces the player.
-func _combat_face_pos(key: String) -> Variant:
+func _combat_face_pos(key: String, moving: bool) -> Variant:
 	if not CombatSim.active:
 		return null
 	var tgt: Node = world.combat_target_entity
 	if not is_instance_valid(tgt):
 		return null
 	if key == "player":
-		return tgt.position
+		# Square up to the foe only while holding position — if we're walking/running
+		# (away or anywhere) face the travel direction instead of the enemy.
+		return null if moving else tgt.position
 	if key == str(tgt.get_instance_id()):
 		return world.player.position
 	return null
