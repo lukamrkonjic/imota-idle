@@ -1386,13 +1386,16 @@ static func blob_shadow() -> MeshInstance3D:
 
 ## Ground-plane offset a static prop's shadow is dropped at — pushed down-light
 ## (away from the warm upper-right sun) so it falls down-left, matching movers.
-const SHADOW_DROP := Vector2(-0.28, -0.34)
+const SHADOW_DROP := Vector2(-0.12, -0.14)
 
 ## A blob-shadow PART for static raised props (trees/houses): a flat soft quad on
 ## the ground, pushed down-light. Batches with all other prop shadows into one
 ## MultiMesh. `radius` ~ the prop's ground footprint; `lon` stretches it a touch
 ## along the shadow's fall for a longer afternoon cast.
-static func _shadow_part(radius: float, lon := 1.25, extra := Vector2.ZERO) -> Dictionary:
+## A round, soft, ground-hugging blob. lon defaults to 1.0 (a circle): the old 1.25
+## elongation + a big diagonal drop made the blob read as a hard, angular "directional"
+## smear that pixelated into a square. A centred circle reads as a clean soft shadow.
+static func _shadow_part(radius: float, lon := 1.0, extra := Vector2.ZERO) -> Dictionary:
 	var off := SHADOW_DROP + extra
 	return _part(_shadow_quad(), _shadow_mat(), Vector3(off.x, 0.03, off.y), Vector3(radius * 2.0, 1.0, radius * 2.0 * lon))
 
@@ -1416,7 +1419,7 @@ static func _shadow_mat() -> StandardMaterial3D:
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		m.blend_mode = BaseMaterial3D.BLEND_MODE_MUL
 		m.albedo_texture = _shadow_texture()
-		m.albedo_color = Color(0.38, 0.4, 0.34, 1.0)   # multiply factor at the blob centre
+		m.albedo_color = Color(0.55, 0.57, 0.52, 1.0)   # multiply factor at the blob centre (lighter = softer)
 		m.cull_mode = BaseMaterial3D.CULL_DISABLED
 		_shadow_material = m
 	return _shadow_material
@@ -1431,8 +1434,11 @@ static func _shadow_texture() -> ImageTexture:
 		for y: int in n:
 			for x: int in n:
 				var d := Vector2(float(x) - c + 0.5, float(y) - c + 0.5).length() / c
-				var a := clampf(1.0 - d, 0.0, 1.0)
-				img.set_pixel(x, y, Color(1, 1, 1, a * a))
+				# Small soft core, long gradual rim: a smooth S-curve gives many partial-alpha
+				# edge pixels so even at the chunky gameplay resolution the blob fades like a
+				# round shadow instead of snapping to a hard square.
+				var a := smoothstep(1.0, 0.25, d)
+				img.set_pixel(x, y, Color(1, 1, 1, a))
 		_shadow_tex_cache = ImageTexture.create_from_image(img)
 	return _shadow_tex_cache
 
