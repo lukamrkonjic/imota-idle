@@ -25,6 +25,9 @@ uniform float posterize_steps : hint_range(2.0, 8.0) = 4.0;
 // from the model origin; taller verts sway more.
 uniform float wind : hint_range(0.0, 0.3) = 0.0;
 uniform float wind_speed = 1.6;
+// Per-instance damage flash: the renderer pulses this on a body that just took a
+// hit, washing it red for a few frames. Per-instance so only the struck mover flashes.
+instance uniform float hurt : hint_range(0.0, 1.0) = 0.0;
 
 void vertex() {
 	if (wind > 0.0) {
@@ -45,6 +48,8 @@ void fragment() {
 	ALBEDO = vec3(1.0);
 	ROUGHNESS = 1.0;
 	SPECULAR = 0.0;
+	// Damage flash: a red wash added on top when hurt > 0 (driven per instance).
+	EMISSION = vec3(0.85, 0.07, 0.05) * hurt;
 }
 
 void light() {

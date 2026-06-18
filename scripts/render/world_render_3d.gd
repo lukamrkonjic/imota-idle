@@ -22,6 +22,7 @@ const ELEV_H := 0.25                # height per elevation step (8px / 32px tile
 # underdamped for a snappy-but-physical settle), so facing changes are never instant.
 const TURN_STIFFNESS := 62.0
 const TURN_DAMPING := 14.0
+const HURT_DUR := 0.2               # how long the take-a-hit red flash + shake lasts
 const DRESSING_ANCHOR := 4          # visual set dressing snaps to this tile grid
 const SPAWN_LAYER := 0              # overworld layer the home-campsite dressing lives on
 const DRESSING_SPREAD := 1.7        # fan the camp pieces apart so nothing is squished
@@ -48,6 +49,7 @@ var _mover_yaw: Dictionary = {}      # key -> facing yaw (turned with spring ine
 var _mover_yaw_vel: Dictionary = {}  # key -> angular velocity for the turn spring
 var _mover_walk: Dictionary = {}     # key -> smoothed walk amount 0..1
 var _attack_t: Dictionary = {}       # key -> time (s) the last attack lunge started
+var _hurt_t: Dictionary = {}         # key -> time (s) a body last took a hit (red flash + shake)
 var _mover_death: Dictionary = {}    # key -> {t0, pos} while a defeated mover plays its death topple
 var _shadow_nodes: Dictionary = {}   # key -> blob-shadow MeshInstance3D pinned to ground
 var fx_layer: CanvasLayer            # screen-space overlay for hitsplats over the 3D world
@@ -781,7 +783,7 @@ func _sync_movers() -> void:
 				n.queue_free()
 			_mover_nodes.erase(id)
 			_mover_prev.erase(id); _mover_yaw.erase(id); _mover_yaw_vel.erase(id); _mover_walk.erase(id)
-			_mover_death.erase(str(id))
+			_mover_death.erase(str(id)); _hurt_t.erase(str(id))
 			_free_shadow(str(id))
 
 
@@ -904,6 +906,7 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 		shadow.scale = Vector3(fp.x * base * 1.12, 1.0, fp.y * base * 1.12)
 	_flow_cloth(node, walk, t, phase)
 	_sway_hair(node, walk, t, phase)
+	_apply_hurt(node, key, t, base)
 
 
 ## Death topple: a defeated mover crumples where it fell and settles to the ground
@@ -953,6 +956,33 @@ func _death_anim(node: Node3D, key: String, pos3: Vector3, t: float, base: float
 		shadow.position = Vector3(dpos.x, dpos.y + 0.04, dpos.z)
 		shadow.rotation.y = yaw
 		shadow.scale = Vector3(fp.x * ss, 1.0, fp.y * ss)
+	_apply_hurt(node, key, t, base)   # the killing blow's red flash carries into the topple
+
+
+## Take-a-hit feedback: a subtle red wash (per-instance shader flash) plus a tiny
+## positional shake on the struck body, decaying over HURT_DUR. Adds to whatever the
+## pose set, so it layers on the walk/idle without overriding it.
+func _apply_hurt(node: Node3D, key: String, t: float, base: float) -> void:
+	if not _hurt_t.has(key):
+		return
+	var p := clampf(1.0 - (t - float(_hurt_t[key])) / HURT_DUR, 0.0, 1.0)
+	if p <= 0.0:
+		_set_hurt_flash(node, 0.0)   # one final clear, then stop touching it
+		_hurt_t.erase(key)
+		return
+	_set_hurt_flash(node, p * 0.35)  # subtle: a brief light-red wash that fades out
+	var sh := p * 0.03 * base        # small jitter, scaled to body size
+	node.position += Vector3(sin(t * 94.0) * sh, 0.0, cos(t * 86.0) * sh)
+
+
+## Push the per-instance `hurt` flash onto every toon mesh under the rig (materials
+## that don't use the uniform just ignore it).
+func _set_hurt_flash(node: Node, v: float) -> void:
+	for c: Node in node.get_children():
+		if c is MeshInstance3D:
+			(c as MeshInstance3D).set_instance_shader_parameter(&"hurt", v)
+		if c.get_child_count() > 0:
+			_set_hurt_flash(c, v)
 
 
 ## Cheap "hair physics": any hair/beard/mane/tuft pivot on a rig gets a soft sway —
@@ -1272,17 +1302,29 @@ const ATTACK_DUR := 0.42  # seconds one swing lunge plays over
 
 ## A hit splat means a swing just landed: lunge the attacker. on_player = the enemy
 ## hit us (so the enemy lunges); otherwise the player's swing landed.
-func _on_combat_swing(_amount: int, _miss: bool, on_player: bool) -> void:
+func _on_combat_swing(_amount: int, miss: bool, on_player: bool) -> void:
+	var tgt: Node = world.combat_target_entity
 	if on_player:
-		var tgt: Node = world.combat_target_entity
+		# The enemy swung at the player: enemy lunges, and the PLAYER took the hit.
 		if is_instance_valid(tgt):
 			_mark_attack(str(tgt.get_instance_id()))
+		if not miss:
+			_mark_hurt("player")
 	else:
+		# The player swung at the enemy: player lunges, the ENEMY took the hit.
 		_mark_attack("player")
+		if not miss and is_instance_valid(tgt):
+			_mark_hurt(str(tgt.get_instance_id()))
 
 
 func _mark_attack(key: String) -> void:
 	_attack_t[key] = Time.get_ticks_msec() / 1000.0
+
+
+## Flag a body as just-hit so it flashes red and shakes for HURT_DUR (the model that
+## TOOK the damage — the player on an enemy hit, the enemy on a player hit).
+func _mark_hurt(key: String) -> void:
+	_hurt_t[key] = Time.get_ticks_msec() / 1000.0
 
 
 func _attack_progress(key: String, t: float) -> float:
