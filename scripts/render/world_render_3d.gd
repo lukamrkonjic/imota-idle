@@ -687,8 +687,7 @@ func _sync_movers() -> void:
 	var dt := get_process_delta_time()
 	var t := Time.get_ticks_msec() / 1000.0
 	if _player_node == null:
-		# The player gets the iconic red scarf/cape; enemies don't.
-		_player_node = PropMeshes.figure_rig(PixelPalette.pal("outfit_a"), PixelPalette.pal("skin_a"), Color(0.74, 0.16, 0.14))
+		_player_node = PropMeshes.figure_rig(PixelPalette.pal("outfit_a"), PixelPalette.pal("skin_a"))
 		_prep_mover(_player_node, "player")
 	_animate_mover(_player_node, "player", world.player.position, t, dt)
 	var live := {}
@@ -831,32 +830,43 @@ func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: flo
 ## bob, the back dips a touch on each push, and the tail wags. A swing leans the
 ## whole body in for a headbutt/bite.
 func _pose_quadruped(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float) -> void:
-	node.rotation = Vector3(-0.28 * sin(atk * PI), yaw, 0)
+	var rest := 1.0 - walk
+	# Idle life: slow breathing, a gentle side-to-side weight shift, and a periodic
+	# head-down graze dip so a standing beast never just freezes.
+	var breathe := rest * sin(t * 1.5 + phase) * 0.022
+	var sway := rest * sin(t * 0.85 + phase) * 0.035
+	var graze := rest * maxf(0.0, sin(t * 0.45 + phase) - 0.4) * 0.32
+	node.rotation = Vector3(-0.28 * sin(atk * PI) + graze, yaw, sway)
 	var stride := t * 6.0 + phase
 	var bob := absf(sin(stride)) * 0.05 * walk
-	var breathe := (1.0 - walk) * sin(t * 1.4 + phase) * 0.012
 	node.position = pos3 + Vector3(0, bob, 0)
 	var sq := sin(stride * 2.0) * 0.03 * walk
 	node.scale = Vector3(base * (1.0 + sq * 0.4), base * (1.0 - sq * 0.5 + breathe), base * (1.0 + sq * 0.4))
 	var swing := sin(stride) * 0.8 * walk
-	var idle_leg := (1.0 - walk) * sin(t * 1.3 + phase) * 0.03
+	var idle_leg := rest * sin(t * 1.1 + phase) * 0.04
 	_set_pivot(node, "leg_fl", swing + idle_leg)
 	_set_pivot(node, "leg_br", swing - idle_leg)
 	_set_pivot(node, "leg_fr", -swing - idle_leg)
 	_set_pivot(node, "leg_bl", -swing + idle_leg)
 	var tail: Node3D = node.get_node_or_null(^"tail")
 	if tail != null:
-		tail.rotation = Vector3(0.18 * sin(stride * 0.5) * walk, 0.5 * sin(t * 2.0), 0)
+		tail.rotation = Vector3(0.18 * sin(stride * 0.5) * walk, 0.5 * sin(t * 2.0 + phase), 0)
 
 
 ## Bird waddle: quick alternating steps, a side-to-side roll, and a brisk bob —
 ## smaller and twitchier than the beasts. A swing is a sharp forward peck.
 func _pose_bird(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float) -> void:
+	var rest := 1.0 - walk
 	var stride := t * 7.5 + phase
-	var bob := absf(sin(stride)) * 0.05 * walk + (1.0 - walk) * sin(t * 2.0 + phase) * 0.01
+	# Idle life: a constant little body bob plus a sharp periodic peck-and-look,
+	# and a slight head-cock sway — birds are never still.
+	var idle_bob := rest * absf(sin(t * 2.2 + phase)) * 0.02
+	var peck := rest * maxf(0.0, sin(t * 1.4 + phase) - 0.3) * 0.5
+	var look := rest * sin(t * 0.7 + phase) * 0.12
+	var bob := absf(sin(stride)) * 0.05 * walk + idle_bob
 	node.position = pos3 + Vector3(0, bob, 0)
 	var roll := sin(stride) * 0.18 * walk
-	node.rotation = Vector3(-0.35 * sin(atk * PI), yaw, roll)
+	node.rotation = Vector3(-0.35 * sin(atk * PI) - peck, yaw + look, roll)
 	node.scale = Vector3(base, base, base)
 	var swing := sin(stride) * 0.7 * walk
 	_set_pivot(node, "leg_l", swing)

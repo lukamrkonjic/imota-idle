@@ -796,46 +796,95 @@ static func build_node(parts: Array) -> Node3D:
 	return root
 
 
-## Articulated low-poly figure in the A Short Hike spirit: a big rounded head over
-## a small chunky body, stubby rounded limbs, an optional flowing cape. Each leg
-## and arm hangs off a named pivot (leg_l/leg_r/arm_l/arm_r) so the walk + attack
-## anim can swing it. body = outfit color, head = skin color, cape = scarf colour
-## (alpha 0 = none). Faces +Z.
+## Articulated low-poly human with natural proportions (a normal-sized squared
+## head, not a chibi ball): tousled hair, a casual shirt with rolled sleeves —
+## bare-skin forearms — over dark trousers and boots. Each leg/arm hangs off a
+## named pivot (leg_l/leg_r/arm_l/arm_r) for the walk + attack anim. body = shirt
+## colour, head = skin. (cape kept for API compat; the player no longer uses it.)
+## Faces +Z.
 static func figure_rig(body: Color, head: Color, cape := Color(0, 0, 0, 0)) -> Node3D:
-	var cloth := _mat_from(body, body.darkened(0.42), body.lightened(0.22))
-	var pants := _mat_from(body.darkened(0.6).lerp(Color(0.16, 0.14, 0.12), 0.5), body.darkened(0.72), body.darkened(0.3))
-	var boot := _mat_from(Color(0.24, 0.16, 0.1), Color(0.14, 0.09, 0.05), Color(0.36, 0.26, 0.16))
+	var shirt := _mat_from(body, body.darkened(0.4), body.lightened(0.22))
+	var pants := _mat_from(Color(0.22, 0.22, 0.27), Color(0.13, 0.13, 0.17), Color(0.32, 0.32, 0.38))
+	var boot := _mat_from(Color(0.26, 0.17, 0.1), Color(0.15, 0.09, 0.05), Color(0.38, 0.27, 0.16))
 	var skin := _mat_from(head, head.darkened(0.3), head.lightened(0.2))
 	var hairc: Color = PixelPalette.pal("hair")
-	var hairm := _mat_from(hairc, hairc.darkened(0.38), hairc.lightened(0.16))
-	var eyew := _mat_from(Color(0.96, 0.96, 0.98), Color(0.78, 0.78, 0.84), Color(1, 1, 1))
-	var eyed := _mat_from(Color(0.08, 0.09, 0.13), Color(0.04, 0.04, 0.06), Color(0.16, 0.17, 0.22))
+	var hairm := _mat_from(hairc, hairc.darkened(0.4), hairc.lightened(0.18))
+	var eyed := _mat_from(Color(0.1, 0.1, 0.14), Color(0.05, 0.05, 0.07), Color(0.18, 0.18, 0.22))
 	var root := Node3D.new()
-	# Small chunky torso, tapering up toward the shoulders.
-	_attach(root, _sphere("fig_torso", 0.24), cloth, Vector3(0, 0.74, 0), Vector3(1.06, 1.4, 0.86))
-	# Big rounded head — the chibi proportion that carries the charm.
-	_attach(root, _sphere("fig_head", 0.4), skin, Vector3(0, 1.3, 0), Vector3(1.0, 1.04, 1.0))
-	# Hair as a rounded cap over the crown and back, leaving the face (+Z) clear.
-	_attach(root, _sphere("fig_hair", 0.42), hairm, Vector3(0, 1.41, -0.07), Vector3(1.05, 0.92, 1.05))
-	# Two big expressive eyes on the face: white with a dark pupil set just proud.
+	# Legs: dark trousers + boots, pivoting at the hip. Long, natural-proportion legs.
+	for side: int in [-1, 1]:
+		var leg := _limb(root, "leg_l" if side < 0 else "leg_r", Vector3(0.13 * side, 0.9, 0))
+		_attach(leg, _box("hum_leg", Vector3(0.19, 0.66, 0.21)), pants, Vector3(0, -0.33, 0))
+		_attach(leg, _box("hum_boot", Vector3(0.21, 0.16, 0.28)), boot, Vector3(0, -0.74, 0.04))
+	_attach(root, _box("hum_hips", Vector3(0.42, 0.18, 0.27)), pants, Vector3(0, 0.92, 0))
+	# Torso: a casual shirt with a slightly broader shoulder yoke + a small collar.
+	_attach(root, _box("hum_chest", Vector3(0.46, 0.52, 0.28)), shirt, Vector3(0, 1.24, 0))
+	_attach(root, _box("hum_yoke", Vector3(0.52, 0.14, 0.31)), shirt, Vector3(0, 1.46, 0))
+	_attach(root, _box("hum_collar", Vector3(0.12, 0.12, 0.08)), skin, Vector3(0, 1.46, 0.14))
+	# Neck + a squared, natural-sized head.
+	_attach(root, _box("hum_neck", Vector3(0.14, 0.12, 0.15)), skin, Vector3(0, 1.55, 0))
+	_attach(root, _box("hum_head", Vector3(0.32, 0.36, 0.32)), skin, Vector3(0, 1.74, 0))
+	# Tousled hair: a crown block, a swept-up front fringe, and short sides.
+	_attach(root, _box("hum_hair", Vector3(0.35, 0.16, 0.35)), hairm, Vector3(0, 1.9, -0.01))
+	_attach(root, _box("hum_fringe", Vector3(0.33, 0.1, 0.13)), hairm, Vector3(0.02, 1.86, 0.16), Vector3.ONE, Vector3(-0.35, 0, 0.1))
+	_attach(root, _box("hum_side", Vector3(0.36, 0.16, 0.3)), hairm, Vector3(0, 1.8, -0.06))
+	# Subtle eyes set into the face (+Z).
 	for ex: int in [-1, 1]:
-		_attach(root, _sphere("fig_eyew", 0.09), eyew, Vector3(0.12 * ex, 1.32, 0.31), Vector3(0.82, 1.0, 0.55))
-		_attach(root, _sphere("fig_eyed", 0.045), eyed, Vector3(0.13 * ex, 1.32, 0.37), Vector3(0.95, 1.0, 0.7))
-	# Optional flowing cape/scarf down the back (the red-silhouette accent).
+		_attach(root, _box("hum_eye", Vector3(0.05, 0.06, 0.04)), eyed, Vector3(0.08 * ex, 1.74, 0.16))
+	# Optional cape/strap kept for API compatibility.
 	if cape.a > 0.0:
 		var capem := _mat_from(Color(cape.r, cape.g, cape.b), cape.darkened(0.34), cape.lightened(0.22))
-		_attach(root, _box("fig_collar", Vector3(0.34, 0.13, 0.22)), capem, Vector3(0, 1.0, -0.02))
-		_attach(root, _box("fig_cape", Vector3(0.3, 0.52, 0.07)), capem, Vector3(0, 0.64, -0.17), Vector3.ONE, Vector3(0.3, 0, 0))
-	# Legs: short hose + a rounded boot, pivoting at the hip.
-	for side: int in [-1, 1]:
-		var leg := _limb(root, "leg_l" if side < 0 else "leg_r", Vector3(0.12 * side, 0.5, 0))
-		_attach(leg, _box("rig_shin", Vector3(0.16, 0.4, 0.17)), pants, Vector3(0, -0.2, 0))
-		_attach(leg, _sphere("rig_foot", 0.12), boot, Vector3(0, -0.4, 0.04), Vector3(1.0, 0.7, 1.3))
-	# Arms: stubby sleeves + a rounded hand, pivoting at the shoulder.
+		_attach(root, _box("hum_cape", Vector3(0.34, 0.6, 0.07)), capem, Vector3(0, 1.1, -0.17), Vector3.ONE, Vector3(0.2, 0, 0))
+	# Arms: shirt upper sleeve, bare-skin rolled-up forearm, hand. Pivot at shoulder.
 	for side2: int in [-1, 1]:
-		var arm := _limb(root, "arm_l" if side2 < 0 else "arm_r", Vector3(0.26 * side2, 1.0, 0))
-		_attach(arm, _box("fig_arm", Vector3(0.12, 0.34, 0.13)), cloth, Vector3(0, -0.15, 0))
-		_attach(arm, _sphere("fig_hand", 0.09), skin, Vector3(0, -0.34, 0))
+		var arm := _limb(root, "arm_l" if side2 < 0 else "arm_r", Vector3(0.3 * side2, 1.42, 0))
+		_attach(arm, _box("hum_sleeve", Vector3(0.14, 0.3, 0.16)), shirt, Vector3(0, -0.15, 0))
+		_attach(arm, _box("hum_forearm", Vector3(0.12, 0.26, 0.14)), skin, Vector3(0, -0.38, 0))
+		_attach(arm, _box("hum_hand", Vector3(0.13, 0.13, 0.15)), skin, Vector3(0, -0.55, 0))
+	return root
+
+
+## Beast-folk biped (gnolls): a hunched, muscular hyena-man with a snouted head,
+## perked ears, a fur body + loincloth, and long arms. Uses the humanoid leg_l/r
+## + arm_l/r pivots so it walks and swings like a biped. Faces +Z.
+static func beastman_rig(spec: Dictionary) -> Node3D:
+	var fur: Color = spec.get("fur", Color(0.55, 0.45, 0.32))
+	var furm := _mat_from(fur, fur.darkened(0.38), fur.lightened(0.2))
+	var furd := _mat_from(fur.darkened(0.3), fur.darkened(0.52), fur.darkened(0.1))
+	var light := _mat_from(fur.lightened(0.24), fur.darkened(0.1), fur.lightened(0.4))
+	var cloth := _mat_from(Color(0.34, 0.27, 0.19), Color(0.2, 0.15, 0.1), Color(0.46, 0.37, 0.26))
+	var claw := _mat_from(Color(0.16, 0.14, 0.13), Color(0.08, 0.07, 0.06), Color(0.26, 0.23, 0.2))
+	var eyec := _mat_from(Color(0.95, 0.55, 0.12), Color(0.7, 0.32, 0.05), Color(1.0, 0.78, 0.3))
+	var root := Node3D.new()
+	# Powerful digitigrade-ish legs (pivot at the hip).
+	for side: int in [-1, 1]:
+		var leg := _limb(root, "leg_l" if side < 0 else "leg_r", Vector3(0.16 * side, 0.84, 0))
+		_attach(leg, _box("gn_thigh", Vector3(0.22, 0.42, 0.24)), furm, Vector3(0, -0.19, 0))
+		_attach(leg, _box("gn_shin", Vector3(0.16, 0.34, 0.18)), furm, Vector3(0, -0.5, 0.02))
+		_attach(leg, _box("gn_paw", Vector3(0.2, 0.12, 0.3)), claw, Vector3(0, -0.66, 0.08))
+	_attach(root, _box("gn_loin", Vector3(0.48, 0.28, 0.32)), cloth, Vector3(0, 0.84, 0))
+	# Hunched, broad bare torso leaning forward; lighter belly fur.
+	_attach(root, _box("gn_chest", Vector3(0.52, 0.46, 0.34)), furm, Vector3(0, 1.2, 0.06), Vector3.ONE, Vector3(-0.18, 0, 0))
+	_attach(root, _box("gn_belly", Vector3(0.4, 0.3, 0.28)), light, Vector3(0, 1.0, 0.1))
+	_attach(root, _box("gn_shoulders", Vector3(0.64, 0.2, 0.36)), furm, Vector3(0, 1.42, 0.02))
+	# A dark mane running up the back of the neck.
+	_attach(root, _box("gn_mane", Vector3(0.16, 0.34, 0.2)), furd, Vector3(0, 1.5, -0.12), Vector3.ONE, Vector3(0.3, 0, 0))
+	# Forward-thrust neck + a hyena head with a long snout and a dark nose.
+	_attach(root, _box("gn_neck", Vector3(0.22, 0.22, 0.26)), furm, Vector3(0, 1.5, 0.12))
+	_attach(root, _box("gn_skull", Vector3(0.3, 0.3, 0.32)), furm, Vector3(0, 1.62, 0.18))
+	_attach(root, _box("gn_snout", Vector3(0.18, 0.16, 0.24)), light, Vector3(0, 1.56, 0.4))
+	_attach(root, _box("gn_nose", Vector3(0.1, 0.09, 0.07)), claw, Vector3(0, 1.58, 0.53))
+	_attach(root, _box("gn_jaw", Vector3(0.16, 0.06, 0.2)), furd, Vector3(0, 1.49, 0.42))
+	# Perked, pointed ears + fierce orange eyes.
+	for sx: int in [-1, 1]:
+		_attach(root, _cone("gn_ear", 0.08, 0.01, 0.2), furm, Vector3(0.12 * sx, 1.82, 0.12), Vector3.ONE, Vector3(-0.2, 0, 0.3 * sx))
+		_attach(root, _box("gn_eye", Vector3(0.05, 0.05, 0.05)), eyec, Vector3(0.08 * sx, 1.64, 0.34))
+	# Long, heavy arms: fur upper, darker forearm, clawed hand. Pivot at the shoulder.
+	for side2: int in [-1, 1]:
+		var arm := _limb(root, "arm_l" if side2 < 0 else "arm_r", Vector3(0.34 * side2, 1.42, 0.02))
+		_attach(arm, _box("gn_upper", Vector3(0.17, 0.36, 0.19)), furm, Vector3(0, -0.18, 0))
+		_attach(arm, _box("gn_fore", Vector3(0.15, 0.3, 0.16)), furd, Vector3(0, -0.44, 0.02))
+		_attach(arm, _box("gn_hand", Vector3(0.17, 0.15, 0.2)), claw, Vector3(0, -0.62, 0.03))
 	return root
 
 
@@ -960,12 +1009,13 @@ static func enemy_rig(e: Node) -> Node3D:
 			size = 0.62
 		_:
 			type = "humanoid"
-			if n.contains("goblin") or n.contains("hob"):
+			if n.contains("gnoll"):
+				var dark_gn := n.contains("toxic") or n.contains("dark")
+				node = beastman_rig({"fur": Color(0.42, 0.45, 0.36) if dark_gn else Color(0.58, 0.47, 0.33)})
+				size = 1.02
+			elif n.contains("goblin") or n.contains("hob"):
 				node = figure_rig(Color(0.40, 0.31, 0.23), Color(0.44, 0.66, 0.34))
 				size = 0.86
-			elif n.contains("gnoll"):
-				node = figure_rig(Color(0.46, 0.4, 0.3), Color(0.52, 0.46, 0.34))
-				size = 0.98
 			elif n.contains("skelet") or n.contains("bone"):
 				node = figure_rig(Color(0.62, 0.60, 0.56), Color(0.86, 0.85, 0.80))
 			else:
