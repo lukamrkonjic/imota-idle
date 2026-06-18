@@ -72,8 +72,12 @@ var _present_scale := 1.0
 var _present_off := Vector2.ZERO
 var _present_base_off := Vector2.ZERO
 var _static_sig := ""
-var _ti_cache: Dictionary = {}       # per-frame memo: "gtx,gty" -> tile info (cleared each frame)
-var _cc_cache: Dictionary = {}       # per-frame memo: "ci,cj" -> corner colour
+var _ti_cache: Dictionary = {}       # per-frame memo: Vector2i tile -> tile info (cleared each frame)
+var _cc_cache: Dictionary = {}       # per-frame memo: Vector2i corner -> corner colour
+var _cb_cache: Dictionary = {}       # per-frame memo: Vector2i corner -> beach fraction
+var _batch_xf: Dictionary = {}       # static prop instance_id -> cached world Transform3D
+const _IDENTITY_XF := Transform3D()  # sentinel for "not yet cached" (props never sit at identity)
+var _terrain_built := false          # did a chunk mesh build this frame (stagger batch rebuild off it)
 var _batch_rebuild_t := 0.0          # last static-batch rebuild time (throttle)
 const BATCH_REBUILD_MIN := 0.35      # min seconds between static-batch rebuilds
 var _dressing_sig := ""
@@ -165,7 +169,8 @@ func _build() -> void:
 	sun.directional_shadow_max_distance = 90.0
 	sun.shadow_bias = 0.04
 	sun.shadow_normal_bias = 0.9
-	sun.shadow_blur = 1.5   # soft A Short Hike shadow edge (low-res render keeps it crisp)
+	sun.shadow_blur = 0.7   # tighter edge: the wide 1.5 blur shimmered ("fuzzy") in motion;
+	                        # the pixel-snapped camera keeps the now-crisper edge stable
 	world3d.add_child(sun)
 	_sun = sun
 	_apply_view_distance()   # set terrain cull / fog distance / shadow distance from the slider
@@ -362,6 +367,8 @@ func _process(delta: float) -> void:
 	# height sample hit the same tiles thousands of times in a frame).
 	_ti_cache.clear()
 	_cc_cache.clear()
+	_cb_cache.clear()
+	_occ_cache.clear()
 	_apply_pixelation()   # keeps render res matched to the window + pixelation slider
 	_update_camera_input(delta)
 	_sync_camera()
@@ -561,12 +568,14 @@ func _sync_terrain() -> void:
 			if w > best_w:
 				best_w = w
 				pick = key2
+	_terrain_built = false
 	if pick != "":
 		var node := _build_chunk_terrain(_chunk_by_key[pick])
 		terrain_root.add_child(node)
 		_chunk_meshes[pick] = node
 		_chunk_nbr[pick] = _data_nbr_count(pick)
 		_chunk_wait.erase(pick)
+		_terrain_built = true
 	else:
 		# Pass 2b: nothing new to build this frame -> reconcile any chunk that was
 		# force-built with partial neighbour data once more of its neighbours have loaded.
@@ -582,6 +591,7 @@ func _sync_terrain() -> void:
 				terrain_root.add_child(node)
 				_chunk_meshes[key2] = node
 				_chunk_nbr[key2] = nc
+				_terrain_built = true
 				break
 	for key: String in _chunk_meshes.keys():
 		if not live.has(key):
@@ -705,6 +715,47 @@ func _build_chunk_terrain(chunk: RefCounted) -> Node3D:
 	# UV.x) decides where it's land (transparent), inner aqua, outer turquoise, or deep.
 	var sst := SurfaceTool.new()
 	sst.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# The shore overlay (and the costly coastline field it samples) is only needed where
+	# water is within reach of this chunk. Skip it entirely for inland chunks — forests,
+	# mountains, plains — which are the vast majority, saving the whole 256-tile wf sweep.
+	var has_shore := false
+	if has_water or _chunk_near_water(cx0, cy0, n):
+		has_shore = _emit_shore_overlay(sst, cx0, cy0, n, hc, wfc)
+	var root := Node3D.new()
+	var ground := MeshInstance3D.new()
+	ground.mesh = st.commit()
+	ground.material_override = _ground_mat
+	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(ground)
+	if has_water:
+		var water := MeshInstance3D.new()
+		water.mesh = wst.commit()
+		water.material_override = _water_mat
+		water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(water)
+	if has_shore:
+		var shore := MeshInstance3D.new()
+		shore.mesh = sst.commit()
+		shore.material_override = _shore_mat
+		shore.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(shore)
+	return root
+
+
+# Any water tile within reach of this chunk (chunk + the shore field's radius), early-out.
+# Gates the shore overlay so inland chunks pay nothing for it.
+const SHORE_REACH := SHORE_SMOOTH + 1
+func _chunk_near_water(cx0: int, cy0: int, n: int) -> bool:
+	for ty: int in range(cy0 - SHORE_REACH, cy0 + n + SHORE_REACH):
+		for tx: int in range(cx0 - SHORE_REACH, cx0 + n + SHORE_REACH):
+			if _coast_water(tx, ty):
+				return true
+	return false
+
+
+# Build the coastal aqua/wet-sand overlay band for a coastal chunk. Returns true if any
+# geometry was emitted. Split out of _build_chunk_terrain so it can be skipped wholesale.
+func _emit_shore_overlay(sst: SurfaceTool, cx0: int, cy0: int, n: int, hc: Dictionary, wfc: Dictionary) -> bool:
 	var has_shore := false
 	for ty: int in n:
 		for tx: int in n:
@@ -735,25 +786,7 @@ func _build_chunk_terrain(chunk: RefCounted) -> Node3D:
 				sst.set_normal(Vector3.UP)
 				sst.set_uv(Vector2(float(p[1]), 0.0))
 				sst.add_vertex(p[0])
-	var root := Node3D.new()
-	var ground := MeshInstance3D.new()
-	ground.mesh = st.commit()
-	ground.material_override = _ground_mat
-	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	root.add_child(ground)
-	if has_water:
-		var water := MeshInstance3D.new()
-		water.mesh = wst.commit()
-		water.material_override = _water_mat
-		water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		root.add_child(water)
-	if has_shore:
-		var shore := MeshInstance3D.new()
-		shore.mesh = sst.commit()
-		shore.material_override = _shore_mat
-		shore.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		root.add_child(shore)
-	return root
+	return has_shore
 
 
 func _emit_corner(st: SurfaceTool, ci: int, cj: int, hc: Dictionary, wfc: Dictionary) -> void:
@@ -775,6 +808,9 @@ func _emit_corner(st: SurfaceTool, ci: int, cj: int, hc: Dictionary, wfc: Dictio
 # Beach fraction at a grid corner: how many of the 4 touching tiles are sand (0..1). A
 # fractional value near the biome edge lets the shader dither the sand/grass boundary.
 func _corner_beach(ci: int, cj: int) -> float:
+	var ck := Vector2i(ci, cj)
+	if _cb_cache.has(ck):
+		return _cb_cache[ck]
 	var cnt := 0
 	var sand := 0
 	for off: Vector2i in [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(0, 0)]:
@@ -784,11 +820,13 @@ func _corner_beach(ci: int, cj: int) -> float:
 		cnt += 1
 		if str(info["tile"]) in ["sand", "sand_dune"]:
 			sand += 1
-	return float(sand) / float(cnt) if cnt > 0 else 0.0
+	var b: float = float(sand) / float(cnt) if cnt > 0 else 0.0
+	_cb_cache[ck] = b
+	return b
 
 
 func _corner_height(ci: int, cj: int, hc: Dictionary) -> float:
-	var key := "%d,%d" % [ci, cj]
+	var key := Vector2i(ci, cj)   # Vector2i key: far cheaper than a formatted string in a hot loop
 	if hc.has(key):
 		return hc[key]
 	var sum := 0.0
@@ -804,7 +842,7 @@ func _corner_height(ci: int, cj: int, hc: Dictionary) -> float:
 
 
 func _corner_color(ci: int, cj: int) -> Color:
-	var ck := "%d,%d" % [ci, cj]
+	var ck := Vector2i(ci, cj)
 	if _cc_cache.has(ck):
 		return _cc_cache[ck]
 	var col := _corner_color_compute(ci, cj)
@@ -847,7 +885,7 @@ func _corner_color_compute(ci: int, cj: int) -> Color:
 ## Memoised for the frame: the terrain build + every mover's height sample hit the
 ## same tiles thousands of times, and grading the colour (_grade_ground) is not free.
 func _tile_info(gtx: int, gty: int) -> Dictionary:
-	var cache_key := "%d,%d" % [gtx, gty]
+	var cache_key := Vector2i(gtx, gty)
 	if _ti_cache.has(cache_key):
 		return _ti_cache[cache_key]
 	var info := _tile_info_compute(gtx, gty)
@@ -958,15 +996,23 @@ func _make_water_noise(freq_mul: float, oct: int, seed: int) -> NoiseTexture2D:
 	return tex
 
 
-# Deterministic water occupancy for ANY global tile (no chunk load needed), so the
-# coastline overlay is identical regardless of streaming order -> seamless across chunk
-# borders. Cached for the whole session (the worldgen result never changes).
+# Water occupancy for the coastline field — read straight from the LOADED chunk tile (the
+# same source the water mesh uses), NOT the classifier. surface_tile_def_at() re-runs the
+# biome-noise eval per tile and was the single biggest chunk-build cost (tens of ms on a
+# fresh region); the loaded tile id is a cheap array read and, thanks to the apron index,
+# is available for the chunk + its margin. Tiles outside the loaded data read as land.
+# Cached per session (a loaded tile's water-ness is deterministic).
 func _coast_water(gtx: int, gty: int) -> bool:
 	var key := Vector2i(gtx, gty)
-	if _occ_cache.has(key):
+	if _occ_cache.has(key):   # per-frame cache (cleared each frame) -> never stale across load/layer
 		return _occ_cache[key]
-	var td := WorldGen.surface_tile_def_at(gtx, gty)
-	var w := not td.is_empty() and bool(td.get("water", false))
+	var w := false
+	var ck := WG.tile_to_chunk(key)
+	var chunk: RefCounted = _chunk_by_key.get(WG.key(world.current_layer, ck.x, ck.y))
+	if chunk != null:
+		var lx: int = gtx - ck.x * WG.CHUNK_TILES
+		var ly: int = gty - ck.y * WG.CHUNK_TILES
+		w = bool(WorldGen.reg.tile_def(chunk.tile_id(lx, ly)).get("water", false))
 	_occ_cache[key] = w
 	return w
 
@@ -1707,6 +1753,9 @@ func _sync_static_batches() -> void:
 	var sig := "%s:%d:%d:%d" % [str(world.current_layer), int(world._decor_nodes.size()), int(world._water_decor_nodes.size()), int(world.entities.size())]
 	if sig == _static_sig:
 		return
+	if _terrain_built:
+		return                                  # stagger: never rebuild the batch on a frame
+		                                        # that already built a chunk mesh (avoids the spikes stacking)
 	var now := Time.get_ticks_msec() / 1000.0
 	if now - _batch_rebuild_t < BATCH_REBUILD_MIN:
 		return                                  # throttle: let a streaming burst settle
@@ -1714,16 +1763,29 @@ func _sync_static_batches() -> void:
 	_batch_rebuild_t = now
 	for c: Node in batches_root.get_children():
 		c.queue_free()
+	# Static props NEVER move, so their world transform (incl. the costly per-prop terrain
+	# height sample) is computed ONCE and cached by node. A rebuild then only samples the
+	# handful that newly streamed in; persisting props reuse their cached placement. Stale
+	# entries (despawned props) drop out because we rebuild the cache from the live set.
 	var groups := {}
+	var new_xf := {}
 	for d: Node in world._decor_nodes:
 		if not is_instance_valid(d):
 			continue
-		var pl := Transform3D(Basis(Vector3.UP, float(int(d.variant)) * 0.131), iso_to_3d(d.position, height_at(d.position)))
+		var id := d.get_instance_id()
+		var pl: Transform3D = _batch_xf.get(id, _IDENTITY_XF)
+		if pl == _IDENTITY_XF:
+			pl = Transform3D(Basis(Vector3.UP, float(int(d.variant)) * 0.131), iso_to_3d(d.position, height_at(d.position)))
+		new_xf[id] = pl
 		_collect(PropMeshes.decor_parts(str(d.kind)), pl, groups)
 	for d: Node in world._water_decor_nodes:
 		if not is_instance_valid(d):
 			continue
-		var pl := Transform3D(Basis(Vector3.UP, float(int(d.variant)) * 0.17), iso_to_3d(d.position, height_at(d.position) + 0.04))
+		var id := d.get_instance_id()
+		var pl: Transform3D = _batch_xf.get(id, _IDENTITY_XF)
+		if pl == _IDENTITY_XF:
+			pl = Transform3D(Basis(Vector3.UP, float(int(d.variant)) * 0.17), iso_to_3d(d.position, height_at(d.position) + 0.04))
+		new_xf[id] = pl
 		_collect(PropMeshes.water_decor_parts(str(d.kind)), pl, groups)
 	for e: Node in world.entities:
 		if not is_instance_valid(e) or PropMeshes.is_moving(e):
@@ -1731,7 +1793,13 @@ func _sync_static_batches() -> void:
 		var parts: Array = PropMeshes.entity_parts(e)
 		if parts.is_empty():
 			continue
-		_collect(parts, Transform3D(Basis.IDENTITY, iso_to_3d(e.position, height_at(e.position))), groups)
+		var id := e.get_instance_id()
+		var pl: Transform3D = _batch_xf.get(id, _IDENTITY_XF)
+		if pl == _IDENTITY_XF:
+			pl = Transform3D(Basis.IDENTITY, iso_to_3d(e.position, height_at(e.position)))
+		new_xf[id] = pl
+		_collect(parts, pl, groups)
+	_batch_xf = new_xf
 	_emit_groups(groups, batches_root)
 
 
