@@ -188,6 +188,17 @@ func _build() -> void:
 	_ground_mat.set_shader_parameter("light_tint", PixelPalette.pal("hike_grass_light"))
 	_ground_mat.set_shader_parameter("ambient", 0.26)
 	_ground_mat.set_shader_parameter("softness", 0.03)
+	# Beach sand: warm golden tones + world-space macro/speckle variation (toon_ground
+	# applies these only where a vertex is flagged as sand via UV.y; wetness via UV.x).
+	# Paler/less-saturated than the target hexes so the WARM toon sun lands them back at a
+	# soft sandy yellow (full-sat yellows go orange under the warm light).
+	_ground_mat.set_shader_parameter("sand_dry", Color(0.835, 0.768, 0.566))   # soft tan
+	_ground_mat.set_shader_parameter("sand_hi", Color(0.890, 0.835, 0.650))    # pale highlight
+	_ground_mat.set_shader_parameter("sand_wet", Color(0.737, 0.660, 0.486))   # wet sand
+	_ground_mat.set_shader_parameter("sand_macro_scale", 0.045)
+	_ground_mat.set_shader_parameter("sand_detail_scale", 0.6)
+	_ground_mat.set_shader_parameter("sand_speckle", 0.045)
+	_ground_mat.set_shader_parameter("sand_noise", _make_water_noise(0.8, 3, 5))
 
 	_water_mat = ShaderMaterial.new()
 	_water_mat.shader = TOON_WATER
@@ -195,34 +206,40 @@ func _build() -> void:
 	# version and the over-large one): clear medium/large irregular loops, plenty of dark
 	# negative space. World-space sampled (camera-stable). The visible shallow band is the
 	# separate shore overlay below — this just fades its own contours out near the coast.
-	_water_mat.set_shader_parameter("base_color", Color(0.078, 0.369, 0.490))      # #145E7D deep
-	_water_mat.set_shader_parameter("secondary_color", Color(0.090, 0.412, 0.529)) # #176987 subtle var
-	_water_mat.set_shader_parameter("line_color", Color(0.267, 0.565, 0.663))      # ~#4490A9 lines (clearer)
+	_water_mat.set_shader_parameter("base_color", Color(0.067, 0.380, 0.498))      # #11617F deep
+	_water_mat.set_shader_parameter("secondary_color", Color(0.090, 0.431, 0.537)) # #176E89 subtle var
+	_water_mat.set_shader_parameter("line_color", Color(0.290, 0.588, 0.655))      # #4A96A7 lines
 	_water_mat.set_shader_parameter("pattern_scale", 0.072)       # mid features (dense 0.105 .. sparse 0.032)
 	_water_mat.set_shader_parameter("contour_count", 3.5)         # medium line density / spacing
 	_water_mat.set_shader_parameter("line_width", 0.038)
-	_water_mat.set_shader_parameter("line_opacity", 0.65)         # clearly visible, not neon
+	_water_mat.set_shader_parameter("line_opacity", 0.6)
 	_water_mat.set_shader_parameter("domain_warp_strength", 0.6)
-	_water_mat.set_shader_parameter("secondary_strength", 0.3)    # weak secondary detail only
+	_water_mat.set_shader_parameter("secondary_strength", 0.28)   # weak secondary detail only
 	_water_mat.set_shader_parameter("secondary_scale", 1.7)
 	_water_mat.set_shader_parameter("primary_speed", Vector2(0.006, 0.003))
 	_water_mat.set_shader_parameter("secondary_speed", Vector2(-0.003, 0.005))
-	_water_mat.set_shader_parameter("shallow_start", 0.0)         # contour fade handled by overlay cover
-	_water_mat.set_shader_parameter("shallow_end", 0.5)           # fade contours within ~0.5 cell of land
+	_water_mat.set_shader_parameter("sd_scale", SHORE_SD_SCALE)
+	_water_mat.set_shader_parameter("coast_cut", -0.1)            # deep water laps slightly under overlay
+	_water_mat.set_shader_parameter("contour_fade_in", 0.55)      # cells: contours start returning
+	_water_mat.set_shader_parameter("contour_fade_out", 1.15)     # cells: contours fully back
 	_water_mat.set_shader_parameter("noise_tex", _make_water_noise(0.9, 2, 1))
 	_water_mat.set_shader_parameter("warp_tex", _make_water_noise(0.35, 2, 2))
 
-	# Render-only coastal overlay: two-tone aqua shallow band that hides the tan coastline
-	# teeth (see _build_shore_overlay). Driven by a smoothed water-occupancy field (UV.x).
+	# Render-only coastal overlay: wet-sand + two-tone aqua bands hiding the coastline
+	# teeth. Driven by the SAME smoothed water-fraction field (UV.x) as the water mesh.
 	_shore_mat = ShaderMaterial.new()
 	_shore_mat.shader = TOON_SHORE
-	_shore_mat.set_shader_parameter("inner_color", Color(0.482, 0.796, 0.773))  # #7BCBC5 light aqua
-	_shore_mat.set_shader_parameter("outer_color", Color(0.275, 0.686, 0.686))  # #46AFAF turquoise
-	_shore_mat.set_shader_parameter("sd_scale", 4.0)
-	_shore_mat.set_shader_parameter("inland_cells", 0.45)
+	_shore_mat.set_shader_parameter("wet_sand_color", Color(0.788, 0.678, 0.451)) # #C9AD73
+	_shore_mat.set_shader_parameter("inner_color", Color(0.510, 0.820, 0.796))    # #82D1CB light aqua
+	_shore_mat.set_shader_parameter("outer_color", Color(0.263, 0.682, 0.698))    # #43AEB2 turquoise
+	_shore_mat.set_shader_parameter("sd_scale", SHORE_SD_SCALE)
+	_shore_mat.set_shader_parameter("wet_cells", 0.26)
 	_shore_mat.set_shader_parameter("inner_cells", 0.30)
-	_shore_mat.set_shader_parameter("outer_cells", 0.42)
-	_shore_mat.set_shader_parameter("fade_cells", 0.20)
+	_shore_mat.set_shader_parameter("outer_cells", 0.50)
+	_shore_mat.set_shader_parameter("fade_cells", 0.22)
+	_shore_mat.set_shader_parameter("width_var", 0.22)
+	_shore_mat.set_shader_parameter("var_scale", 0.05)
+	_shore_mat.set_shader_parameter("var_noise", _make_water_noise(0.5, 2, 4))
 
 	# Present the low-res 3D world at nearest-neighbour, under the HUD (layer 1).
 	var layer := CanvasLayer.new()
@@ -516,7 +533,7 @@ func _build_chunk_terrain(chunk: RefCounted) -> Node3D:
 	var cx0: int = int(chunk.cx) * n
 	var cy0: int = int(chunk.cy) * n
 	var hc := {}  # memoized corner heights
-	var dc := {}  # memoized corner distance-to-land (tiles)
+	var wfc := {}  # memoized corner water-fraction (the ONE shared coastline field)
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	st.set_smooth_group(0)
@@ -528,12 +545,12 @@ func _build_chunk_terrain(chunk: RefCounted) -> Node3D:
 			var gtx := cx0 + tx
 			var gty := cy0 + ty
 			# Four shared corners (continuous across cells -> smooth surface).
-			_emit_corner(st, gtx, gty, hc)
-			_emit_corner(st, gtx + 1, gty, hc)
-			_emit_corner(st, gtx + 1, gty + 1, hc)
-			_emit_corner(st, gtx, gty, hc)
-			_emit_corner(st, gtx + 1, gty + 1, hc)
-			_emit_corner(st, gtx, gty + 1, hc)
+			_emit_corner(st, gtx, gty, hc, wfc)
+			_emit_corner(st, gtx + 1, gty, hc, wfc)
+			_emit_corner(st, gtx + 1, gty + 1, hc, wfc)
+			_emit_corner(st, gtx, gty, hc, wfc)
+			_emit_corner(st, gtx + 1, gty + 1, hc, wfc)
+			_emit_corner(st, gtx, gty + 1, hc, wfc)
 			var info := _tile_info(gtx, gty)
 			if not info.is_empty() and bool(info["water"]):
 				has_water = true
@@ -542,18 +559,16 @@ func _build_chunk_terrain(chunk: RefCounted) -> Node3D:
 				var z0 := float(gty) * TILE_S
 				var x1 := x0 + TILE_S
 				var z1 := z0 + TILE_S
-				# Distance from each shared corner to the nearest land tile (world-space,
-				# from the terrain grid). Stored in UV.x; the water shader turns it into a
-				# smooth turquoise shallow band that hugs the coast. Corners are shared
-				# values, so neighbouring water tiles agree -> a continuous, seamless band
-				# with no per-triangle width jumps (the old foam-ribbon sawtooth bug).
-				var dA := _corner_land_distance(gtx, gty, dc)
-				var dB := _corner_land_distance(gtx + 1, gty, dc)
-				var dC := _corner_land_distance(gtx + 1, gty + 1, dc)
-				var dD := _corner_land_distance(gtx, gty + 1, dc)
+				# Bake the SHARED smoothed water-fraction field at each corner into UV.x
+				# (same field the shore overlay uses), so the deep-mesh coast discard and
+				# the overlay bands derive from ONE source and can never open a seam.
+				var fA := _coast_wf(gtx, gty, wfc)
+				var fB := _coast_wf(gtx + 1, gty, wfc)
+				var fC := _coast_wf(gtx + 1, gty + 1, wfc)
+				var fD := _coast_wf(gtx, gty + 1, wfc)
 				var quad := [
-					[Vector3(x0, wy, z0), dA], [Vector3(x1, wy, z0), dB], [Vector3(x1, wy, z1), dC],
-					[Vector3(x0, wy, z0), dA], [Vector3(x1, wy, z1), dC], [Vector3(x0, wy, z1), dD],
+					[Vector3(x0, wy, z0), fA], [Vector3(x1, wy, z0), fB], [Vector3(x1, wy, z1), fC],
+					[Vector3(x0, wy, z0), fA], [Vector3(x1, wy, z1), fC], [Vector3(x0, wy, z1), fD],
 				]
 				for p: Array in quad:
 					wst.set_normal(Vector3.UP)
@@ -563,7 +578,6 @@ func _build_chunk_terrain(chunk: RefCounted) -> Node3D:
 	# the ground mesh's per-tile triangulation teeth. Covers any tile straddling/near the
 	# smoothed coastline; the shader (driven by the per-vertex smoothed water-fraction in
 	# UV.x) decides where it's land (transparent), inner aqua, outer turquoise, or deep.
-	var wfc := {}  # memoized corner water-fraction
 	var sst := SurfaceTool.new()
 	sst.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var has_shore := false
@@ -577,8 +591,8 @@ func _build_chunk_terrain(chunk: RefCounted) -> Node3D:
 			var w01 := _coast_wf(gtx, gty + 1, wfc)
 			var wmax: float = maxf(maxf(w00, w10), maxf(w11, w01))
 			var wmin: float = minf(minf(w00, w10), minf(w11, w01))
-			if wmax <= 0.16 or wmin >= 0.97:
-				continue   # fully inland (no aqua) or open deep water (deep mesh only)
+			if wmax <= 0.08 or wmin >= 0.98:
+				continue   # fully dry inland (no band) or open deep water (deep mesh only)
 			has_shore = true
 			var x0 := float(gtx) * TILE_S
 			var z0 := float(gty) * TILE_S
@@ -617,14 +631,35 @@ func _build_chunk_terrain(chunk: RefCounted) -> Node3D:
 	return root
 
 
-func _emit_corner(st: SurfaceTool, ci: int, cj: int, hc: Dictionary) -> void:
+func _emit_corner(st: SurfaceTool, ci: int, cj: int, hc: Dictionary, wfc: Dictionary) -> void:
 	var h := _corner_height(ci, cj, hc)
 	# Smooth normal from the height field (central differences over the corners).
 	var hx := _corner_height(ci + 1, cj, hc) - _corner_height(ci - 1, cj, hc)
 	var hz := _corner_height(ci, cj + 1, hc) - _corner_height(ci, cj - 1, hc)
 	st.set_normal(Vector3(-hx, 2.0 * TILE_S, -hz).normalized())
 	st.set_color(_corner_color(ci, cj))
+	# UV carries beach data for toon_ground: y = beach fraction (sand vs other, smoothed
+	# over the corner so the sand/grass edge can be dithered), x = wetness from the shared
+	# coast field (sand darkens/saturates near the waterline).
+	var beach := _corner_beach(ci, cj)
+	var wet: float = clampf((_coast_wf(ci, cj, wfc) - 0.30) / 0.16, 0.0, 1.0) if beach > 0.0 else 0.0
+	st.set_uv(Vector2(wet, beach))
 	st.add_vertex(Vector3(float(ci) * TILE_S, h, float(cj) * TILE_S))
+
+
+# Beach fraction at a grid corner: how many of the 4 touching tiles are sand (0..1). A
+# fractional value near the biome edge lets the shader dither the sand/grass boundary.
+func _corner_beach(ci: int, cj: int) -> float:
+	var cnt := 0
+	var sand := 0
+	for off: Vector2i in [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(0, 0)]:
+		var info := _tile_info(ci + off.x, cj + off.y)
+		if info.is_empty():
+			continue
+		cnt += 1
+		if str(info["tile"]) in ["sand", "sand_dune"]:
+			sand += 1
+	return float(sand) / float(cnt) if cnt > 0 else 0.0
 
 
 func _corner_height(ci: int, cj: int, hc: Dictionary) -> float:
@@ -798,31 +833,6 @@ func _make_water_noise(freq_mul: float, oct: int, seed: int) -> NoiseTexture2D:
 	return tex
 
 
-# Euclidean distance (in tiles) from a grid CORNER to the nearest CONFIRMED land tile,
-# computed straight from the terrain grid. The corner sits at world point (ci, cj); each
-# tile (tx, ty) occupies the cell [tx, tx+1] x [ty, ty+1], so we take the point-to-cell
-# distance and keep the smallest over a small neighbourhood. This is the world-space
-# distance-to-land field that drives the shallow-water band — stable and camera-free.
-# Empty (unloaded) neighbours are NOT treated as land, so no false shore forms along
-# chunk seams or the world boundary. Memoized per chunk build (shared corners).
-const SHORE_SCAN := 2   # tile radius searched for land (band only needs ~<1 tile)
-func _corner_land_distance(ci: int, cj: int, dc: Dictionary) -> float:
-	var key := Vector2i(ci, cj)
-	if dc.has(key):
-		return dc[key]
-	var best := float(SHORE_SCAN + 1)
-	for ty: int in range(cj - SHORE_SCAN - 1, cj + SHORE_SCAN + 1):
-		for tx: int in range(ci - SHORE_SCAN - 1, ci + SHORE_SCAN + 1):
-			var info := _tile_info(tx, ty)
-			if info.is_empty() or bool(info["water"]):
-				continue   # only solid land tiles pull the band; skip water + unloaded
-			var dx := maxf(maxf(float(tx) - float(ci), float(ci) - float(tx + 1)), 0.0)
-			var dy := maxf(maxf(float(ty) - float(cj), float(cj) - float(ty + 1)), 0.0)
-			best = minf(best, sqrt(dx * dx + dy * dy))
-	dc[key] = best
-	return best
-
-
 # Deterministic water occupancy for ANY global tile (no chunk load needed), so the
 # coastline overlay is identical regardless of streaming order -> seamless across chunk
 # borders. Cached for the whole session (the worldgen result never changes).
@@ -836,24 +846,34 @@ func _coast_water(gtx: int, gty: int) -> bool:
 	return w
 
 
-# Low-passed water fraction (0 land .. 1 open water) at a grid CORNER: a box average of
-# the occupancy over a 4x4 tile kernel centred on the corner. This smooths the blocky
-# tile boundary into a soft field whose 0.5 iso-level is a gentle coastline curve (the
-# kernel size bounds how far it can move from the real edge, ~<1 cell). Memoized per
-# chunk build over shared corners so neighbouring overlay tiles agree (no cracks).
-const SHORE_SMOOTH := 2   # kernel reaches [c-2, c+1] tiles around the corner (4x4)
+# Low-passed water fraction (0 land .. 1 open water) at a grid CORNER. A DISTANCE-WEIGHTED
+# (triangular) kernel over a radius-3 neighbourhood: this is THE one authoritative coastline
+# field. The weighting (centre tiles count most) gives a smooth, rounded 0.5 iso-line — broad
+# stylized bends instead of tile staircases — while keeping the contour within ~half a cell
+# of the true boundary (so bays/peninsulas are preserved). Both the water mesh and the shore
+# overlay read this same field, so their layers can never disagree. Memoized over shared
+# corners so neighbouring tiles agree exactly (no cracks).
+const SHORE_SMOOTH := 3
+const SHORE_SD_SCALE := 4.0   # maps (wf - 0.5) -> signed distance to coast, in cells
 func _coast_wf(ci: int, cj: int, wfc: Dictionary) -> float:
 	var key := Vector2i(ci, cj)
 	if wfc.has(key):
 		return wfc[key]
 	var sum := 0.0
-	var cnt := 0
-	for ty: int in range(cj - SHORE_SMOOTH, cj + SHORE_SMOOTH):
-		for tx: int in range(ci - SHORE_SMOOTH, ci + SHORE_SMOOTH):
-			if _coast_water(tx, ty):
-				sum += 1.0
-			cnt += 1
-	var wf: float = sum / float(cnt) if cnt > 0 else 0.0
+	var wsum := 0.0
+	for dy: int in range(-SHORE_SMOOTH, SHORE_SMOOTH):
+		for dx: int in range(-SHORE_SMOOTH, SHORE_SMOOTH):
+			# Tile (ci+dx, cj+dy) sits with its centre 0.5 off the corner; weight by a
+			# triangular falloff so the centre dominates (smooth, low displacement).
+			var rx := absf(float(dx) + 0.5)
+			var ry := absf(float(dy) + 0.5)
+			var w: float = maxf(0.0, float(SHORE_SMOOTH) - maxf(rx, ry))
+			if w <= 0.0:
+				continue
+			if _coast_water(ci + dx, cj + dy):
+				sum += w
+			wsum += w
+	var wf: float = sum / wsum if wsum > 0.0 else 0.0
 	wfc[key] = wf
 	return wf
 

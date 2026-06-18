@@ -1,53 +1,51 @@
 shader_type spatial;
-// Illustrated calm-ocean water (A Short Hike feel). A deep-blue surface with a FEW
-// large, widely-spaced contour loops — like calm topographic lines — and a clean
-// turquoise shallow-water band along the coast.
+// Illustrated calm-ocean water (A Short Hike feel). A deep-blue surface with medium/large
+// domain-warped contour loops — calm topographic lines — over plenty of open blue.
 //
-// The contour pattern is built purely from WORLD-SPACE xz (one dominant domain-warped
-// noise -> contour thresholds -> thin isolines), so it is glued to the world and never
-// moves with the camera. The shallow band is a SEPARATE channel: a per-vertex
-// distance-to-land value (UV.x, in tiles, baked from the terrain grid) -> a smooth
-// shore mask. The two are computed independently — the shoreline never distorts the
-// contours and the contours never leak into the shore.
+// The contour pattern is world-space xz noise -> contour thresholds -> thin isolines, so
+// it is glued to the world and camera-stable, and is computed INDEPENDENTLY of the coast.
 //
-// No geometry displacement, no depth sampling, no screen-space tricks, no neon lines.
+// The coast is driven by ONE shared smoothed field: a low-passed water fraction baked per
+// vertex into UV.x (v_wf: 0 land .. 1 open water, 0.5 = the smoothed coastline). The SAME
+// field feeds the shore overlay, so the two layers can never disagree and open a seam.
+// Here we use it only to (a) DISCARD the deep mesh on the land side (the opaque overlay
+// paints that zone), with slight overlap so there is never a bare-ground sliver, and (b)
+// fade the contours out under the shallows, returning them gradually in the outer water.
 
-// OPAQUE: the deep-water mesh writes depth so the lifted shore overlay layers cleanly
-// on top of it. The visible shallow band is the shore overlay, not this shader.
-render_mode unshaded, cull_back;
+render_mode unshaded, cull_back;   // OPAQUE: writes depth so the lifted overlay layers cleanly
 
 // --- palette (restrained: one deep blue, one muted blue-cyan line) ------------
-uniform vec4 base_color : source_color = vec4(0.078, 0.369, 0.490, 1.0);       // #145E7D
-uniform vec4 secondary_color : source_color = vec4(0.090, 0.412, 0.529, 1.0);  // #176987
-uniform vec4 line_color : source_color = vec4(0.224, 0.514, 0.627, 1.0);       // #3983A0
+uniform vec4 base_color : source_color = vec4(0.067, 0.380, 0.498, 1.0);       // #11617F
+uniform vec4 secondary_color : source_color = vec4(0.090, 0.431, 0.537, 1.0);  // #176E89
+uniform vec4 line_color : source_color = vec4(0.290, 0.588, 0.655, 1.0);       // #4A96A7
 
 // --- contour pattern ----------------------------------------------------------
-uniform float pattern_scale = 0.032;            // world->noise freq (small = big, calm loops)
-uniform float contour_count = 2.0;              // number of isolines across the noise range
-uniform float line_width : hint_range(0.0, 0.5) = 0.035;     // half line thickness (contour units)
+uniform float pattern_scale = 0.072;            // world->noise freq (small = big, calm loops)
+uniform float contour_count = 3.5;              // number of isolines across the noise range
+uniform float line_width : hint_range(0.0, 0.5) = 0.038;     // half line thickness (contour units)
 uniform float line_opacity : hint_range(0.0, 1.0) = 0.6;     // how strongly lines tint the water
-uniform float domain_warp_strength = 0.5;       // bends the loops into organic shapes
-uniform float secondary_strength : hint_range(0.0, 1.0) = 0.3;  // weak 2nd detail (never an equal net)
+uniform float domain_warp_strength = 0.6;       // bends the loops into organic shapes
+uniform float secondary_strength : hint_range(0.0, 1.0) = 0.28;  // weak 2nd detail (never an equal net)
 uniform float secondary_scale = 1.7;            // 2nd-layer relative frequency
 uniform vec2 primary_speed = vec2(0.006, 0.003);    // slow warp drift A (normalized coords)
 uniform vec2 secondary_speed = vec2(-0.003, 0.005); // slow warp drift B (different vector)
 
-// --- contour fade near the coast (the shore overlay draws the actual band) -----
-uniform float shallow_start = 0.0;    // tiles from land where contour fade begins
-uniform float shallow_end = 0.5;      // tiles from land where contours are fully gone
-uniform float coast_cut = 0.55;       // discard deep water within this many tiles of land
-                                       // (the opaque shore overlay covers that ring), so
-                                       // jagged notch tips fall back to sand, not teal teeth
+// --- shared coastline field (v_wf) --------------------------------------------
+uniform float sd_scale = 4.0;          // (wf-0.5)*sd_scale -> signed distance to coast, in cells
+uniform float coast_cut = -0.1;        // discard deep water inside this signed dist (cells); negative
+                                        // => deep water extends slightly UNDER the overlay (overlap)
+uniform float contour_fade_in = 0.55;  // cells: contours start returning past the shallows
+uniform float contour_fade_out = 1.15; // cells: contours fully back in open water
 
 uniform sampler2D noise_tex : repeat_enable, filter_linear;
 uniform sampler2D warp_tex : repeat_enable, filter_linear;
 
 varying vec3 v_world;
-varying float v_dist;   // distance to nearest land, in tiles (baked into UV.x)
+varying float v_wf;   // shared smoothed water fraction (baked into UV.x)
 
 void vertex() {
 	v_world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	v_dist = UV.x;
+	v_wf = UV.x;
 }
 
 // 0..1 noise -> thin isolines. Slice into `count` levels, light up the narrow band at
@@ -60,9 +58,10 @@ float contour(float n, float count) {
 }
 
 void fragment() {
-	// Drop the deep-water ring that hugs the coast — the shore overlay paints it. This
-	// removes the deep-blue mesh from behind notch tips so they read as sand, not teeth.
-	if (v_dist < coast_cut) {
+	float sd = (v_wf - 0.5) * sd_scale;   // signed distance to the smoothed coast, in cells
+	// Drop the deep-water ring on the land side of the coast (the opaque overlay paints
+	// it). coast_cut < 0 keeps a little deep water UNDER the overlay so there is no seam.
+	if (sd < coast_cut) {
 		discard;
 	}
 	vec2 wp = v_world.xz;
@@ -74,11 +73,9 @@ void fragment() {
 	vec2 w2 = wp * (pattern_scale * 0.5) + secondary_speed * TIME + vec2(0.4, 0.2);
 	vec2 warp = (vec2(texture(warp_tex, w1).r, texture(warp_tex, w2).r) - 0.5) * domain_warp_strength;
 
-	// One DOMINANT contour layer.
+	// One DOMINANT contour layer + a WEAK secondary detail at a different scale.
 	vec2 uv1 = wp * pattern_scale + warp;
 	float lines = contour(texture(noise_tex, uv1).r, contour_count);
-	// Optional WEAK secondary detail at a different scale (kept subdued so it never
-	// becomes a second equal network of lines).
 	if (secondary_strength > 0.001) {
 		float n2 = texture(noise_tex, uv1 * secondary_scale + vec2(3.7, 1.9)).r;
 		lines = max(lines, contour(n2, contour_count) * secondary_strength);
@@ -88,11 +85,9 @@ void fragment() {
 	float varn = texture(warp_tex, wp * (pattern_scale * 0.32)).r;
 	vec3 deep = mix(base_color.rgb, secondary_color.rgb, smoothstep(0.45, 0.62, varn) * 0.5);
 
-	// Fade contours out close to the coast (the opaque shore overlay covers this zone,
-	// but fading avoids lines bleeding under its translucent fade edge).
-	float shore = 1.0 - smoothstep(shallow_start, shallow_end, v_dist);
-	float line_mask = lines * (1.0 - shore) * line_opacity;
-	vec3 col = mix(deep, line_color.rgb, line_mask);
+	// Contours fade out under the shallows and return gradually through the outer water.
+	float contour_vis = smoothstep(contour_fade_in, contour_fade_out, sd);
+	vec3 col = mix(deep, line_color.rgb, lines * contour_vis * line_opacity);
 
 	ALBEDO = col;
 	ALPHA = 1.0;
