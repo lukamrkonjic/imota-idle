@@ -822,11 +822,11 @@
       "siteDensity": 0.85,
       "monsterDensity": 0.55,
       "groundDecor": {
-        "density": 0.056,
+        "density": 0.1,
         "kinds": [
           {
             "kind": "grass",
-            "weight": 0.35
+            "weight": 0.5
           },
           {
             "kind": "shrub",
@@ -926,7 +926,7 @@
       "siteDensity": 1.3,
       "monsterDensity": 0.7,
       "groundDecor": {
-        "density": 0.098,
+        "density": 0.17,
         "kinds": [
           {
             "kind": "fern",
@@ -946,7 +946,7 @@
           },
           {
             "kind": "grass",
-            "weight": 0.1
+            "weight": 0.5
           },
           {
             "kind": "bramble",
@@ -975,7 +975,7 @@
       "siteDensity": 0.8,
       "monsterDensity": 0.35,
       "groundDecor": {
-        "density": 0.1,
+        "density": 0.15,
         "kinds": [
           {
             "kind": "flower",
@@ -983,7 +983,7 @@
           },
           {
             "kind": "grass",
-            "weight": 0.3
+            "weight": 0.5
           },
           {
             "kind": "shrub",
@@ -1095,7 +1095,7 @@
       "siteDensity": 0.5,
       "monsterDensity": 0.2,
       "groundDecor": {
-        "density": 0.063,
+        "density": 0.1,
         "waterDensity": 0.15,
         "kinds": [
           {
@@ -1104,7 +1104,7 @@
           },
           {
             "kind": "grass",
-            "weight": 0.35
+            "weight": 0.5
           },
           {
             "kind": "flower",
@@ -1133,7 +1133,7 @@
       "siteDensity": 0.9,
       "monsterDensity": 0.3,
       "groundDecor": {
-        "density": 0.084,
+        "density": 0.15,
         "kinds": [
           {
             "kind": "flower",
@@ -1141,7 +1141,7 @@
           },
           {
             "kind": "grass",
-            "weight": 0.35
+            "weight": 0.55
           },
           {
             "kind": "shrub",
@@ -1319,7 +1319,7 @@
       "siteDensity": 0.75,
       "monsterDensity": 0.4,
       "groundDecor": {
-        "density": 0.07,
+        "density": 0.1,
         "kinds": [
           {
             "kind": "flower",
@@ -1492,7 +1492,7 @@
       "siteDensity": 0.7,
       "monsterDensity": 0.5,
       "groundDecor": {
-        "density": 0.063,
+        "density": 0.1,
         "kinds": [
           {
             "kind": "shrub",
@@ -1500,7 +1500,7 @@
           },
           {
             "kind": "grass",
-            "weight": 0.35
+            "weight": 0.45
           },
           {
             "kind": "stick",
@@ -1635,7 +1635,7 @@
       "siteDensity": 1.2,
       "monsterDensity": 0.55,
       "groundDecor": {
-        "density": 0.077,
+        "density": 0.15,
         "kinds": [
           {
             "kind": "fern",
@@ -1655,7 +1655,7 @@
           },
           {
             "kind": "grass",
-            "weight": 0.14
+            "weight": 0.55
           },
           {
             "kind": "bramble",
@@ -1699,11 +1699,11 @@
       "siteDensity": 1.0,
       "monsterDensity": 0.5,
       "groundDecor": {
-        "density": 0.049,
+        "density": 0.13,
         "kinds": [
           {
             "kind": "grass",
-            "weight": 0.38
+            "weight": 0.6
           },
           {
             "kind": "flower",
@@ -1751,11 +1751,11 @@
       "siteDensity": 1.1,
       "monsterDensity": 0.35,
       "groundDecor": {
-        "density": 0.042,
+        "density": 0.12,
         "kinds": [
           {
             "kind": "grass",
-            "weight": 0.5
+            "weight": 0.6
           },
           {
             "kind": "flower",

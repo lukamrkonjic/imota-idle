@@ -107,7 +107,10 @@ func _build() -> void:
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_energy = 0.0
+	# A soft sky-green fill so shaded grass/foliage stays lush green instead of going
+	# near-black — the key to the bright, verdant look.
+	env.ambient_light_color = Color(0.62, 0.74, 0.58)
+	env.ambient_light_energy = 0.45
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	# Stylized atmospheric perspective (A Short Hike), NOT volumetric fog: a depth
 	# fog in the SAME colour as the sky horizon, ramping from the middle distance to
@@ -133,8 +136,8 @@ func _build() -> void:
 
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-38, 40, 0)   # lower afternoon sun -> longer soft shadows
-	sun.light_color = Color(1.0, 0.9, 0.74)   # warm but dim — cozy low-sun glow
-	sun.light_energy = 0.9                     # dimmer key light for a moody mood
+	sun.light_color = Color(1.0, 0.97, 0.84)   # bright, slightly warm daylight
+	sun.light_energy = 1.15                    # brighter key light for a lush, sunny look
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	sun.directional_shadow_max_distance = 90.0
@@ -167,9 +170,9 @@ func _build() -> void:
 
 	_ground_mat = ShaderMaterial.new()
 	_ground_mat.shader = TOON_GROUND
-	_ground_mat.set_shader_parameter("shadow_tint", PixelPalette.pal("forest_teal"))
-	_ground_mat.set_shader_parameter("light_tint", PixelPalette.pal("sunlit_grass"))
-	_ground_mat.set_shader_parameter("ambient", 0.1)
+	_ground_mat.set_shader_parameter("shadow_tint", PixelPalette.pal("mid_foliage"))   # shaded grass stays green, not black
+	_ground_mat.set_shader_parameter("light_tint", PixelPalette.pal("hike_grass_light"))
+	_ground_mat.set_shader_parameter("ambient", 0.32)
 	_ground_mat.set_shader_parameter("softness", 0.03)
 
 	_water_mat = ShaderMaterial.new()
@@ -208,9 +211,9 @@ func _build() -> void:
 	_snap_mat.set_shader_parameter("palette_count", PixelPalette.PAL.size())
 	_snap_mat.set_shader_parameter("enabled", 1.0)
 	_snap_mat.set_shader_parameter("strength", 0.8)
-	_snap_mat.set_shader_parameter("contrast", 1.3)
-	_snap_mat.set_shader_parameter("saturation", 1.05)
-	_snap_mat.set_shader_parameter("brightness", 0.74)   # moody dark forest
+	_snap_mat.set_shader_parameter("contrast", 1.12)
+	_snap_mat.set_shader_parameter("saturation", 1.22)
+	_snap_mat.set_shader_parameter("brightness", 1.0)   # bright, lush, sunny
 	present.material = _snap_mat
 	layer.add_child(present)
 	# Screen-space overlay for combat hitsplats: sits above the world image (added
@@ -1310,7 +1313,7 @@ func _collect(parts: Array, placement: Transform3D, groups: Dictionary) -> void:
 		var key := str(p["mesh"].get_instance_id()) + "|" + str(p["mat"].get_instance_id())
 		if not groups.has(key):
 			groups[key] = {"mesh": p["mesh"], "mat": p["mat"], "xf": []}
-		var local := Transform3D(Basis().scaled(p["scl"]), p["off"])
+		var local := Transform3D(Basis.from_euler(p.get("rot", Vector3.ZERO)).scaled(p["scl"]), p["off"])
 		groups[key]["xf"].append(placement * local)
 
 

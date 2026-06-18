@@ -115,7 +115,14 @@ static func decor_parts(kind: String) -> Array:
 				_part(_sphere("d_ftuft", 0.16), _mat("foliage_c", "grass_dark", "foliage_c"), Vector3(0, 0.12, 0), Vector3(1.0, 0.7, 1.0)),
 				_part(_sphere("d_fhead", 0.1), _mat("gold", "dirt_a", "snow_a"), Vector3(0, 0.34, 0))]
 		"grass":
-			return [_part(_cone("d_grass", 0.18, 0.02, 0.38), _mat("foliage_c", "grass_dark", "foliage_c"), Vector3(0, 0.19, 0), Vector3(0.75, 1.0, 0.75))]
+			# A fan of slender blades in fresh lush green, leaning outward like a real tuft.
+			var blade := _mat("moss_hi", "leaf_green", "sunlit_grass")
+			return [
+				_part(_cone("d_gb0", 0.045, 0.008, 0.44), blade, Vector3(0.0, 0.21, 0.0), Vector3.ONE, Vector3(0.08, 0.0, 0.05)),
+				_part(_cone("d_gb1", 0.045, 0.008, 0.37), blade, Vector3(0.09, 0.17, 0.04), Vector3.ONE, Vector3(0.0, 0.0, -0.55)),
+				_part(_cone("d_gb2", 0.045, 0.008, 0.35), blade, Vector3(-0.1, 0.16, -0.03), Vector3.ONE, Vector3(0.0, 0.0, 0.6)),
+				_part(_cone("d_gb3", 0.04, 0.008, 0.31), blade, Vector3(0.03, 0.15, -0.11), Vector3.ONE, Vector3(0.55, 0.0, 0.08)),
+				_part(_cone("d_gb4", 0.04, 0.008, 0.3), blade, Vector3(-0.04, 0.15, 0.1), Vector3.ONE, Vector3(-0.5, 0.0, -0.1))]
 		"reed":
 			return _reed_parts()
 		"fern", "vine":
@@ -315,21 +322,48 @@ static func _rock_parts() -> Array:
 		_part(_octa("rock_chip_b"), stone, Vector3(0.42, 0.12, -0.24), Vector3(0.32, 0.26, 0.36))]
 
 
+## A half-timbered medieval cottage: stone footing, cream plaster walls crossed by
+## dark timber framing (corner posts, a mid rail, diagonal braces), a steep
+## overhanging roof, a stone-and-brick chimney, a plank door and shuttered windows.
 static func _house_parts(e: Node) -> Array:
-	var roof: Color = e.get("roof_color")
-	var roof_mat := _mat_from(roof, roof.darkened(0.36), roof.lightened(0.22))
-	var wall := _mat("dirt_a", "trunk_b", "gold")
-	var trim := _mat("trunk_a", "trunk_b", "dirt_a")
-	var window := _mat("water_foam", "water_b", "snow_a")
-	var size_scale := 1.0
+	var ss := 1.0
 	if str(e.kind) == "building":
-		size_scale = clampf(float(e.get("display_size")) / 6.0, 0.85, 1.7)
-	return [
-		_part(_box("house_body", Vector3(2.7, 1.55, 2.1)), wall, Vector3(0, 0.82, 0), Vector3(size_scale, 1.0, size_scale)),
-		_part(_box("house_foundation", Vector3(3.0, 0.18, 2.35)), _mat("stone_a", "stone_b", "ore"), Vector3(0, 0.09, 0), Vector3(size_scale, 1.0, size_scale)),
-		_part(_prism("house_roof", Vector3(3.35, 1.25, 2.75)), roof_mat, Vector3(0, 2.0, 0), Vector3(size_scale, 1.0, size_scale)),
-		_part(_box("house_door", Vector3(0.62, 0.92, 0.1)), trim, Vector3(-0.55 * size_scale, 0.5, 1.08 * size_scale)),
-		_part(_box("house_window", Vector3(0.48, 0.38, 0.1)), window, Vector3(0.58 * size_scale, 0.92, 1.08 * size_scale))]
+		ss = clampf(float(e.get("display_size")) / 6.0, 0.85, 1.7)
+	var roof: Color = e.get("roof_color")
+	var roof_col: Color = roof.lerp(Color(0.34, 0.27, 0.2), 0.55)   # medieval thatch/shingle
+	var roof_mat := _mat_from(roof_col, roof_col.darkened(0.4), roof_col.lightened(0.2))
+	var plaster := _mat_from(Color(0.91, 0.86, 0.74), Color(0.71, 0.65, 0.53), Color(0.97, 0.94, 0.85))
+	var timber := _mat("dark_bark", "trunk_b", "trunk_a")
+	var stone := _mat("stone_a", "stone_b", "warm_stone")
+	var window := _mat("water_b", "slate_blue", "water_foam")
+	var brick := _mat_from(Color(0.5, 0.28, 0.22), Color(0.34, 0.18, 0.14), Color(0.62, 0.38, 0.3))
+	var hx := 1.28 * ss
+	var hz := 0.98 * ss
+	var parts: Array = [
+		_part(_box("med_found", Vector3(2.9, 0.32, 2.3)), stone, Vector3(0, 0.16, 0), Vector3(ss, 1.0, ss)),
+		_part(_box("med_wall", Vector3(2.55, 1.45, 1.96)), plaster, Vector3(0, 1.05, 0), Vector3(ss, 1.0, ss)),
+		_part(_box("med_rail", Vector3(2.62, 0.13, 2.02)), timber, Vector3(0, 1.05, 0), Vector3(ss, 1.0, ss))]
+	# Corner posts of the timber frame.
+	for cx: int in [-1, 1]:
+		for cz: int in [-1, 1]:
+			parts.append(_part(_box("med_post", Vector3(0.17, 1.55, 0.17)), timber, Vector3(hx * cx, 1.05, hz * cz)))
+	# Diagonal braces on the front face.
+	parts.append(_part(_box("med_brace", Vector3(0.12, 1.05, 0.1)), timber, Vector3(-0.5 * ss, 1.05, hz), Vector3.ONE, Vector3(0, 0, 0.5)))
+	parts.append(_part(_box("med_brace", Vector3(0.12, 1.05, 0.1)), timber, Vector3(0.5 * ss, 1.05, hz), Vector3.ONE, Vector3(0, 0, -0.5)))
+	# Steep, overhanging roof + ridge beam.
+	parts.append(_part(_prism("med_roof", Vector3(3.5, 1.65, 3.1)), roof_mat, Vector3(0, 2.35, 0), Vector3(ss, 1.0, ss)))
+	parts.append(_part(_box("med_ridge", Vector3(0.16, 0.16, 3.15)), timber, Vector3(0, 3.15, 0), Vector3(ss, 1.0, ss)))
+	# Stone chimney with a brick crown.
+	parts.append(_part(_box("med_chim", Vector3(0.44, 1.4, 0.44)), stone, Vector3(0.82 * ss, 2.7, -0.45 * ss)))
+	parts.append(_part(_box("med_chim_top", Vector3(0.52, 0.22, 0.52)), brick, Vector3(0.82 * ss, 3.42, -0.45 * ss)))
+	# Plank door + frame.
+	parts.append(_part(_box("med_door", Vector3(0.62, 0.98, 0.12)), timber, Vector3(0, 0.56, hz + 0.05)))
+	parts.append(_part(_box("med_door_arch", Vector3(0.72, 0.12, 0.1)), stone, Vector3(0, 1.06, hz + 0.04)))
+	# Shuttered windows (timber frame behind, glass in front), front + side.
+	for wx: int in [-1, 1]:
+		parts.append(_part(_box("med_winf", Vector3(0.52, 0.5, 0.06)), timber, Vector3(0.78 * ss * wx, 1.12, hz + 0.02)))
+		parts.append(_part(_box("med_win", Vector3(0.42, 0.4, 0.1)), window, Vector3(0.78 * ss * wx, 1.12, hz + 0.05)))
+	return parts
 
 
 static func _tent_parts(e: Node) -> Array:

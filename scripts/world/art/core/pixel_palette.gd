@@ -18,15 +18,15 @@ static func hex(h: int) -> Color:
 
 
 const PAL := {
-	"grass_a": 0x44523A,
-	"grass_b": 0x3C4830,
-	"grass_c": 0x35422E,
-	"grass_dark": 0x2E3C28,
-	"hike_grass": 0x5E7A2E,
-	"hike_grass_b": 0x4E632A,
-	"hike_grass_dark": 0x36461F,
-	"hike_grass_light": 0x7A9438,
-	"moss": 0x44523A,
+	"grass_a": 0x5C7C3C,
+	"grass_b": 0x4E6E34,
+	"grass_c": 0x466230,
+	"grass_dark": 0x3C5628,
+	"hike_grass": 0x6E9636,
+	"hike_grass_b": 0x5E8230,
+	"hike_grass_dark": 0x486628,
+	"hike_grass_light": 0x9AC44E,
+	"moss": 0x5C7C3C,
 	"dirt_a": 0x6B5740,
 	"dirt_b": 0x5A4C38,
 	"path_orange": 0x7E5A33,
@@ -40,9 +40,9 @@ const PAL := {
 	"water_spark": 0xA6DED8,
 	"trunk_a": 0x6B5740,
 	"trunk_b": 0x33302A,
-	"foliage_a": 0x3E4A32,
-	"foliage_b": 0x313B28,
-	"foliage_c": 0x495331,
+	"foliage_a": 0x52723A,
+	"foliage_b": 0x456030,
+	"foliage_c": 0x5E7E3C,
 	"leaf_gold": 0xCDA94A,
 	"leaf_orange": 0xB05330,
 	"leaf_red": 0x923A2A,
@@ -79,15 +79,15 @@ const PAL := {
 	"snow_a": 0xD8E0DC,
 	# Deep-forest theme (replaces the lime greens). Original nature palette.
 	# Drastically darkened: moody-cozy dark forest — deep greens, earthy browns.
-	"forest_green": 0x1B2E18,    # canopy shadows / dark background
-	"leaf_green": 0x2E481F,      # primary foliage / leaves
-	"sunlit_grass": 0x5E7C3A,    # brightest lit ground (still deep)
+	"forest_green": 0x2A4A22,    # canopy shadows / dark background (lifted, still green)
+	"leaf_green": 0x3E6A28,      # primary foliage / leaves
+	"sunlit_grass": 0x84B048,    # brightest lit ground (lush)
 	"warm_stone": 0x8C8A70,      # paths / paving / light concrete
-	"mid_foliage": 0x3C5628,     # grass / shrubs / medium leaves
+	"mid_foliage": 0x507434,     # grass / shrubs / medium leaves
 	"slate_blue": 0x363E48,      # buildings / fences / walls / rails
-	"forest_teal": 0x122017,     # deepest gaps / foliage shadow
+	"forest_teal": 0x223E1E,     # deepest gaps / foliage shadow (lifted off black)
 	"dark_bark": 0x282430,       # branches / trunk shadow
-	"moss_hi": 0x4C6630,         # vegetation highlights
+	"moss_hi": 0x68903C,         # vegetation highlights
 	"weathered_metal": 0x4E6064, # railings / blue-gray structural
 	"bark_brown": 0x3A352D,      # wood / tree trunks
 	"olive_wood": 0x4E4B38,      # benches / lighter wooden details
