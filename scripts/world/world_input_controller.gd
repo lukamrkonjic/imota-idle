@@ -63,7 +63,20 @@ func update_hover() -> void:
 	world.hud.call("update_world_tooltip", found)
 
 
+# Old 2D iso-pixels -> 3D world-Y factor: one elevation step is 8 iso px and
+# ELEV_H (0.25) world units tall, so a sprite's pixel height maps to world height
+# at this ratio. Lets us reuse the per-entity icon_height()/click_radius tuning
+# for the screen-space pick below.
+const ISO_PX_TO_WORLD := 0.25 / 8.0
+
+
 func entity_at(world_pos: Vector2) -> Node2D:
+	# With the 3D renderer active, the on-screen image comes from the 3D camera, so
+	# the flat iso comparison below picks the wrong point (it offsets the billboard
+	# up in iso space, but the 3D projection foreshortens — that mismatch is the
+	# "tooltip sits too high / click lands off" feel). Pick in screen space instead.
+	if world.render_3d != null and world.render_3d.is_active():
+		return _entity_at_screen()
 	var best: Node2D = null
 	var best_d := INF
 	for e: Node2D in world.entities:
@@ -75,6 +88,28 @@ func entity_at(world_pos: Vector2) -> Node2D:
 		var center: Vector2 = e.position - Vector2(0, e.icon_height() * 0.5)
 		var d := center.distance_to(world_pos)
 		if d < e.click_radius and d < best_d:
+			best_d = d
+			best = e
+	return best
+
+
+## Screen-space pick: compare the live cursor to each interactable entity's
+## projected body centre (a little above its feet), within a screen radius derived
+## from its iso click_radius. Correct under any camera pitch/yaw/zoom.
+func _entity_at_screen() -> Node2D:
+	var r3: Node = world.render_3d
+	var mouse: Vector2 = world.get_viewport().get_mouse_position()
+	var ppu: float = r3.world_px_per_unit()
+	var best: Node2D = null
+	var best_d := INF
+	for e: Node2D in world.entities:
+		if Dictionary(e.get("action")).is_empty():
+			continue
+		var lift: float = clampf(e.icon_height() * ISO_PX_TO_WORLD * 0.5, 0.35, 1.6)
+		var center: Vector2 = r3.iso_to_screen(e.position, lift)
+		var radius_px: float = maxf(18.0, e.click_radius * ISO_PX_TO_WORLD * ppu)
+		var d := center.distance_to(mouse)
+		if d < radius_px and d < best_d:
 			best_d = d
 			best = e
 	return best

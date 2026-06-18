@@ -685,7 +685,7 @@ func _sync_movers() -> void:
 		live[id] = true
 		var n: Node3D = _mover_nodes.get(id)
 		if n == null:
-			n = PropMeshes.figure_rig(PixelPalette.pal("outfit_b"), PixelPalette.pal("skin_a"))
+			n = PropMeshes.enemy_rig(e)
 			props_root.add_child(n)
 			_mover_nodes[id] = n
 		_animate_mover(n, str(id), e.position, t, dt)
@@ -698,8 +698,10 @@ func _sync_movers() -> void:
 			_mover_prev.erase(id); _mover_yaw.erase(id); _mover_walk.erase(id)
 
 
-## A Short Hike-style walk feel: gentle vertical bob + squash-stretch while moving,
-## and the body turns to face the movement direction. Idle = still and upright.
+## A Short Hike-style walk feel: gentle bob + squash-stretch while moving, body
+## turns to face travel. The pose itself is per body template (humanoid stride,
+## quadruped trot, bird waddle) so a cow walks like an animal and a chicken like
+## a bird — read from the rig's "body3d" meta.
 func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: float) -> void:
 	var pos3 := iso_to_3d(pos2d, height_at(pos2d))
 	var prev: Vector3 = _mover_prev.get(key, pos3)
@@ -714,23 +716,68 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 	if vel.length() > 0.0005:
 		yaw = lerp_angle(yaw, atan2(vel.x, vel.z), clampf(dt * 12.0, 0.0, 1.0))
 		_mover_yaw[key] = yaw
-	node.rotation.y = yaw
-	# Bob + squash scale with the walk amount; a gentle idle breathe when still.
+	var phase := float(absi(hash(key)) % 1000) * 0.006283
+	var base: float = float(node.get_meta("base_scale", 1.0))
+	match str(node.get_meta("body3d", "humanoid")):
+		"bird":
+			_pose_bird(node, pos3, yaw, walk, t, phase, base)
+		"humanoid":
+			_pose_humanoid(node, pos3, yaw, walk, t, phase, base)
+		_:
+			_pose_quadruped(node, pos3, yaw, walk, t, phase, base)
+
+
+## Upright biped: vertical bob + squash, legs swing at the hips and arms counter-
+## swing at the shoulders (player + goblins/skeletons).
+func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float) -> void:
+	node.rotation = Vector3(0, yaw, 0)
 	var bob := absf(sin(t * 11.0)) * 0.09 * walk
 	var sq := sin(t * 11.0) * 0.06 * walk
 	var idle := (1.0 - walk) * sin(t * 2.2) * 0.018
 	node.position = pos3 + Vector3(0, bob, 0)
-	node.scale = Vector3(1.0 - sq * 0.5, 1.0 + sq + idle, 1.0 - sq * 0.5)
-	# Walking gait: legs swing around the hips, arms counter-swing at the shoulders.
-	# Amplitude scales with walk speed (idle = limbs at rest + a faint arm sway).
-	# Per-mover phase offset so multiple figures don't march in lockstep.
-	var stride := t * 8.5 + float(absi(hash(key)) % 1000) * 0.006283
+	node.scale = Vector3(base * (1.0 - sq * 0.5), base * (1.0 + sq + idle), base * (1.0 - sq * 0.5))
+	var stride := t * 8.5 + phase
 	var swing := sin(stride) * 0.7 * walk
 	var idle_arm := (1.0 - walk) * sin(t * 2.0) * 0.05
 	_set_pivot(node, "leg_l", swing)
 	_set_pivot(node, "leg_r", -swing)
 	_set_pivot(node, "arm_l", -swing * 0.85 + idle_arm)
 	_set_pivot(node, "arm_r", swing * 0.85 - idle_arm)
+
+
+## Four-legged trot: diagonal leg pairs swing together (FL+BR vs FR+BL), low body
+## bob, the back dips a touch on each push, and the tail wags.
+func _pose_quadruped(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float) -> void:
+	node.rotation = Vector3(0, yaw, 0)
+	var stride := t * 9.0 + phase
+	var bob := absf(sin(stride)) * 0.05 * walk
+	var breathe := (1.0 - walk) * sin(t * 1.8 + phase) * 0.012
+	node.position = pos3 + Vector3(0, bob, 0)
+	var sq := sin(stride * 2.0) * 0.03 * walk
+	node.scale = Vector3(base * (1.0 + sq * 0.4), base * (1.0 - sq * 0.5 + breathe), base * (1.0 + sq * 0.4))
+	var swing := sin(stride) * 0.8 * walk
+	var idle_leg := (1.0 - walk) * sin(t * 1.6 + phase) * 0.03
+	_set_pivot(node, "leg_fl", swing + idle_leg)
+	_set_pivot(node, "leg_br", swing - idle_leg)
+	_set_pivot(node, "leg_fr", -swing - idle_leg)
+	_set_pivot(node, "leg_bl", -swing + idle_leg)
+	var tail: Node3D = node.get_node_or_null(^"tail")
+	if tail != null:
+		tail.rotation = Vector3(0.18 * sin(stride * 0.5) * walk, 0.5 * sin(t * 3.0), 0)
+
+
+## Bird waddle: quick alternating steps, a side-to-side roll, and a brisk bob —
+## smaller and twitchier than the beasts.
+func _pose_bird(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float) -> void:
+	var stride := t * 11.0 + phase
+	var bob := absf(sin(stride)) * 0.05 * walk + (1.0 - walk) * sin(t * 2.5 + phase) * 0.01
+	node.position = pos3 + Vector3(0, bob, 0)
+	var roll := sin(stride) * 0.18 * walk
+	node.rotation = Vector3(0, yaw, roll)
+	node.scale = Vector3(base, base, base)
+	var swing := sin(stride) * 0.7 * walk
+	_set_pivot(node, "leg_l", swing)
+	_set_pivot(node, "leg_r", -swing)
 
 
 func _set_pivot(node: Node3D, pivot_name: String, angle: float) -> void:
@@ -1068,6 +1115,28 @@ func screen_to_iso(screen: Vector2) -> Vector2:
 	var gx := hit.x / TILE_S
 	var gy := hit.z / TILE_S
 	return Vector2((gx - gy) * WG.ISO_HW, (gx + gy) * WG.ISO_HH)
+
+
+## Inverse of screen_to_iso: where an entity at iso position `pos` (lifted `lift`
+## world units above the terrain) lands on screen, in window pixels. Picking the
+## 3D billboards correctly has to happen in screen space — the ground-plane
+## projection foreshortens differently at every elevation/pitch, so comparing the
+## cursor to each entity's projected body avoids the vertical offset a flat iso
+## comparison produces.
+func iso_to_screen(pos: Vector2, lift := 0.0) -> Vector2:
+	var p3 := iso_to_3d(pos, height_at(pos) + lift)
+	var sub_px: Vector2 = cam.unproject_position(p3)
+	var win: Vector2 = world.get_viewport().get_visible_rect().size
+	return sub_px / Vector2(sub.size) * win
+
+
+## Window pixels per world unit (orthographic, vertical) — turns a world-space
+## pick radius into a screen-space one so tolerance is consistent at any zoom.
+func world_px_per_unit() -> float:
+	if cam == null or cam.size <= 0.0:
+		return 1.0
+	var win: Vector2 = world.get_viewport().get_visible_rect().size
+	return win.y / cam.size
 
 
 ## Intersect a ray with the terrain height field. The surface isn't flat, so we

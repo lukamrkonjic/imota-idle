@@ -249,29 +249,33 @@ static func _tree_parts(leaf: ShaderMaterial) -> Array:
 
 
 static func _conifer_parts() -> Array:
+	# Tall stately fir: a full cone-stack climbing well above eye line so the
+	# forest reads with real vertical presence (≈1.4× the old height).
 	var dark := _mat("forest_green", "forest_teal", "leaf_green")
 	return [
-		_part(_cyl("contrunk", 0.14, 0.2, 1.0), _mat("bark_brown", "dark_bark", "olive_wood"), Vector3(0, 0.5, 0)),
-		_part(_cone("fir0", 1.15, 0.78, 1.1), dark, Vector3(0, 1.0, 0)),
-		_part(_cone("fir1", 0.9, 0.55, 1.0), dark, Vector3(0.05, 1.7, 0)),
-		_part(_cone("fir2", 0.62, 0.3, 0.95), dark, Vector3(-0.04, 2.35, 0.02)),
-		_part(_cone("fir3", 0.36, 0.05, 0.85), dark, Vector3(0.02, 2.95, 0)),
-		_part(_cone("fir_sap_a", 0.42, 0.08, 0.86), dark, Vector3(-0.72, 0.45, 0.38), Vector3(0.85, 0.85, 0.85)),
-		_part(_cone("fir_sap_b", 0.36, 0.06, 0.72), dark, Vector3(0.76, 0.36, -0.26), Vector3(0.82, 0.82, 0.82))]
+		_part(_cyl("contrunk", 0.15, 0.22, 1.4), _mat("bark_brown", "dark_bark", "olive_wood"), Vector3(0, 0.68, 0)),
+		_part(_cone("fir0", 1.2, 0.82, 1.55), dark, Vector3(0, 1.42, 0)),
+		_part(_cone("fir1", 0.95, 0.58, 1.4), dark, Vector3(0.05, 2.4, 0)),
+		_part(_cone("fir2", 0.66, 0.32, 1.25), dark, Vector3(-0.04, 3.32, 0.02)),
+		_part(_cone("fir3", 0.4, 0.05, 1.1), dark, Vector3(0.02, 4.18, 0)),
+		_part(_cone("fir_sap_a", 0.42, 0.08, 0.86), dark, Vector3(-0.78, 0.5, 0.4), Vector3(0.85, 0.85, 0.85)),
+		_part(_cone("fir_sap_b", 0.36, 0.06, 0.72), dark, Vector3(0.82, 0.4, -0.28), Vector3(0.82, 0.82, 0.82))]
 
 
 ## Pine: tall, with a bare reddish lower trunk and a few broad, well-separated
 ## tiers high up (distinct from the full-to-ground fir cone-stack).
 static func _pine_parts() -> Array:
+	# Towering pine: a long bare reddish trunk with a high, well-separated crown —
+	# the tallest silhouette in the treeline (≈1.35× the old height).
 	var needle := _mat("pine_dark", "forest_teal", "pine_mid")
 	var bark := _mat("trunk_a", "trunk_b", "bark_brown")
 	return [
-		_part(_cyl("pine_trunk", 0.12, 0.2, 2.4), bark, Vector3(0, 1.2, 0)),
-		_part(_cone("pine_t0", 1.1, 0.72, 0.62), needle, Vector3(0, 2.15, 0)),
-		_part(_cone("pine_t1", 0.86, 0.5, 0.56), needle, Vector3(0.05, 2.68, 0)),
-		_part(_cone("pine_t2", 0.6, 0.28, 0.52), needle, Vector3(-0.04, 3.16, 0.02)),
-		_part(_cone("pine_t3", 0.34, 0.04, 0.5), needle, Vector3(0.02, 3.6, 0)),
-		_part(_cone("pine_low", 0.5, 0.12, 0.6), needle, Vector3(-0.62, 1.5, 0.34), Vector3(0.8, 0.8, 0.8))]
+		_part(_cyl("pine_trunk", 0.13, 0.22, 3.3), bark, Vector3(0, 1.65, 0)),
+		_part(_cone("pine_t0", 1.15, 0.76, 0.8), needle, Vector3(0, 3.0, 0)),
+		_part(_cone("pine_t1", 0.9, 0.52, 0.72), needle, Vector3(0.05, 3.66, 0)),
+		_part(_cone("pine_t2", 0.62, 0.3, 0.66), needle, Vector3(-0.04, 4.28, 0.02)),
+		_part(_cone("pine_t3", 0.36, 0.04, 0.62), needle, Vector3(0.02, 4.86, 0)),
+		_part(_cone("pine_low", 0.52, 0.12, 0.66), needle, Vector3(-0.66, 2.1, 0.36), Vector3(0.8, 0.8, 0.8))]
 
 
 ## Maple: a broad, slightly flattened dome on a stout trunk — warm autumnal
@@ -825,12 +829,211 @@ static func figure_rig(body: Color, head: Color) -> Node3D:
 	return root
 
 
-static func _attach(parent: Node3D, mesh: Mesh, mat: Material, off: Vector3, scl := Vector3.ONE) -> void:
+# -------------------------------------------------------- enemy creatures ----
+# Real per-species rigs for the early-game enemies, built from two reusable
+# templates (a four-legged beast + a two-legged bird) plus the humanoid figure.
+# Each rig faces +Z (the mover's travel direction) and tags itself with a
+# "body3d" meta so the renderer drives the matching gait, and a "base_scale" the
+# animator multiplies its squash by (size + boss bump survive per-frame scaling).
+
+## Map an enemy name to one of the body templates. Mirrors the 2D species art so
+## a Wolf is a wolf in both renderers. Order matters: wolf-mounts read as wolves.
+static func enemy_body_type(name: String) -> String:
+	var n := name.to_lower()
+	for kw: String in ["wolf", "hound", "dog", "fox", "amaruq", "jackal"]:
+		if n.contains(kw):
+			return "wolf"
+	for kw: String in ["boar", "hog", "pig", "swine"]:
+		if n.contains(kw):
+			return "boar"
+	if n.contains("cow") or n.contains("ox") or n.contains("bull") or n.contains("cattle") or n.contains("calf"):
+		return "cow"
+	if n.contains("sheep") or n.contains("ram") or n.contains("lamb"):
+		return "sheep"
+	if n.contains("goat") or n.contains("kid"):
+		return "goat"
+	if n.contains("mole"):
+		return "mole"
+	if n.contains("chicken") or n.contains("hen") or n.contains("rooster") or n.contains("fowl") or n.contains("chick"):
+		return "bird"
+	return "humanoid"
+
+
+## Build the right rig for an enemy node and tag it for animation.
+static func enemy_rig(e: Node) -> Node3D:
+	var name := str(e.get("label"))
+	if name.is_empty():
+		name = str(Dictionary(e.get("action")).get("name", ""))
+	var type := enemy_body_type(name)
+	var n := name.to_lower()
+	var boss := bool(e.get("is_boss"))
+	var rider := n.contains("rider")
+	var size := 1.0
+	var node: Node3D
+	match type:
+		"wolf":
+			var dark := n.contains("black") or n.contains("toxic") or n.contains("cave")
+			var hide := Color(0.30, 0.31, 0.34) if dark else Color(0.55, 0.55, 0.60)
+			node = quadruped_rig({"hide": hide, "belly": hide.lightened(0.32), "ears": "perk", "tail": "bushy", "snout": 0.28})
+			size = 1.16 if n.contains("amaruq") else 1.0
+		"boar":
+			var pinkish := n.contains("pig")
+			var hide := Color(0.90, 0.66, 0.70) if pinkish else Color(0.40, 0.31, 0.27)
+			node = quadruped_rig({
+				"hide": hide, "belly": hide.darkened(0.12), "ears": "perk", "tail": "short",
+				"snout": 0.22, "tusks": not pinkish, "humped": not pinkish, "snout_pink": pinkish})
+			size = 0.92
+		"cow":
+			node = quadruped_rig({"hide": Color(0.66, 0.46, 0.32), "belly": Color(0.84, 0.81, 0.76), "ears": "floppy", "horns": "cow", "tail": "tuft", "snout": 0.2})
+			size = 1.16
+		"sheep":
+			node = quadruped_rig({"hide": Color(0.92, 0.91, 0.88), "belly": Color(0.88, 0.87, 0.84), "ears": "floppy", "tail": "short", "snout": 0.14, "wool": true, "head_dark": true})
+			size = 1.02
+		"goat":
+			node = quadruped_rig({"hide": Color(0.80, 0.78, 0.80), "belly": Color(0.88, 0.87, 0.86), "ears": "perk", "horns": "goat", "tail": "short", "snout": 0.16, "beard": true})
+		"mole":
+			node = quadruped_rig({"hide": Color(0.34, 0.27, 0.31), "belly": Color(0.46, 0.39, 0.42), "ears": "none", "tail": "short", "snout": 0.22})
+			size = 0.74
+		"bird":
+			var brown := n.contains("mumma") or n.contains("momma")
+			node = bird_rig({"body": Color(0.84, 0.72, 0.58) if brown else Color(0.93, 0.89, 0.80)})
+			size = 1.12 if brown else 0.9
+		_:
+			type = "humanoid"
+			if n.contains("goblin") or n.contains("hob") or n.contains("gnoll"):
+				node = figure_rig(Color(0.40, 0.31, 0.23), Color(0.44, 0.66, 0.34))
+			elif n.contains("skelet") or n.contains("bone"):
+				node = figure_rig(Color(0.62, 0.60, 0.56), Color(0.86, 0.85, 0.80))
+			else:
+				node = figure_rig(PixelPalette.pal("outfit_b"), PixelPalette.pal("skin_a"))
+	if rider and type == "wolf":
+		_add_rider(node)
+	node.set_meta("body3d", type)
+	node.set_meta("base_scale", size * (1.22 if boss else 1.0))
+	return node
+
+
+## Reusable four-legged beast. Legs hang off hip pivots (leg_fl/leg_fr/leg_bl/
+## leg_br) and the tail off `tail`, so the gait can swing them. spec keys: hide,
+## belly (Color), snout (len), ears (perk|floppy|none), horns (cow|goat|none),
+## tail (short|bushy|tuft|none), and flags wool/humped/tusks/beard/head_dark.
+static func quadruped_rig(spec: Dictionary) -> Node3D:
+	var hide: Color = spec.get("hide", Color(0.6, 0.5, 0.4))
+	var belly: Color = spec.get("belly", hide.lightened(0.2))
+	var snout_len: float = float(spec.get("snout", 0.2))
+	var hidem := _mat_from(hide, hide.darkened(0.34), hide.lightened(0.2))
+	var bellym := _mat_from(belly, belly.darkened(0.3), belly.lightened(0.18))
+	var darkm := _mat_from(hide.darkened(0.42), hide.darkened(0.6), hide.darkened(0.16))
+	var eyem := _mat_from(Color(0.06, 0.06, 0.08), Color(0.03, 0.03, 0.04), Color(0.12, 0.12, 0.14))
+	var head_dark: bool = bool(spec.get("head_dark", false))
+	var headm := darkm if head_dark else hidem
+	var root := Node3D.new()
+	# Torso — a fluffy sphere for woolly beasts, a chunky box otherwise.
+	if bool(spec.get("wool", false)):
+		_attach(root, _sphere("q_wool", 0.44), hidem, Vector3(0, 0.66, -0.02), Vector3(1.2, 1.0, 1.4))
+	else:
+		_attach(root, _box("q_body", Vector3(0.46, 0.44, 0.96)), hidem, Vector3(0, 0.62, 0))
+		_attach(root, _box("q_belly", Vector3(0.4, 0.2, 0.84)), bellym, Vector3(0, 0.47, 0))
+	if bool(spec.get("humped", false)):
+		# A subtle shoulder rise (boar), blended into the back rather than a saddle.
+		_attach(root, _sphere("q_hump", 0.26), hidem, Vector3(0, 0.74, 0.2), Vector3(1.04, 0.62, 0.9))
+	# Neck + head at the front (+Z), with a snout, eyes, optional features.
+	_attach(root, _box("q_neck", Vector3(0.26, 0.3, 0.3)), hidem, Vector3(0, 0.66, 0.5))
+	_attach(root, _box("q_head", Vector3(0.34, 0.34, 0.36)), headm, Vector3(0, 0.78, 0.66))
+	if snout_len > 0.0:
+		var snm := _mat_from(Color(0.9, 0.62, 0.66), Color(0.7, 0.42, 0.46), Color(0.95, 0.74, 0.78)) if bool(spec.get("snout_pink", false)) else headm
+		_attach(root, _box("q_snout_%d" % int(snout_len * 100), Vector3(0.22, 0.16, snout_len)), snm, Vector3(0, 0.71, 0.82 + snout_len * 0.4))
+	_attach(root, _box("q_eye", Vector3(0.05, 0.05, 0.05)), eyem, Vector3(0.1, 0.84, 0.82))
+	_attach(root, _box("q_eye", Vector3(0.05, 0.05, 0.05)), eyem, Vector3(-0.1, 0.84, 0.82))
+	match str(spec.get("ears", "none")):
+		"perk":
+			for sx: int in [-1, 1]:
+				_attach(root, _cone("q_ear_perk", 0.09, 0.01, 0.18), headm, Vector3(0.13 * sx, 0.98, 0.58), Vector3.ONE, Vector3(-0.2, 0, 0.3 * sx))
+		"floppy":
+			for sx2: int in [-1, 1]:
+				_attach(root, _box("q_ear_flop", Vector3(0.08, 0.2, 0.1)), headm, Vector3(0.2 * sx2, 0.78, 0.62), Vector3.ONE, Vector3(0, 0, 0.5 * sx2))
+	match str(spec.get("horns", "none")):
+		"cow":
+			var hornm := _mat_from(Color(0.86, 0.82, 0.72), Color(0.62, 0.58, 0.5), Color(0.95, 0.92, 0.84))
+			for sx3: int in [-1, 1]:
+				_attach(root, _cone("q_horn_cow", 0.06, 0.01, 0.2), hornm, Vector3(0.16 * sx3, 0.96, 0.6), Vector3.ONE, Vector3(0, 0, 0.7 * sx3))
+		"goat":
+			var hornm2 := _mat_from(Color(0.55, 0.5, 0.46), Color(0.36, 0.32, 0.3), Color(0.68, 0.63, 0.58))
+			for sx4: int in [-1, 1]:
+				_attach(root, _cone("q_horn_goat", 0.05, 0.01, 0.28), hornm2, Vector3(0.1 * sx4, 0.96, 0.52), Vector3.ONE, Vector3(1.1, 0, 0.15 * sx4))
+	if bool(spec.get("tusks", false)):
+		var tuskm := _mat_from(Color(0.9, 0.88, 0.8), Color(0.7, 0.68, 0.6), Color(0.96, 0.95, 0.9))
+		for sx5: int in [-1, 1]:
+			_attach(root, _cone("q_tusk", 0.03, 0.005, 0.12), tuskm, Vector3(0.09 * sx5, 0.66, 0.9), Vector3.ONE, Vector3(-0.6, 0, 0))
+	if bool(spec.get("beard", false)):
+		_attach(root, _box("q_beard", Vector3(0.1, 0.18, 0.06)), bellym, Vector3(0, 0.6, 0.78))
+	_add_tail(root, str(spec.get("tail", "none")), hidem, darkm)
+	# Four legs at the corners; hips pivot around X for the trot.
+	for ld: Array in [["leg_fl", -0.2, 0.32], ["leg_fr", 0.2, 0.32], ["leg_bl", -0.2, -0.32], ["leg_br", 0.2, -0.32]]:
+		var leg := _limb(root, str(ld[0]), Vector3(float(ld[1]), 0.44, float(ld[2])))
+		_attach(leg, _box("q_leg", Vector3(0.14, 0.42, 0.15)), hidem, Vector3(0, -0.21, 0))
+		_attach(leg, _box("q_hoof", Vector3(0.15, 0.1, 0.17)), darkm, Vector3(0, -0.44, 0.01))
+	return root
+
+
+static func _add_tail(root: Node3D, style: String, hidem: Material, darkm: Material) -> void:
+	if style == "none":
+		return
+	var tail := _limb(root, "tail", Vector3(0, 0.66, -0.5))
+	match style:
+		"short":
+			_attach(tail, _box("q_tail_s", Vector3(0.1, 0.1, 0.24)), hidem, Vector3(0, -0.02, -0.1), Vector3.ONE, Vector3(0.5, 0, 0))
+		"bushy":
+			_attach(tail, _cone("q_tail_b", 0.13, 0.03, 0.4), hidem, Vector3(0, 0.0, -0.2), Vector3.ONE, Vector3(2.3, 0, 0))
+		"tuft":
+			_attach(tail, _box("q_tail_t", Vector3(0.06, 0.34, 0.06)), hidem, Vector3(0, -0.16, 0))
+			_attach(tail, _sphere("q_tail_tuft", 0.08), darkm, Vector3(0, -0.32, 0))
+
+
+static func _add_rider(node: Node3D) -> void:
+	var rskin := _mat_from(Color(0.44, 0.66, 0.34), Color(0.3, 0.5, 0.24), Color(0.56, 0.78, 0.42))
+	var rcloth := _mat_from(Color(0.4, 0.3, 0.22), Color(0.28, 0.2, 0.14), Color(0.52, 0.42, 0.3))
+	_attach(node, _box("r_torso", Vector3(0.26, 0.32, 0.22)), rcloth, Vector3(0, 1.06, -0.04))
+	_attach(node, _box("r_head", Vector3(0.22, 0.22, 0.22)), rskin, Vector3(0, 1.32, -0.04))
+	for sx: int in [-1, 1]:
+		_attach(node, _cone("r_ear", 0.05, 0.005, 0.13), rskin, Vector3(0.15 * sx, 1.34, -0.04), Vector3.ONE, Vector3(0, 0, 0.6 * sx))
+
+
+## Reusable two-legged bird (chicken). Legs hang off leg_l/leg_r hip pivots.
+static func bird_rig(spec: Dictionary) -> Node3D:
+	var body: Color = spec.get("body", Color(0.93, 0.89, 0.8))
+	var comb: Color = spec.get("comb", Color(0.8, 0.2, 0.16))
+	var beak: Color = spec.get("beak", Color(0.92, 0.62, 0.18))
+	var bodym := _mat_from(body, body.darkened(0.3), body.lightened(0.16))
+	var combm := _mat_from(comb, comb.darkened(0.3), comb.lightened(0.2))
+	var beakm := _mat_from(beak, beak.darkened(0.3), beak.lightened(0.2))
+	var legm := _mat_from(Color(0.9, 0.55, 0.18), Color(0.6, 0.35, 0.1), Color(0.95, 0.7, 0.3))
+	var eyem := _mat_from(Color(0.06, 0.06, 0.08), Color(0.03, 0.03, 0.04), Color(0.12, 0.12, 0.14))
+	var root := Node3D.new()
+	_attach(root, _sphere("b_body", 0.26), bodym, Vector3(0, 0.36, -0.02), Vector3(1.0, 1.05, 1.25))
+	_attach(root, _sphere("b_head", 0.17), bodym, Vector3(0, 0.56, 0.14))
+	_attach(root, _cone("b_beak", 0.07, 0.005, 0.16), beakm, Vector3(0, 0.55, 0.32), Vector3.ONE, Vector3(1.5708, 0, 0))
+	_attach(root, _box("b_comb", Vector3(0.06, 0.11, 0.16)), combm, Vector3(0, 0.72, 0.12))
+	_attach(root, _box("b_wattle", Vector3(0.05, 0.08, 0.04)), combm, Vector3(0, 0.47, 0.27))
+	_attach(root, _box("b_eye", Vector3(0.04, 0.04, 0.04)), eyem, Vector3(0.09, 0.58, 0.24))
+	_attach(root, _box("b_eye", Vector3(0.04, 0.04, 0.04)), eyem, Vector3(-0.09, 0.58, 0.24))
+	_attach(root, _box("b_tail", Vector3(0.2, 0.16, 0.1)), bodym, Vector3(0, 0.46, -0.26), Vector3.ONE, Vector3(-0.5, 0, 0))
+	_attach(root, _box("b_wing", Vector3(0.07, 0.18, 0.26)), bodym, Vector3(0.24, 0.4, -0.02))
+	_attach(root, _box("b_wing", Vector3(0.07, 0.18, 0.26)), bodym, Vector3(-0.24, 0.4, -0.02))
+	for sx: int in [-1, 1]:
+		var leg := _limb(root, "leg_l" if sx < 0 else "leg_r", Vector3(0.1 * sx, 0.24, 0))
+		_attach(leg, _box("b_leg", Vector3(0.05, 0.24, 0.05)), legm, Vector3(0, -0.12, 0))
+		_attach(leg, _box("b_foot", Vector3(0.14, 0.04, 0.16)), legm, Vector3(0, -0.24, 0.03))
+	return root
+
+
+static func _attach(parent: Node3D, mesh: Mesh, mat: Material, off: Vector3, scl := Vector3.ONE, rot := Vector3.ZERO) -> void:
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
 	mi.material_override = mat
 	mi.position = off
 	mi.scale = scl
+	mi.rotation = rot
 	parent.add_child(mi)
 
 

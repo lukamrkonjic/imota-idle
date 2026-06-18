@@ -3,6 +3,7 @@ class_name EnemyCreatureArt
 ## Species-specific pixel models for early-game enemies (levels 1–10).
 
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
+const PixelDraw := preload("res://scripts/world/art/core/pixel_draw.gd")
 const SilhouetteDraw := preload("res://scripts/world/art/core/silhouette_draw.gd")
 
 

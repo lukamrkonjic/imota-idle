@@ -2,6 +2,7 @@ extends RefCounted
 class_name EnemyArt
 
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
+const PixelDraw := preload("res://scripts/world/art/core/pixel_draw.gd")
 const SilhouetteDraw := preload("res://scripts/world/art/core/silhouette_draw.gd")
 const EnemyCreatureArt := preload("res://scripts/world/art/characters/enemy_creature_art.gd")
 
