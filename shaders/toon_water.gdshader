@@ -1,85 +1,93 @@
 shader_type spatial;
-// Illustrated stylized water (A Short Hike feel). A mostly-uniform deep-blue surface
-// covered in thin, irregular, INTERCONNECTED wave LINES — like animated topographic
-// contours / hand-drawn loops. The lines come from CONTOUR THRESHOLDS over two layers
-// of domain-warped noise, NOT from sine waves (those read as regular rings/stripes).
+// Illustrated calm-ocean water (A Short Hike feel). A deep-blue surface with a FEW
+// large, widely-spaced contour loops — like calm topographic lines — and a clean
+// turquoise shallow-water band along the coast.
 //
-// Everything is sampled from WORLD-SPACE xz + a slow TIME term, so the pattern is glued
-// to the world and never slides when the camera moves/zooms. Flat & graphic: a tiny
-// limited palette, hard edges, just enough AA to stop the low-res buffer flickering.
-// No reflections, normals, gloss or geometry displacement. A narrow depth-based
-// turquoise rim marks the shallow shoreline.
+// The contour pattern is built purely from WORLD-SPACE xz (one dominant domain-warped
+// noise -> contour thresholds -> thin isolines), so it is glued to the world and never
+// moves with the camera. The shallow band is a SEPARATE channel: a per-vertex
+// distance-to-land value (UV.x, in tiles, baked from the terrain grid) -> a smooth
+// shore mask. The two are computed independently — the shoreline never distorts the
+// contours and the contours never leak into the shore.
+//
+// No geometry displacement, no depth sampling, no screen-space tricks, no neon lines.
 
 render_mode unshaded, cull_back, blend_mix, depth_prepass_alpha;
 
-// --- palette (4 flat colours) -------------------------------------------------
-uniform vec4 base_color : source_color = vec4(0.094, 0.345, 0.471, 1.0);       // #185878 deep water
-uniform vec4 secondary_color : source_color = vec4(0.149, 0.435, 0.557, 1.0);  // slightly lighter blue
-uniform vec4 line_color : source_color = vec4(0.235, 0.471, 0.596, 1.0);       // #3C7898 contour lines
-uniform vec4 shoreline_color : source_color = vec4(0.439, 0.753, 0.737, 1.0);  // #70C0BC shallow rim
+// --- palette (restrained: one deep blue, one muted blue-cyan line, turquoise shallow) -
+uniform vec4 base_color : source_color = vec4(0.078, 0.353, 0.471, 1.0);       // #145A78
+uniform vec4 secondary_color : source_color = vec4(0.106, 0.400, 0.518, 1.0);  // #1B6684
+uniform vec4 line_color : source_color = vec4(0.239, 0.506, 0.604, 1.0);       // #3D819A
+uniform vec4 shoreline_color : source_color = vec4(0.384, 0.757, 0.741, 1.0);  // #62C1BD
 
-// --- pattern ------------------------------------------------------------------
-uniform float pattern_scale = 0.13;             // world->noise freq for layer 1 (bigger = denser)
-uniform float secondary_pattern_scale = 0.072;  // layer 2 freq (different so it never tiles obviously)
-uniform float contour_count = 5.0;              // isolines drawn across the 0..1 noise range
-uniform float line_width : hint_range(0.0, 0.5) = 0.05;  // half-thickness of a line, in contour units
-uniform float domain_warp_strength = 0.55;      // how much the warp layer bends the lines
-uniform float animation_strength : hint_range(0.0, 2.0) = 1.0;  // global motion multiplier (0 = frozen)
-uniform float primary_speed = 0.6;              // layer 1 + warp drift speed
-uniform float secondary_speed = 0.45;           // layer 2 drift speed (different -> shape morphs)
+// --- contour pattern ----------------------------------------------------------
+uniform float pattern_scale = 0.032;            // world->noise freq (small = big, calm loops)
+uniform float contour_count = 2.0;              // number of isolines across the noise range
+uniform float line_width : hint_range(0.0, 0.5) = 0.035;     // half line thickness (contour units)
+uniform float line_opacity : hint_range(0.0, 1.0) = 0.6;     // how strongly lines tint the water
+uniform float domain_warp_strength = 0.5;       // bends the loops into organic shapes
+uniform float secondary_strength : hint_range(0.0, 1.0) = 0.3;  // weak 2nd detail (never an equal net)
+uniform float secondary_scale = 1.7;            // 2nd-layer relative frequency
+uniform vec2 primary_speed = vec2(0.006, 0.003);    // slow warp drift A (normalized coords)
+uniform vec2 secondary_speed = vec2(-0.003, 0.005); // slow warp drift B (different vector)
 
-uniform float alpha : hint_range(0.0, 1.0) = 1.0;  // 1 = solid (no glassy see-through)
+// --- shallow-water band (from the terrain distance field, not depth) ----------
+uniform float shallow_start = 0.06;   // tiles from land where the band is full turquoise
+uniform float shallow_end = 0.42;     // tiles from land where it has faded to deep water
+uniform float alpha : hint_range(0.0, 1.0) = 1.0;
 
-// Seamless tiling noise (NoiseTexture2D, single channel). One drives the pattern, the
-// other (lower frequency) bends the sample space and adds the slow colour variation.
 uniform sampler2D noise_tex : repeat_enable, filter_linear;
 uniform sampler2D warp_tex : repeat_enable, filter_linear;
 
 varying vec3 v_world;
+varying float v_dist;   // distance to nearest land, in tiles (baked into UV.x)
 
 void vertex() {
-	// World-space position of this surface point (mesh is built in world coords, but go
-	// through MODEL_MATRIX so it's correct regardless of mesh placement/scale).
 	v_world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	v_dist = UV.x;
 }
 
-// Turn a 0..1 noise field into thin isolines: slice it into `contour_count` levels and
-// light up only the narrow band hugging each level crossing. Width is kept ~constant on
-// screen via fwidth so lines stay 1-2 px at the game's low internal resolution.
-float contour(float n) {
-	float v = n * contour_count;
-	float d = min(fract(v), 1.0 - fract(v));      // distance to nearest isoline (0 = on the line)
-	float aa = fwidth(v) * 0.7 + 0.0008;          // just enough AA to stop low-res flicker
+// 0..1 noise -> thin isolines. Slice into `count` levels, light up the narrow band at
+// each crossing. fwidth keeps the line ~1px on screen at any zoom (no fixed-AA flicker).
+float contour(float n, float count) {
+	float v = n * count;
+	float d = min(fract(v), 1.0 - fract(v));
+	float aa = fwidth(v) * 0.8 + 0.0008;
 	return 1.0 - smoothstep(line_width, line_width + aa, d);
 }
 
 void fragment() {
 	vec2 wp = v_world.xz;
-	float t = TIME * animation_strength;
 
-	// Domain warp: a slow low-frequency noise offsets the sample coords so the contour
-	// lines wander into organic loops/bends instead of smooth blobs. Two decorrelated
-	// taps give an x and y offset. Drifts gently along one diagonal.
-	vec2 wuv = wp * (pattern_scale * 0.45) + vec2(0.013, 0.009) * primary_speed * t;
-	float wx = texture(warp_tex, wuv).r;
-	float wy = texture(warp_tex, wuv + vec2(0.37, 0.21)).r;
-	vec2 warp = (vec2(wx, wy) - 0.5) * domain_warp_strength;
+	// Animated DOMAIN WARP only: two slow, near-perpendicular vectors move the warp
+	// sample (not the whole pattern), so the big loops keep their identity and just
+	// gently breathe — no wholesale scrolling, no boiling.
+	vec2 w1 = wp * (pattern_scale * 0.5) + primary_speed * TIME;
+	vec2 w2 = wp * (pattern_scale * 0.5) + secondary_speed * TIME + vec2(0.4, 0.2);
+	vec2 warp = (vec2(texture(warp_tex, w1).r, texture(warp_tex, w2).r) - 0.5) * domain_warp_strength;
 
-	// Layer 1: drifts one way. Layer 2: coarser, drifts a near-perpendicular way at a
-	// different speed, so the combined pattern slowly morphs and never looks repetitive.
-	vec2 uv1 = wp * pattern_scale + warp + vec2(0.006, -0.004) * primary_speed * t;
-	vec2 uv2 = wp * secondary_pattern_scale - warp * 0.6 + vec2(-0.004, 0.007) * secondary_speed * t;
-	float n1 = texture(noise_tex, uv1).r;
-	float n2 = texture(noise_tex, uv2).r;
-	float lines = max(contour(n1), contour(n2));
+	// One DOMINANT contour layer.
+	vec2 uv1 = wp * pattern_scale + warp;
+	float lines = contour(texture(noise_tex, uv1).r, contour_count);
+	// Optional WEAK secondary detail at a different scale (kept subdued so it never
+	// becomes a second equal network of lines).
+	if (secondary_strength > 0.001) {
+		float n2 = texture(noise_tex, uv1 * secondary_scale + vec2(3.7, 1.9)).r;
+		lines = max(lines, contour(n2, contour_count) * secondary_strength);
+	}
 
-	// Base: deep blue, with a faint secondary-blue variation from a very low-freq noise
-	// so the field isn't a dead-flat fill (kept subtle — no large gradients/patches).
-	float varn = texture(warp_tex, wp * (pattern_scale * 0.3) + vec2(-0.01, 0.006) * t).r;
-	vec3 col = mix(base_color.rgb, secondary_color.rgb, smoothstep(0.42, 0.66, varn) * 0.6);
-	col = mix(col, line_color.rgb, lines);
-	// Shoreline rim is a separate geometry ribbon (see world_render_3d.gd) using
-	// shoreline_color — reliable narrow width that follows the coast from any angle.
+	// Deep base with a very subtle low-frequency blue variation (no big pale patches).
+	float varn = texture(warp_tex, wp * (pattern_scale * 0.32)).r;
+	vec3 deep = mix(base_color.rgb, secondary_color.rgb, smoothstep(0.45, 0.62, varn) * 0.5);
+
+	// Shallow band straight from the terrain distance field: full near land, fading to
+	// deep water by `shallow_end`. Continuous and camera-independent.
+	float shore = 1.0 - smoothstep(shallow_start, shallow_end, v_dist);
+
+	// Contours fade out inside the shallows so the band stays a clean flat colour.
+	float line_mask = lines * (1.0 - shore) * line_opacity;
+	vec3 col = mix(deep, line_color.rgb, line_mask);
+	col = mix(col, shoreline_color.rgb, shore);
 
 	ALBEDO = col;
 	ALPHA = alpha;

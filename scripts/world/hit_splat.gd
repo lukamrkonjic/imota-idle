@@ -10,7 +10,8 @@ const LIFETIME := 0.85
 const POP := 0.10
 const FADE := 0.22
 const BODY_SCALE := 0.46  # the splatter blob is small; the number sits big on top
-const NUM_SCALE := 0.67   # damage number is ~2/3 the blob scale (was full size, too big)
+const NUM_SCALE := 0.67    # damage number is ~2/3 the blob scale (was full size, too big)
+const OVERALL_SCALE := 0.75  # shrink the whole splat (blob + number) to 3/4
 
 const RED := Color(0.82, 0.09, 0.07)
 const RED_DARK := Color(0.50, 0.04, 0.04)
@@ -80,8 +81,9 @@ func _draw() -> void:
 	var a := 1.0
 	if _t > LIFETIME - FADE:
 		a = clampf((LIFETIME - _t) / FADE, 0.0, 1.0)
-	# Small splatter body... (scaled up by scale_mul for the big 3D overlay splats)
-	var sm := s * scale_mul
+	# Small splatter body... (scaled up by scale_mul for the big 3D overlay splats).
+	# OVERALL_SCALE shrinks the whole splat (blob + number) to 3/4 so it reads smaller.
+	var sm := s * scale_mul * OVERALL_SCALE
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2(sm * BODY_SCALE, sm * BODY_SCALE))
 	_draw_splat(a)
 	# ...with the damage number drawn bold on top at ~2/3 scale so it doesn't dominate.

@@ -10,7 +10,6 @@ extends Node
 const WG := preload("res://scripts/worldgen/wg.gd")
 const TOON_GROUND := preload("res://shaders/toon_ground.gdshader")
 const TOON_WATER := preload("res://shaders/toon_water.gdshader")
-const TOON_FOAM := preload("res://shaders/toon_foam.gdshader")
 const PALETTE_SNAP := preload("res://shaders/palette_snap.gdshader")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 const PropMeshes := preload("res://scripts/render/prop_meshes.gd")
@@ -38,7 +37,6 @@ var terrain_root: Node3D
 var props_root: Node3D
 var _ground_mat: ShaderMaterial
 var _water_mat: ShaderMaterial
-var _foam_mat: ShaderMaterial
 var _snap_mat: ShaderMaterial
 var _chunk_meshes: Dictionary = {}   # chunk key -> Node3D (ground + water)
 var _chunk_by_key: Dictionary = {}   # chunk key -> chunk RefCounted (O(1) height lookup)
@@ -190,36 +188,28 @@ func _build() -> void:
 
 	_water_mat = ShaderMaterial.new()
 	_water_mat.shader = TOON_WATER
-	# Illustrated contour-line water: deep-blue fill + thin domain-warped isolines that
-	# read as hand-drawn topographic loops, plus a narrow turquoise shallow rim. The
-	# pattern is sampled from world-space xz, so it stays glued to the world. Two seamless
-	# FastNoiseLite textures feed it: one shapes the lines, one (coarser) warps + tints.
-	_water_mat.set_shader_parameter("base_color", Color(0.094, 0.345, 0.471))      # #185878 deep
-	_water_mat.set_shader_parameter("secondary_color", Color(0.149, 0.435, 0.557)) # lighter blue
-	_water_mat.set_shader_parameter("line_color", Color(0.235, 0.471, 0.596))      # #3C7898 lines
-	_water_mat.set_shader_parameter("shoreline_color", Color(0.439, 0.753, 0.737)) # #70C0BC rim
-	_water_mat.set_shader_parameter("pattern_scale", 0.105)
-	_water_mat.set_shader_parameter("secondary_pattern_scale", 0.058)
-	_water_mat.set_shader_parameter("contour_count", 4.0)
-	_water_mat.set_shader_parameter("line_width", 0.05)
-	_water_mat.set_shader_parameter("domain_warp_strength", 0.55)
-	_water_mat.set_shader_parameter("animation_strength", 1.0)
-	_water_mat.set_shader_parameter("primary_speed", 0.6)
-	_water_mat.set_shader_parameter("secondary_speed", 0.45)
-	_water_mat.set_shader_parameter("noise_tex", _make_water_noise(0.9, 4, 1))
+	# Illustrated calm-ocean water: a deep-blue fill with a few LARGE, widely-spaced
+	# domain-warped contour loops (hand-drawn topographic feel), plus a clean turquoise
+	# shallow band. The contour pattern is sampled from world-space xz (camera-stable);
+	# the shallow band comes from a per-vertex distance-to-land field (UV.x), independent
+	# of the contours. Restrained palette so the lines never read as neon scribbles.
+	_water_mat.set_shader_parameter("base_color", Color(0.078, 0.353, 0.471))      # #145A78 deep
+	_water_mat.set_shader_parameter("secondary_color", Color(0.106, 0.400, 0.518)) # #1B6684 subtle var
+	_water_mat.set_shader_parameter("line_color", Color(0.239, 0.506, 0.604))      # #3D819A lines
+	_water_mat.set_shader_parameter("shoreline_color", Color(0.384, 0.757, 0.741)) # #62C1BD shallow
+	_water_mat.set_shader_parameter("pattern_scale", 0.032)       # big features (was 0.105 -> ~3.3x)
+	_water_mat.set_shader_parameter("contour_count", 2.0)         # few thresholds (was 4 -> 50% fewer)
+	_water_mat.set_shader_parameter("line_width", 0.035)
+	_water_mat.set_shader_parameter("line_opacity", 0.6)
+	_water_mat.set_shader_parameter("domain_warp_strength", 0.5)
+	_water_mat.set_shader_parameter("secondary_strength", 0.3)    # weak secondary detail only
+	_water_mat.set_shader_parameter("secondary_scale", 1.7)
+	_water_mat.set_shader_parameter("primary_speed", Vector2(0.006, 0.003))
+	_water_mat.set_shader_parameter("secondary_speed", Vector2(-0.003, 0.005))
+	_water_mat.set_shader_parameter("shallow_start", 0.05)        # tiles from land where shallow begins
+	_water_mat.set_shader_parameter("shallow_end", 0.34)          # tiles where it fades to deep (~4-5px band)
+	_water_mat.set_shader_parameter("noise_tex", _make_water_noise(0.9, 2, 1))
 	_water_mat.set_shader_parameter("warp_tex", _make_water_noise(0.35, 2, 2))
-
-	# Shoreline ribbon: turquoise shallow band + animated broken white foam at the
-	# waterline. Foam amount/reach scales with per-vertex sea openness so larger seas
-	# froth more. World-space noise keeps the foam camera-stable.
-	_foam_mat = ShaderMaterial.new()
-	_foam_mat.shader = TOON_FOAM
-	_foam_mat.set_shader_parameter("shallow_color", Color(0.439, 0.753, 0.737))
-	_foam_mat.set_shader_parameter("foam_color", Color(0.90, 0.965, 0.97))
-	_foam_mat.set_shader_parameter("foam_scale", 1.0)
-	_foam_mat.set_shader_parameter("foam_speed", 0.5)
-	_foam_mat.set_shader_parameter("foam_coverage", 0.6)
-	_foam_mat.set_shader_parameter("foam_noise", _make_water_noise(1.2, 3, 3))
 
 	# Present the low-res 3D world at nearest-neighbour, under the HUD (layer 1).
 	var layer := CanvasLayer.new()
@@ -500,7 +490,6 @@ func _apply_view_distance() -> void:
 
 
 const WATER_DROP := 0.45   # how far the ground floor dips under water (shore basin)
-const FOAM_INSET := 0.26   # base width of the turquoise+foam shoreline ribbon (widens on open seas)
 const SHORE := Color(0.80, 0.75, 0.58)  # sandy shore tone under/at water edges
 const PATH_TILES := ["dirt", "cobble", "mud", "gravel", "badland_clay"]
 const ROCK_TILES := ["rock", "lava_rock", "ash"]
@@ -514,15 +503,13 @@ func _build_chunk_terrain(chunk: RefCounted) -> Node3D:
 	var cx0: int = int(chunk.cx) * n
 	var cy0: int = int(chunk.cy) * n
 	var hc := {}  # memoized corner heights
+	var dc := {}  # memoized corner distance-to-land (tiles)
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	st.set_smooth_group(0)
 	var wst := SurfaceTool.new()
 	wst.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var fst := SurfaceTool.new()
-	fst.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var has_water := false
-	var has_foam := false
 	for ty: int in n:
 		for tx: int in n:
 			var gtx := cx0 + tx
@@ -542,13 +529,23 @@ func _build_chunk_terrain(chunk: RefCounted) -> Node3D:
 				var z0 := float(gty) * TILE_S
 				var x1 := x0 + TILE_S
 				var z1 := z0 + TILE_S
-				for v: Vector3 in [Vector3(x0, wy, z0), Vector3(x1, wy, z0), Vector3(x1, wy, z1), Vector3(x0, wy, z0), Vector3(x1, wy, z1), Vector3(x0, wy, z1)]:
+				# Distance from each shared corner to the nearest land tile (world-space,
+				# from the terrain grid). Stored in UV.x; the water shader turns it into a
+				# smooth turquoise shallow band that hugs the coast. Corners are shared
+				# values, so neighbouring water tiles agree -> a continuous, seamless band
+				# with no per-triangle width jumps (the old foam-ribbon sawtooth bug).
+				var dA := _corner_land_distance(gtx, gty, dc)
+				var dB := _corner_land_distance(gtx + 1, gty, dc)
+				var dC := _corner_land_distance(gtx + 1, gty + 1, dc)
+				var dD := _corner_land_distance(gtx, gty + 1, dc)
+				var quad := [
+					[Vector3(x0, wy, z0), dA], [Vector3(x1, wy, z0), dB], [Vector3(x1, wy, z1), dC],
+					[Vector3(x0, wy, z0), dA], [Vector3(x1, wy, z1), dC], [Vector3(x0, wy, z1), dD],
+				]
+				for p: Array in quad:
 					wst.set_normal(Vector3.UP)
-					wst.add_vertex(v)
-				for edge: Vector2i in [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]:
-					if _shoreline_edge(gtx, gty, edge):
-						_emit_foam_edge(fst, gtx, gty, wy + 0.018, edge)
-						has_foam = true
+					wst.set_uv(Vector2(float(p[1]), 0.0))
+					wst.add_vertex(p[0])
 	var root := Node3D.new()
 	var ground := MeshInstance3D.new()
 	ground.mesh = st.commit()
@@ -561,12 +558,6 @@ func _build_chunk_terrain(chunk: RefCounted) -> Node3D:
 		water.material_override = _water_mat
 		water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(water)
-	if has_foam:
-		var foam := MeshInstance3D.new()
-		foam.mesh = fst.commit()
-		foam.material_override = _foam_mat
-		foam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		root.add_child(foam)
 	return root
 
 
@@ -751,59 +742,29 @@ func _make_water_noise(freq_mul: float, oct: int, seed: int) -> NoiseTexture2D:
 	return tex
 
 
-# The shoreline turquoise rim is a thin geometry ribbon laid along every water/land tile
-# boundary (more reliable than a depth read, which paints whole shallow basins and shifts
-# with camera angle). Emit only at a CONFIRMED land/shallow neighbour: if the neighbour
-# tile isn't loaded yet (empty) we must NOT assume shore, or a chunk built before its
-# neighbour streamed in would bake a permanent diagonal "chunk line" rim along that
-# interior border.
-func _shoreline_edge(gtx: int, gty: int, edge: Vector2i) -> bool:
-	var other := _tile_info(gtx + edge.x, gty + edge.y)
-	return not other.is_empty() and not bool(other["water"])
-
-
-# Open water in front of a shore tile, 0 (pond / narrow inlet) .. 1 (open ocean). Cheap
-# single ray marched away from the land into the water; larger seas read higher and so
-# get a wider, frothier foam ribbon.
-const FOAM_OPEN_CAP := 8
-func _water_openness(gtx: int, gty: int, edge: Vector2i) -> float:
-	var dir := -edge   # edge points at the land neighbour; step the other way into water
-	var count := 0
-	for k: int in range(1, FOAM_OPEN_CAP + 1):
-		var info := _tile_info(gtx + dir.x * k, gty + dir.y * k)
-		if info.is_empty() or not bool(info["water"]):
-			break
-		count += 1
-	return clampf(float(count) / float(FOAM_OPEN_CAP), 0.0, 1.0)
-
-
-# Shoreline ribbon quad. UV.x runs 0 at the waterline (land edge) -> 1 at the inner edge
-# so the foam shader can concentrate foam at the coast; vertex COLOR.r carries the sea
-# openness so the shader froths bigger seas more. Open water also widens the ribbon a
-# touch.
-func _emit_foam_edge(st: SurfaceTool, gtx: int, gty: int, y: float, edge: Vector2i) -> void:
-	var x0 := float(gtx) * TILE_S
-	var z0 := float(gty) * TILE_S
-	var x1 := x0 + TILE_S
-	var z1 := z0 + TILE_S
-	var open := _water_openness(gtx, gty, edge)
-	var w := FOAM_INSET * (1.0 + open * 1.1)
-	# [position, uv.x] pairs; uv.x = 0 hugs the waterline, 1 is the inner (water) edge.
-	var pts: Array
-	if edge == Vector2i(0, -1):
-		pts = [[Vector3(x0, y, z0), 0.0], [Vector3(x1, y, z0), 0.0], [Vector3(x1, y, z0 + w), 1.0], [Vector3(x0, y, z0), 0.0], [Vector3(x1, y, z0 + w), 1.0], [Vector3(x0, y, z0 + w), 1.0]]
-	elif edge == Vector2i(1, 0):
-		pts = [[Vector3(x1 - w, y, z0), 1.0], [Vector3(x1, y, z0), 0.0], [Vector3(x1, y, z1), 0.0], [Vector3(x1 - w, y, z0), 1.0], [Vector3(x1, y, z1), 0.0], [Vector3(x1 - w, y, z1), 1.0]]
-	elif edge == Vector2i(0, 1):
-		pts = [[Vector3(x0, y, z1 - w), 1.0], [Vector3(x1, y, z1 - w), 1.0], [Vector3(x1, y, z1), 0.0], [Vector3(x0, y, z1 - w), 1.0], [Vector3(x1, y, z1), 0.0], [Vector3(x0, y, z1), 0.0]]
-	else:
-		pts = [[Vector3(x0, y, z0), 0.0], [Vector3(x0 + w, y, z0), 1.0], [Vector3(x0 + w, y, z1), 1.0], [Vector3(x0, y, z0), 0.0], [Vector3(x0 + w, y, z1), 1.0], [Vector3(x0, y, z1), 0.0]]
-	var ocol := Color(open, 0.0, 0.0)
-	for p: Array in pts:
-		st.set_normal(Vector3.UP)
-		st.set_color(ocol)
-		st.set_uv(Vector2(float(p[1]), 0.0))
-		st.add_vertex(p[0])
+# Euclidean distance (in tiles) from a grid CORNER to the nearest CONFIRMED land tile,
+# computed straight from the terrain grid. The corner sits at world point (ci, cj); each
+# tile (tx, ty) occupies the cell [tx, tx+1] x [ty, ty+1], so we take the point-to-cell
+# distance and keep the smallest over a small neighbourhood. This is the world-space
+# distance-to-land field that drives the shallow-water band — stable and camera-free.
+# Empty (unloaded) neighbours are NOT treated as land, so no false shore forms along
+# chunk seams or the world boundary. Memoized per chunk build (shared corners).
+const SHORE_SCAN := 2   # tile radius searched for land (band only needs ~<1 tile)
+func _corner_land_distance(ci: int, cj: int, dc: Dictionary) -> float:
+	var key := Vector2i(ci, cj)
+	if dc.has(key):
+		return dc[key]
+	var best := float(SHORE_SCAN + 1)
+	for ty: int in range(cj - SHORE_SCAN - 1, cj + SHORE_SCAN + 1):
+		for tx: int in range(ci - SHORE_SCAN - 1, ci + SHORE_SCAN + 1):
+			var info := _tile_info(tx, ty)
+			if info.is_empty() or bool(info["water"]):
+				continue   # only solid land tiles pull the band; skip water + unloaded
+			var dx := maxf(maxf(float(tx) - float(ci), float(ci) - float(tx + 1)), 0.0)
+			var dy := maxf(maxf(float(ty) - float(cj), float(cj) - float(ty + 1)), 0.0)
+			best = minf(best, sqrt(dx * dx + dy * dy))
+	dc[key] = best
+	return best
 
 
 ## Warm + enrich a terrain tile color and add BROAD low-frequency variation
