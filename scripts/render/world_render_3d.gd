@@ -194,10 +194,12 @@ func _build() -> void:
 	_water_mat.set_shader_parameter("shadow_color", PixelPalette.pal("water_deep"))
 	_water_mat.set_shader_parameter("light_color", PixelPalette.pal("water_spark"))
 	_water_mat.set_shader_parameter("foam_color", Color(0.96, 0.98, 1.0))
-	_water_mat.set_shader_parameter("foam_strength", 0.6)
+	_water_mat.set_shader_parameter("foam_strength", 0.35)
 	_water_mat.set_shader_parameter("foam_dist", 1.5)
 	_water_mat.set_shader_parameter("wave_amp", 0.05)
 	_water_mat.set_shader_parameter("wave_speed", 1.0)
+	# Flowing world-space contour lines (the surface texture) — camera-independent.
+	_water_mat.set_shader_parameter("line_strength", 0.32)
 
 	_foam_mat = StandardMaterial3D.new()
 	_foam_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -718,7 +720,11 @@ func _is_rock(tile: String) -> bool:
 
 func _shoreline_edge(gtx: int, gty: int, edge: Vector2i) -> bool:
 	var other := _tile_info(gtx + edge.x, gty + edge.y)
-	return other.is_empty() or not bool(other["water"])
+	# Foam only at a CONFIRMED land/shallow neighbour. If the neighbour tile isn't
+	# loaded yet (empty) we must NOT assume shore — a chunk built before its neighbour
+	# streamed in would otherwise bake a foam strip along that interior border, leaving
+	# permanent diagonal "chunk line" foam seams once the neighbour loaded.
+	return not other.is_empty() and not bool(other["water"])
 
 
 func _emit_foam_edge(st: SurfaceTool, gtx: int, gty: int, y: float, edge: Vector2i) -> void:
@@ -1392,8 +1398,10 @@ func _set_pivot(node: Node3D, pivot_name: String, angle: float) -> void:
 ## (path, then recursive fallback for nested names) and cache the node (incl. nulls)
 ## on the rig, so subsequent frames are a dictionary hit.
 func _pivot(node: Node3D, pivot_name: String) -> Node3D:
-	var cache: Variant = node.get_meta("pivot_cache", null)
-	if cache == null:
+	var cache: Dictionary
+	if node.has_meta("pivot_cache"):
+		cache = node.get_meta("pivot_cache")
+	else:
 		cache = {}
 		node.set_meta("pivot_cache", cache)
 	if cache.has(pivot_name):
