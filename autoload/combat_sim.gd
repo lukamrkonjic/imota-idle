@@ -67,9 +67,12 @@ func start_combat(enemy_name: String, p_train_skill: String = "attack", player_i
 	# Land the opening hit one tick after engaging (like clicking an NPC in OSRS),
 	# rather than waiting a full weapon cycle.
 	player_timer = maxf(0.0, GameState.attack_interval() - GameState.TICK)
-	# The enemy reacts a moment late instead of swinging back instantly — a short
-	# delay before its first retaliation reads more like OSRS aggro.
-	enemy_timer = -ENEMY_REACT_DELAY
+	# The enemy retaliates one short reaction beat after engaging — NOT a full weapon
+	# cooldown PLUS the delay. (The old `-ENEMY_REACT_DELAY` start pushed the first
+	# swing to cooldown+1.2s ~= 3.6s, so anything that died in a few hits never got to
+	# attack back.) Now its first swing lands ~ENEMY_REACT_DELAY after engage, then it
+	# attacks every tick-snapped cooldown.
+	enemy_timer = GameState.snap_to_tick(float(e["cooldown"])) - ENEMY_REACT_DELAY
 	# You always fight when you start it; if a mob aggro'd you, auto-retaliate decides
 	# whether you swing back automatically (the mob attacks either way).
 	player_retaliating = player_initiated or GameSettings.auto_retaliate
