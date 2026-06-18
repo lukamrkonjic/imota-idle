@@ -9,6 +9,8 @@ const WG := preload("res://scripts/worldgen/wg.gd")
 signal arrived
 
 const SPEED := 95.0
+const ACCEL := 460.0   # px/s² — eases up to full speed in ~0.2s (a little inertia)
+var _speed := 0.0      # current eased speed
 const JUMP_DUR := 0.26   # one hop when stepping up a large elevation change
 const JUMP_AMP := 9.0
 const NO_DUR := 0.5      # head-shake "can't go there" wobble
@@ -39,17 +41,23 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	_t += delta
 	if walking:
+		# A little inertia: ease the speed up from rest so a start isn't an instant
+		# snap to full pace (but ACCEL is high enough that it never feels sluggish).
+		_speed = move_toward(_speed, SPEED, ACCEL * delta)
 		var to_target := walk_target - position
-		var step := SPEED * delta
+		var step := _speed * delta
 		# While fighting, facing is driven toward the enemy (face_toward) instead.
 		if absf(to_target.x) > 1.0 and not CombatSim.active:
 			_target_facing = 1 if to_target.x >= 0.0 else -1
 		if to_target.length() <= step:
 			position = walk_target
 			walking = false
+			_speed = 0.0
 			arrived.emit()
 		else:
 			position += to_target.normalized() * step
+	else:
+		_speed = 0.0
 	_animate_facing(delta)
 	_update_elevation(delta)
 	queue_redraw()

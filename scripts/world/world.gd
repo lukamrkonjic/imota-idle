@@ -269,10 +269,13 @@ func _spawn_hit_splat(amount: int, miss: bool, on_player: bool) -> void:
 	splat.set("anchor", anchor)
 	if render_3d != null and render_3d.is_active():
 		# 3D: the 2D world is hidden, so the splat lives on a screen-space overlay and
-		# projects the target's body through the 3D camera each frame (screen-px jitter).
+		# projects the target's body through the 3D camera each frame. The lift scales
+		# with the target's size so the splat sits ON the body (low on small mobs, high
+		# on big ones), and it's drawn much larger to read at a glance.
 		splat.set("projector", render_3d)
-		splat.set("lift", 1.55)
-		splat.set("follow_offset", Vector2(randf_range(-6.0, 6.0), randf_range(-4.0, 2.0)))
+		splat.set("lift", render_3d.mover_lift(anchor))
+		splat.set("scale_mul", 3.0)
+		splat.set("follow_offset", Vector2(randf_range(-10.0, 10.0), randf_range(-8.0, 4.0)))
 		render_3d.fx_layer.add_child(splat)
 	else:
 		# 2D: sit the splat low over the body, pinned via a fixed local offset.

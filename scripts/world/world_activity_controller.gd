@@ -65,7 +65,7 @@ func _update_chase(delta: float) -> void:
 			_aggro_grace = AGGRO_GRACE  # don't instantly re-aggro the mob you just escaped
 			EventBus.combat_log.emit("[color=#7a7a30]The %s loses interest and returns home.[/color]" % nm)
 			return
-		_step_toward(tgt, world.player.position, CHASE_SPEED * delta, WG.TILE * ATTACK_GAP_TILES)
+		_step_toward(tgt, world.player.position, CHASE_SPEED * delta, _attack_gap(tgt))
 	elif is_instance_valid(_last_chased):
 		_begin_return(_last_chased)  # combat just ended (kill / flee / switch) — send it home
 		_last_chased = null
@@ -113,6 +113,15 @@ func _step_toward(entity: Node2D, target: Vector2, max_step: float, gap: float =
 
 func _leash_radius() -> float:
 	return float(WorldGen.reg.monster_cfg.get("leashRadiusTiles", LEASH_RADIUS_TILES)) * WG.TILE
+
+
+## How far the chaser stops short of the player, scaled to the enemy's footprint
+## (+ a margin) so big mobs don't crop into the player and small ones still close in.
+func _attack_gap(entity: Node2D) -> float:
+	var size := float(entity.get("display_size")) if entity.get("display_size") != null else 40.0
+	if bool(entity.get("is_boss")):
+		size *= 1.25
+	return WG.TILE * (0.9 + size / 90.0)
 
 
 func begin_action(entity: Node2D) -> void:

@@ -40,6 +40,7 @@ var anchor: Node2D = null        # the target this splat is pinned to (player/en
 var follow_offset := Vector2.ZERO  # local offset above the anchor's feet
 var projector: Node = null       # 3D renderer; when set, project anchor -> screen px
 var lift := 1.5                  # world-Y above the anchor's feet to anchor the splat (3D)
+var scale_mul := 1.0             # overall draw size multiplier (bigger on the 3D overlay)
 
 var _t := 0.0
 var _font: Font
@@ -78,11 +79,12 @@ func _draw() -> void:
 	var a := 1.0
 	if _t > LIFETIME - FADE:
 		a = clampf((LIFETIME - _t) / FADE, 0.0, 1.0)
-	# Small splatter body...
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2(s * BODY_SCALE, s * BODY_SCALE))
+	# Small splatter body... (scaled up by scale_mul for the big 3D overlay splats)
+	var sm := s * scale_mul
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2(sm * BODY_SCALE, sm * BODY_SCALE))
 	_draw_splat(a)
 	# ...with the damage number drawn big and bold on top, near full size.
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2(s, s))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2(sm, sm))
 	_draw_number(a, BLUE_EDGE if miss else RED_EDGE)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 

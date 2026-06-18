@@ -220,6 +220,12 @@ func _build() -> void:
 	fx_layer.name = "FxOverlay"
 	fx_layer.layer = 0
 	world.add_child(fx_layer)
+	# Combat HP bars (player + target) drawn on the overlay during a fight.
+	var bars := preload("res://scripts/world/combat_bars.gd").new()
+	bars.name = "CombatBars"
+	bars.world = world
+	bars.render_3d = self
+	fx_layer.add_child(bars)
 	# Drive attack lunges off the combat ticks: each hit splat is one swing landing.
 	EventBus.combat_hit_splat.connect(_on_combat_swing)
 	EventBus.combat_ranged_shot.connect(func(_a: int, _m: bool) -> void: _mark_attack("player"))
@@ -911,9 +917,11 @@ func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: flo
 	var roll := sin(stride) * 0.09 * walk
 	var bob := absf(sin(stride)) * 0.055 * walk
 	var settle := absf(sin(stride)) * 0.045 * walk
-	var idle_bob := rest * sin(t * 2.0 + phase) * 0.02
+	# Idle sway is upward-only so it never sinks the feet below the ground; GROUND_LIFT
+	# compensates for the boot mesh sitting a touch below the rig origin + the crouch.
+	var idle_bob := rest * (0.5 + 0.5 * sin(t * 2.0 + phase)) * 0.02
 	node.rotation = Vector3(lean + walk * 0.06 + breathe * 0.4, yaw, sway + roll)
-	node.position = pos3 + Vector3(0, bob + idle_bob - crouch * 0.22, 0)
+	node.position = pos3 + Vector3(0, bob + idle_bob + 0.09 - crouch * 0.14, 0)
 	node.scale = Vector3(base * (1.0 - settle * 0.4), base * (1.0 + breathe + settle), base * (1.0 - settle * 0.4))
 	# Legs: a natural stride — moderate hip swing, the knee lifting in its swing phase
 	# to clear the ground (not a deep squat, not a stiff post).
@@ -961,9 +969,10 @@ func _pose_quadruped(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: fl
 	var graze := rest * maxf(0.0, sin(t * 0.45 + phase) - 0.4) * 0.32
 	node.rotation = Vector3(-0.28 * sin(atk * PI) + graze, yaw, sway)
 	var stride := t * 6.0 + phase
-	# A clear up/down body bob while moving + a gentle idle breathing sway at rest.
-	var bob := absf(sin(stride)) * 0.06 * walk + rest * sin(t * 2.0 + phase) * 0.02
-	node.position = pos3 + Vector3(0, bob, 0)
+	# A clear up/down body bob while moving + a gentle idle breathing sway at rest;
+	# a small ground lift so the hooves sit on the floor, not through it.
+	var bob := absf(sin(stride)) * 0.06 * walk + rest * (0.5 + 0.5 * sin(t * 2.0 + phase)) * 0.02
+	node.position = pos3 + Vector3(0, bob + 0.07, 0)
 	var sq := sin(stride * 2.0) * 0.03 * walk
 	node.scale = Vector3(base * (1.0 + sq * 0.4), base * (1.0 - sq * 0.5 + breathe), base * (1.0 + sq * 0.4))
 	# Diagonal trot: FL+BR swing together, FR+BL opposite. Each knee folds through
@@ -996,7 +1005,7 @@ func _pose_bird(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, 
 	var peck := rest * maxf(0.0, sin(t * 1.4 + phase) - 0.3) * 0.5
 	var look := rest * sin(t * 0.7 + phase) * 0.12
 	var bob := absf(sin(stride)) * 0.05 * walk + idle_bob
-	node.position = pos3 + Vector3(0, bob, 0)
+	node.position = pos3 + Vector3(0, bob + 0.03, 0)
 	var roll := sin(stride) * 0.18 * walk
 	node.rotation = Vector3(-0.35 * sin(atk * PI) - peck, yaw + look, roll)
 	node.scale = Vector3(base, base, base)
@@ -1393,6 +1402,17 @@ func iso_to_screen(pos: Vector2, lift := 0.0) -> Vector2:
 	var sub_px: Vector2 = cam.unproject_position(p3)
 	var win: Vector2 = world.get_viewport().get_visible_rect().size
 	return sub_px / Vector2(sub.size) * win
+
+
+## World-Y to anchor a hitsplat at, scaled to the mover's size so the splat sits ON
+## the body — low on a chicken, high on a cow — instead of a fixed height.
+func mover_lift(entity: Node) -> float:
+	if entity == world.player and _player_node != null:
+		return float(_player_node.get_meta("base_scale", 1.0)) * 1.0
+	var n: Node3D = _mover_nodes.get(entity.get_instance_id())
+	if n != null:
+		return float(n.get_meta("base_scale", 1.0)) * 0.95
+	return 0.95
 
 
 ## Window pixels per world unit (orthographic, vertical) — turns a world-space

@@ -14,6 +14,7 @@ const ATTACK_INTERVAL := 3.0  # default; per-weapon speed comes from GameState.a
 const PLAYER_BASE_CRIT := 0.01
 const PLAYER_CRIT_MULTIPLIER := 2.0
 const PLAYER_DR_CAP := 80.0  # percent; cap so high-tier gear can't zero damage
+const ENEMY_REACT_DELAY := 1.2  # seconds before a mob first retaliates (aggro reaction)
 
 var active := false
 var enemy: Dictionary = {}
@@ -58,7 +59,9 @@ func start_combat(enemy_name: String, p_train_skill: String = "attack") -> bool:
 	# Land the opening hit one tick after engaging (like clicking an NPC in OSRS),
 	# rather than waiting a full weapon cycle.
 	player_timer = maxf(0.0, GameState.attack_interval() - GameState.TICK)
-	enemy_timer = 0.0
+	# The enemy reacts a moment late instead of swinging back instantly — a short
+	# delay before its first retaliation reads more like OSRS aggro.
+	enemy_timer = -ENEMY_REACT_DELAY
 	respawning = false
 	first_attack_done = false
 	miss_streak = 0.0
