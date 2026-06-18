@@ -478,14 +478,15 @@ const CAM_PITCH_MAX := 1.40   # near top-down (kept off the gimbal pole)
 ## 360°, Up/Down tilt the pitch (clamped). Picking adapts automatically because
 ## screen_to_iso casts through the live camera.
 func _update_camera_input(delta: float) -> void:
+	var spd: float = GameSettings.cam_rotate_speed   # user-tunable orbit/tilt multiplier
 	if Input.is_key_pressed(KEY_LEFT):
-		_cam_yaw -= CAM_YAW_SPEED * delta
+		_cam_yaw -= CAM_YAW_SPEED * spd * delta
 	if Input.is_key_pressed(KEY_RIGHT):
-		_cam_yaw += CAM_YAW_SPEED * delta
+		_cam_yaw += CAM_YAW_SPEED * spd * delta
 	if Input.is_key_pressed(KEY_UP):
-		_cam_pitch = clampf(_cam_pitch + CAM_PITCH_SPEED * delta, CAM_PITCH_MIN, CAM_PITCH_MAX)
+		_cam_pitch = clampf(_cam_pitch + CAM_PITCH_SPEED * spd * delta, CAM_PITCH_MIN, CAM_PITCH_MAX)
 	if Input.is_key_pressed(KEY_DOWN):
-		_cam_pitch = clampf(_cam_pitch - CAM_PITCH_SPEED * delta, CAM_PITCH_MIN, CAM_PITCH_MAX)
+		_cam_pitch = clampf(_cam_pitch - CAM_PITCH_SPEED * spd * delta, CAM_PITCH_MIN, CAM_PITCH_MAX)
 	_cam_yaw = wrapf(_cam_yaw, -PI, PI)
 
 

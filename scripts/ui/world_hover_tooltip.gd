@@ -108,8 +108,18 @@ func _esc(text: String) -> String:
 func _update_position() -> void:
 	if _world == null or _entity == null:
 		return
-	var head := _entity.global_position + Vector2(0.0, -_entity.icon_height() - UiScaleScript.f(14.0))
-	var screen: Vector2 = _world.get_viewport().get_canvas_transform() * head
+	var screen: Vector2
+	var r3: Variant = _world.get("render_3d")
+	if r3 != null and r3.is_active():
+		# 3D renderer is on: the entity is drawn at its CAMERA projection, not its flat 2D
+		# iso position — so project the same way the hover/picking does, otherwise the
+		# tooltip lands at the old 2D spot while the cursor hovers the 3D one. Lift matches
+		# the pick's body-centre so the tooltip tracks where the cursor actually is.
+		var lift: float = clampf(_entity.icon_height() * (0.25 / 8.0) * 0.5, 0.35, 1.6)
+		screen = r3.iso_to_screen(_entity.position, lift) - Vector2(0.0, UiScaleScript.f(14.0))
+	else:
+		var head := _entity.global_position + Vector2(0.0, -_entity.icon_height() - UiScaleScript.f(14.0))
+		screen = _world.get_viewport().get_canvas_transform() * head
 	var vp := _world.get_viewport().get_visible_rect().size
 	var pos := screen - Vector2(size.x * 0.5, size.y + UiScaleScript.f(5.0))
 	pos.x = clampf(pos.x, UiScaleScript.f(4.0), vp.x - size.x - UiScaleScript.f(4.0))

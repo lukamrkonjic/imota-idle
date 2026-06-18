@@ -709,6 +709,12 @@ func _build_settings_popup() -> void:
 		func(v: float) -> String: return "%d tiles" % int(roundf(lerpf(34.0, 64.0, v))),
 		func(v: float) -> void: GameSettings.set_view_distance(v))
 
+	# Camera rotation: how fast the arrow keys orbit/tilt the camera (1.0 = default).
+	_add_settings_slider_row(
+		box, "Camera rotation", GameSettings.CAM_ROTATE_SPEED_MIN, GameSettings.CAM_ROTATE_SPEED_MAX, 0.05, GameSettings.cam_rotate_speed,
+		func(v: float) -> String: return "%.2fx" % v,
+		func(v: float) -> void: GameSettings.set_cam_rotate_speed(v))
+
 	_settings_fullscreen = _add_settings_checkbox(box, "Fullscreen", GameSettings.fullscreen,
 		func(on: bool) -> void: GameSettings.set_fullscreen(on))
 	_settings_vsync = _add_settings_checkbox(box, "VSync", GameSettings.vsync,

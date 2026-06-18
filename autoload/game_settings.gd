@@ -12,6 +12,9 @@ const DEFAULT_MASTER_VOLUME := 0.8
 const DEFAULT_FPS_LIMIT := 60
 const DEFAULT_PIXELATION := 0.2   # 0 = native (no pixelation), 1 = really crunchy
 const DEFAULT_VIEW_DISTANCE := 0.55   # longer than the old fixed range by default
+const DEFAULT_CAM_ROTATE_SPEED := 1.0   # arrow-key camera orbit/tilt speed multiplier (1 = default)
+const CAM_ROTATE_SPEED_MIN := 0.25
+const CAM_ROTATE_SPEED_MAX := 2.5
 
 const FPS_LIMIT_OPTIONS := [
 	{"value": 30, "label": "30"},
@@ -40,6 +43,7 @@ var show_fps: bool = false
 var fps_limit: int = DEFAULT_FPS_LIMIT
 var pixelation: float = DEFAULT_PIXELATION   # 3D render crunch; read by the renderer
 var view_distance: float = DEFAULT_VIEW_DISTANCE  # 0 = near, 1 = far; read by the renderer
+var cam_rotate_speed: float = DEFAULT_CAM_ROTATE_SPEED  # arrow-key orbit/tilt speed; read by the renderer
 
 # Idle automation (spec §12, §21). Auto-eat the best food when HP drops to/below
 # the threshold fraction of max during combat.
@@ -86,6 +90,7 @@ func load_settings() -> void:
 	auto_retaliate = bool(data.get("auto_retaliate", true))
 	pixelation = clampf(float(data.get("pixelation", DEFAULT_PIXELATION)), 0.0, 1.0)
 	view_distance = clampf(float(data.get("view_distance", DEFAULT_VIEW_DISTANCE)), 0.0, 1.0)
+	cam_rotate_speed = clampf(float(data.get("cam_rotate_speed", DEFAULT_CAM_ROTATE_SPEED)), CAM_ROTATE_SPEED_MIN, CAM_ROTATE_SPEED_MAX)
 	var saved_kb: Dictionary = data.get("keybinds", {})
 	for id: String in keybinds:
 		if saved_kb.has(id):
@@ -110,6 +115,7 @@ func save_settings() -> void:
 		"auto_retaliate": auto_retaliate,
 		"pixelation": pixelation,
 		"view_distance": view_distance,
+		"cam_rotate_speed": cam_rotate_speed,
 		"keybinds": keybinds,
 	}
 	var f := FileAccess.open(SETTINGS_PATH, FileAccess.WRITE)
@@ -136,6 +142,12 @@ func set_view_distance(value: float) -> void:
 	view_distance = clampf(value, 0.0, 1.0)
 	save_settings()
 	changed.emit(&"view_distance")
+
+
+func set_cam_rotate_speed(value: float) -> void:
+	cam_rotate_speed = clampf(value, CAM_ROTATE_SPEED_MIN, CAM_ROTATE_SPEED_MAX)
+	save_settings()
+	changed.emit(&"cam_rotate_speed")
 
 
 func set_master_volume(value: float) -> void:
