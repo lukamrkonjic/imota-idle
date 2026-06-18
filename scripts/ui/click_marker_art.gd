@@ -3,7 +3,7 @@ class_name ClickMarkerArt
 ## Thin OSRS click X — yellow walk, red interact.
 
 const ClickMarkerAnim := preload("res://scripts/ui/click_marker_anim.gd")
-const UNIT := 2.3
+const UNIT := 4.6   # 2x the old size — a bolder, easier-to-see click X
 const BLACK := Color(0.02, 0.02, 0.02)
 const WALK := Color(1.0, 0.78, 0.0)
 const INTERACT := Color(0.95, 0.05, 0.04)

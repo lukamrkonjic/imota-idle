@@ -23,6 +23,11 @@ var train_skill := "attack"  # attack | strength | defence | ranged | magic
 
 var player_timer := 0.0
 var enemy_timer := 0.0
+# Whether the player auto-attacks this fight. Always true when YOU started it (you
+# clicked the enemy). When a mob engages YOU (aggro), it's the auto-retaliate setting:
+# off = the mob attacks but you stand your ground until you click it back. The enemy
+# ALWAYS attacks regardless — auto-retaliate is a player-only toggle.
+var player_retaliating := true
 var respawn_timer := 0.0
 var respawning := false
 var first_attack_done := false
@@ -37,7 +42,7 @@ func _process(delta: float) -> void:
 		advance(delta)
 
 
-func start_combat(enemy_name: String, p_train_skill: String = "attack") -> bool:
+func start_combat(enemy_name: String, p_train_skill: String = "attack", player_initiated := true) -> bool:
 	var e := DataRegistry.get_enemy(enemy_name)
 	if e.is_empty():
 		return false
@@ -62,6 +67,9 @@ func start_combat(enemy_name: String, p_train_skill: String = "attack") -> bool:
 	# The enemy reacts a moment late instead of swinging back instantly — a short
 	# delay before its first retaliation reads more like OSRS aggro.
 	enemy_timer = -ENEMY_REACT_DELAY
+	# You always fight when you start it; if a mob aggro'd you, auto-retaliate decides
+	# whether you swing back automatically (the mob attacks either way).
+	player_retaliating = player_initiated or GameSettings.auto_retaliate
 	respawning = false
 	first_attack_done = false
 	miss_streak = 0.0
@@ -98,9 +106,12 @@ func advance(delta: float) -> void:
 	var interval := GameState.attack_interval()
 	if player_timer >= interval:
 		player_timer -= interval
-		_player_attack()
-		if not active or respawning:
-			return
+		# Auto-retaliate off + the mob started it: you hold your ground (don't swing
+		# back) until you click it. The enemy still attacks below.
+		if player_retaliating:
+			_player_attack()
+			if not active or respawning:
+				return
 	var cooldown := GameState.snap_to_tick(float(enemy["cooldown"]))
 	if enemy_timer >= cooldown:
 		enemy_timer -= cooldown

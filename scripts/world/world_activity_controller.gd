@@ -291,10 +291,9 @@ func grant_aggro_grace() -> void:
 
 
 func _check_aggro() -> void:
-	# Auto-retaliate off (OSRS): aggressive mobs no longer pull you into a fight — you
-	# only fight enemies you click.
-	if not GameSettings.auto_retaliate:
-		return
+	# Aggressive mobs ALWAYS engage you (auto-retaliate is a player-only toggle and is
+	# handled inside CombatSim — when off, the mob attacks but you don't swing back
+	# until you click it). So aggro itself is never gated on the setting.
 	if CombatSim.active or _aggro_grace > 0.0 or world.auto_task.get("mode", "") == "gather" and TickSim.active:
 		return
 	var entry := WorldGen.player_entry_level()
@@ -312,7 +311,8 @@ func _check_aggro() -> void:
 		stop_all_sims()
 		world.pending_action = {}
 		world.auto_task = {}
-		if CombatSim.start_combat(str(a["name"]), str(world.hud.call("train_style"))):
+		# Enemy-initiated (aggro): auto-retaliate decides if the player swings back.
+		if CombatSim.start_combat(str(a["name"]), str(world.hud.call("train_style")), false):
 			world.combat_target_entity = e
 			EventBus.combat_log.emit("[color=#a01010]A %s attacks you!" % DataRegistry.enemy_display_name(str(a["name"])) + "[/color]")
 		return
