@@ -64,6 +64,8 @@ var _prop_cull := 30.0               # visible prop/decor radius (tiles)
 var _player_node: Node3D
 var _cam_yaw := PI / 4.0          # orbit angle around the player (Left/Right arrows)
 var _cam_pitch := 0.413           # elevation above horizon (Up/Down arrows); matches old iso
+const CAM_FOLLOW_SPEED := 12.0   # eased-follow rate, matches the 2D Camera2D position_smoothing_speed
+var _cam_follow := Vector2.INF    # smoothed follow target (iso); INF = uninitialised (snap on first use)
 var _pixel_scale := 3             # INTEGER display px per internal px (nearest-neighbour, no fractional stretch)
 # How the low-res image is placed on the window: an exact integer scale + centred offset.
 # Kept here so screen<->internal-pixel picking math accounts for the integer presentation.
@@ -75,6 +77,7 @@ var _static_sig := ""
 var _ti_cache: Dictionary = {}       # per-frame memo: Vector2i tile -> tile info (cleared each frame)
 var _cc_cache: Dictionary = {}       # per-frame memo: Vector2i corner -> corner colour
 var _cb_cache: Dictionary = {}       # per-frame memo: Vector2i corner -> beach fraction
+var _vfh_cache: Dictionary = {}      # per-frame memo: Vector2i tile -> visual floor height
 var _batch_xf: Dictionary = {}       # static prop instance_id -> cached world Transform3D
 const _IDENTITY_XF := Transform3D()  # sentinel for "not yet cached" (props never sit at identity)
 var _terrain_built := false          # did a chunk mesh build this frame (stagger batch rebuild off it)
@@ -369,6 +372,7 @@ func _process(delta: float) -> void:
 	_cc_cache.clear()
 	_cb_cache.clear()
 	_occ_cache.clear()
+	_vfh_cache.clear()
 	_apply_pixelation()   # keeps render res matched to the window + pixelation slider
 	_update_camera_input(delta)
 	_sync_camera()
@@ -486,7 +490,18 @@ func _update_camera_input(delta: float) -> void:
 
 
 func _sync_camera() -> void:
-	var c := iso_to_3d(world.player.position, height_at(world.player.position))
+	# Eased follow (the "snappier follow-cam" from main): the 2D Camera2D uses
+	# position_smoothing, but the 3D render camera is what's visible here, so replicate it.
+	# Smoothly chase the player's iso position instead of hard-locking to it, which absorbs
+	# any unevenness in the walk and reads as a calm, steady glide.
+	var follow: Vector2 = world.player.position
+	if _cam_follow == Vector2.INF:
+		_cam_follow = follow   # first frame / teleport: snap, don't ease across the world
+	elif _cam_follow.distance_to(follow) > 600.0:
+		_cam_follow = follow   # big jump (teleport) — snap, never ease across a long gap
+	else:
+		_cam_follow = _cam_follow.lerp(follow, clampf(CAM_FOLLOW_SPEED * get_process_delta_time(), 0.0, 1.0))
+	var c := iso_to_3d(_cam_follow, height_at(_cam_follow))
 	# Mouse-wheel zoom still drives the 2D camera (the logic substrate); mirror it
 	# to the 3D ortho size so zoom works like before.
 	var zoom: float = float(world._camera.zoom.x) if world._camera != null and world._camera.zoom.x > 0.01 else 1.65
@@ -508,23 +523,6 @@ func _sync_camera() -> void:
 ## final presented image by it, rounded to whole DISPLAY pixels: the apparent motion is
 ## then smooth to display-pixel precision while every internal texel stays a clean block.
 ## The 2D gameplay world, player position and camera orientation are untouched.
-# Quantise a world position onto the internal PIXEL GRID along the camera's screen axes
-# (depth preserved). Same grid the camera snaps to, so anything snapped with this lands on
-# stable internal texels instead of crawling sub-pixel. Used for moving rigs (the static
-# world is already stable via the camera snap).
-func _snap_to_pixel_grid(pos: Vector3) -> Vector3:
-	if sub == null or sub.size.y <= 0:
-		return pos
-	var wupp := cam.size / float(sub.size.y)
-	if wupp <= 0.0:
-		return pos
-	var b := cam.global_transform.basis
-	var right := b.x
-	var up := b.y
-	var fwd := -b.z
-	return right * (round(pos.dot(right) / wupp) * wupp) + up * (round(pos.dot(up) / wupp) * wupp) + fwd * pos.dot(fwd)
-
-
 func _snap_camera() -> void:
 	if sub == null or sub.size.y <= 0:
 		return
@@ -932,17 +930,25 @@ func _tile_info_compute(gtx: int, gty: int) -> Dictionary:
 
 
 func _visual_floor_height(gtx: int, gty: int, info: Dictionary) -> float:
+	# Per-frame memo: each tile's floor height is sampled ~4x per chunk build (once per
+	# touching corner) plus by mover height queries — all with the same deterministic result.
+	var fk := Vector2i(gtx, gty)
+	if _vfh_cache.has(fk):
+		return _vfh_cache[fk]
 	var top := float(info["top"])
 	var tile := str(info["tile"])
+	var h: float
 	if bool(info["water"]):
 		var extra := 0.18 if tile == "deep_water" else (0.08 if tile == "water" else 0.0)
-		return top - WATER_DROP - extra
-	var hill := _rolling_hill(gtx, gty)
-	if _is_path(tile):
-		return top + hill * 0.28 - 0.055
-	if _is_rock(tile):
-		return top + hill * 0.78 + _rocky_lift(gtx, gty)
-	return top + hill
+		h = top - WATER_DROP - extra
+	elif _is_path(tile):
+		h = top + _rolling_hill(gtx, gty) * 0.28 - 0.055
+	elif _is_rock(tile):
+		h = top + _rolling_hill(gtx, gty) * 0.78 + _rocky_lift(gtx, gty)
+	else:
+		h = top + _rolling_hill(gtx, gty)
+	_vfh_cache[fk] = h
+	return h
 
 
 func _water_surface_height(info: Dictionary) -> float:
@@ -1244,11 +1250,6 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 		yaw = wrapf(yaw + yvel * sdt, -PI, PI)
 		_mover_yaw_vel[key] = yvel
 		_mover_yaw[key] = yaw
-	# Snap the RENDER position onto the pixel grid so the rig's edges stay crisp instead of
-	# crawling sub-pixel while it walks. Done AFTER the velocity/turn logic above (which used
-	# the smooth position), so walk detection and facing aren't affected; the pose + blob
-	# shadow below both derive from pos3, so they stay aligned.
-	pos3 = _snap_to_pixel_grid(pos3)
 	var phase := float(absi(hash(key)) % 1000) * 0.006283
 	var base: float = float(node.get_meta("base_scale", 1.0))
 	var atk := _attack_progress(key, t)

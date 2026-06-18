@@ -52,7 +52,11 @@ func _process(delta: float) -> void:
 		if to_target.length() <= step:
 			position = walk_target
 			walking = false
-			_speed = 0.0
+			# Reaching a WAYPOINT is not a stop — keep the eased speed so momentum carries
+			# straight into the next leg. `arrived` synchronously sets the next waypoint
+			# (walking=true again) or calls stop_walking() at the real destination; only
+			# then does the `else` branch below zero the speed. (Zeroing it here made the
+			# player decelerate + re-accelerate on EVERY tile — the surging/dipping pace.)
 			arrived.emit()
 		else:
 			position += to_target.normalized() * step
@@ -61,6 +65,7 @@ func _process(delta: float) -> void:
 	_animate_facing(delta)
 	_update_elevation(delta)
 	queue_redraw()
+
 
 
 ## Aim the avatar at a world x (used by combat to keep him turned to the target).
