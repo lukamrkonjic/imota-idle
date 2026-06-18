@@ -1032,42 +1032,44 @@ func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: flo
 	_set_pivot(node, "arm_r/elbow_r", elbow_r)
 
 
-## Goblin gait — a low, twitchy, cowardly skulk (nothing like the player's even
-## walk): a coiled crouch, weight shifting side to side, the torso glancing left and
-## right looking for trouble, hands held up near the chest scheming, with sudden
-## nervous head-jerks. The walk is a fast, bouncy, high-knee scamper.
+## Goblin stance — stands UPRIGHT but cocky and twitchy (a nimble medieval-game
+## goblin, not a hunchback): a slightly coiled wide stance on bent knees, the torso
+## near-vertical with just a hint of forward attitude, weight shifting, the head
+## darting to glance around, and clawed hands held ready at the waist. The walk is a
+## fast, light, bouncy scamper.
 func _pose_goblin(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float) -> void:
 	var rest := 1.0 - walk
 	var holds_staff: bool = str(node.get_meta("pose", "")) == "staff"
-	var crouch := 0.5
-	var stride := t * 7.2 + phase                                    # fast little legs
-	var bob := absf(sin(stride)) * 0.085 * walk
-	var skip := absf(sin(stride * 0.5 + 0.4)) * 0.05 * walk
+	var crouch := 0.24                                               # bent knees, but STANDING
+	var stride := t * 7.0 + phase                                    # fast little legs
+	var bob := absf(sin(stride)) * 0.08 * walk
+	var skip := absf(sin(stride * 0.5 + 0.4)) * 0.045 * walk
 	# Idle life: shifty side-weight, glancing around, sudden nervous twitches.
-	var shift := rest * sin(t * 2.4 + phase) * 0.1
+	var shift := rest * sin(t * 2.3 + phase) * 0.08
 	var glance := rest * sin(t * 0.85 + phase) * 0.4
-	var twitch := rest * maxf(0.0, sin(t * 1.3 + phase * 2.0) - 0.6) * 0.9
-	var roll := sin(stride) * 0.13 * walk
-	node.rotation = Vector3(0.05, yaw, shift + roll)
+	var twitch := rest * maxf(0.0, sin(t * 1.3 + phase * 2.0) - 0.6) * 0.6
+	var roll := sin(stride) * 0.12 * walk
+	node.rotation = Vector3(0.03, yaw, shift + roll)
 	node.position = pos3 + Vector3(0, bob + skip + 0.09 - crouch * 0.14, 0)
-	# Spine: a sneaky hunch that twists to glance + a quick scheming jitter.
+	# Spine: near-vertical (just a hint of forward attitude) that twists to glance +
+	# a quick scheming jitter — upright, never toppling.
 	var spine: Node3D = node.find_child("spine", true, false)
 	if spine != null:
-		spine.rotation = Vector3(0.5 + walk * 0.08 + twitch, glance, rest * sin(t * 3.0 + phase) * 0.06)
-	# Legs: a fast, high-knee scamper.
-	var hip := sin(stride) * 0.55 * walk
-	var hipc := -crouch * 0.45
-	var kbase := 0.22 + crouch * 0.95
+		spine.rotation = Vector3(0.12 + walk * 0.05 + twitch, glance, rest * sin(t * 3.0 + phase) * 0.05)
+	# Legs: a fast, light, high-knee scamper from a wide bent-knee stance.
+	var hip := sin(stride) * 0.5 * walk
+	var hipc := -crouch * 0.42
+	var kbase := 0.2 + crouch * 0.95
 	_set_pivot(node, "leg_l", hip + hipc)
 	_set_pivot(node, "leg_r", -hip + hipc)
-	_set_pivot(node, "leg_l/knee_l", kbase + walk * (0.25 + 0.7 * maxf(0.0, sin(stride + 1.1))))
-	_set_pivot(node, "leg_r/knee_r", kbase + walk * (0.25 + 0.7 * maxf(0.0, sin(stride + PI + 1.1))))
-	# Arms: held up near the chest (scheming hand-rub when idle, quick pump when
-	# scampering); a staff-goblin instead grips its planted staff with the right hand.
-	var rub := rest * sin(t * 5.2 + phase) * 0.16
-	var arm_l := 0.78 + sin(stride + PI) * 0.45 * walk
-	var arm_r := 0.78 + sin(stride) * 0.45 * walk
-	var elbow_r := -1.1 + rub
+	_set_pivot(node, "leg_l/knee_l", kbase + walk * (0.22 + 0.62 * maxf(0.0, sin(stride + 1.1))))
+	_set_pivot(node, "leg_r/knee_r", kbase + walk * (0.22 + 0.62 * maxf(0.0, sin(stride + PI + 1.1))))
+	# Arms: clawed hands held ready at the waist (a small idle fidget), pumping when
+	# scampering; a staff-goblin grips its planted staff with the right hand instead.
+	var fidget := rest * sin(t * 4.8 + phase) * 0.12
+	var arm_l := 0.46 + sin(stride + PI) * 0.42 * walk
+	var arm_r := 0.46 + sin(stride) * 0.42 * walk
+	var elbow_r := -0.82 + fidget
 	if holds_staff:
 		arm_r = 0.16
 		elbow_r = -0.18
@@ -1077,7 +1079,7 @@ func _pose_goblin(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float
 		elbow_r = lerpf(elbow_r, -0.9, st)
 	_set_pivot(node, "arm_l", arm_l)
 	_set_pivot(node, "arm_r", arm_r)
-	_set_pivot(node, "arm_l/elbow_l", -1.1 - rub)                   # forearms folded up
+	_set_pivot(node, "arm_l/elbow_l", -0.82 - fidget)
 	_set_pivot(node, "arm_r/elbow_r", elbow_r)
 
 
@@ -1089,30 +1091,33 @@ func _pose_gnoll(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float,
 	var stride := t * 4.0 + phase                                    # slow, heavy strides
 	var bob := absf(sin(stride)) * 0.06 * walk
 	# Idle: slow heavy sway, breathing shoulders, an occasional cackle head-jerk.
-	var sway := rest * sin(t * 1.3 + phase) * 0.12
+	var sway := rest * sin(t * 1.3 + phase) * 0.1
 	var breathe := rest * (0.5 + 0.5 * sin(t * 1.8 + phase)) * 0.05
-	var cackle := rest * maxf(0.0, sin(t * 0.9 + phase) - 0.75) * 1.2
-	var roll := sin(stride) * 0.16 * walk                           # heavy shoulder roll
-	node.rotation = Vector3(0.06, yaw, sway + roll)
-	node.position = pos3 + Vector3(0, bob + 0.02, 0)
-	# Spine: a deep forward prowl-hunch; the head dips on each footfall, snaps up to cackle.
+	var cackle := rest * maxf(0.0, sin(t * 0.9 + phase) - 0.78) * 0.9
+	var roll := sin(stride) * 0.15 * walk                           # heavy shoulder roll
+	node.rotation = Vector3(0.04, yaw, sway + roll)
+	node.position = pos3 + Vector3(0, bob + 0.04, 0)
+	# Spine: stands UPRIGHT and imposing — chest up, only a slight forward set (ready,
+	# not falling). The snout already juts from the rig; the head dips a touch on each
+	# footfall and snaps up to cackle. Heavy breathing rocks the shoulders.
 	var spine: Node3D = node.find_child("spine", true, false)
 	if spine != null:
-		var dip := absf(sin(stride)) * 0.12 * walk
-		spine.rotation = Vector3(0.62 + breathe + dip - cackle, sway * 0.6, 0)
-	# Legs: a powerful digitigrade lope — long stride, deep push.
-	var hip := sin(stride) * 0.46 * walk
-	var hipc := -0.21
-	var kbase := 0.68
+		var dip := absf(sin(stride)) * 0.1 * walk
+		spine.rotation = Vector3(0.15 + breathe + dip - cackle, sway * 0.5, 0)
+	# Legs: a powerful digitigrade stance/lope — stands tall on bent hocks, long push.
+	var hip := sin(stride) * 0.44 * walk
+	var hipc := -0.14
+	var kbase := 0.5
 	_set_pivot(node, "leg_l", hip + hipc)
 	_set_pivot(node, "leg_r", -hip + hipc)
 	_set_pivot(node, "leg_l/knee_l", kbase + walk * (0.15 + 0.5 * maxf(0.0, sin(stride + 1.1))))
 	_set_pivot(node, "leg_r/knee_r", kbase + walk * (0.15 + 0.5 * maxf(0.0, sin(stride + PI + 1.1))))
-	# Arms: long and heavy, hanging low and swinging; a big overhead claw on attack.
-	var idle_arm := rest * sin(t * 1.4 + phase) * 0.12
-	var arm_l := 0.22 + sin(stride + PI) * 0.5 * walk + idle_arm
-	var arm_r := 0.22 + sin(stride) * 0.5 * walk - idle_arm
-	var elbow := -0.5
+	# Arms: long and heavy, hanging at the sides with a slight ready set, swinging on
+	# the lope; a big overhead claw-rake on attack.
+	var idle_arm := rest * sin(t * 1.4 + phase) * 0.1
+	var arm_l := 0.16 + sin(stride + PI) * 0.46 * walk + idle_arm
+	var arm_r := 0.16 + sin(stride) * 0.46 * walk - idle_arm
+	var elbow := -0.42
 	if atk > 0.0:
 		var st := sin(atk * PI)
 		arm_r = lerpf(arm_r, -1.7, st)
