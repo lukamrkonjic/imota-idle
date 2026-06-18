@@ -10,6 +10,7 @@ const LIFETIME := 0.85
 const POP := 0.10
 const FADE := 0.22
 const BODY_SCALE := 0.46  # the splatter blob is small; the number sits big on top
+const NUM_SCALE := 0.67   # damage number is ~2/3 the blob scale (was full size, too big)
 
 const RED := Color(0.82, 0.09, 0.07)
 const RED_DARK := Color(0.50, 0.04, 0.04)
@@ -83,8 +84,9 @@ func _draw() -> void:
 	var sm := s * scale_mul
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2(sm * BODY_SCALE, sm * BODY_SCALE))
 	_draw_splat(a)
-	# ...with the damage number drawn big and bold on top, near full size.
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2(sm, sm))
+	# ...with the damage number drawn bold on top at ~2/3 scale so it doesn't dominate.
+	var ns := sm * NUM_SCALE
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2(ns, ns))
 	_draw_number(a, BLUE_EDGE if miss else RED_EDGE)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 

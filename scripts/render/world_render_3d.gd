@@ -10,6 +10,7 @@ extends Node
 const WG := preload("res://scripts/worldgen/wg.gd")
 const TOON_GROUND := preload("res://shaders/toon_ground.gdshader")
 const TOON_WATER := preload("res://shaders/toon_water.gdshader")
+const TOON_FOAM := preload("res://shaders/toon_foam.gdshader")
 const PALETTE_SNAP := preload("res://shaders/palette_snap.gdshader")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 const PropMeshes := preload("res://scripts/render/prop_meshes.gd")
@@ -37,7 +38,7 @@ var terrain_root: Node3D
 var props_root: Node3D
 var _ground_mat: ShaderMaterial
 var _water_mat: ShaderMaterial
-var _foam_mat: StandardMaterial3D
+var _foam_mat: ShaderMaterial
 var _snap_mat: ShaderMaterial
 var _chunk_meshes: Dictionary = {}   # chunk key -> Node3D (ground + water)
 var _chunk_by_key: Dictionary = {}   # chunk key -> chunk RefCounted (O(1) height lookup)
@@ -197,9 +198,9 @@ func _build() -> void:
 	_water_mat.set_shader_parameter("secondary_color", Color(0.149, 0.435, 0.557)) # lighter blue
 	_water_mat.set_shader_parameter("line_color", Color(0.235, 0.471, 0.596))      # #3C7898 lines
 	_water_mat.set_shader_parameter("shoreline_color", Color(0.439, 0.753, 0.737)) # #70C0BC rim
-	_water_mat.set_shader_parameter("pattern_scale", 0.15)
-	_water_mat.set_shader_parameter("secondary_pattern_scale", 0.085)
-	_water_mat.set_shader_parameter("contour_count", 6.0)
+	_water_mat.set_shader_parameter("pattern_scale", 0.105)
+	_water_mat.set_shader_parameter("secondary_pattern_scale", 0.058)
+	_water_mat.set_shader_parameter("contour_count", 4.0)
 	_water_mat.set_shader_parameter("line_width", 0.05)
 	_water_mat.set_shader_parameter("domain_warp_strength", 0.55)
 	_water_mat.set_shader_parameter("animation_strength", 1.0)
@@ -208,12 +209,17 @@ func _build() -> void:
 	_water_mat.set_shader_parameter("noise_tex", _make_water_noise(0.9, 4, 1))
 	_water_mat.set_shader_parameter("warp_tex", _make_water_noise(0.35, 2, 2))
 
-	# Shoreline rim: a flat turquoise ribbon (#70C0BC) along the coast — the shallow-water
-	# band of the illustrated look. Unshaded so it stays a clean flat colour.
-	_foam_mat = StandardMaterial3D.new()
-	_foam_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_foam_mat.albedo_color = Color(0.439, 0.753, 0.737)   # turquoise shallow rim
-	_foam_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	# Shoreline ribbon: turquoise shallow band + animated broken white foam at the
+	# waterline. Foam amount/reach scales with per-vertex sea openness so larger seas
+	# froth more. World-space noise keeps the foam camera-stable.
+	_foam_mat = ShaderMaterial.new()
+	_foam_mat.shader = TOON_FOAM
+	_foam_mat.set_shader_parameter("shallow_color", Color(0.439, 0.753, 0.737))
+	_foam_mat.set_shader_parameter("foam_color", Color(0.90, 0.965, 0.97))
+	_foam_mat.set_shader_parameter("foam_scale", 1.0)
+	_foam_mat.set_shader_parameter("foam_speed", 0.5)
+	_foam_mat.set_shader_parameter("foam_coverage", 0.6)
+	_foam_mat.set_shader_parameter("foam_noise", _make_water_noise(1.2, 3, 3))
 
 	# Present the low-res 3D world at nearest-neighbour, under the HUD (layer 1).
 	var layer := CanvasLayer.new()
@@ -494,7 +500,7 @@ func _apply_view_distance() -> void:
 
 
 const WATER_DROP := 0.45   # how far the ground floor dips under water (shore basin)
-const FOAM_INSET := 0.16   # width of the white shoreline foam ribbon
+const FOAM_INSET := 0.26   # base width of the turquoise+foam shoreline ribbon (widens on open seas)
 const SHORE := Color(0.80, 0.75, 0.58)  # sandy shore tone under/at water edges
 const PATH_TILES := ["dirt", "cobble", "mud", "gravel", "badland_clay"]
 const ROCK_TILES := ["rock", "lava_rock", "ash"]
@@ -756,24 +762,48 @@ func _shoreline_edge(gtx: int, gty: int, edge: Vector2i) -> bool:
 	return not other.is_empty() and not bool(other["water"])
 
 
+# Open water in front of a shore tile, 0 (pond / narrow inlet) .. 1 (open ocean). Cheap
+# single ray marched away from the land into the water; larger seas read higher and so
+# get a wider, frothier foam ribbon.
+const FOAM_OPEN_CAP := 8
+func _water_openness(gtx: int, gty: int, edge: Vector2i) -> float:
+	var dir := -edge   # edge points at the land neighbour; step the other way into water
+	var count := 0
+	for k: int in range(1, FOAM_OPEN_CAP + 1):
+		var info := _tile_info(gtx + dir.x * k, gty + dir.y * k)
+		if info.is_empty() or not bool(info["water"]):
+			break
+		count += 1
+	return clampf(float(count) / float(FOAM_OPEN_CAP), 0.0, 1.0)
+
+
+# Shoreline ribbon quad. UV.x runs 0 at the waterline (land edge) -> 1 at the inner edge
+# so the foam shader can concentrate foam at the coast; vertex COLOR.r carries the sea
+# openness so the shader froths bigger seas more. Open water also widens the ribbon a
+# touch.
 func _emit_foam_edge(st: SurfaceTool, gtx: int, gty: int, y: float, edge: Vector2i) -> void:
 	var x0 := float(gtx) * TILE_S
 	var z0 := float(gty) * TILE_S
 	var x1 := x0 + TILE_S
 	var z1 := z0 + TILE_S
-	var w := FOAM_INSET
-	var verts: Array[Vector3]
+	var open := _water_openness(gtx, gty, edge)
+	var w := FOAM_INSET * (1.0 + open * 1.1)
+	# [position, uv.x] pairs; uv.x = 0 hugs the waterline, 1 is the inner (water) edge.
+	var pts: Array
 	if edge == Vector2i(0, -1):
-		verts = [Vector3(x0, y, z0), Vector3(x1, y, z0), Vector3(x1, y, z0 + w), Vector3(x0, y, z0), Vector3(x1, y, z0 + w), Vector3(x0, y, z0 + w)]
+		pts = [[Vector3(x0, y, z0), 0.0], [Vector3(x1, y, z0), 0.0], [Vector3(x1, y, z0 + w), 1.0], [Vector3(x0, y, z0), 0.0], [Vector3(x1, y, z0 + w), 1.0], [Vector3(x0, y, z0 + w), 1.0]]
 	elif edge == Vector2i(1, 0):
-		verts = [Vector3(x1 - w, y, z0), Vector3(x1, y, z0), Vector3(x1, y, z1), Vector3(x1 - w, y, z0), Vector3(x1, y, z1), Vector3(x1 - w, y, z1)]
+		pts = [[Vector3(x1 - w, y, z0), 1.0], [Vector3(x1, y, z0), 0.0], [Vector3(x1, y, z1), 0.0], [Vector3(x1 - w, y, z0), 1.0], [Vector3(x1, y, z1), 0.0], [Vector3(x1 - w, y, z1), 1.0]]
 	elif edge == Vector2i(0, 1):
-		verts = [Vector3(x0, y, z1 - w), Vector3(x1, y, z1 - w), Vector3(x1, y, z1), Vector3(x0, y, z1 - w), Vector3(x1, y, z1), Vector3(x0, y, z1)]
+		pts = [[Vector3(x0, y, z1 - w), 1.0], [Vector3(x1, y, z1 - w), 1.0], [Vector3(x1, y, z1), 0.0], [Vector3(x0, y, z1 - w), 1.0], [Vector3(x1, y, z1), 0.0], [Vector3(x0, y, z1), 0.0]]
 	else:
-		verts = [Vector3(x0, y, z0), Vector3(x0 + w, y, z0), Vector3(x0 + w, y, z1), Vector3(x0, y, z0), Vector3(x0 + w, y, z1), Vector3(x0, y, z1)]
-	for v: Vector3 in verts:
+		pts = [[Vector3(x0, y, z0), 0.0], [Vector3(x0 + w, y, z0), 1.0], [Vector3(x0 + w, y, z1), 1.0], [Vector3(x0, y, z0), 0.0], [Vector3(x0 + w, y, z1), 1.0], [Vector3(x0, y, z1), 0.0]]
+	var ocol := Color(open, 0.0, 0.0)
+	for p: Array in pts:
 		st.set_normal(Vector3.UP)
-		st.add_vertex(v)
+		st.set_color(ocol)
+		st.set_uv(Vector2(float(p[1]), 0.0))
+		st.add_vertex(p[0])
 
 
 ## Warm + enrich a terrain tile color and add BROAD low-frequency variation
