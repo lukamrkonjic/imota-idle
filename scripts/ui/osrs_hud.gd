@@ -189,9 +189,9 @@ func set_hover_text(text: String) -> void:
 
 
 func update_world_tooltip(entity: Node2D) -> void:
-	# If a UI control (inventory item, equipment slot, prayer/spell row, …) is hovered,
-	# let its attached tooltip own the panel — the world picker still finds geometry
-	# behind the HUD, and must not yank the UI tooltip away.
+	# A hovered UI control (inventory item, equipment slot, prayer/spell row) owns the
+	# tooltip via attach(); the world picker still finds geometry behind the HUD every
+	# frame, so it must stand down here instead of yanking the UI tooltip away.
 	if world_tooltip.is_ui_owned():
 		hover_label.text = "Walk here"
 		hover_label.show()
@@ -209,7 +209,7 @@ func update_world_tooltip(entity: Node2D) -> void:
 		world_tooltip.show_for(world, entity, content)
 		world_tooltip.follow_entity()
 	else:
-		world_tooltip.hide_tooltip()
+		world_tooltip.hide_for_world()
 		hover_label.text = entity.call("action_text")
 		hover_label.show()
 
