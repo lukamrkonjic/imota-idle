@@ -189,15 +189,14 @@ func _build() -> void:
 
 	_water_mat = ShaderMaterial.new()
 	_water_mat.shader = TOON_WATER
-	# Brighter A Short Hike teal + bold white foam where it meets the shore.
-	_water_mat.set_shader_parameter("base_color", PixelPalette.pal("water_c").lerp(PixelPalette.pal("water_deep"), 0.28))
+	# Stylized toon ocean: travelling-wave normals shade rolling crests/troughs.
+	_water_mat.set_shader_parameter("base_color", PixelPalette.pal("water_c").lerp(PixelPalette.pal("water_deep"), 0.4))
 	_water_mat.set_shader_parameter("shadow_color", PixelPalette.pal("water_deep"))
 	_water_mat.set_shader_parameter("light_color", PixelPalette.pal("water_spark"))
-	_water_mat.set_shader_parameter("wave_amp", 0.05)
-	_water_mat.set_shader_parameter("wave_speed", 1.0)
-	# Flowing world-space contour lines (the surface texture) — camera-independent.
-	# (Shore foam is the separate foam-ribbon geometry, not a view-dependent depth test.)
-	_water_mat.set_shader_parameter("line_strength", 0.32)
+	_water_mat.set_shader_parameter("wave_scale", 1.0)
+	_water_mat.set_shader_parameter("wave_speed", 0.9)
+	_water_mat.set_shader_parameter("choppiness", 1.0)
+	_water_mat.set_shader_parameter("foam", 0.3)
 
 	_foam_mat = StandardMaterial3D.new()
 	_foam_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
