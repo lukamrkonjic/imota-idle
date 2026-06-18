@@ -124,8 +124,8 @@ func _leash_radius() -> float:
 func _attack_gap(entity: Node2D) -> float:
 	var size := float(entity.get("display_size")) if entity.get("display_size") != null else 40.0
 	if bool(entity.get("is_boss")):
-		size *= 1.3
-	return WG.TILE * (1.5 + size / 72.0)
+		size *= 1.2
+	return WG.TILE * (0.85 + size / 130.0)
 
 
 func begin_action(entity: Node2D) -> void:
