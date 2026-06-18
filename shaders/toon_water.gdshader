@@ -29,15 +29,27 @@ void vertex() {
 	VERTEX.y += sin((VERTEX.x + VERTEX.z) * 1.3 + TIME * wave_speed) * wave_amp;
 }
 
-// Drifting topographic "contour line" field (A Short Hike-style flowing water lines),
-// purely from world position + time. Returns a 0..1 thin-line mask.
+// A Short Hike-style water: a big, slow, organic "depth" field built from drifting
+// sine waves, drawn as NESTED TOPOGRAPHIC CONTOUR LINES (a thin bright line at every
+// level of the field). Because the field animates, the whole ring pattern morphs and
+// flows like rolling waves. All from world position + time -> camera-independent.
+float water_field(vec2 wp) {
+	return sin(wp.x * 0.085 + TIME * 0.16)
+		+ sin(wp.y * 0.072 - TIME * 0.12)
+		+ sin((wp.x + wp.y) * 0.05 + TIME * 0.10) * 0.85
+		+ sin((wp.x - wp.y) * 0.09 - TIME * 0.18) * 0.55
+		+ sin(length(wp) * 0.04 - TIME * 0.22) * 0.4;   // a slow radial swell
+}
+
+// Two contour sets at slightly different spacings, offset in time, blended — the
+// extra layer gives the busy, overlapping-ripple richness of the reference.
 float water_lines(vec2 wp) {
-	float f = sin(wp.x * 0.16 + TIME * 0.11)
-		+ sin(wp.y * 0.14 - TIME * 0.08)
-		+ sin((wp.x - wp.y) * 0.11 + TIME * 0.14) * 0.7
-		+ sin((wp.x + wp.y) * 0.07 - TIME * 0.05) * 1.1;
-	float c = fract(f * 0.5);
-	return smoothstep(0.42, 0.5, c) * smoothstep(0.58, 0.5, c);
+	float f = water_field(wp);
+	float a = abs(fract(f * 1.35) - 0.5) * 2.0;          // contour set A
+	float b = abs(fract(f * 0.78 + 0.37) - 0.5) * 2.0;   // contour set B (wider rings)
+	float la = smoothstep(0.80, 0.95, a);
+	float lb = smoothstep(0.86, 0.97, b) * 0.7;
+	return clamp(la + lb, 0.0, 1.0);
 }
 
 void fragment() {
