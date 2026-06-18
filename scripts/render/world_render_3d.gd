@@ -22,8 +22,6 @@ const DRESSING_ANCHOR := 4          # visual set dressing snaps to this tile gri
 const SPAWN_LAYER := 0              # overworld layer the home-campsite dressing lives on
 const DRESSING_SPREAD := 1.7        # fan the camp pieces apart so nothing is squished
 const FOREST_PREVIEW_ARG := "--forest-preview"
-const TERRAIN_CULL_TILES := 34.0
-const PROP_CULL_TILES := 30.0
 
 var world: Node2D
 var sub: SubViewport
@@ -47,6 +45,10 @@ var _mover_walk: Dictionary = {}     # key -> smoothed walk amount 0..1
 var _attack_t: Dictionary = {}       # key -> time (s) the last attack lunge started
 var _shadow_nodes: Dictionary = {}   # key -> blob-shadow MeshInstance3D pinned to ground
 var fx_layer: CanvasLayer            # screen-space overlay for hitsplats over the 3D world
+var _env: Environment                # kept so the view-distance slider can retune the fog
+var _sun: DirectionalLight3D         # kept so the slider can scale shadow distance
+var _terrain_cull := 34.0            # visible terrain radius (tiles), driven by view_distance
+var _prop_cull := 30.0               # visible prop/decor radius (tiles)
 var _player_node: Node3D
 var _cam_yaw := PI / 4.0          # orbit angle around the player (Left/Right arrows)
 var _cam_pitch := 0.413           # elevation above horizon (Up/Down arrows); matches old iso
@@ -86,12 +88,18 @@ func _build() -> void:
 	world3d = Node3D.new()
 	sub.add_child(world3d)
 
-	# Soft warm gradient sky (A Short Hike-ish) using palette-derived colors.
+	# Soft warm HAZE sky (A Short Hike-ish): a low-contrast warm wash, no cool blue
+	# top, so wherever the terrain edge lands it meets a matching sky and dissolves
+	# instead of forming a seam. The horizon colour is shared with the distance fog.
+	var horizon_col := PixelPalette.pal("snow_a").lerp(PixelPalette.pal("gold"), 0.34)
+	var sky_hi := PixelPalette.pal("snow_a").lerp(PixelPalette.pal("gold"), 0.22)
 	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = PixelPalette.pal("water_a").lerp(PixelPalette.pal("snow_a"), 0.55)
-	sky_mat.sky_horizon_color = PixelPalette.pal("snow_a").lerp(PixelPalette.pal("gold"), 0.28)
-	sky_mat.ground_horizon_color = PixelPalette.pal("snow_a").lerp(PixelPalette.pal("gold"), 0.28)
-	sky_mat.ground_bottom_color = PixelPalette.pal("grass_a").lerp(PixelPalette.pal("snow_a"), 0.3)
+	sky_mat.sky_top_color = sky_hi
+	sky_mat.sky_horizon_color = horizon_col
+	sky_mat.ground_horizon_color = horizon_col
+	sky_mat.ground_bottom_color = horizon_col
+	sky_mat.sky_curve = 0.32   # wide, soft horizon band: the warm haze fills most of the sky
+	sky_mat.sky_energy_multiplier = 1.0
 	sky_mat.sun_angle_max = 30.0
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
@@ -101,17 +109,27 @@ func _build() -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_energy = 0.0
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
-	# Warm distance haze (A Short Hike atmospheric perspective): distant terrain
-	# fades toward a soft warm tone, giving the world depth and coziness.
+	# Stylized atmospheric perspective (A Short Hike), NOT volumetric fog: a depth
+	# fog in the SAME colour as the sky horizon, ramping from the middle distance to
+	# 100% before the camera reaches the streamed terrain's edge — so the edge is
+	# never seen, the world just fades into the sky. The smoothstep curve keeps the
+	# near/mid ground crisp and only hazes the far field.
 	env.fog_enabled = true
-	env.fog_light_color = PixelPalette.pal("snow_a").lerp(PixelPalette.pal("gold"), 0.4)
+	env.fog_mode = Environment.FOG_MODE_DEPTH
+	env.fog_light_color = horizon_col
 	env.fog_light_energy = 1.0
-	env.fog_density = 0.0022
-	env.fog_sky_affect = 0.04
-	env.fog_aerial_perspective = 0.06
+	env.fog_density = 1.0
+	env.fog_depth_begin = 24.0
+	env.fog_depth_end = 48.0      # full opacity before the streamed terrain's edge depth
+	env.fog_depth_curve = 2.0     # > 1 = hold the mid distance clear, then ramp hard at the end
+	# Bleed the fog into the lower sky too, so the fogged terrain and the sky behind
+	# it are the SAME haze — no seam at the horizon, and the sky itself reads foggy.
+	env.fog_sky_affect = 0.5
+	env.fog_aerial_perspective = 0.0
 	var we := WorldEnvironment.new()
 	we.environment = env
 	world3d.add_child(we)
+	_env = env
 
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-38, 40, 0)   # lower afternoon sun -> longer soft shadows
@@ -124,6 +142,11 @@ func _build() -> void:
 	sun.shadow_normal_bias = 0.9
 	sun.shadow_blur = 1.5   # soft A Short Hike shadow edge (low-res render keeps it crisp)
 	world3d.add_child(sun)
+	_sun = sun
+	_apply_view_distance()   # set terrain cull / fog distance / shadow distance from the slider
+	GameSettings.changed.connect(func(p: StringName) -> void:
+		if p == &"view_distance":
+			_apply_view_distance())
 
 	# Orthographic camera at the game's 2:1 isometric angle (yaw 45, pitch ~30).
 	cam = Camera3D.new()
@@ -414,7 +437,22 @@ func _update_terrain_visibility() -> void:
 		var cx := int(parts[1])
 		var cy := int(parts[2])
 		var center := Vector2(float(cx * WG.CHUNK_TILES + WG.CHUNK_TILES / 2), float(cy * WG.CHUNK_TILES + WG.CHUNK_TILES / 2))
-		node.visible = absf(center.x - g.x) <= TERRAIN_CULL_TILES and absf(center.y - g.y) <= TERRAIN_CULL_TILES
+		node.visible = absf(center.x - g.x) <= _terrain_cull and absf(center.y - g.y) <= _terrain_cull
+
+
+## Map the view-distance setting (0..1) to a visible terrain radius, then retune
+## everything that scales with it: prop culling, the fog ramp (so the fogged edge
+## still hides the terrain boundary), and the shadow distance (capped — shadows
+## past the fogged range are invisible, so keeping them short is a free perf win).
+func _apply_view_distance() -> void:
+	var vt := lerpf(34.0, 64.0, clampf(GameSettings.view_distance, 0.0, 1.0))
+	_terrain_cull = vt
+	_prop_cull = vt - 4.0
+	if _env != null:
+		_env.fog_depth_end = vt + 14.0     # camera-depth ≈ CAM_DIST + tiles; full haze past the edge
+		_env.fog_depth_begin = vt - 10.0
+	if _sun != null:
+		_sun.directional_shadow_max_distance = clampf(vt * 0.85, 30.0, 52.0)
 
 
 const WATER_DROP := 0.45   # how far the ground floor dips under water (shore basin)
@@ -693,7 +731,7 @@ func _sync_movers() -> void:
 	var dt := get_process_delta_time()
 	var t := Time.get_ticks_msec() / 1000.0
 	if _player_node == null:
-		_player_node = PropMeshes.figure_rig(PixelPalette.pal("outfit_a"), PixelPalette.pal("skin_a"))
+		_player_node = PropMeshes.player_rig(PixelPalette.pal("skin_a"))
 		_prep_mover(_player_node, "player")
 		_apply_player_equipment()
 		EventBus.equipment_changed.connect(_apply_player_equipment)
@@ -735,7 +773,11 @@ func _prep_mover(node: Node3D, key: String) -> void:
 func _apply_player_equipment(_a := "", _b := "") -> void:
 	if _player_node == null:
 		return
-	PropMeshes.apply_equipment(_player_node, EquipLoadout.for_player(GameState.equipment))
+	var loadout := EquipLoadout.for_player(GameState.equipment)
+	PropMeshes.apply_equipment(_player_node, loadout)
+	# Grip a planted staff when one is wielded (else stand normally).
+	var mainhand: Dictionary = loadout.get("mainhand", {})
+	_player_node.set_meta("pose", "staff" if str(mainhand.get("kind", "")) in ["staff", "raven_staff", "wand"] else "")
 	_disable_cast_shadows(_player_node)
 
 
@@ -801,6 +843,23 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 		var fp := _shadow_footprint(btype)
 		shadow.scale = Vector3(fp.x * base, 1.0, fp.y * base)
 	_flow_cloth(node, walk, t, phase)
+	_sway_hair(node, walk, t, phase)
+
+
+## Cheap "hair physics": any hair/beard/mane/tuft pivot on a rig gets a soft sway —
+## bouncing and leaning back as the character moves, drifting on a light idle wind.
+## Pure procedural (a rotation per pivot), no real physics. Rigs opt in by parenting
+## their soft bits under a pivot named hair/beard/mane/tuft.
+func _sway_hair(node: Node3D, walk: float, t: float, phase: float) -> void:
+	for hp: String in ["hair", "beard", "mane"]:
+		var p: Node3D = node.get_node_or_null(NodePath(hp))
+		if p == null:
+			continue
+		var amp := 0.5 + walk * 1.4
+		p.rotation = Vector3(
+			-walk * 0.16 + sin(t * 5.2 + phase) * 0.05 * amp,   # lift/lean back when moving
+			sin(t * 3.4 + phase) * 0.03 * amp,
+			sin(t * 2.7 + phase * 1.4) * 0.04 * amp)
 
 
 ## Cheap cloth "sim" for worn robes/capes: pure procedural secondary motion — no
@@ -833,34 +892,58 @@ func _shadow_footprint(btype: String) -> Vector2:
 			return Vector2(1.05, 1.62)  # four-legged: a longer oval along the spine
 
 
-## Upright biped: vertical bob + squash, legs swing at the hips and arms counter-
-## swing at the shoulders (player + goblins/skeletons). On a swing (`atk`) the lead
-## arm chops overarm into the target.
+## Jointed biped: knees and elbows flex for a natural bent-leg walk, and a `crouch`
+## meta gives a bent-kneed standing stance (goblins stoop, the gnoll sneaks low).
+## `lean` hunches the body, `arm_rest` keeps arms a touch forward (never ramrod).
 func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float) -> void:
 	var rest := 1.0 - walk
-	# Idle is no longer static: a slow breathing rise/fall and a gentle weight-shift
-	# sway so the character always has a little life even standing still.
+	var lean: float = float(node.get_meta("lean", 0.04))
+	var arm_rest: float = float(node.get_meta("arm_rest", 0.08))
+	var crouch: float = float(node.get_meta("crouch", 0.1))
+	var holds_staff: bool = str(node.get_meta("pose", "")) == "staff"
 	var breathe := rest * sin(t * 1.9 + phase) * 0.03
 	var sway := rest * sin(t * 1.15 + phase) * 0.05
-	node.rotation = Vector3(0, yaw, sway)
-	var bob := absf(sin(t * 7.0)) * 0.09 * walk
+	node.rotation = Vector3(lean + breathe * 0.4, yaw, sway)
+	# Crouch lowers the body so the bent knees still keep the feet on the ground;
+	# the walk adds a gentle vertical bob on top.
+	var bob := absf(sin(t * 7.0)) * 0.08 * walk
 	var sq := sin(t * 7.0) * 0.06 * walk
-	node.position = pos3 + Vector3(0, bob, 0)
+	node.position = pos3 + Vector3(0, bob - crouch * 0.22, 0)
 	node.scale = Vector3(base * (1.0 - sq * 0.5), base * (1.0 + sq + breathe), base * (1.0 - sq * 0.5))
-	var stride := t * 5.6 + phase
-	var swing := sin(stride) * 0.7 * walk
-	# Arms drift a little even at rest (counter to the sway) so they're never frozen.
-	var idle_arm := rest * sin(t * 1.5 + phase) * 0.14
-	_set_pivot(node, "leg_l", swing)
-	_set_pivot(node, "leg_r", -swing)
-	var arm_l := -swing * 0.85 + idle_arm
-	var arm_r := swing * 0.85 - idle_arm
+	var stride := t * 4.8 + phase
+	# Legs: hips swing (opposite phase), the thigh tilts forward when crouched, and
+	# the KNEE folds — always a little (crouch + idle) and more during the forward
+	# swing so the foot lifts to clear the ground. Real walk, not stiff stilts.
+	var hip := sin(stride) * 0.62 * walk
+	var hip_crouch := -crouch * 0.42                 # thighs forward to sit into the crouch
+	var knee_base := 0.16 + crouch * 0.95            # standing knee bend
+	# Deep knee fold through the step (RuneScape-ish run), peaking as the leg drives.
+	var knee_l := knee_base + walk * (0.3 + 0.85 * maxf(0.0, sin(stride + 1.3)))
+	var knee_r := knee_base + walk * (0.3 + 0.85 * maxf(0.0, sin(stride + PI + 1.3)))
+	_set_pivot(node, "leg_l", hip + hip_crouch)
+	_set_pivot(node, "leg_r", -hip + hip_crouch)
+	_set_pivot(node, "leg_l/knee_l", knee_l)   # knees are nested under the hip pivots
+	_set_pivot(node, "leg_r/knee_r", knee_r)
+	# Arms: shoulders counter-swing the legs, ELBOWS bend (always a bit, more on the
+	# back-swing) so the arms have a natural relaxed crook instead of stiff planks.
+	var idle_arm := rest * sin(t * 1.5 + phase) * 0.12
+	var arm_l := arm_rest + sin(stride + PI) * 0.6 * walk + idle_arm
+	var arm_r := arm_rest + sin(stride) * 0.6 * walk - idle_arm
+	var elbow_base := 0.24 + crouch * 0.25
+	var elbow_l := elbow_base + walk * (0.3 + 0.55 * maxf(0.0, sin(stride + PI + 0.6)))
+	var elbow_r := elbow_base + walk * (0.3 + 0.55 * maxf(0.0, sin(stride + 0.6)))
+	if holds_staff:
+		arm_r = 0.12 + idle_arm * 0.3   # rest the hand on a side-planted staff
+		elbow_r = 0.18
 	if atk > 0.0:
 		var strike := sin(atk * PI)
-		arm_r = lerpf(arm_r, -1.7, strike)   # lead arm chops forward
-		arm_l = lerpf(arm_l, 0.5, strike)    # trail arm pulls back for the wind-up
+		arm_r = lerpf(arm_r, -1.5, strike)   # lead arm chops overarm
+		elbow_r = lerpf(elbow_r, 1.0, strike)  # with a bent elbow
+		arm_l = lerpf(arm_l, 0.4, strike)
 	_set_pivot(node, "arm_l", arm_l)
 	_set_pivot(node, "arm_r", arm_r)
+	_set_pivot(node, "arm_l/elbow_l", elbow_l)   # elbows are nested under the shoulder pivots
+	_set_pivot(node, "arm_r/elbow_r", elbow_r)
 
 
 ## Four-legged trot: diagonal leg pairs swing together (FL+BR vs FR+BL), low body
@@ -970,21 +1053,21 @@ func _sync_static_batches() -> void:
 	for d: Node in world._decor_nodes:
 		if not is_instance_valid(d):
 			continue
-		if not _near_visual_grid(d.position, PROP_CULL_TILES):
+		if not _near_visual_grid(d.position, _prop_cull):
 			continue
 		var pl := Transform3D(Basis(Vector3.UP, float(int(d.variant)) * 0.131), iso_to_3d(d.position, height_at(d.position)))
 		_collect(PropMeshes.decor_parts(str(d.kind)), pl, groups)
 	for d: Node in world._water_decor_nodes:
 		if not is_instance_valid(d):
 			continue
-		if not _near_visual_grid(d.position, PROP_CULL_TILES):
+		if not _near_visual_grid(d.position, _prop_cull):
 			continue
 		var pl := Transform3D(Basis(Vector3.UP, float(int(d.variant)) * 0.17), iso_to_3d(d.position, height_at(d.position) + 0.04))
 		_collect(PropMeshes.water_decor_parts(str(d.kind)), pl, groups)
 	for e: Node in world.entities:
 		if not is_instance_valid(e) or PropMeshes.is_moving(e):
 			continue
-		if not _near_visual_grid(e.position, PROP_CULL_TILES):
+		if not _near_visual_grid(e.position, _prop_cull):
 			continue
 		var parts: Array = PropMeshes.entity_parts(e)
 		if parts.is_empty():

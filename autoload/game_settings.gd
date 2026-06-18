@@ -11,6 +11,7 @@ const DEFAULT_UI_SCALE := 1.0
 const DEFAULT_MASTER_VOLUME := 0.8
 const DEFAULT_FPS_LIMIT := 60
 const DEFAULT_PIXELATION := 0.2   # 0 = native (no pixelation), 1 = really crunchy
+const DEFAULT_VIEW_DISTANCE := 0.55   # longer than the old fixed range by default
 
 const FPS_LIMIT_OPTIONS := [
 	{"value": 30, "label": "30"},
@@ -38,6 +39,7 @@ var show_hover_tooltip: bool = true
 var show_fps: bool = false
 var fps_limit: int = DEFAULT_FPS_LIMIT
 var pixelation: float = DEFAULT_PIXELATION   # 3D render crunch; read by the renderer
+var view_distance: float = DEFAULT_VIEW_DISTANCE  # 0 = near, 1 = far; read by the renderer
 
 # Idle automation (spec §12, §21). Auto-eat the best food when HP drops to/below
 # the threshold fraction of max during combat.
@@ -78,6 +80,7 @@ func load_settings() -> void:
 	auto_eat_enabled = bool(data.get("auto_eat_enabled", true))
 	auto_eat_threshold = clampf(float(data.get("auto_eat_threshold", 0.5)), 0.0, 1.0)
 	pixelation = clampf(float(data.get("pixelation", DEFAULT_PIXELATION)), 0.0, 1.0)
+	view_distance = clampf(float(data.get("view_distance", DEFAULT_VIEW_DISTANCE)), 0.0, 1.0)
 	var saved_kb: Dictionary = data.get("keybinds", {})
 	for id: String in keybinds:
 		if saved_kb.has(id):
@@ -100,6 +103,7 @@ func save_settings() -> void:
 		"auto_eat_enabled": auto_eat_enabled,
 		"auto_eat_threshold": auto_eat_threshold,
 		"pixelation": pixelation,
+		"view_distance": view_distance,
 		"keybinds": keybinds,
 	}
 	var f := FileAccess.open(SETTINGS_PATH, FileAccess.WRITE)
@@ -120,6 +124,12 @@ func set_pixelation(value: float) -> void:
 	pixelation = clampf(value, 0.0, 1.0)
 	save_settings()
 	changed.emit(&"pixelation")
+
+
+func set_view_distance(value: float) -> void:
+	view_distance = clampf(value, 0.0, 1.0)
+	save_settings()
+	changed.emit(&"view_distance")
 
 
 func set_master_volume(value: float) -> void:

@@ -8,7 +8,7 @@ const WG := preload("res://scripts/worldgen/wg.gd")
 
 signal arrived
 
-const SPEED := 130.0
+const SPEED := 95.0
 const JUMP_DUR := 0.26   # one hop when stepping up a large elevation change
 const JUMP_AMP := 9.0
 const NO_DUR := 0.5      # head-shake "can't go there" wobble

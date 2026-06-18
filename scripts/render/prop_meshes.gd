@@ -813,11 +813,10 @@ static func figure_rig(body: Color, head: Color, cape := Color(0, 0, 0, 0)) -> N
 	var hairm := _mat_from(hairc, hairc.darkened(0.4), hairc.lightened(0.18))
 	var eyed := _mat_from(Color(0.1, 0.1, 0.14), Color(0.05, 0.05, 0.07), Color(0.18, 0.18, 0.22))
 	var root := Node3D.new()
-	# Legs: dark trousers + boots, pivoting at the hip. Long, natural-proportion legs.
+	# Legs: dark trousers over a knee joint + boots (so the knee can flex when walking).
 	for side: int in [-1, 1]:
-		var leg := _limb(root, "leg_l" if side < 0 else "leg_r", Vector3(0.13 * side, 0.9, 0))
-		_attach(leg, _box("hum_leg", Vector3(0.19, 0.66, 0.21)), pants, Vector3(0, -0.33, 0))
-		_attach(leg, _box("hum_boot", Vector3(0.21, 0.16, 0.28)), boot, Vector3(0, -0.74, 0.04))
+		var knee := _biped_leg(root, side, Vector3(0.13 * side, 0.9, 0), Vector3(0.19, 0.42, 0.21), Vector3(0.17, 0.4, 0.19), pants, "hleg")
+		_attach(knee, _box("hum_boot", Vector3(0.21, 0.16, 0.28)), boot, Vector3(0, -0.46, 0.04))
 	_attach(root, _box("hum_hips", Vector3(0.42, 0.18, 0.27)), pants, Vector3(0, 0.92, 0))
 	# Torso: a casual shirt with a slightly broader shoulder yoke + a small collar.
 	_attach(root, _box("hum_chest", Vector3(0.46, 0.52, 0.28)), shirt, Vector3(0, 1.24, 0))
@@ -837,19 +836,84 @@ static func figure_rig(body: Color, head: Color, cape := Color(0, 0, 0, 0)) -> N
 	if cape.a > 0.0:
 		var capem := _mat_from(Color(cape.r, cape.g, cape.b), cape.darkened(0.34), cape.lightened(0.22))
 		_attach(root, _box("hum_cape", Vector3(0.34, 0.6, 0.07)), capem, Vector3(0, 1.1, -0.17), Vector3.ONE, Vector3(0.2, 0, 0))
-	# Arms: shirt upper sleeve, bare-skin rolled-up forearm, hand. Pivot at shoulder.
-	# Hand sockets hang off the arm pivots so a held weapon swings with the arm.
+	# Arms: shirt sleeve (upper) over an elbow joint, bare-skin forearm + hand. Weapon
+	# sockets ride the forearm so a held weapon follows the hand and bends at the elbow.
 	for side2: int in [-1, 1]:
-		var arm := _limb(root, "arm_l" if side2 < 0 else "arm_r", Vector3(0.3 * side2, 1.42, 0))
-		_attach(arm, _box("hum_sleeve", Vector3(0.14, 0.3, 0.16)), shirt, Vector3(0, -0.15, 0))
-		_attach(arm, _box("hum_forearm", Vector3(0.12, 0.26, 0.14)), skin, Vector3(0, -0.38, 0))
-		_attach(arm, _box("hum_hand", Vector3(0.13, 0.13, 0.15)), skin, Vector3(0, -0.55, 0))
-		_socket(arm, "socket_mainhand" if side2 > 0 else "socket_offhand", Vector3(0.04 * side2, -0.62, 0.16), Vector3(-0.1, 0, -0.08 * side2))
+		var el := _biped_arm(root, side2, Vector3(0.3 * side2, 1.42, 0), Vector3(0.14, 0.26, 0.16), Vector3(0.12, 0.26, 0.14), shirt, skin, "harm")
+		_attach(el, _box("hum_hand", Vector3(0.13, 0.13, 0.15)), skin, Vector3(0, -0.34, 0))
+		_socket(el, "socket_mainhand" if side2 > 0 else "socket_offhand", Vector3(0.04 * side2, -0.42, 0.16), Vector3(-0.1, 0, -0.08 * side2))
 	# Worn-gear sockets (see equip_profile): the renderer attaches armor/weapons here.
 	_socket(root, "socket_head", Vector3(0, 1.74, 0))
 	_socket(root, "socket_body", Vector3(0, 1.24, 0))
 	_socket(root, "socket_legs", Vector3(0, 0.95, 0))
 	_socket(root, "socket_back", Vector3(0, 1.34, -0.16))
+	return root
+
+
+## The player's bare adventurer body — a more sculpted low-poly figure than the
+## generic enemy humanoid: a bearded head with a jaw/brow/nose and pointed ears,
+## swept hair, a linen shirt with rolled sleeves, teal tartan breeches and cuffed
+## boots. The OUTFIT (jerkin, belt, cape, weapons) is NOT baked in — it layers on
+## via the equipment sockets (EquipLoadout.player_default), so armor and weapons
+## can be swapped independently of the body. Same pivots/sockets as figure_rig.
+static func player_rig(skin_col: Color) -> Node3D:
+	var skin := _mat_from(skin_col, skin_col.darkened(0.3), skin_col.lightened(0.2))
+	var skin_sh := _mat_from(skin_col.darkened(0.14), skin_col.darkened(0.42), skin_col.lightened(0.08))
+	var linen := _mat_from(Color(0.82, 0.78, 0.66), Color(0.6, 0.56, 0.46), Color(0.92, 0.89, 0.8))
+	var teal := _mat_from(Color(0.26, 0.42, 0.4), Color(0.16, 0.28, 0.27), Color(0.38, 0.56, 0.52))
+	var teal2 := _mat_from(Color(0.36, 0.52, 0.48), Color(0.24, 0.36, 0.34), Color(0.48, 0.64, 0.6))
+	var boot := _mat_from(Color(0.36, 0.24, 0.14), Color(0.22, 0.14, 0.08), Color(0.5, 0.36, 0.22))
+	var cuff := _mat_from(Color(0.47, 0.33, 0.18), Color(0.3, 0.2, 0.1), Color(0.6, 0.46, 0.28))
+	var hairc: Color = PixelPalette.pal("hair")
+	var hairm := _mat_from(hairc, hairc.darkened(0.42), hairc.lightened(0.16))
+	var beardm := _mat_from(hairc.lightened(0.06), hairc.darkened(0.4), hairc.lightened(0.22))
+	var eyed := _mat_from(Color(0.1, 0.1, 0.14), Color(0.05, 0.05, 0.07), Color(0.18, 0.18, 0.22))
+	var root := Node3D.new()
+	# Legs: tartan breeches over a knee joint + cuffed boots (boots ride the shin).
+	for side: int in [-1, 1]:
+		var knee := _biped_leg(root, side, Vector3(0.13 * side, 0.9, 0), Vector3(0.21, 0.42, 0.23), Vector3(0.18, 0.4, 0.21), teal, "pleg")
+		_attach(knee, _box("p_stripe", Vector3(0.045, 0.4, 0.22)), teal2, Vector3(0.06, -0.2, 0.0))
+		_attach(knee, _box("p_boot", Vector3(0.21, 0.3, 0.28)), boot, Vector3(0, -0.36, 0.02))
+		_attach(knee, _box("p_bootcuff", Vector3(0.24, 0.09, 0.3)), cuff, Vector3(0, -0.24, 0.02))
+		_attach(knee, _box("p_sole", Vector3(0.22, 0.06, 0.33)), cuff, Vector3(0, -0.52, 0.05))
+	_attach(root, _box("p_hips", Vector3(0.44, 0.2, 0.28)), teal, Vector3(0, 0.9, 0))
+	# Torso: a plain linen shirt — the jerkin/armor layers over it (body socket).
+	_attach(root, _box("p_chest", Vector3(0.46, 0.54, 0.28)), linen, Vector3(0, 1.24, 0))
+	_attach(root, _box("p_yoke", Vector3(0.52, 0.16, 0.31)), linen, Vector3(0, 1.48, 0))
+	# Sculpted head: skull + jaw + brow + nose, beard, pointed ears, swept hair, eyes.
+	_attach(root, _box("p_neck", Vector3(0.15, 0.12, 0.16)), skin, Vector3(0, 1.56, 0))
+	_attach(root, _box("p_skull", Vector3(0.32, 0.3, 0.32)), skin, Vector3(0, 1.79, 0))
+	_attach(root, _box("p_jaw", Vector3(0.27, 0.16, 0.29)), skin, Vector3(0, 1.65, 0.02))
+	_attach(root, _box("p_brow", Vector3(0.3, 0.06, 0.05)), skin_sh, Vector3(0, 1.8, 0.16))
+	_attach(root, _box("p_nose", Vector3(0.08, 0.1, 0.09)), skin, Vector3(0, 1.73, 0.18))
+	# Beard hangs off a pivot at the jaw so the hair-physics sway swings it.
+	var beard := _limb(root, "beard", Vector3(0, 1.62, 0.07))
+	_attach(beard, _box("p_beard", Vector3(0.31, 0.22, 0.18)), beardm, Vector3(0, -0.02, 0.0))
+	_attach(beard, _box("p_beard2", Vector3(0.2, 0.14, 0.11)), beardm, Vector3(0, -0.13, 0.05))
+	for sx: int in [-1, 1]:
+		_attach(root, _prism("p_ear", Vector3(0.08, 0.18, 0.09)), skin, Vector3(0.18 * sx, 1.82, 0.0), Vector3.ONE, Vector3(0, 0, -0.35 * sx))
+	# Swept hair hangs off a crown pivot so it bounces/leans with movement.
+	var hair := _limb(root, "hair", Vector3(0, 1.82, 0))
+	_attach(hair, _box("p_hair_top", Vector3(0.36, 0.18, 0.36)), hairm, Vector3(0, 0.14, -0.01))
+	_attach(hair, _box("p_hair_back", Vector3(0.35, 0.34, 0.16)), hairm, Vector3(0, -0.04, -0.15))
+	_attach(hair, _box("p_hair_fr", Vector3(0.34, 0.12, 0.12)), hairm, Vector3(0.03, 0.1, 0.15), Vector3.ONE, Vector3(-0.5, 0, 0.12))
+	for ex: int in [-1, 1]:
+		_attach(root, _box("p_eye", Vector3(0.05, 0.06, 0.04)), eyed, Vector3(0.08 * ex, 1.77, 0.17))
+	# Arms: linen sleeve (upper) over an elbow joint with a bare-skin forearm + hand;
+	# weapon sockets ride the forearm (elbow) so a held weapon follows the hand.
+	for s2: int in [-1, 1]:
+		var el := _biped_arm(root, s2, Vector3(0.3 * s2, 1.42, 0), Vector3(0.16, 0.24, 0.18), Vector3(0.12, 0.26, 0.14), linen, skin, "parm")
+		_attach(el, _box("p_hand", Vector3(0.13, 0.13, 0.15)), skin, Vector3(0, -0.34, 0))
+		_socket(el, "socket_mainhand" if s2 > 0 else "socket_offhand", Vector3(0.04 * s2, -0.42, 0.16), Vector3(-0.1, 0, -0.08 * s2))
+	_socket(root, "socket_head", Vector3(0, 1.79, 0))
+	_socket(root, "socket_body", Vector3(0, 1.24, 0))
+	_socket(root, "socket_legs", Vector3(0, 0.9, 0))
+	_socket(root, "socket_back", Vector3(0, 1.36, -0.16))
+	# Posture: the player stands near-upright but relaxed (a touch of lean + arms
+	# resting slightly forward), not ramrod-straight. Read by _pose_humanoid.
+	root.set_meta("lean", 0.04)
+	root.set_meta("arm_rest", 0.1)
+	root.set_meta("crouch", 0.17)   # slightly bent knees — an athletic stance, not locked
 	return root
 
 
@@ -958,16 +1022,20 @@ static func equip_parts(slot: String, kind: String, mat_key: String, tint: Color
 			# the body so it stays visible whichever way the wearer turns to face.
 			var wd := equip_material("wood")
 			var rav := _mat_from(Color(0.12, 0.12, 0.15), Color(0.06, 0.06, 0.08), Color(0.24, 0.24, 0.3))
-			var fz := 0.44
+			# Planted vertically out to the side of the hand (not in front), so the
+			# staff clears the body silhouette from most camera angles, and long enough
+			# that its bottom rests on the ground.
+			var sx := 0.16
+			var fz := 0.14
 			return [
-				_part(_cyl("eq_rstaff", 0.05, 0.06, 2.0), wd, Vector3(0.06, 0.34, fz)),
-				_part(_box("eq_rstaff_knot", Vector3(0.11, 0.12, 0.11)), wd, Vector3(0.06, 0.78, fz)),
-				_part(_box("eq_rstaff_perch", Vector3(0.22, 0.05, 0.06)), wd, Vector3(0.06, 1.3, fz)),
-				_part(_sphere("eq_raven_body", 0.11), rav, Vector3(0.06, 1.41, fz), Vector3(1.0, 1.05, 1.5)),
-				_part(_sphere("eq_raven_head", 0.07), rav, Vector3(0.06, 1.52, fz + 0.1)),
-				_part(_cone("eq_raven_beak", 0.028, 0.002, 0.11), gold, Vector3(0.06, 1.52, fz + 0.2), Vector3.ONE, Vector3(1.5708, 0, 0)),
-				_part(_box("eq_raven_tail", Vector3(0.07, 0.04, 0.22)), rav, Vector3(0.06, 1.39, fz - 0.16), Vector3.ONE, Vector3(0.4, 0, 0)),
-				_part(_box("eq_raven_wing", Vector3(0.04, 0.14, 0.18)), rav, Vector3(0.14, 1.41, fz))]
+				_part(_cyl("eq_rstaff_g", 0.05, 0.06, 2.7), wd, Vector3(sx, 0.0, fz)),
+				_part(_box("eq_rstaff_knot", Vector3(0.11, 0.12, 0.11)), wd, Vector3(sx, 0.78, fz)),
+				_part(_box("eq_rstaff_perch", Vector3(0.22, 0.05, 0.06)), wd, Vector3(sx, 1.3, fz)),
+				_part(_sphere("eq_raven_body", 0.11), rav, Vector3(sx, 1.41, fz), Vector3(1.0, 1.05, 1.5)),
+				_part(_sphere("eq_raven_head", 0.07), rav, Vector3(sx, 1.52, fz + 0.1)),
+				_part(_cone("eq_raven_beak", 0.028, 0.002, 0.11), gold, Vector3(sx, 1.52, fz + 0.2), Vector3.ONE, Vector3(1.5708, 0, 0)),
+				_part(_box("eq_raven_tail", Vector3(0.07, 0.04, 0.22)), rav, Vector3(sx, 1.39, fz - 0.16), Vector3.ONE, Vector3(0.4, 0, 0)),
+				_part(_box("eq_raven_wing", Vector3(0.04, 0.14, 0.18)), rav, Vector3(sx + 0.08, 1.41, fz))]
 		"wand":
 			return [
 				_part(_cyl("eq_wand", 0.03, 0.04, 0.6), equip_material("wood"), Vector3(0, 0.24, 0.04)),
@@ -1028,6 +1096,19 @@ static func equip_parts(slot: String, kind: String, mat_key: String, tint: Color
 			return [
 				_part(_box("eq_chest_" + mat_key, Vector3(0.5, 0.52, 0.32)), m, Vector3(0, 0, 0)),
 				_part(_box("eq_pauld", Vector3(0.62, 0.14, 0.36)), m, Vector3(0, 0.24, 0))]
+		"jerkin":
+			# Adventurer's leather vest: a jerkin + shoulder yoke, a diagonal bandolier
+			# strap across the chest, a buckled waist belt and a belt pouch.
+			var hide := equip_material("leather")
+			var strap := _mat_from(Color(0.3, 0.2, 0.12), Color(0.18, 0.11, 0.06), Color(0.44, 0.31, 0.18))
+			var buckle := equip_material("gold")
+			return [
+				_part(_box("eq_jerkin", Vector3(0.5, 0.5, 0.33)), hide, Vector3(0, 0.0, 0)),
+				_part(_box("eq_jerkin_yoke", Vector3(0.6, 0.15, 0.38)), hide, Vector3(0, 0.26, 0)),
+				_part(_box("eq_baldric", Vector3(0.09, 0.66, 0.36)), strap, Vector3(0, 0.0, 0.0), Vector3.ONE, Vector3(0, 0, 0.5)),
+				_part(_box("eq_belt", Vector3(0.54, 0.1, 0.36)), strap, Vector3(0, -0.22, 0)),
+				_part(_box("eq_belt_buckle", Vector3(0.1, 0.1, 0.04)), buckle, Vector3(0, -0.22, 0.19)),
+				_part(_box("eq_pouch", Vector3(0.13, 0.14, 0.08)), hide, Vector3(0.18, -0.27, 0.17))]
 		"robe_top":
 			# A full robe that encloses the torso, a shoulder mantle + high collar that
 			# hide the neck gap, a red scarf, and a couple of belt straps for layering.
@@ -1069,19 +1150,19 @@ static func beastman_rig(spec: Dictionary) -> Node3D:
 	var claw := _mat_from(Color(0.16, 0.14, 0.13), Color(0.08, 0.07, 0.06), Color(0.26, 0.23, 0.2))
 	var eyec := _mat_from(Color(0.95, 0.55, 0.12), Color(0.7, 0.32, 0.05), Color(1.0, 0.78, 0.3))
 	var root := Node3D.new()
-	# Powerful digitigrade-ish legs (pivot at the hip).
+	# Powerful digitigrade legs with a knee joint (so they bend into a sneaky crouch).
 	for side: int in [-1, 1]:
-		var leg := _limb(root, "leg_l" if side < 0 else "leg_r", Vector3(0.16 * side, 0.84, 0))
-		_attach(leg, _box("gn_thigh", Vector3(0.22, 0.42, 0.24)), furm, Vector3(0, -0.19, 0))
-		_attach(leg, _box("gn_shin", Vector3(0.16, 0.34, 0.18)), furm, Vector3(0, -0.5, 0.02))
-		_attach(leg, _box("gn_paw", Vector3(0.2, 0.12, 0.3)), claw, Vector3(0, -0.66, 0.08))
+		var knee := _biped_leg(root, side, Vector3(0.16 * side, 0.86, 0), Vector3(0.22, 0.4, 0.24), Vector3(0.16, 0.36, 0.18), furm, "gnleg")
+		_attach(knee, _box("gn_paw", Vector3(0.2, 0.12, 0.3)), claw, Vector3(0, -0.4, 0.08))
 	_attach(root, _box("gn_loin", Vector3(0.48, 0.28, 0.32)), cloth, Vector3(0, 0.84, 0))
 	# Hunched, broad bare torso leaning forward; lighter belly fur.
 	_attach(root, _box("gn_chest", Vector3(0.52, 0.46, 0.34)), furm, Vector3(0, 1.2, 0.06), Vector3.ONE, Vector3(-0.18, 0, 0))
 	_attach(root, _box("gn_belly", Vector3(0.4, 0.3, 0.28)), light, Vector3(0, 1.0, 0.1))
 	_attach(root, _box("gn_shoulders", Vector3(0.64, 0.2, 0.36)), furm, Vector3(0, 1.42, 0.02))
 	# A dark mane running up the back of the neck.
-	_attach(root, _box("gn_mane", Vector3(0.16, 0.34, 0.2)), furd, Vector3(0, 1.5, -0.12), Vector3.ONE, Vector3(0.3, 0, 0))
+	# Mane on a pivot so the hair-sway swings it down the back of the neck.
+	var mane := _limb(root, "mane", Vector3(0, 1.56, -0.06))
+	_attach(mane, _box("gn_mane", Vector3(0.16, 0.34, 0.2)), furd, Vector3(0, -0.06, -0.06), Vector3.ONE, Vector3(0.3, 0, 0))
 	# Forward-thrust neck + a hyena head with a long snout and a dark nose.
 	_attach(root, _box("gn_neck", Vector3(0.22, 0.22, 0.26)), furm, Vector3(0, 1.5, 0.12))
 	_attach(root, _box("gn_skull", Vector3(0.3, 0.3, 0.32)), furm, Vector3(0, 1.62, 0.18))
@@ -1092,13 +1173,11 @@ static func beastman_rig(spec: Dictionary) -> Node3D:
 	for sx: int in [-1, 1]:
 		_attach(root, _cone("gn_ear", 0.08, 0.01, 0.2), furm, Vector3(0.12 * sx, 1.82, 0.12), Vector3.ONE, Vector3(-0.2, 0, 0.3 * sx))
 		_attach(root, _box("gn_eye", Vector3(0.05, 0.05, 0.05)), eyec, Vector3(0.08 * sx, 1.64, 0.34))
-	# Long, heavy arms: fur upper, darker forearm, clawed hand. Pivot at the shoulder.
+	# Long, heavy arms with an elbow joint: fur upper, darker forearm, clawed hand.
 	for side2: int in [-1, 1]:
-		var arm := _limb(root, "arm_l" if side2 < 0 else "arm_r", Vector3(0.34 * side2, 1.42, 0.02))
-		_attach(arm, _box("gn_upper", Vector3(0.17, 0.36, 0.19)), furm, Vector3(0, -0.18, 0))
-		_attach(arm, _box("gn_fore", Vector3(0.15, 0.3, 0.16)), furd, Vector3(0, -0.44, 0.02))
-		_attach(arm, _box("gn_hand", Vector3(0.17, 0.15, 0.2)), claw, Vector3(0, -0.62, 0.03))
-		_socket(arm, "socket_mainhand" if side2 > 0 else "socket_offhand", Vector3(0.04 * side2, -0.66, 0.14), Vector3(-0.1, 0, -0.08 * side2))
+		var el := _biped_arm(root, side2, Vector3(0.34 * side2, 1.42, 0.02), Vector3(0.17, 0.32, 0.19), Vector3(0.15, 0.3, 0.16), furm, furd, "gnarm")
+		_attach(el, _box("gn_hand", Vector3(0.17, 0.15, 0.2)), claw, Vector3(0, -0.34, 0.02))
+		_socket(el, "socket_mainhand" if side2 > 0 else "socket_offhand", Vector3(0.04 * side2, -0.42, 0.12), Vector3(-0.1, 0, -0.08 * side2))
 	_socket(root, "socket_head", Vector3(0, 1.62, 0.18))
 	_socket(root, "socket_body", Vector3(0, 1.2, 0.06))
 	_socket(root, "socket_legs", Vector3(0, 0.86, 0))
@@ -1243,9 +1322,33 @@ static func enemy_rig(e: Node) -> Node3D:
 		_add_rider(node)
 	node.set_meta("body3d", type)
 	node.set_meta("base_scale", size * (1.22 if boss else 1.0))
+	# Characteristic posture: goblins stoop forward with arms hanging low; gnolls
+	# (beastman) are hunched brutes; skeletons lurch a little; others stand looser.
+	if type == "humanoid":
+		if n.contains("goblin") or n.contains("hob"):
+			node.set_meta("lean", 0.28)
+			node.set_meta("arm_rest", 0.34)
+			node.set_meta("crouch", 0.32)
+		elif n.contains("skelet") or n.contains("bone"):
+			node.set_meta("lean", 0.12)
+			node.set_meta("arm_rest", 0.12)
+			node.set_meta("crouch", 0.18)
+		else:
+			node.set_meta("lean", 0.08)
+			node.set_meta("arm_rest", 0.12)
+			node.set_meta("crouch", 0.14)
+		if n.contains("gnoll"):   # beastman uses the humanoid pose: a low sneaky crouch
+			node.set_meta("lean", 0.18)
+			node.set_meta("arm_rest", 0.28)
+			node.set_meta("crouch", 0.55)
 	# Visible gear from the enemy's combat archetype (skipped on rigs without the
 	# matching sockets — beasts/birds just show nothing).
-	apply_equipment(node, EquipLoadout.for_enemy(name, int(Dictionary(e.get("action")).get("level", 1))))
+	var loadout := EquipLoadout.for_enemy(name, int(Dictionary(e.get("action")).get("level", 1)))
+	apply_equipment(node, loadout)
+	# A staff-wielder grips its planted staff (mainhand reaches forward-down).
+	var mainhand: Dictionary = loadout.get("mainhand", {})
+	if str(mainhand.get("kind", "")) in ["staff", "raven_staff", "wand"]:
+		node.set_meta("pose", "staff")
 	return node
 
 
@@ -1399,6 +1502,28 @@ static func _limb(parent: Node3D, pivot_name: String, pos: Vector3) -> Node3D:
 	n.position = pos
 	parent.add_child(n)
 	return n
+
+
+## A two-segment leg: a thigh on a hip pivot (leg_l/leg_r) + a shin on a knee pivot
+## (knee_l/knee_r) so the renderer can flex the knee for a natural bent-leg walk and
+## a crouched stance. Returns the knee node so the caller attaches its own foot/boot.
+static func _biped_leg(root: Node3D, side: int, hip: Vector3, thigh: Vector3, shin: Vector3, mat: Material, key: String) -> Node3D:
+	var hipn := _limb(root, "leg_l" if side < 0 else "leg_r", hip)
+	_attach(hipn, _box(key + "_th", thigh), mat, Vector3(0, -thigh.y * 0.5, 0))
+	var knee := _limb(hipn, "knee_l" if side < 0 else "knee_r", Vector3(0, -thigh.y, 0))
+	_attach(knee, _box(key + "_sh", shin), mat, Vector3(0, -shin.y * 0.5, 0.01))
+	return knee
+
+
+## A two-segment arm: an upper arm on a shoulder pivot (arm_l/arm_r) + a forearm on
+## an elbow pivot (elbow_l/elbow_r) so the renderer can bend the elbow. Returns the
+## elbow node so the caller attaches the hand and (for the main hand) a weapon socket.
+static func _biped_arm(root: Node3D, side: int, shoulder: Vector3, upper: Vector3, fore: Vector3, upper_mat: Material, fore_mat: Material, key: String) -> Node3D:
+	var sh := _limb(root, "arm_l" if side < 0 else "arm_r", shoulder)
+	_attach(sh, _box(key + "_up", upper), upper_mat, Vector3(0, -upper.y * 0.5, 0))
+	var el := _limb(sh, "elbow_l" if side < 0 else "elbow_r", Vector3(0, -upper.y, 0))
+	_attach(el, _box(key + "_fo", fore), fore_mat, Vector3(0, -fore.y * 0.5, 0))
+	return el
 
 
 # ------------------------------------------------------------------ helpers ----

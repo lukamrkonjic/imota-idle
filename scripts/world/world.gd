@@ -230,7 +230,10 @@ func _update_stream_radius() -> void:
 	# only need a modest buffer around the player. Expanding both was flooding the
 	# moving camera with hundreds of extra CanvasItems.
 	var active_r: int = WG.NAV_RADIUS if zoom < 0.7 else mini(r + 1, WG.ACTIVE_RADIUS + 1)
-	chunk_manager.set_radii(r + 2, active_r)
+	# Stream terrain a little further when the view-distance setting is turned up, so
+	# the now-visible far chunks actually exist to be drawn (and fogged).
+	var view_bump: int = floori(clampf(GameSettings.view_distance, 0.0, 1.0) * 2.5)
+	chunk_manager.set_radii(r + 2 + view_bump, active_r)
 	# Freeze entity animations when zoomed far out — the per-frame live redraw of
 	# hundreds of visible enemies/fish is the dominant cost there and invisible.
 	WorldEntity.animations_enabled = zoom >= 0.7

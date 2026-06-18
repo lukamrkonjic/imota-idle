@@ -48,9 +48,21 @@ static func _is_cloth(item_name: String) -> bool:
 	return n.contains("robe") or n.contains("cloth") or n.contains("hood") or n.contains("mage") or n.contains("wizard")
 
 
-## Loadout for the player from worn items. Maps the OSRS-style slots to render slots.
+## The player's default outfit when a slot has nothing equipped — the adventurer's
+## own clothes (leather jerkin + a travel cape) layered over the bare body. Worn
+## armor overrides these per slot, so the outfit "lives separately" from the body
+## and from equipped gear. Expand this for alternate player looks later.
+static func player_default() -> Dictionary:
+	return {
+		"body": {"kind": "jerkin", "material": "leather"},
+		"back": {"kind": "cape", "material": "cloth", "tint": Color(0.78, 0.72, 0.56)},
+	}
+
+
+## Loadout for the player: start from the default outfit, then let worn items
+## override per slot. Maps the OSRS-style slots to render slots.
 static func for_player(equipment: Dictionary) -> Dictionary:
-	var ld: Dictionary = {}
+	var ld: Dictionary = player_default()
 	for slot: String in equipment:
 		var disp := DataRegistry.item_display_name(str(equipment[slot]))
 		var mat := material_for(disp)

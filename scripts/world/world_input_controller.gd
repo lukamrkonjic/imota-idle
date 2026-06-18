@@ -77,6 +77,10 @@ func update_hover() -> void:
 # at this ratio. Lets us reuse the per-entity icon_height()/click_radius tuning
 # for the screen-space pick below.
 const ISO_PX_TO_WORLD := 0.25 / 8.0
+# Hover/click pre-filter radius (iso px, squared). Generous enough to cover the
+# foreshortening of the tallest entities (a tree canopy's ground-hit sits well
+# behind its base) while still rejecting the vast majority of off-cursor entities.
+const PREFILTER_ISO_SQ := 280.0 * 280.0
 
 
 func entity_at(world_pos: Vector2) -> Node2D:
@@ -85,7 +89,7 @@ func entity_at(world_pos: Vector2) -> Node2D:
 	# up in iso space, but the 3D projection foreshortens — that mismatch is the
 	# "tooltip sits too high / click lands off" feel). Pick in screen space instead.
 	if world.render_3d != null and world.render_3d.is_active():
-		return _entity_at_screen()
+		return _entity_at_screen(world_pos)  # world_pos is already the cursor's iso ground point
 	var best: Node2D = null
 	var best_d := INF
 	for e: Node2D in world.entities:
@@ -105,14 +109,22 @@ func entity_at(world_pos: Vector2) -> Node2D:
 ## Screen-space pick: compare the live cursor to each interactable entity's
 ## projected body centre (a little above its feet), within a screen radius derived
 ## from its iso click_radius. Correct under any camera pitch/yaw/zoom.
-func _entity_at_screen() -> Node2D:
+func _entity_at_screen(cursor_iso: Vector2) -> Node2D:
 	var r3: Node = world.render_3d
 	var mouse: Vector2 = world.get_viewport().get_mouse_position()
 	var ppu: float = r3.world_px_per_unit()
+	# Cheap iso-space pre-filter: only the handful of entities near the cursor's
+	# ground point get the expensive per-entity screen projection (camera unproject
+	# + terrain height sampling). Without this, projecting all ~400 entities every
+	# frame costs ~10ms. iso distance is monotonic with screen distance, so a
+	# generous radius can't miss a real hover target. cursor_iso is passed in (it's
+	# the screen->ground projection the caller already did) to avoid a 2nd raycast.
 	var best: Node2D = null
 	var best_d := INF
 	for e: Node2D in world.entities:
 		if Dictionary(e.get("action")).is_empty():
+			continue
+		if e.position.distance_squared_to(cursor_iso) > PREFILTER_ISO_SQ:
 			continue
 		var lift: float = clampf(e.icon_height() * ISO_PX_TO_WORLD * 0.5, 0.35, 1.6)
 		var center: Vector2 = r3.iso_to_screen(e.position, lift)

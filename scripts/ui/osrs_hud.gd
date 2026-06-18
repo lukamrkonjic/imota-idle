@@ -701,6 +701,13 @@ func _build_settings_popup() -> void:
 		func(v: float) -> String: return "Native" if v < 0.01 else "%d%%" % int(roundf(v * 100.0)),
 		func(v: float) -> void: GameSettings.set_pixelation(v))
 
+	# View distance: how far the world renders before fading into the haze. Higher
+	# costs more; the label shows the approximate visible radius in tiles.
+	_add_settings_slider_row(
+		box, "View distance", 0.0, 1.0, 0.05, GameSettings.view_distance,
+		func(v: float) -> String: return "%d tiles" % int(roundf(lerpf(34.0, 64.0, v))),
+		func(v: float) -> void: GameSettings.set_view_distance(v))
+
 	_settings_fullscreen = _add_settings_checkbox(box, "Fullscreen", GameSettings.fullscreen,
 		func(on: bool) -> void: GameSettings.set_fullscreen(on))
 	_settings_vsync = _add_settings_checkbox(box, "VSync", GameSettings.vsync,
