@@ -43,29 +43,53 @@ func process_tick(delta: float) -> void:
 		_check_aggro()
 
 
-## OSRS chase + leash. While you're fighting (or have fled mid-fight), the mob
-## runs you down. It remembers its spawn tile; if you get further than the leash
-## radius FROM THAT SPAWN, it gives up, and walks back home. Killing it sends the
-## corpse home too so it respawns where it started.
+## Enemy combat AI — an explicit state machine so a mob stays COMMITTED to the fight:
+##
+##   Idle       — no combat target (handled by _check_aggro / wandering elsewhere).
+##   Chasing    — target out of attack range: path toward it; the attack cooldown
+##                keeps counting so it strikes the instant it's back in range.
+##   Attacking  — target in range: hold position; the tick combat does the swinging.
+##   Returning  — target gone, or the leash from the mob's SPAWN is exceeded: abandon
+##                the target and walk back home (movement in _update_returning).
+##
+## The crucial rule: leaving the mob's attack range makes it CHASE, never stop and
+## clear its target. Combat only ends on an invalid target or a leash break. The
+## state is stored on the entity ("ai_state") for clarity/debugging.
 func _update_chase(delta: float) -> void:
 	var tgt: Node2D = world.combat_target_entity
 	if CombatSim.active and is_instance_valid(tgt):
 		_last_chased = tgt
-		world.player.face_toward(tgt.position.x)  # always turn to face the enemy
 		_returning.erase(tgt)  # re-engaged before it got home
 		if not tgt.has_meta("home_pos"):
 			tgt.set_meta("home_pos", tgt.position)
-		var home: Vector2 = tgt.get_meta("home_pos")
+		var spawn: Vector2 = tgt.get_meta("home_pos")
+		# Dead: drift back to spawn while the respawn timer runs.
 		if tgt.dimmed:
-			_step_toward(tgt, home, RETURN_SPEED * delta)  # dead: drift home before respawn
+			tgt.set_meta("ai_state", "returning")
+			_step_toward(tgt, spawn, RETURN_SPEED * delta)
 			return
-		if world.player.position.distance_to(home) > _leash_radius():
+		# Leash measured from the mob's SPAWN (not its moving position): if the mob —
+		# or the player it's chasing — is dragged farther than the leash from spawn,
+		# it gives up and returns home.
+		if tgt.position.distance_to(spawn) > _leash_radius() or world.player.position.distance_to(spawn) > _leash_radius():
 			var nm := str(CombatSim.enemy.get("displayName", CombatSim.enemy.get("name", "enemy")))
+			tgt.set_meta("ai_state", "returning")
 			CombatSim.stop("fled")  # clears target; the else-branch walks it home next tick
 			_aggro_grace = AGGRO_GRACE  # don't instantly re-aggro the mob you just escaped
 			EventBus.combat_log.emit("[color=#7a7a30]The %s loses interest and returns home.[/color]" % nm)
 			return
-		_step_toward(tgt, world.player.position, CHASE_SPEED * delta, _attack_gap(tgt))
+		world.player.face_toward(tgt.position.x)
+		# In range -> Attacking (hold); out of range -> Chasing (close the gap). The
+		# enemy's attack cooldown counts either way (CombatSim), gated to only LAND a
+		# hit while in range, so it strikes the moment it catches back up.
+		var gap := _attack_gap(tgt)
+		var in_range := tgt.position.distance_to(world.player.position) <= gap + WG.TILE * 0.5
+		CombatSim.enemy_in_range = in_range
+		if in_range:
+			tgt.set_meta("ai_state", "attacking")
+		else:
+			tgt.set_meta("ai_state", "chasing")
+			_step_toward(tgt, world.player.position, CHASE_SPEED * delta, gap)
 	elif is_instance_valid(_last_chased):
 		_begin_return(_last_chased)  # combat just ended (kill / flee / switch) — send it home
 		_last_chased = null
@@ -78,7 +102,10 @@ func _begin_return(entity: Node2D) -> void:
 		return
 	var home: Vector2 = entity.get_meta("home_pos")
 	if entity.position.distance_to(home) > 2.0:
+		entity.set_meta("ai_state", "returning")
 		_returning[entity] = home
+	else:
+		entity.set_meta("ai_state", "idle")  # already home
 
 
 func _update_returning(delta: float) -> void:
@@ -93,6 +120,7 @@ func _update_returning(delta: float) -> void:
 		_step_toward(entity, home, RETURN_SPEED * delta)
 		if entity.position.distance_to(home) <= 2.0:
 			entity.position = home
+			entity.set_meta("ai_state", "idle")  # reached spawn — free to acquire targets again
 			entity.queue_redraw()
 			done.append(entity)
 	for e: Node2D in done:
@@ -301,6 +329,8 @@ func _check_aggro() -> void:
 		var a: Dictionary = e.action
 		if str(a.get("type", "")) != "enemy" or not bool(a.get("aggressive", false)) or e.dimmed:
 			continue
+		if _returning.has(e):
+			continue  # a mob heading back to spawn ignores the player until it's home
 		var lvl := int(a.get("level", 1))
 		if entry >= int(float(lvl) * float(WorldGen.reg.monster_cfg.get("aggroLevelFactor", 2.0))):
 			continue

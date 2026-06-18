@@ -28,6 +28,9 @@ var enemy_timer := 0.0
 # off = the mob attacks but you stand your ground until you click it back. The enemy
 # ALWAYS attacks regardless — auto-retaliate is a player-only toggle.
 var player_retaliating := true
+# Set by the enemy AI each tick: the mob only lands hits while in attack range. The
+# cooldown keeps counting while it chases, so it strikes the moment it's back in range.
+var enemy_in_range := true
 var respawn_timer := 0.0
 var respawning := false
 var first_attack_done := false
@@ -70,6 +73,7 @@ func start_combat(enemy_name: String, p_train_skill: String = "attack", player_i
 	# You always fight when you start it; if a mob aggro'd you, auto-retaliate decides
 	# whether you swing back automatically (the mob attacks either way).
 	player_retaliating = player_initiated or GameSettings.auto_retaliate
+	enemy_in_range = true   # the AI updates this each tick; assume adjacent at engage
 	respawning = false
 	first_attack_done = false
 	miss_streak = 0.0
@@ -114,9 +118,15 @@ func advance(delta: float) -> void:
 				return
 	var cooldown := GameState.snap_to_tick(float(enemy["cooldown"]))
 	if enemy_timer >= cooldown:
-		enemy_timer -= cooldown
-		_enemy_attack()
-		_auto_eat()
+		# The mob only LANDS a hit while it's in attack range. While it's chasing the
+		# player back into range (enemy_in_range = false) the cooldown stays full so it
+		# strikes the instant it catches up — it doesn't bank up a burst of free hits.
+		if enemy_in_range:
+			enemy_timer -= cooldown
+			_enemy_attack()
+			_auto_eat()
+		else:
+			enemy_timer = cooldown
 	# No action-progress bar in combat — the head bar is for skilling only.
 
 
