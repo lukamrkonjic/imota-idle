@@ -1121,7 +1121,7 @@ func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: flo
 	var holds_staff: bool = str(node.get_meta("pose", "")) == "staff"
 	var breathe := rest * sin(t * 1.9 + phase) * 0.03
 	var sway := rest * sin(t * 1.15 + phase) * 0.05
-	var stride := t * 4.6 + phase
+	var stride := t * 6.0 + phase
 	# The life of the walk is in the BODY, not just the limbs: it rocks side-to-side
 	# toward the planted foot (the `roll`, once per stride), bobs up and settles on
 	# each footfall (twice per stride — the little "shake" on every step), and leans
@@ -1181,7 +1181,7 @@ func _pose_goblin(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float
 	var rest := 1.0 - walk
 	var holds_staff: bool = str(node.get_meta("pose", "")) == "staff"
 	var crouch := 0.24                                               # bent knees, but STANDING
-	var stride := t * 7.0 + phase                                    # fast little legs
+	var stride := t * 8.4 + phase                                    # fast little legs
 	var bob := absf(sin(stride)) * 0.08 * walk
 	var skip := absf(sin(stride * 0.5 + 0.4)) * 0.045 * walk
 	# Idle life: shifty side-weight, glancing around, sudden nervous twitches.
@@ -1228,7 +1228,7 @@ func _pose_goblin(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float
 ## a sudden cackling snout-up jerk. The walk is a powerful, lurching, long-stride lope.
 func _pose_gnoll(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float) -> void:
 	var rest := 1.0 - walk
-	var stride := t * 4.0 + phase                                    # slow, heavy strides
+	var stride := t * 5.2 + phase                                    # slow, heavy strides
 	var bob := absf(sin(stride)) * 0.06 * walk
 	# Idle: slow heavy sway, breathing shoulders, an occasional cackle head-jerk.
 	var sway := rest * sin(t * 1.3 + phase) * 0.1
@@ -1280,7 +1280,7 @@ func _pose_quadruped(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: fl
 	var sway := rest * sin(t * 0.85 + phase) * 0.035
 	var graze := rest * maxf(0.0, sin(t * 0.45 + phase) - 0.4) * 0.32
 	node.rotation = Vector3(-0.28 * sin(atk * PI) + graze, yaw, sway)
-	var stride := t * 6.0 + phase
+	var stride := t * 7.6 + phase
 	# A clear up/down body bob while moving + a gentle idle breathing sway at rest;
 	# a small ground lift so the hooves sit on the floor, not through it.
 	var bob := absf(sin(stride)) * 0.06 * walk + rest * (0.5 + 0.5 * sin(t * 2.0 + phase)) * 0.02
@@ -1310,7 +1310,7 @@ func _pose_quadruped(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: fl
 ## smaller and twitchier than the beasts. A swing is a sharp forward peck.
 func _pose_bird(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float) -> void:
 	var rest := 1.0 - walk
-	var stride := t * 7.5 + phase
+	var stride := t * 9.0 + phase
 	# Idle life: a constant little body bob plus a sharp periodic peck-and-look,
 	# and a slight head-cock sway — birds are never still.
 	var idle_bob := rest * absf(sin(t * 2.2 + phase)) * 0.02
