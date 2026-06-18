@@ -292,3 +292,9 @@ case for your kind in `_spawn_poi_part`.
 - Hand-roll a shadow oval or stack translucent blobs.
 - Light from the wrong side (sun is upper-right: top brightest, SE lit, SW dark).
 - Add a `kind` to `WorldEntity` without also giving it an `icon_height()` case.
+
+## 3D models & equipment
+
+For the 3D character rigs, animation pivots, the armor/weapon socket system, cloth
+flow, and a checklist for adding new models, see
+[render_spike/MODELS_AND_EQUIPMENT.md](render_spike/MODELS_AND_EQUIPMENT.md).

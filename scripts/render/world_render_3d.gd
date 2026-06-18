@@ -13,6 +13,7 @@ const TOON_WATER := preload("res://shaders/toon_water.gdshader")
 const PALETTE_SNAP := preload("res://shaders/palette_snap.gdshader")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 const PropMeshes := preload("res://scripts/render/prop_meshes.gd")
+const EquipLoadout := preload("res://scripts/render/equip_loadout.gd")
 
 const INTERNAL := Vector2i(640, 360)   # internal render res (higher = finer/less chunky pixels)
 const TILE_S := 1.0                 # 3D units per tile
@@ -212,6 +213,11 @@ func _on_settings_changed(prop: StringName) -> void:
 
 
 func _scale_from_setting(v: float) -> float:
+	# Verification override: launch with `-- --crisp` to render the world at near
+	# native resolution (no chunky pixelation) so model/equipment detail is legible
+	# in screenshots. Real gameplay keeps the player's Settings pixelation.
+	if "--crisp" in OS.get_cmdline_args() or "--crisp" in OS.get_cmdline_user_args():
+		return 1.25
 	return 1.0 + clampf(v, 0.0, 1.0) * 7.0
 
 
@@ -689,6 +695,8 @@ func _sync_movers() -> void:
 	if _player_node == null:
 		_player_node = PropMeshes.figure_rig(PixelPalette.pal("outfit_a"), PixelPalette.pal("skin_a"))
 		_prep_mover(_player_node, "player")
+		_apply_player_equipment()
+		EventBus.equipment_changed.connect(_apply_player_equipment)
 	_animate_mover(_player_node, "player", world.player.position, t, dt)
 	var live := {}
 	for e: Node in world.entities:
@@ -720,6 +728,15 @@ func _prep_mover(node: Node3D, key: String) -> void:
 	var shadow := PropMeshes.blob_shadow()
 	props_root.add_child(shadow)
 	_shadow_nodes[key] = shadow
+
+
+## (Re)build the player's visible gear from GameState.equipment — on spawn and
+## whenever equipment changes.
+func _apply_player_equipment(_a := "", _b := "") -> void:
+	if _player_node == null:
+		return
+	PropMeshes.apply_equipment(_player_node, EquipLoadout.for_player(GameState.equipment))
+	_disable_cast_shadows(_player_node)
 
 
 func _disable_cast_shadows(node: Node) -> void:
@@ -783,6 +800,26 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 		shadow.rotation.y = yaw
 		var fp := _shadow_footprint(btype)
 		shadow.scale = Vector3(fp.x * base, 1.0, fp.y * base)
+	_flow_cloth(node, walk, t, phase)
+
+
+## Cheap cloth "sim" for worn robes/capes: pure procedural secondary motion — no
+## physics, no per-vertex work. The skirt (socket_legs) and cape (socket_back)
+## pivot at the waist/shoulders, trailing back as you move and rippling on a soft
+## wind oscillation, so robes flow instead of standing rigid.
+func _flow_cloth(node: Node3D, walk: float, t: float, phase: float) -> void:
+	for sock_name: String in ["socket_legs", "socket_back"]:
+		var sock: Node = node.get_node_or_null(NodePath(sock_name))
+		if sock == null:
+			continue
+		var eq: Node3D = sock.get_node_or_null(^"equip")
+		if eq == null or not bool(eq.get_meta("cloth", false)):
+			continue
+		var amp := 0.45 + walk * 1.7
+		eq.rotation = Vector3(
+			-walk * 0.24 + sin(t * 4.2 + phase) * 0.07 * amp,
+			sin(t * 3.1 + phase) * 0.04 * amp,
+			sin(t * 2.6 + phase * 1.7) * 0.06 * amp)
 
 
 ## Footprint (x = width, y = length-along-Z) of the blob shadow per body type.

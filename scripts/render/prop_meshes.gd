@@ -10,6 +10,7 @@ extends RefCounted
 const TOON := preload("res://shaders/toon_world.gdshader")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 const TreeArt := preload("res://scripts/world/art/trees/tree_art.gd")
+const EquipLoadout := preload("res://scripts/render/equip_loadout.gd")
 
 static var _mesh_cache: Dictionary = {}
 static var _mat_cache: Dictionary = {}
@@ -792,6 +793,7 @@ static func build_node(parts: Array) -> Node3D:
 		mi.material_override = p["mat"]
 		mi.position = p["off"]
 		mi.scale = p["scl"]
+		mi.rotation = p.get("rot", Vector3.ZERO)
 		root.add_child(mi)
 	return root
 
@@ -836,12 +838,223 @@ static func figure_rig(body: Color, head: Color, cape := Color(0, 0, 0, 0)) -> N
 		var capem := _mat_from(Color(cape.r, cape.g, cape.b), cape.darkened(0.34), cape.lightened(0.22))
 		_attach(root, _box("hum_cape", Vector3(0.34, 0.6, 0.07)), capem, Vector3(0, 1.1, -0.17), Vector3.ONE, Vector3(0.2, 0, 0))
 	# Arms: shirt upper sleeve, bare-skin rolled-up forearm, hand. Pivot at shoulder.
+	# Hand sockets hang off the arm pivots so a held weapon swings with the arm.
 	for side2: int in [-1, 1]:
 		var arm := _limb(root, "arm_l" if side2 < 0 else "arm_r", Vector3(0.3 * side2, 1.42, 0))
 		_attach(arm, _box("hum_sleeve", Vector3(0.14, 0.3, 0.16)), shirt, Vector3(0, -0.15, 0))
 		_attach(arm, _box("hum_forearm", Vector3(0.12, 0.26, 0.14)), skin, Vector3(0, -0.38, 0))
 		_attach(arm, _box("hum_hand", Vector3(0.13, 0.13, 0.15)), skin, Vector3(0, -0.55, 0))
+		_socket(arm, "socket_mainhand" if side2 > 0 else "socket_offhand", Vector3(0.04 * side2, -0.62, 0.16), Vector3(-0.1, 0, -0.08 * side2))
+	# Worn-gear sockets (see equip_profile): the renderer attaches armor/weapons here.
+	_socket(root, "socket_head", Vector3(0, 1.74, 0))
+	_socket(root, "socket_body", Vector3(0, 1.24, 0))
+	_socket(root, "socket_legs", Vector3(0, 0.95, 0))
+	_socket(root, "socket_back", Vector3(0, 1.34, -0.16))
 	return root
+
+
+## A static attachment point (worn gear / held weapons) — a named empty the
+## renderer parents equipment meshes under. See apply_equipment / equip_profile.
+static func _socket(parent: Node3D, sname: String, pos: Vector3, rot := Vector3.ZERO) -> Node3D:
+	var s := Node3D.new()
+	s.name = sname
+	s.position = pos
+	s.rotation = rot
+	parent.add_child(s)
+	return s
+
+
+# -------------------------------------------------------------- equipment ----
+# Visible worn armor + held weapons. A rig exposes named sockets (socket_mainhand,
+# socket_offhand, socket_head, socket_body, socket_legs, socket_back); apply_equipment
+# attaches gear meshes to the ones a loadout fills. A rig that lacks a socket simply
+# can't show that slot — that's the capability gate (a chicken has no sockets, so it
+# wears nothing). See docs/render_spike/MODELS_AND_EQUIPMENT.md.
+
+const EQUIP_SLOTS := ["socket_mainhand", "socket_offhand", "socket_head", "socket_body", "socket_legs", "socket_back"]
+
+
+## Which worn slots a rig actually supports (the sockets it was built with).
+static func equip_profile(rig: Node3D) -> Array:
+	var out: Array = []
+	for s: String in EQUIP_SLOTS:
+		if rig.get_node_or_null(NodePath(s)) != null:
+			out.append(s.trim_prefix("socket_"))
+	return out
+
+
+## Attach a loadout to a rig. loadout = {slot: {kind, material, tint?}} with slot in
+## mainhand/offhand/head/body/legs/back. Clears any previously-applied gear first so
+## re-applying (e.g. the player changing equipment) is clean. Slots the rig can't
+## support are skipped.
+static func apply_equipment(rig: Node3D, loadout: Dictionary) -> void:
+	for s: String in EQUIP_SLOTS:
+		var sock: Node = rig.get_node_or_null(NodePath(s))
+		if sock == null:
+			continue
+		var old: Node = sock.get_node_or_null(^"equip")
+		if old != null:
+			old.free()
+	# A long robe replaces the visible legs — hide them so they don't poke through
+	# the skirt (the wearer glides). Reset first so unequipping shows them again.
+	var hide_legs := loadout.has("legs") and str(Dictionary(loadout.get("legs", {})).get("kind", "")) == "robe_bottom"
+	for legn: String in ["leg_l", "leg_r"]:
+		var lp: Node = rig.get_node_or_null(NodePath(legn))
+		if lp != null:
+			(lp as Node3D).visible = not hide_legs
+	for slot: String in loadout:
+		var sock2: Node3D = rig.get_node_or_null(NodePath("socket_" + slot))
+		if sock2 == null:
+			continue
+		var spec: Dictionary = loadout[slot]
+		var parts := equip_parts(slot, str(spec.get("kind", "")), str(spec.get("material", "iron")), spec.get("tint", Color(0, 0, 0, 0)))
+		if parts.is_empty():
+			continue
+		var holder := build_node(parts)
+		holder.name = "equip"
+		# Flag flowing cloth pieces so the renderer can sway them (cheap procedural
+		# secondary motion — no physics). Skirts and capes are the big flowy ones.
+		holder.set_meta("cloth", str(spec.get("kind", "")) in ["robe_bottom", "robe_top", "cape", "hood"])
+		for mi: Node in holder.get_children():
+			if mi is MeshInstance3D:
+				(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		sock2.add_child(holder)
+
+
+## Palette for an equipment material tier; `tint` overrides cloth/gem colour.
+static func equip_material(mat_key: String, tint := Color(0, 0, 0, 0)) -> ShaderMaterial:
+	var base: Color
+	match mat_key:
+		"cloth": base = tint if tint.a > 0.0 else Color(0.52, 0.52, 0.58)
+		"leather": base = Color(0.44, 0.3, 0.18)
+		"bronze": base = Color(0.72, 0.5, 0.28)
+		"iron": base = Color(0.54, 0.55, 0.6)
+		"steel": base = Color(0.72, 0.74, 0.8)
+		"mithril": base = Color(0.34, 0.46, 0.74)
+		"adamant": base = Color(0.3, 0.55, 0.46)
+		"rune": base = Color(0.34, 0.64, 0.72)
+		"gold": base = Color(0.86, 0.7, 0.26)
+		"wood": base = Color(0.46, 0.32, 0.18)
+		"gem": base = tint if tint.a > 0.0 else Color(0.45, 0.74, 0.95)
+		_: base = Color(0.52, 0.52, 0.58)
+	return _mat_from(base, base.darkened(0.4), base.lightened(0.3))
+
+
+## Build the meshes for one equipped piece. Weapons are built extending +Y from the
+## grip so they swing naturally from the hand socket; armor wraps its socket centre.
+static func equip_parts(slot: String, kind: String, mat_key: String, tint: Color) -> Array:
+	var m := equip_material(mat_key, tint)
+	var gold := equip_material("gold")
+	var dark := equip_material("leather")
+	match kind:
+		"staff":
+			var wood := equip_material("wood")
+			return [
+				_part(_cyl("eq_staff", 0.035, 0.05, 1.5), wood, Vector3(0, 0.52, 0.04)),
+				_part(_box("eq_staff_bind", Vector3(0.09, 0.07, 0.09)), gold, Vector3(0, 1.18, 0.04)),
+				_part(_sphere("eq_staff_gem", 0.11), equip_material("gem", tint), Vector3(0, 1.32, 0.04))]
+		"raven_staff":
+			# Tall gnarled staff with a raven perched on top, planted forward (+Z) of
+			# the body so it stays visible whichever way the wearer turns to face.
+			var wd := equip_material("wood")
+			var rav := _mat_from(Color(0.12, 0.12, 0.15), Color(0.06, 0.06, 0.08), Color(0.24, 0.24, 0.3))
+			var fz := 0.44
+			return [
+				_part(_cyl("eq_rstaff", 0.05, 0.06, 2.0), wd, Vector3(0.06, 0.34, fz)),
+				_part(_box("eq_rstaff_knot", Vector3(0.11, 0.12, 0.11)), wd, Vector3(0.06, 0.78, fz)),
+				_part(_box("eq_rstaff_perch", Vector3(0.22, 0.05, 0.06)), wd, Vector3(0.06, 1.3, fz)),
+				_part(_sphere("eq_raven_body", 0.11), rav, Vector3(0.06, 1.41, fz), Vector3(1.0, 1.05, 1.5)),
+				_part(_sphere("eq_raven_head", 0.07), rav, Vector3(0.06, 1.52, fz + 0.1)),
+				_part(_cone("eq_raven_beak", 0.028, 0.002, 0.11), gold, Vector3(0.06, 1.52, fz + 0.2), Vector3.ONE, Vector3(1.5708, 0, 0)),
+				_part(_box("eq_raven_tail", Vector3(0.07, 0.04, 0.22)), rav, Vector3(0.06, 1.39, fz - 0.16), Vector3.ONE, Vector3(0.4, 0, 0)),
+				_part(_box("eq_raven_wing", Vector3(0.04, 0.14, 0.18)), rav, Vector3(0.14, 1.41, fz))]
+		"wand":
+			return [
+				_part(_cyl("eq_wand", 0.03, 0.04, 0.6), equip_material("wood"), Vector3(0, 0.24, 0.04)),
+				_part(_sphere("eq_wand_tip", 0.07), equip_material("gem", tint), Vector3(0, 0.56, 0.04))]
+		"sword":
+			return [
+				_part(_box("eq_blade_" + mat_key, Vector3(0.07, 0.7, 0.025)), m, Vector3(0, 0.52, 0.04)),
+				_part(_box("eq_guard", Vector3(0.24, 0.05, 0.07)), gold, Vector3(0, 0.16, 0.04)),
+				_part(_box("eq_grip", Vector3(0.05, 0.18, 0.05)), dark, Vector3(0, 0.05, 0.04)),
+				_part(_box("eq_pommel", Vector3(0.07, 0.06, 0.06)), gold, Vector3(0, -0.05, 0.04))]
+		"dagger":
+			return [
+				_part(_box("eq_dblade_" + mat_key, Vector3(0.06, 0.34, 0.02)), m, Vector3(0, 0.3, 0.04)),
+				_part(_box("eq_dguard", Vector3(0.16, 0.04, 0.06)), gold, Vector3(0, 0.12, 0.04)),
+				_part(_box("eq_dgrip", Vector3(0.05, 0.14, 0.05)), dark, Vector3(0, 0.03, 0.04))]
+		"axe":
+			return [
+				_part(_cyl("eq_haft", 0.03, 0.04, 0.8), equip_material("wood"), Vector3(0, 0.3, 0.04)),
+				_part(_box("eq_axehead_" + mat_key, Vector3(0.06, 0.26, 0.22)), m, Vector3(0.1, 0.6, 0.04))]
+		"mace":
+			return [
+				_part(_cyl("eq_macehaft", 0.035, 0.045, 0.7), dark, Vector3(0, 0.28, 0.04)),
+				_part(_sphere("eq_macehead_" + mat_key, 0.13), m, Vector3(0, 0.64, 0.04))]
+		"spear":
+			return [
+				_part(_cyl("eq_spearhaft", 0.03, 0.035, 1.6), equip_material("wood"), Vector3(0, 0.5, 0.04)),
+				_part(_cone("eq_spearpt_" + mat_key, 0.07, 0.005, 0.28), m, Vector3(0, 1.42, 0.04))]
+		"bow":
+			var wood2 := equip_material("wood")
+			return [
+				_part(_box("eq_bow_u", Vector3(0.04, 0.5, 0.06)), wood2, Vector3(0, 0.28, 0.06), Vector3.ONE, Vector3(-0.32, 0, 0)),
+				_part(_box("eq_bow_l", Vector3(0.04, 0.5, 0.06)), wood2, Vector3(0, -0.28, 0.06), Vector3.ONE, Vector3(0.32, 0, 0)),
+				_part(_box("eq_bowstr", Vector3(0.012, 1.0, 0.012)), equip_material("cloth", Color(0.9, 0.9, 0.85)), Vector3(0, 0, -0.02))]
+		"shield":
+			return [
+				_part(_box("eq_shield_" + mat_key, Vector3(0.36, 0.46, 0.06)), m, Vector3(0, 0, 0.04)),
+				_part(_box("eq_shield_boss", Vector3(0.12, 0.12, 0.04)), gold, Vector3(0, 0, 0.09))]
+		"helm":
+			return [
+				_part(_box("eq_helm", Vector3(0.37, 0.27, 0.37)), m, Vector3(0, 0.05, 0)),
+				_part(_box("eq_helm_nasal", Vector3(0.05, 0.18, 0.04)), m, Vector3(0, -0.02, 0.19))]
+		"hood":
+			return [
+				_part(_box("eq_hood", Vector3(0.42, 0.38, 0.42)), m, Vector3(0, 0.05, -0.02)),
+				_part(_box("eq_hood_pt", Vector3(0.16, 0.22, 0.16)), m, Vector3(0, 0.22, -0.1), Vector3.ONE, Vector3(-0.5, 0, 0)),
+				_part(_box("eq_hood_drape", Vector3(0.38, 0.36, 0.08)), m, Vector3(0, -0.08, -0.22))]
+		"wizard_hat":
+			# Tall pointed witch hat: a wide drooping brim that shadows the face, a
+			# cone that bends forward at the tip, and a buckled hat band.
+			var band := equip_material("leather")
+			return [
+				_part(_cone("eq_what_brim", 0.45, 0.34, 0.1), m, Vector3(0, 0.04, 0.02)),
+				_part(_cone("eq_what_cone", 0.3, 0.13, 0.42), m, Vector3(0, 0.3, 0)),
+				_part(_cone("eq_what_tip", 0.13, 0.01, 0.34), m, Vector3(0, 0.52, 0.16), Vector3.ONE, Vector3(0.7, 0, 0)),
+				_part(_box("eq_what_band", Vector3(0.35, 0.08, 0.35)), band, Vector3(0, 0.12, 0)),
+				_part(_box("eq_what_buckle", Vector3(0.11, 0.1, 0.04)), gold, Vector3(0, 0.12, 0.19))]
+		"chest":
+			return [
+				_part(_box("eq_chest_" + mat_key, Vector3(0.5, 0.52, 0.32)), m, Vector3(0, 0, 0)),
+				_part(_box("eq_pauld", Vector3(0.62, 0.14, 0.36)), m, Vector3(0, 0.24, 0))]
+		"robe_top":
+			# A full robe that encloses the torso, a shoulder mantle + high collar that
+			# hide the neck gap, a red scarf, and a couple of belt straps for layering.
+			var trim := equip_material(mat_key, tint.darkened(0.22) if tint.a > 0.0 else Color(0, 0, 0, 0))
+			var scarf := _mat_from(Color(0.74, 0.16, 0.14), Color(0.5, 0.08, 0.08), Color(0.86, 0.32, 0.26))
+			return [
+				_part(_box("eq_robetop", Vector3(0.56, 0.66, 0.4)), m, Vector3(0, 0.02, 0)),
+				_part(_box("eq_robe_mantle", Vector3(0.66, 0.2, 0.46)), trim, Vector3(0, 0.3, 0)),
+				_part(_box("eq_robe_collar", Vector3(0.26, 0.2, 0.26)), trim, Vector3(0, 0.43, 0)),
+				_part(_box("eq_robe_scarf", Vector3(0.14, 0.24, 0.1)), scarf, Vector3(0, 0.1, 0.21)),
+				_part(_box("eq_robe_strap1", Vector3(0.58, 0.05, 0.42)), trim, Vector3(0, -0.1, 0)),
+				_part(_box("eq_robe_strap2", Vector3(0.58, 0.05, 0.42)), trim, Vector3(0, -0.24, 0))]
+		"robe_bottom":
+			# Long, wide skirt that fully covers the legs to the ground, with a darker
+			# layered hem, a waist band, and little curled boot tips peeking out front.
+			var hem := equip_material(mat_key, tint.darkened(0.24) if tint.a > 0.0 else Color(0, 0, 0, 0))
+			var boot := equip_material("leather")
+			return [
+				_part(_cone("eq_robebot", 0.52, 0.26, 1.0), m, Vector3(0, -0.5, 0)),
+				_part(_cone("eq_robe_hem", 0.56, 0.5, 0.13), hem, Vector3(0, -0.97, 0)),
+				_part(_cone("eq_robe_waist", 0.4, 0.34, 0.1), hem, Vector3(0, -0.04, 0)),
+				_part(_box("eq_robe_boot", Vector3(0.13, 0.1, 0.2)), boot, Vector3(-0.12, -0.97, 0.15)),
+				_part(_box("eq_robe_boot", Vector3(0.13, 0.1, 0.2)), boot, Vector3(0.12, -0.97, 0.15))]
+		"cape":
+			return [_part(_box("eq_cape", Vector3(0.36, 0.62, 0.06)), m, Vector3(0, -0.18, -0.02), Vector3.ONE, Vector3(0.16, 0, 0))]
+		_:
+			return []
 
 
 ## Beast-folk biped (gnolls): a hunched, muscular hyena-man with a snouted head,
@@ -885,6 +1098,11 @@ static func beastman_rig(spec: Dictionary) -> Node3D:
 		_attach(arm, _box("gn_upper", Vector3(0.17, 0.36, 0.19)), furm, Vector3(0, -0.18, 0))
 		_attach(arm, _box("gn_fore", Vector3(0.15, 0.3, 0.16)), furd, Vector3(0, -0.44, 0.02))
 		_attach(arm, _box("gn_hand", Vector3(0.17, 0.15, 0.2)), claw, Vector3(0, -0.62, 0.03))
+		_socket(arm, "socket_mainhand" if side2 > 0 else "socket_offhand", Vector3(0.04 * side2, -0.66, 0.14), Vector3(-0.1, 0, -0.08 * side2))
+	_socket(root, "socket_head", Vector3(0, 1.62, 0.18))
+	_socket(root, "socket_body", Vector3(0, 1.2, 0.06))
+	_socket(root, "socket_legs", Vector3(0, 0.86, 0))
+	_socket(root, "socket_back", Vector3(0, 1.34, -0.14))
 	return root
 
 
@@ -1025,6 +1243,9 @@ static func enemy_rig(e: Node) -> Node3D:
 		_add_rider(node)
 	node.set_meta("body3d", type)
 	node.set_meta("base_scale", size * (1.22 if boss else 1.0))
+	# Visible gear from the enemy's combat archetype (skipped on rigs without the
+	# matching sockets — beasts/birds just show nothing).
+	apply_equipment(node, EquipLoadout.for_enemy(name, int(Dictionary(e.get("action")).get("level", 1))))
 	return node
 
 
@@ -1106,6 +1327,8 @@ static func quadruped_rig(spec: Dictionary) -> Node3D:
 		var leg := _limb(root, str(ld[0]), Vector3(float(ld[1]), 0.44, float(ld[2])))
 		_attach(leg, _box("q_leg", Vector3(0.14, 0.42, 0.15)), hidem, Vector3(0, -0.21, 0))
 		_attach(leg, _box("q_hoof", Vector3(0.15, 0.1, 0.17)), darkm, Vector3(0, -0.44, 0.01))
+	# Beasts only support a body slot (barding/saddle) — no hands/head gear.
+	_socket(root, "socket_body", Vector3(0, 0.66, 0))
 	return root
 
 
@@ -1180,8 +1403,8 @@ static func _limb(parent: Node3D, pivot_name: String, pos: Vector3) -> Node3D:
 
 # ------------------------------------------------------------------ helpers ----
 
-static func _part(mesh: Mesh, mat: Material, off: Vector3, scl := Vector3.ONE) -> Dictionary:
-	return {"mesh": mesh, "mat": mat, "off": off, "scl": scl}
+static func _part(mesh: Mesh, mat: Material, off: Vector3, scl := Vector3.ONE, rot := Vector3.ZERO) -> Dictionary:
+	return {"mesh": mesh, "mat": mat, "off": off, "scl": scl, "rot": rot}
 
 
 static func _cyl(key: String, top: float, bot: float, h: float) -> Mesh:

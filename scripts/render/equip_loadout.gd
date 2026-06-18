@@ -1,0 +1,91 @@
+extends RefCounted
+class_name EquipLoadout
+## Derives a visible-equipment loadout ({slot: {kind, material, tint?}}) for a mover
+## from game data: the player's worn items (GameState.equipment) or an enemy's combat
+## archetype. PropMeshes.apply_equipment turns the loadout into meshes on the rig's
+## sockets; slots the body can't support are dropped there. See
+## docs/render_spike/MODELS_AND_EQUIPMENT.md.
+
+# Metal tier by enemy combat level (low level = crude metal).
+const TIERS := [[8, "bronze"], [16, "iron"], [30, "steel"], [50, "mithril"], [70, "adamant"]]
+const MAGE_CLOTH := Color(0.42, 0.32, 0.6)        # generic mage purple
+const GOBLIN_CLOTH := Color(0.33, 0.45, 0.3)      # goblin shamans: a mossy witch green
+
+
+static func _tier(level: int) -> String:
+	for t: Array in TIERS:
+		if level <= int(t[0]):
+			return str(t[1])
+	return "rune"
+
+
+## Map an item display name to a material tier (metal/cloth/leather/wood).
+static func material_for(item_name: String) -> String:
+	var n := item_name.to_lower()
+	for key: String in ["bronze", "iron", "steel", "mithril", "adamant", "rune", "gold", "leather"]:
+		if n.contains(key):
+			return key
+	if n.contains("robe") or n.contains("cloth") or n.contains("mage") or n.contains("wizard"):
+		return "cloth"
+	if n.contains("staff") or n.contains("bow") or n.contains("wand"):
+		return "wood"
+	return "iron"
+
+
+## Map a weapon item display name to a held-weapon kind.
+static func weapon_kind(item_name: String) -> String:
+	var n := item_name.to_lower()
+	for kw: String in ["staff", "wand", "dagger", "scimitar", "spear", "axe", "mace", "bow"]:
+		if n.contains(kw):
+			return "bow" if kw == "bow" else ("sword" if kw == "scimitar" else kw)
+	if n.contains("sword") or n.contains("blade") or n.contains("reaver"):
+		return "sword"
+	return "sword"
+
+
+static func _is_cloth(item_name: String) -> bool:
+	var n := item_name.to_lower()
+	return n.contains("robe") or n.contains("cloth") or n.contains("hood") or n.contains("mage") or n.contains("wizard")
+
+
+## Loadout for the player from worn items. Maps the OSRS-style slots to render slots.
+static func for_player(equipment: Dictionary) -> Dictionary:
+	var ld: Dictionary = {}
+	for slot: String in equipment:
+		var disp := DataRegistry.item_display_name(str(equipment[slot]))
+		var mat := material_for(disp)
+		match slot:
+			"Weapon":
+				ld["mainhand"] = {"kind": weapon_kind(disp), "material": mat}
+			"Shield":
+				ld["offhand"] = {"kind": "shield", "material": mat}
+			"Helm":
+				ld["head"] = {"kind": "hood" if _is_cloth(disp) else "helm", "material": mat}
+			"Body":
+				ld["body"] = {"kind": "robe_top" if _is_cloth(disp) else "chest", "material": mat}
+			"Cape":
+				ld["back"] = {"kind": "cape", "material": "cloth", "tint": Color(0.6, 0.2, 0.18)}
+	return ld
+
+
+## Loadout for an enemy from its combat archetype (style + name + level).
+static func for_enemy(name: String, level: int) -> Dictionary:
+	var data := DataRegistry.get_enemy(name)
+	var style := str(data.get("style", "")).to_lower()
+	var n := name.to_lower()
+	var mat := _tier(level)
+	if style.contains("mag") or n.contains("mage") or n.contains("shaman") or n.contains("wizard") or n.contains("warlock"):
+		var robe := GOBLIN_CLOTH if n.contains("goblin") else MAGE_CLOTH
+		return {
+			"head": {"kind": "wizard_hat", "material": "cloth", "tint": robe},
+			"body": {"kind": "robe_top", "material": "cloth", "tint": robe},
+			"legs": {"kind": "robe_bottom", "material": "cloth", "tint": robe},
+			"mainhand": {"kind": "raven_staff", "material": "wood"},
+		}
+	if style.contains("rang") or n.contains("ranger") or n.contains("archer") or n.contains("bow"):
+		return {"mainhand": {"kind": "bow", "material": "wood"}}
+	# Melee: a tiered weapon, plus a shield for the heavier fighter types.
+	var ld := {"mainhand": {"kind": "sword", "material": mat}}
+	if n.contains("fighter") or n.contains("warrior") or n.contains("guard") or n.contains("knight") or n.contains("brawler"):
+		ld["offhand"] = {"kind": "shield", "material": mat}
+	return ld
