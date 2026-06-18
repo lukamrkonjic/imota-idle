@@ -1,6 +1,11 @@
 extends PanelContainer
 class_name WorldHoverTooltip
-## Floating tooltip anchored above a world entity; sizes to its text.
+## One styled hover tooltip, shared by every hover surface in the game so they all
+## look identical: world entities (via show_for / the HUD) AND inventory items,
+## equipment slots, prayers and spells (via attach()). It floats just above the
+## mouse cursor with a margin — the cursor is always over whatever is hovered, so
+## "over the hovered thing" and "follows the mouse" are the same placement, and it
+## needs no per-surface projection math.
 
 const UiScaleScript := preload("res://scripts/ui/ui_scale.gd")
 
@@ -12,8 +17,6 @@ const COLOR_BODY := "#d1d1c2"
 
 var _body: RichTextLabel
 var _margin: float
-var _world: Node2D
-var _entity: Node2D
 
 
 func _ready() -> void:
@@ -46,22 +49,46 @@ func _ready() -> void:
 	hide()
 
 
-func show_for(world: Node2D, entity: Node2D, content: Dictionary) -> void:
-	_world = world
-	_entity = entity
+func _process(_delta: float) -> void:
+	# Track the cursor every frame while shown so the tooltip never lags behind a
+	# moving mouse or a panel that scrolled under it.
+	if visible:
+		_update_position()
+
+
+## World-entity hover (called by the HUD). The entity args are kept for API
+## compatibility; positioning is cursor-relative like every other surface.
+func show_for(_world: Node2D, _entity: Node2D, content: Dictionary) -> void:
+	show_text(content)
+
+
+## Show the tooltip for any hover source (UI items, prayers, spells, …).
+func show_text(content: Variant) -> void:
 	_apply_content(content)
-	visible = true
+	if not visible:
+		return
 	_update_position()
+
+
+## Wire a Control so hovering it shows this tooltip and leaving it hides it.
+## `content` is either a Dictionary (see _apply_content) or a Callable returning
+## one, evaluated on each hover so dynamic state stays fresh.
+func attach(control: Control, content: Variant) -> void:
+	control.mouse_entered.connect(func() -> void:
+		if not GameSettings.show_hover_tooltip:
+			return
+		show_text(content.call() if content is Callable else content))
+	control.mouse_exited.connect(hide_tooltip)
 
 
 func hide_tooltip() -> void:
 	visible = false
-	_entity = null
-	_world = null
 
 
+## Back-compat shim: the HUD calls this after show_for; positioning is now driven
+## by _process, so it only needs to keep the tooltip current.
 func follow_entity() -> void:
-	if visible and _entity != null and is_instance_valid(_entity):
+	if visible:
 		_update_position()
 
 
@@ -99,6 +126,7 @@ func _apply_content(content: Variant) -> void:
 	reset_size()
 	custom_minimum_size = Vector2.ZERO
 	size = get_minimum_size()
+	visible = true
 
 
 func _esc(text: String) -> String:
@@ -106,22 +134,14 @@ func _esc(text: String) -> String:
 
 
 func _update_position() -> void:
-	if _world == null or _entity == null:
-		return
-	var screen: Vector2
-	var r3: Variant = _world.get("render_3d")
-	if r3 != null and r3.is_active():
-		# 3D renderer is on: the entity is drawn at its CAMERA projection, not its flat 2D
-		# iso position — so project the same way the hover/picking does, otherwise the
-		# tooltip lands at the old 2D spot while the cursor hovers the 3D one. Lift matches
-		# the pick's body-centre so the tooltip tracks where the cursor actually is.
-		var lift: float = clampf(_entity.icon_height() * (0.25 / 8.0) * 0.5, 0.35, 1.6)
-		screen = r3.iso_to_screen(_entity.position, lift) - Vector2(0.0, UiScaleScript.f(14.0))
-	else:
-		var head := _entity.global_position + Vector2(0.0, -_entity.icon_height() - UiScaleScript.f(14.0))
-		screen = _world.get_viewport().get_canvas_transform() * head
-	var vp := _world.get_viewport().get_visible_rect().size
-	var pos := screen - Vector2(size.x * 0.5, size.y + UiScaleScript.f(5.0))
-	pos.x = clampf(pos.x, UiScaleScript.f(4.0), vp.x - size.x - UiScaleScript.f(4.0))
-	pos.y = clampf(pos.y, UiScaleScript.f(4.0), vp.y - size.y - UiScaleScript.f(4.0))
+	var vp := get_viewport().get_visible_rect().size
+	var m := get_viewport().get_mouse_position()
+	var gap := UiScaleScript.f(18.0)
+	var edge := UiScaleScript.f(4.0)
+	# Centered above the cursor, a margin above it; flip below if it'd clip the top.
+	var pos := Vector2(m.x - size.x * 0.5, m.y - size.y - gap)
+	if pos.y < edge:
+		pos.y = m.y + gap
+	pos.x = clampf(pos.x, edge, maxf(edge, vp.x - size.x - edge))
+	pos.y = clampf(pos.y, edge, maxf(edge, vp.y - size.y - edge))
 	position = pos

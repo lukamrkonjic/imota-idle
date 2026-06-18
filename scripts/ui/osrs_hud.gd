@@ -565,6 +565,7 @@ func _build_prayer_tab() -> Control:
 		var req: int = int(p[1])
 		var unlocked := GameState.level("prayer") >= req
 		var row := HBoxContainer.new()
+		row.mouse_filter = Control.MOUSE_FILTER_PASS
 		row.add_theme_constant_override("separation", UiScale.i(6))
 		var icon := ItemIcon.new()
 		if name.contains("Skin") or name.contains("Protect from Melee"):
@@ -586,9 +587,13 @@ func _build_prayer_tab() -> Control:
 		var lbl := Label.new()
 		lbl.add_theme_font_size_override("font_size", UiScale.i(12))
 		lbl.text = "%s  (Lvl %d)" % [name, req]
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		lbl.add_theme_color_override("font_color",
 			Color(0.9, 0.9, 0.8) if unlocked else Color(0.45, 0.45, 0.45))
 		row.add_child(lbl)
+		world_tooltip.attach(row, {
+			"title": name, "subtitle": "Level %d" % req,
+			"action": "Unlocked" if unlocked else "Locked — needs Prayer %d" % req})
 		box.add_child(row)
 	var bury := Button.new()
 	bury.text = "Bury all bones"
@@ -614,11 +619,15 @@ func _build_magic_tab() -> Control:
 		["Fire Strike", 13], ["Bind", 20], ["High Alchemy", 55],
 	]:
 		var row := Label.new()
+		row.mouse_filter = Control.MOUSE_FILTER_PASS
 		row.add_theme_font_size_override("font_size", UiScale.i(12))
 		var unlocked := GameState.level("magic") >= int(s[1])
 		row.text = "%s  (Lvl %d)" % [str(s[0]), int(s[1])]
 		row.add_theme_color_override("font_color",
 			Color(0.9, 0.9, 0.8) if unlocked else Color(0.45, 0.45, 0.45))
+		world_tooltip.attach(row, {
+			"title": str(s[0]), "subtitle": "Level %d" % int(s[1]),
+			"action": "Unlocked" if unlocked else "Locked — needs Magic %d" % int(s[1])})
 		box.add_child(row)
 	var note := Label.new()
 	note.text = "Select Magic in the Combat tab to cast while fighting (coming soon)."
@@ -1476,7 +1485,7 @@ func _refresh_inventory() -> void:
 			var stack: Dictionary = GameState.inventory[i]
 			var item_id: String = stack["id"]
 			var item_name := DataRegistry.item_display_name(item_id)
-			btn.tooltip_text = item_name
+			world_tooltip.attach(btn, {"title": item_name})
 			# Procedural type icon, recolored by material tier (name on hover).
 			var icon := ItemIcon.new()
 			icon.kind = ItemIcon.classify(item_name, DataRegistry.get_item(item_id))
@@ -1603,12 +1612,12 @@ func _make_equip_slot(slot: String) -> Control:
 	if worn_id.is_empty():
 		icon.kind = SLOT_ICON.get(slot, "misc")
 		icon.tint = Color(0.36, 0.34, 0.31)  # dim silhouette
-		panel.tooltip_text = slot
+		world_tooltip.attach(panel, {"title": slot, "subtitle": "Empty"})
 	else:
 		var worn := DataRegistry.item_display_name(worn_id)
 		icon.kind = ItemIcon.classify(worn, DataRegistry.get_item(worn_id))
 		icon.tint = ItemIcon.material_color(worn)
-		panel.tooltip_text = "%s  (%s)\nClick to unequip" % [worn, slot]
+		world_tooltip.attach(panel, {"title": worn, "subtitle": slot, "action": "Click to unequip"})
 		panel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		var slot_copy := slot
 		panel.gui_input.connect(func(event: InputEvent) -> void:

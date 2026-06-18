@@ -167,7 +167,13 @@ func _build() -> void:
 	sun.rotation_degrees = Vector3(-38, 40, 0)   # lower afternoon sun -> longer soft shadows
 	sun.light_color = Color(1.0, 0.95, 0.8)    # warm afternoon daylight
 	sun.light_energy = 1.0                     # softer key light for a moodier, earthy look
-	sun.shadow_enabled = true
+	# Directional shadows OFF: at the low render resolution the cast shadow went hard and
+	# BLOCKY (the square tree shadows). The A Short Hike look uses soft round blob-shadow
+	# decals under each prop/mover instead (see PropMeshes blob shadows), and the toon
+	# shader's own dot(NORMAL,LIGHT) banding still shades the dark sides of everything. So
+	# the shadow map has no useful casters left — disabling it kills the blocky shadows AND
+	# saves the whole shadow pass (a free win for low-end hardware).
+	sun.shadow_enabled = false
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	sun.directional_shadow_max_distance = 90.0
 	sun.shadow_bias = 0.04
@@ -1920,9 +1926,10 @@ func _emit_groups(groups: Dictionary, root: Node3D) -> void:
 		var mmi := MultiMeshInstance3D.new()
 		mmi.multimesh = mm
 		mmi.material_override = g["mat"]
-		# A Short Hike-style soft drop shadows: props/trees/buildings cast onto the
-		# ground (the toon shaders fold the cast region into their shadow band).
-		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		# Props use soft round blob-shadow decals (PropMeshes _shadow_part), NOT a real cast
+		# shadow — the directional cast went hard/blocky ("square shadows") at the low render
+		# res. Shadow casting OFF (and the sun's shadow map is disabled entirely).
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(mmi)
 
 

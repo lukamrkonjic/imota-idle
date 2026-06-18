@@ -56,7 +56,11 @@ void light() {
 	// ATTENUATION folds in the directional shadow, so shadowed pixels read 0.
 	float lit = clamp(dot(normalize(NORMAL), normalize(LIGHT)), 0.0, 1.0) * ATTENUATION;
 	lit = ambient + (1.0 - ambient) * lit;
-	lit = floor(lit * posterize_steps + 0.5) / posterize_steps;
+	// Two SOFT thresholds already make the toon shadow/base/light bands. We must NOT
+	// hard-posterize `lit` first (the old floor()): snapping it to discrete steps made a
+	// whole flat face JUMP between bands the instant the model swayed across a step edge —
+	// the colour glitch on idle/animating rigs. Keeping `lit` continuous lets the smoothstep
+	// edges cross-fade smoothly, so a gentle sway never pops.
 	float s = smoothstep(shadow_threshold - softness, shadow_threshold + softness, lit);
 	float l = smoothstep(light_threshold - softness, light_threshold + softness, lit);
 	vec3 ramp = mix(shadow_color.rgb, base_color.rgb, s);
