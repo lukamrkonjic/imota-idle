@@ -70,6 +70,10 @@ func _complete_craft() -> void:
 		GameState.remove_item(input["item"], int(input["qty"]))
 	var out: Dictionary = recipe["output"]
 	if GameState.add_item(out["item"], int(out["qty"])) == 0:
+		# No room for the output: roll the inputs back so nothing is destroyed
+		# (previously the inputs were consumed with no output on a full inventory).
+		for input: Dictionary in recipe["inputs"]:
+			GameState.add_item(input["item"], int(input["qty"]))
 		EventBus.combat_log.emit("Inventory full — crafting stopped.")
 		stop("inventory_full")
 		return

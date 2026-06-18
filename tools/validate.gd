@@ -41,6 +41,7 @@ func _ready() -> void:
 	phase5_combat_depth()
 	phase6_skill_loops()
 	phase3_gather_smoke()
+	phase_item_loss_guards()
 	phase_activity_exclusion()
 	phase6_worldgen()
 	phase6_chunk_snapshots()
@@ -567,6 +568,49 @@ func phase4_food_shop_offline() -> void:
 ## The gather loop drives loot + activity state. Formerly asserted through the legacy
 ## 2D UI's labels (scenes/main.tscn); now tests the underlying TickSim/GameState
 ## behaviour directly, so the legacy UI can be deleted.
+## Fill every free inventory slot with distinct items (so add_item of a NEW item
+## returns 0), skipping any names in `exclude`.
+func _fill_bag(exclude: Array) -> void:
+	var ex := {}
+	for n: String in exclude:
+		ex[DataRegistry.resolve_item_id(n)] = true
+	for id: String in DataRegistry.items_by_id.keys():
+		if GameState.inventory.size() >= GameState.max_inventory_slots():
+			return
+		if ex.has(id) or GameState.count_item(id) > 0:
+			continue
+		GameState.add_item(id, 1)
+
+
+## Guards against the item-loss bugs: a full inventory must never destroy items when
+## swapping equipment or when a craft's output can't fit.
+func phase_item_loss_guards() -> void:
+	print("== Item-loss guards ==")
+	# Equip swap on a full bag must return the worn item, not overwrite/destroy it.
+	GameState.reset_state()
+	GameState.add_xp("defence", 200000.0)   # high enough to wear Iron Helm
+	GameState.add_item("Bronze Helm", 1)
+	check(GameState.equip("Bronze Helm"), "equip Bronze Helm")
+	GameState.add_item("Iron Helm", 1)
+	_fill_bag([])
+	check(GameState.inventory.size() >= GameState.max_inventory_slots(), "inventory full for equip-swap test")
+	check(GameState.equip("Iron Helm"), "equip Iron Helm over Bronze on a full bag")
+	check(GameState.count_item("Bronze Helm") == 1, "swapped-out Bronze Helm returned (not destroyed)")
+	check(GameState.count_item("Iron Helm") == 0, "Iron Helm now worn")
+
+	# Recipe whose output can't fit must roll the inputs back, not consume them.
+	GameState.reset_state()
+	GameState.add_item("Logs", 5)
+	RecipeSim.recipe = {"inputs": [{"item": "Logs", "qty": 1}], "output": {"item": "Oak Logs", "qty": 1}, "skill": "woodcutting", "xp": 1.0}
+	RecipeSim.active = true
+	_fill_bag(["Oak Logs"])   # full, and the output item is absent so it needs a new slot
+	var logs_before := GameState.count_item("Logs")
+	RecipeSim._complete_craft()
+	check(GameState.count_item("Logs") == logs_before, "craft inputs rolled back when output can't fit")
+	check(GameState.count_item("Oak Logs") == 0, "no phantom output produced on a full bag")
+	RecipeSim.active = false
+
+
 ## The three active sims (gather/combat/craft) are mutually exclusive: starting one
 ## stops the others via ActivityManager. Guards that registration + arbitration work.
 func phase_activity_exclusion() -> void:

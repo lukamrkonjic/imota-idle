@@ -279,10 +279,14 @@ func equip(item_name_or_id: String) -> bool:
 	var slot := slot_for_item(DataRegistry.item_display_name(item_id))
 	if slot in ["Food", "Potion", "Lockpick", "Slate"]:
 		return false  # consumable pseudo-slots are not worn gear (Phase 4)
-	if equipment.has(slot):
-		unequip(slot)
 	if not remove_item(item_id, 1):
 		return false
+	# Swap in place: the new item just vacated an inventory slot, so the previously-worn
+	# item goes back into that freed slot. This can't destroy the old gear even on a full
+	# inventory (the old unequip-first path overwrote the slot and lost the worn item).
+	var prev: String = str(equipment.get(slot, ""))
+	if not prev.is_empty():
+		add_item(prev, 1)
 	equipment[slot] = item_id
 	EventBus.equipment_changed.emit()
 	return true
@@ -618,12 +622,16 @@ func from_save_dict(d: Dictionary) -> void:
 		var item_id := DataRegistry.resolve_item_id(k)
 		if not item_id.is_empty():
 			bank[item_id] = int(saved_bank[k]) + int(bank.get(item_id, 0))
+		else:
+			push_warning("Save load: unknown bank item '%s' skipped" % k)
 	equipment = {}
 	var saved_eq: Dictionary = d.get("equipment", {})
 	for k: String in saved_eq:
 		var item_id := DataRegistry.resolve_item_id(str(saved_eq[k]))
 		if not item_id.is_empty():
 			equipment[k] = item_id
+		else:
+			push_warning("Save load: unknown equipped item '%s' (slot %s) skipped" % [str(saved_eq[k]), k])
 	coins = int(d.get("coins", d.get("gold", 0)))
 	combat_style = str(d.get("combat_style", "attack"))
 	run_energy = clampf(float(d.get("run_energy", 100.0)), 0.0, 100.0)

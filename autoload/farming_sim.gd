@@ -116,9 +116,13 @@ func _tick_growth() -> void:
 func _harvest(i: int) -> void:
 	var p: Dictionary = plots[i]
 	var added := GameState.add_item(str(p["crop"]), int(p["yield"]))
+	if added == 0:
+		# Inventory full: leave the plot ready (it retries next tick) and grant no XP —
+		# previously XP was awarded and the plot cleared even when nothing was stored.
+		EventBus.combat_log.emit("[farming] Inventory full — %s left to harvest." % DataRegistry.item_display_name(str(p["crop"])))
+		return
 	GameState.add_xp("farming", float(p["xp"]))
-	if added > 0:
-		EventBus.loot_gained.emit(str(p["crop"]), added)
+	EventBus.loot_gained.emit(str(p["crop"]), added)
 	EventBus.combat_log.emit("[farming] Harvested %s." % DataRegistry.item_display_name(str(p["crop"])))
 	plots[i] = {}
 
