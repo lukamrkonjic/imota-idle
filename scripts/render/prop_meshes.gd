@@ -1018,6 +1018,15 @@ static func apply_equipment(rig: Node3D, loadout: Dictionary) -> void:
 		var lp: Node = rig.get_node_or_null(NodePath(legn))
 		if lp != null:
 			(lp as Node3D).visible = not hide_legs
+	# A full helm encloses the head — hide the hair/beard so they don't poke out the
+	# back of it (the black square). A soft hood keeps them. Reset when bare-headed.
+	var hide_hair := loadout.has("head") and str(Dictionary(loadout.get("head", {})).get("kind", "")) == "helm"
+	for hn: String in ["hair", "beard"]:
+		var hp: Node = rig.get_node_or_null(NodePath(hn))
+		if hp == null:
+			hp = rig.find_child(hn, true, false)
+		if hp != null:
+			(hp as Node3D).visible = not hide_hair
 	var profile: Dictionary = rig.get_meta("body_profile", {})
 	for slot: String in loadout:
 		var sock2: Node3D = rig.get_node_or_null(NodePath("socket_" + slot))
@@ -1472,6 +1481,9 @@ static func enemy_rig(e: Node) -> Node3D:
 	# rounds the upper spine for a natural stoop.
 	if type == "humanoid":
 		if n.contains("goblin") or n.contains("hob"):
+			# Goblins get their own twitchy-skulk gait (see _pose_goblin); the lean/
+			# hunch/crouch metas are only used by the fallback humanoid pose.
+			node.set_meta("gait", "goblin")
 			node.set_meta("lean", 0.02)
 			node.set_meta("hunch", 0.42)
 			node.set_meta("arm_rest", 0.34)
@@ -1486,7 +1498,8 @@ static func enemy_rig(e: Node) -> Node3D:
 			node.set_meta("hunch", 0.12)
 			node.set_meta("arm_rest", 0.12)
 			node.set_meta("crouch", 0.14)
-		if n.contains("gnoll"):   # beastman uses the humanoid pose: a low sneaky crouch
+		if n.contains("gnoll"):   # beastman gets its own predatory-prowl gait (_pose_gnoll)
+			node.set_meta("gait", "gnoll")
 			node.set_meta("lean", 0.02)
 			node.set_meta("hunch", 0.5)
 			node.set_meta("arm_rest", 0.28)
