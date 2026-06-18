@@ -1281,10 +1281,11 @@ static func equip_parts(slot: String, kind: String, mat_key: String, tint: Color
 ## Sized to the wearer (shoulder width, torso length) so it drapes right on any rig.
 static func build_cape(m: Material, profile: Dictionary) -> Node3D:
 	var shoulder: float = float(profile.get("shoulder", 0.64))
-	var torso: Vector3 = profile.get("torso", Vector3(0.5, 0.56, 0.32))
-	var cw := shoulder * 0.94
-	var segs := 4
-	var seg_len := (torso.y + 0.46) / float(segs)
+	var cw := shoulder * 1.02
+	# A long, full cape: enough links to reach the ground and pool/drag behind the
+	# heels. The renderer's _flow_cape curves it down (gravity) and ripples it gently.
+	var segs := 6
+	var seg_len := 0.3
 	var root := Node3D.new()
 	# Static gold clasp at the collar.
 	var clasp := MeshInstance3D.new()
@@ -1293,17 +1294,17 @@ static func build_cape(m: Material, profile: Dictionary) -> Node3D:
 	clasp.position = Vector3(0, 0.12, -0.02)
 	clasp.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(clasp)
-	# The chain: each segment hangs off the bottom of the previous one. Slight taper
-	# so it reads as a draped cape, not a board.
+	# The chain: each segment hangs off the bottom of the previous one. A gentle flare
+	# toward the hem so it reads as a full, heavy, majestic cape.
 	var parent := root
 	for i: int in segs:
 		var pivot := Node3D.new()
 		pivot.name = "cape_seg%d" % i
-		pivot.position = Vector3(0, 0.08, -0.04) if i == 0 else Vector3(0, -seg_len, 0)
+		pivot.position = Vector3(0, 0.06, -0.05) if i == 0 else Vector3(0, -seg_len, 0)
 		parent.add_child(pivot)
-		var width := cw * (1.0 - 0.08 * float(i))
+		var width := cw * (0.94 + 0.04 * float(i))
 		var mi := MeshInstance3D.new()
-		mi.mesh = _box("eq_cape_seg%d" % i, Vector3(width, seg_len + 0.02, 0.05))
+		mi.mesh = _box("eq_cape_seg%d" % i, Vector3(width, seg_len + 0.03, 0.05))
 		mi.material_override = m
 		mi.position = Vector3(0, -seg_len * 0.5, 0)
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF

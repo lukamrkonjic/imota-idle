@@ -908,21 +908,27 @@ func _flow_cloth(node: Node3D, walk: float, t: float, phase: float) -> void:
 			sin(t * 2.6 + phase * 1.7) * 0.06 * amp)
 
 
-## Cheap cape "cloth sim": a traveling sine wave rolled down the segment chain. Each
-## link lags the one above it (phase offset by depth), so a ripple propagates from
-## the shoulders to the hem; the segments compound, so the cape billows BACK as you
-## move and settles to a gentle idle wave. ~8 sin() calls total — no physics.
+## A fixed per-link drape curve (radians of backward tilt added at each link). It
+## stays near-vertical down the back, then folds toward horizontal at the hem, so
+## the chain falls under "gravity" to the floor and the last links POOL/drag behind
+## the heels — a long, heavy, majestic cape rather than a stiff board.
+const CAPE_DRAPE := [0.03, 0.05, 0.08, 0.13, 0.42, 0.82]
+
+## Cheap cape "cloth sim": hold the drape curve (so the cape hangs down and drags on
+## the ground), then add only a slow, low-amplitude undulation rolled down the chain
+## — a heavy fabric sway, never an upward billow. ~12 sin() calls, no physics.
 func _flow_cape(eq: Node3D, walk: float, t: float, phase: float) -> void:
-	var trail := 0.07 + walk * 0.24       # backward billow added per link (compounds down)
-	var amp := 0.05 + walk * 0.14         # ripple amplitude per link
+	var amp := 0.02 + walk * 0.06         # small: heavy cloth barely lifts when moving
 	var seg: Node3D = eq.get_node_or_null(^"cape_seg0")
 	var d := 0
 	while seg != null:
-		var lag := float(d) * 0.7
-		seg.rotation = Vector3(
-			trail + sin(t * 3.4 + phase - lag) * amp,
-			0.0,
-			sin(t * 2.6 + phase * 1.3 - lag) * amp * 0.8)
+		var base_x: float = CAPE_DRAPE[d] if d < CAPE_DRAPE.size() else 0.12
+		var lag := float(d) * 0.55
+		# Gentle ripple (kept below the drape so it undulates without lifting), plus a
+		# slow side-to-side sway that grows a touch toward the trailing hem.
+		var ripple := sin(t * 1.7 + phase - lag) * amp
+		var sway := sin(t * 1.25 + phase * 1.2 - lag) * amp * (1.0 + 0.3 * float(d))
+		seg.rotation = Vector3(base_x + maxf(ripple, -base_x * 0.5), 0.0, sway)
 		seg = seg.get_node_or_null(NodePath("cape_seg%d" % (d + 1)))
 		d += 1
 
