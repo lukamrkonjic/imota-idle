@@ -115,13 +115,17 @@ func _leash_radius() -> float:
 	return float(WorldGen.reg.monster_cfg.get("leashRadiusTiles", LEASH_RADIUS_TILES)) * WG.TILE
 
 
-## How far the chaser stops short of the player, scaled to the enemy's footprint
-## (+ a margin) so big mobs don't crop into the player and small ones still close in.
+## The OSRS-style fighting distance: how far apart the player and enemy stand while
+## trading blows. Scaled to the enemy's footprint (+ a margin for the player's own
+## size) so the two models keep a clear gap and never clip into each other — big mobs
+## stand further back, small ones still close in. Used BOTH for the player's melee
+## approach (it stops this far short instead of running onto the mob) and for the
+## chaser keeping its distance.
 func _attack_gap(entity: Node2D) -> float:
 	var size := float(entity.get("display_size")) if entity.get("display_size") != null else 40.0
 	if bool(entity.get("is_boss")):
-		size *= 1.25
-	return WG.TILE * (0.9 + size / 90.0)
+		size *= 1.3
+	return WG.TILE * (1.5 + size / 72.0)
 
 
 func begin_action(entity: Node2D) -> void:
@@ -142,6 +146,15 @@ func begin_action(entity: Node2D) -> void:
 			target = pp
 		else:
 			target = entity.position + (pp - entity.position).normalized() * range_px * 0.9
+	elif str(action.get("type", "")) == "enemy":
+		# Melee: stop a clear fighting distance SHORT of the mob (OSRS-style adjacency)
+		# instead of running onto it, so the two models keep a gap and don't clip.
+		var pp2: Vector2 = world.player.position
+		var gap := _attack_gap(entity)
+		if pp2.distance_to(entity.position) > gap:
+			target = entity.position + (pp2 - entity.position).normalized() * gap
+		else:
+			target = pp2
 	elif str(action.get("type", "")) == "gather" and str(action.get("skill", "")) == "fishing":
 		var chunk: RefCounted = WorldGen.chunks.get(str(action["chunk_key"]))
 		if chunk != null:

@@ -43,6 +43,7 @@ var _mover_prev: Dictionary = {}     # key -> last 3D pos (for walk detection)
 var _mover_yaw: Dictionary = {}      # key -> smoothed facing yaw
 var _mover_walk: Dictionary = {}     # key -> smoothed walk amount 0..1
 var _attack_t: Dictionary = {}       # key -> time (s) the last attack lunge started
+var _mover_death: Dictionary = {}    # key -> {t0, pos} while a defeated mover plays its death topple
 var _shadow_nodes: Dictionary = {}   # key -> blob-shadow MeshInstance3D pinned to ground
 var fx_layer: CanvasLayer            # screen-space overlay for hitsplats over the 3D world
 var _env: Environment                # kept so the view-distance slider can retune the fog
@@ -766,7 +767,8 @@ func _sync_movers() -> void:
 			n = PropMeshes.enemy_rig(e)
 			_prep_mover(n, str(id))
 			_mover_nodes[id] = n
-		_animate_mover(n, str(id), e.position, t, dt)
+		# A defeated enemy (dimmed) plays its death topple instead of the normal gait.
+		_animate_mover(n, str(id), e.position, t, dt, bool(e.get("dimmed")))
 	for id: int in _mover_nodes.keys():
 		if not live.has(id):
 			var n: Node = _mover_nodes[id]
@@ -818,8 +820,17 @@ func _free_shadow(key: String) -> void:
 ## turns to face travel. The pose itself is per body template (humanoid stride,
 ## quadruped trot, bird waddle) so a cow walks like an animal and a chicken like
 ## a bird — read from the rig's "body3d" meta.
-func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: float) -> void:
+func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: float, dying := false) -> void:
 	var pos3 := iso_to_3d(pos2d, height_at(pos2d))
+	var btype0 := str(node.get_meta("body3d", "humanoid"))
+	# A defeated enemy topples and settles where it fell (its own death per body type),
+	# then holds until it respawns; skip the normal gait + the drift-home slide.
+	if dying:
+		_death_anim(node, key, pos3, t, float(node.get_meta("base_scale", 1.0)), btype0)
+		return
+	if _mover_death.has(key):
+		_mover_death.erase(key)            # respawned — clear so it stands back up
+		_mover_prev[key] = pos3            # don't read the death->home jump as a walk
 	var prev: Vector3 = _mover_prev.get(key, pos3)
 	var vel := pos3 - prev
 	_mover_prev[key] = pos3
@@ -874,6 +885,55 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 		shadow.scale = Vector3(fp.x * base * 1.12, 1.0, fp.y * base * 1.12)
 	_flow_cloth(node, walk, t, phase)
 	_sway_hair(node, walk, t, phase)
+
+
+## Death topple: a defeated mover crumples where it fell and settles to the ground
+## over DEATH_DUR, then holds the corpse pose until it respawns. The fall is flavoured
+## per enemy type — goblins faceplant forward, gnolls topple back, four-legged beasts
+## roll onto their side, birds flop over — and the blob shadow shrinks away with it.
+const DEATH_DUR := 0.65
+func _death_anim(node: Node3D, key: String, pos3: Vector3, t: float, base: float, btype: String) -> void:
+	var d: Dictionary = _mover_death.get(key, {})
+	if d.is_empty():
+		d = {"t0": t, "pos": pos3}                       # freeze where it died
+		_mover_death[key] = d
+	var raw := clampf((t - float(d["t0"])) / DEATH_DUR, 0.0, 1.0)
+	var p := ease(raw, 0.35)                              # quick drop, then settle
+	var dpos: Vector3 = d["pos"]
+	var yaw := float(_mover_yaw.get(key, 0.0))
+	var fall := p * 1.5
+	var tilt := 0.0
+	var roll := 0.0
+	match btype:
+		"bird":
+			roll = fall                                  # flops onto its side, legs up
+		"humanoid":
+			match str(node.get_meta("gait", "")):
+				"goblin":
+					tilt = fall                          # crumples forward (faceplant)
+				"gnoll":
+					tilt = -fall * 1.05                  # heavy backward topple
+				_:
+					tilt = -fall                         # falls onto its back
+		_:
+			roll = fall                                  # quadruped collapses sideways
+	# Limbs relax out of their gait into a loose sprawl as it goes limp.
+	for pv: String in ["leg_l", "leg_r", "arm_l", "arm_r"]:
+		_set_pivot(node, pv, lerpf(0.0, 0.25, p))
+	var spine: Node3D = node.find_child("spine", true, false)
+	if spine != null:
+		spine.rotation = spine.rotation.lerp(Vector3.ZERO, clampf(p, 0.0, 1.0))
+	node.rotation = Vector3(tilt, yaw, roll)
+	node.position = dpos + Vector3(0, 0.04 - p * 0.06 * base, 0)
+	node.scale = Vector3(base, base, base)
+	# The blob shadow sinks and shrinks away under the corpse.
+	var shadow: Node3D = _shadow_nodes.get(key)
+	if shadow != null:
+		var fp := _shadow_footprint(btype)
+		var ss := base * (1.0 - 0.55 * p)
+		shadow.position = Vector3(dpos.x, dpos.y + 0.04, dpos.z)
+		shadow.rotation.y = yaw
+		shadow.scale = Vector3(fp.x * ss, 1.0, fp.y * ss)
 
 
 ## Cheap "hair physics": any hair/beard/mane/tuft pivot on a rig gets a soft sway —
