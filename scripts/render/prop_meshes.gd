@@ -1425,11 +1425,11 @@ static func quadruped_rig(spec: Dictionary) -> Node3D:
 	if bool(spec.get("beard", false)):
 		_attach(root, _box("q_beard", Vector3(0.1, 0.18, 0.06)), bellym, Vector3(0, 0.6, 0.78))
 	_add_tail(root, str(spec.get("tail", "none")), hidem, darkm)
-	# Four legs at the corners; hips pivot around X for the trot.
-	for ld: Array in [["leg_fl", -0.2, 0.32], ["leg_fr", 0.2, 0.32], ["leg_bl", -0.2, -0.32], ["leg_br", 0.2, -0.32]]:
-		var leg := _limb(root, str(ld[0]), Vector3(float(ld[1]), 0.44, float(ld[2])))
-		_attach(leg, _box("q_leg", Vector3(0.14, 0.42, 0.15)), hidem, Vector3(0, -0.21, 0))
-		_attach(leg, _box("q_hoof", Vector3(0.15, 0.1, 0.17)), darkm, Vector3(0, -0.44, 0.01))
+	# Four legs at the corners, each with a knee joint so the trot flexes the legs
+	# instead of swinging stiff posts. hip pivots leg_fl/fr/bl/br, knees knee_fl/...
+	for ld: Array in [["leg_fl", "knee_fl", -0.2, 0.32], ["leg_fr", "knee_fr", 0.2, 0.32], ["leg_bl", "knee_bl", -0.2, -0.32], ["leg_br", "knee_br", 0.2, -0.32]]:
+		var knee := _joint_limb(root, str(ld[0]), str(ld[1]), Vector3(float(ld[2]), 0.46, float(ld[3])), Vector3(0.14, 0.24, 0.16), Vector3(0.13, 0.22, 0.14), hidem, "qleg")
+		_attach(knee, _box("q_hoof", Vector3(0.15, 0.1, 0.17)), darkm, Vector3(0, -0.24, 0.02))
 	# Beasts only support a body slot (barding/saddle) — no hands/head gear.
 	_socket(root, "socket_body", Vector3(0, 0.66, 0))
 	return root
@@ -1504,15 +1504,21 @@ static func _limb(parent: Node3D, pivot_name: String, pos: Vector3) -> Node3D:
 	return n
 
 
-## A two-segment leg: a thigh on a hip pivot (leg_l/leg_r) + a shin on a knee pivot
-## (knee_l/knee_r) so the renderer can flex the knee for a natural bent-leg walk and
-## a crouched stance. Returns the knee node so the caller attaches its own foot/boot.
+## A two-segment limb: an upper bone on a named pivot + a lower bone on a named
+## joint pivot nested under it, so the renderer can flex the joint (knee/elbow/hock).
+## Returns the joint node so the caller attaches the foot/hand below it.
+static func _joint_limb(root: Node3D, pivot: String, joint: String, base: Vector3, upper: Vector3, lower: Vector3, mat: Material, key: String) -> Node3D:
+	var p := _limb(root, pivot, base)
+	_attach(p, _box(key + "_up", upper), mat, Vector3(0, -upper.y * 0.5, 0))
+	var j := _limb(p, joint, Vector3(0, -upper.y, 0))
+	_attach(j, _box(key + "_lo", lower), mat, Vector3(0, -lower.y * 0.5, 0.01))
+	return j
+
+
+## A two-segment leg (thigh on a leg_l/leg_r hip pivot + shin on a knee_l/knee_r
+## pivot) for the bent-leg walk and crouch. Returns the knee node for the foot/boot.
 static func _biped_leg(root: Node3D, side: int, hip: Vector3, thigh: Vector3, shin: Vector3, mat: Material, key: String) -> Node3D:
-	var hipn := _limb(root, "leg_l" if side < 0 else "leg_r", hip)
-	_attach(hipn, _box(key + "_th", thigh), mat, Vector3(0, -thigh.y * 0.5, 0))
-	var knee := _limb(hipn, "knee_l" if side < 0 else "knee_r", Vector3(0, -thigh.y, 0))
-	_attach(knee, _box(key + "_sh", shin), mat, Vector3(0, -shin.y * 0.5, 0.01))
-	return knee
+	return _joint_limb(root, "leg_l" if side < 0 else "leg_r", "knee_l" if side < 0 else "knee_r", hip, thigh, shin, mat, key)
 
 
 ## A two-segment arm: an upper arm on a shoulder pivot (arm_l/arm_r) + a forearm on

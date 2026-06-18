@@ -903,42 +903,45 @@ func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: flo
 	var holds_staff: bool = str(node.get_meta("pose", "")) == "staff"
 	var breathe := rest * sin(t * 1.9 + phase) * 0.03
 	var sway := rest * sin(t * 1.15 + phase) * 0.05
-	node.rotation = Vector3(lean + breathe * 0.4, yaw, sway)
-	# Crouch lowers the body so the bent knees still keep the feet on the ground;
-	# the walk adds a gentle vertical bob on top.
-	var bob := absf(sin(t * 7.0)) * 0.08 * walk
-	var sq := sin(t * 7.0) * 0.06 * walk
-	node.position = pos3 + Vector3(0, bob - crouch * 0.22, 0)
-	node.scale = Vector3(base * (1.0 - sq * 0.5), base * (1.0 + sq + breathe), base * (1.0 - sq * 0.5))
-	var stride := t * 4.8 + phase
-	# Legs: hips swing (opposite phase), the thigh tilts forward when crouched, and
-	# the KNEE folds — always a little (crouch + idle) and more during the forward
-	# swing so the foot lifts to clear the ground. Real walk, not stiff stilts.
-	var hip := sin(stride) * 0.62 * walk
+	var stride := t * 4.6 + phase
+	# The life of the walk is in the BODY, not just the limbs: it rocks side-to-side
+	# toward the planted foot (the `roll`, once per stride), bobs up and settles on
+	# each footfall (twice per stride — the little "shake" on every step), and leans
+	# a touch into the stride. This carries the walk; the limbs stay understated.
+	var roll := sin(stride) * 0.09 * walk
+	var bob := absf(sin(stride)) * 0.055 * walk
+	var settle := absf(sin(stride)) * 0.045 * walk
+	var idle_bob := rest * sin(t * 2.0 + phase) * 0.02
+	node.rotation = Vector3(lean + walk * 0.06 + breathe * 0.4, yaw, sway + roll)
+	node.position = pos3 + Vector3(0, bob + idle_bob - crouch * 0.22, 0)
+	node.scale = Vector3(base * (1.0 - settle * 0.4), base * (1.0 + breathe + settle), base * (1.0 - settle * 0.4))
+	# Legs: a natural stride — moderate hip swing, the knee lifting in its swing phase
+	# to clear the ground (not a deep squat, not a stiff post).
+	var hip := sin(stride) * 0.42 * walk
 	var hip_crouch := -crouch * 0.42                 # thighs forward to sit into the crouch
 	var knee_base := 0.16 + crouch * 0.95            # standing knee bend
-	# Deep knee fold through the step (RuneScape-ish run), peaking as the leg drives.
-	var knee_l := knee_base + walk * (0.3 + 0.85 * maxf(0.0, sin(stride + 1.3)))
-	var knee_r := knee_base + walk * (0.3 + 0.85 * maxf(0.0, sin(stride + PI + 1.3)))
+	var knee_l := knee_base + walk * (0.1 + 0.45 * maxf(0.0, sin(stride + 1.1)))
+	var knee_r := knee_base + walk * (0.1 + 0.45 * maxf(0.0, sin(stride + PI + 1.1)))
 	_set_pivot(node, "leg_l", hip + hip_crouch)
 	_set_pivot(node, "leg_r", -hip + hip_crouch)
 	_set_pivot(node, "leg_l/knee_l", knee_l)   # knees are nested under the hip pivots
 	_set_pivot(node, "leg_r/knee_r", knee_r)
-	# Arms: shoulders counter-swing the legs, ELBOWS bend (always a bit, more on the
-	# back-swing) so the arms have a natural relaxed crook instead of stiff planks.
-	var idle_arm := rest * sin(t * 1.5 + phase) * 0.12
-	var arm_l := arm_rest + sin(stride + PI) * 0.6 * walk + idle_arm
-	var arm_r := arm_rest + sin(stride) * 0.6 * walk - idle_arm
-	var elbow_base := 0.24 + crouch * 0.25
-	var elbow_l := elbow_base + walk * (0.3 + 0.55 * maxf(0.0, sin(stride + PI + 0.6)))
-	var elbow_r := elbow_base + walk * (0.3 + 0.55 * maxf(0.0, sin(stride + 0.6)))
+	# Arms: a relaxed counter-swing to the legs; ELBOWS fold FORWARD (negative — the
+	# forearm comes up toward the front like a real arm, never bent backward), with a
+	# soft constant crook so the arms read as relaxed, not stiff or flailing.
+	var idle_arm := rest * sin(t * 1.5 + phase) * 0.1
+	var arm_l := arm_rest + sin(stride + PI) * 0.4 * walk + idle_arm
+	var arm_r := arm_rest + sin(stride) * 0.4 * walk - idle_arm
+	var elbow_base := -(0.2 + crouch * 0.25)
+	var elbow_l := elbow_base - walk * 0.22 * maxf(0.0, sin(stride + PI + 0.5))
+	var elbow_r := elbow_base - walk * 0.22 * maxf(0.0, sin(stride + 0.5))
 	if holds_staff:
 		arm_r = 0.12 + idle_arm * 0.3   # rest the hand on a side-planted staff
-		elbow_r = 0.18
+		elbow_r = -0.16
 	if atk > 0.0:
 		var strike := sin(atk * PI)
 		arm_r = lerpf(arm_r, -1.5, strike)   # lead arm chops overarm
-		elbow_r = lerpf(elbow_r, 1.0, strike)  # with a bent elbow
+		elbow_r = lerpf(elbow_r, -1.0, strike)  # forearm folds in for the chop
 		arm_l = lerpf(arm_l, 0.4, strike)
 	_set_pivot(node, "arm_l", arm_l)
 	_set_pivot(node, "arm_r", arm_r)
@@ -958,16 +961,25 @@ func _pose_quadruped(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: fl
 	var graze := rest * maxf(0.0, sin(t * 0.45 + phase) - 0.4) * 0.32
 	node.rotation = Vector3(-0.28 * sin(atk * PI) + graze, yaw, sway)
 	var stride := t * 6.0 + phase
-	var bob := absf(sin(stride)) * 0.05 * walk
+	# A clear up/down body bob while moving + a gentle idle breathing sway at rest.
+	var bob := absf(sin(stride)) * 0.06 * walk + rest * sin(t * 2.0 + phase) * 0.02
 	node.position = pos3 + Vector3(0, bob, 0)
 	var sq := sin(stride * 2.0) * 0.03 * walk
 	node.scale = Vector3(base * (1.0 + sq * 0.4), base * (1.0 - sq * 0.5 + breathe), base * (1.0 + sq * 0.4))
-	var swing := sin(stride) * 0.8 * walk
+	# Diagonal trot: FL+BR swing together, FR+BL opposite. Each knee folds through
+	# its swing so the legs articulate (lift + reach) instead of swinging as posts.
+	var swing := sin(stride) * 0.7 * walk
 	var idle_leg := rest * sin(t * 1.1 + phase) * 0.04
+	var knee_a := 0.12 + walk * (0.18 + 0.5 * maxf(0.0, sin(stride + 1.1)))
+	var knee_b := 0.12 + walk * (0.18 + 0.5 * maxf(0.0, sin(stride + PI + 1.1)))
 	_set_pivot(node, "leg_fl", swing + idle_leg)
 	_set_pivot(node, "leg_br", swing - idle_leg)
 	_set_pivot(node, "leg_fr", -swing - idle_leg)
 	_set_pivot(node, "leg_bl", -swing + idle_leg)
+	_set_pivot(node, "leg_fl/knee_fl", knee_a)
+	_set_pivot(node, "leg_br/knee_br", knee_a)
+	_set_pivot(node, "leg_fr/knee_fr", knee_b)
+	_set_pivot(node, "leg_bl/knee_bl", knee_b)
 	var tail: Node3D = node.get_node_or_null(^"tail")
 	if tail != null:
 		tail.rotation = Vector3(0.18 * sin(stride * 0.5) * walk, 0.5 * sin(t * 2.0 + phase), 0)
