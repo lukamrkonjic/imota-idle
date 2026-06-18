@@ -67,8 +67,10 @@ var _cam_pitch := 0.413           # elevation above horizon (Up/Down arrows); ma
 var _pixel_scale := 3             # INTEGER display px per internal px (nearest-neighbour, no fractional stretch)
 # How the low-res image is placed on the window: an exact integer scale + centred offset.
 # Kept here so screen<->internal-pixel picking math accounts for the integer presentation.
+const PRESENT_OVERSCAN := 1   # internal-px margin per side, for the sub-pixel residual shift
 var _present_scale := 1.0
 var _present_off := Vector2.ZERO
+var _present_base_off := Vector2.ZERO
 var _static_sig := ""
 var _ti_cache: Dictionary = {}       # per-frame memo: "gtx,gty" -> tile info (cleared each frame)
 var _cc_cache: Dictionary = {}       # per-frame memo: "ci,cj" -> corner colour
@@ -325,17 +327,21 @@ func _apply_pixelation() -> void:
 	if win.x < 1.0 or win.y < 1.0:
 		return
 	var scale: int = _pixel_scale
-	# Overscan (ceil) so display = internal * scale >= window: covers it fully, crops
-	# <(scale) px at the edges instead of letterboxing. Both dims are integers.
-	var internal := Vector2i(maxi(8, int(ceil(win.x / float(scale)))), maxi(8, int(ceil(win.y / float(scale)))))
+	# Overscan (ceil + a 1px margin on every side) so display = internal*scale comfortably
+	# covers the window AND leaves room for the sub-pixel residual shift below to slide the
+	# image without revealing an empty edge. Both dims are integers.
+	var internal := Vector2i(
+		maxi(8, int(ceil(win.x / float(scale))) + 2 * PRESENT_OVERSCAN),
+		maxi(8, int(ceil(win.y / float(scale))) + 2 * PRESENT_OVERSCAN))
 	if internal != sub.size:
 		sub.size = internal
 	var displayed := internal * scale
-	var off := Vector2(floor((win.x - float(displayed.x)) * 0.5), floor((win.y - float(displayed.y)) * 0.5))
-	present.size = Vector2(displayed)
-	present.position = off
 	_present_scale = float(scale)
-	_present_off = off
+	_present_base_off = Vector2(floor((win.x - float(displayed.x)) * 0.5), floor((win.y - float(displayed.y)) * 0.5))
+	present.size = Vector2(displayed)
+	# Base position now; _snap_camera adds the sub-pixel residual shift after the follow.
+	present.position = _present_base_off
+	_present_off = _present_base_off
 
 
 ## Hide the 2D world visuals — every CanvasItem child of the world root — while
@@ -485,12 +491,16 @@ func _sync_camera() -> void:
 	_snap_camera()
 
 
-## Pixel-snapped RENDER camera. The follow above is the smooth LOGICAL transform; here we
-## snap only the render camera's screen-plane translation to the internal pixel grid, so
-## coast edges / contour lines / sprites land on the SAME internal texels frame to frame
-## instead of crawling across sub-pixel boundaries. The 2D gameplay world, the player's
-## position, and the camera's orientation are untouched — only this 3D camera's XY-in-view
-## offset is quantised (depth preserved), and everything renders relative to it together.
+## Pixel-snapped RENDER camera + sub-pixel residual offset ("Stable Pixel Motion").
+##
+## The follow above is the smooth LOGICAL transform. We SNAP the render camera's
+## screen-plane translation to the internal pixel grid so coast edges / contour lines /
+## sprites land on the SAME internal texels frame to frame (no crawl). But snapping alone
+## makes the world jump in whole-internal-pixel steps as you walk — visible micro-stutter,
+## worse at stronger pixelation. So we also take the RESIDUAL we snapped away and shift the
+## final presented image by it, rounded to whole DISPLAY pixels: the apparent motion is
+## then smooth to display-pixel precision while every internal texel stays a clean block.
+## The 2D gameplay world, player position and camera orientation are untouched.
 func _snap_camera() -> void:
 	if sub == null or sub.size.y <= 0:
 		return
@@ -501,11 +511,21 @@ func _snap_camera() -> void:
 	var right := b.x   # camera screen-right (orthonormal)
 	var up := b.y      # camera screen-up
 	var fwd := -b.z    # camera forward (depth) — left unsnapped
-	var p := cam.position
-	var r: float = round(p.dot(right) / wupp) * wupp
-	var u: float = round(p.dot(up) / wupp) * wupp
-	var f: float = p.dot(fwd)
-	cam.position = right * r + up * u + fwd * f
+	var logical := cam.position
+	var r: float = round(logical.dot(right) / wupp) * wupp
+	var u: float = round(logical.dot(up) / wupp) * wupp
+	var f: float = logical.dot(fwd)
+	cam.position = right * r + up * u + fwd * f   # snapped render position
+	# Residual we snapped away (< half a pixel along each screen axis), as a fraction of an
+	# internal pixel. Re-add it by sliding the presented image — content moves OPPOSITE to a
+	# rightward camera nudge, and screen-Y is inverted vs camera-up. Rounded to whole display
+	# pixels so texels never resample/blur.
+	if present != null:
+		var res_right := (logical.dot(right) - r) / wupp   # internal px, [-0.5, 0.5]
+		var res_up := (logical.dot(up) - u) / wupp
+		var shift := Vector2(round(-res_right * _present_scale), round(res_up * _present_scale))
+		present.position = _present_base_off + shift
+		_present_off = present.position
 
 
 ## Build/free per-chunk terrain meshes to match the currently loaded chunks.
