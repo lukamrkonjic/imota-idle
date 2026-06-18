@@ -156,7 +156,7 @@ func _teleport_biome(biome_id: String) -> void:
 	if hit.is_empty():
 		_hud.call("_push_chat", "[color=#a01010]No %s biome found nearby.[/color]" % biome_id)
 		return
-	world.call("teleport_to", hit["pos"])
+	EventBus.teleport_requested.emit(hit["pos"])
 	_hud.call("_push_chat", "[color=#5a3a8a]Teleported to %s (~%.0f tiles away).[/color]" % [
 		str(hit["name"]), float(hit["distance"]) / WG.TILE])
 	_popup.hide()
@@ -243,7 +243,7 @@ func _teleport_structure(type: String, nice: String) -> void:
 	if hit.is_empty():
 		_hud.call("_push_chat", "[color=#a01010]No %s found within range.[/color]" % nice)
 		return
-	world.call("teleport_to", hit["pos"])
+	EventBus.teleport_requested.emit(hit["pos"])
 	_hud.call("_push_chat", "[color=#5a3a8a]Teleported to %s (~%.0f tiles away).[/color]" % [
 		nice, from.distance_to(hit["pos"]) / WG.TILE])
 	_popup.hide()
@@ -338,7 +338,7 @@ func _teleport_tile(tile: Vector2i, nice: String) -> void:
 	if world == null:
 		return
 	var pos: Vector2 = WG.tile_to_world(tile.x, tile.y)
-	world.call("teleport_to", pos)
+	EventBus.teleport_requested.emit(pos)
 	_hud.call("_push_chat", "[color=#5a3a8a]Teleported to %s.[/color]" % nice)
 	_popup.hide()
 
@@ -471,7 +471,7 @@ func _build_misc_tab() -> void:
 	_add_misc_button(box, "Teleport to spawn", func() -> void:
 		var world: Node2D = _hud.get("world")
 		if world != null:
-			world.call("teleport_to", WorldGen.spawn_position())
+			EventBus.teleport_requested.emit(WorldGen.spawn_position())
 			_popup.hide())
 
 	var scroll := ScrollContainer.new()

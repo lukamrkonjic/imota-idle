@@ -40,7 +40,7 @@ func _ready() -> void:
 	phase4_auto_eat()
 	phase5_combat_depth()
 	phase6_skill_loops()
-	await phase3_ui_smoke()
+	phase3_gather_smoke()
 	phase6_worldgen()
 	phase6_chunk_snapshots()
 	await phase5_world()
@@ -432,10 +432,13 @@ func phase3_save_roundtrip() -> void:
 	GameState.add_item("Logs", 42)
 	GameState.deposit("Logs", 20)
 	GameState.add_coins(1234)
+	GameState.player_pos = Vector2(321.5, -654.0)
 	var snapshot := GameState.to_save_dict()
 	var json_trip: Dictionary = JSON.parse_string(JSON.stringify(snapshot))
 	GameState.reset_state()
+	check(not GameState.player_pos.is_finite(), "reset clears player_pos to spawn sentinel")
 	GameState.from_save_dict(json_trip)
+	check(GameState.player_pos.is_equal_approx(Vector2(321.5, -654.0)), "player world position survives save")
 	check(GameState.level("woodcutting") == DataRegistry.level_for_xp(5000.0), "skill level survives save")
 	check(GameState.count_item("Logs") == 22, "inventory survives save (got %d)" % GameState.count_item("Logs"))
 	check(int(GameState.bank.get(DataRegistry.resolve_item_id("Logs"), 0)) == 20, "bank survives save")
@@ -560,26 +563,20 @@ func phase4_food_shop_offline() -> void:
 	check(GameState.coins == 777, "legacy gold save loads as coins")
 
 
-func phase3_ui_smoke() -> void:
-	print("== Phase 3: UI smoke test ==")
+## The gather loop drives loot + activity state. Formerly asserted through the legacy
+## 2D UI's labels (scenes/main.tscn); now tests the underlying TickSim/GameState
+## behaviour directly, so the legacy UI can be deleted.
+func phase3_gather_smoke() -> void:
+	print("== Phase 3: gather loop smoke test ==")
 	GameState.reset_state()
-	var scene: PackedScene = load("res://scenes/main.tscn")
-	var ui: Control = scene.instantiate()
-	add_child(ui)
-	await get_tree().process_frame
 	TickSim.rng.seed = 0x6A7E12
-	TickSim.start_gather("woodcutting", "Regular Tree")
+	check(TickSim.start_gather("woodcutting", "Regular Tree"), "start_gather woodcutting Regular Tree")
+	check(TickSim.active and TickSim.skill == "woodcutting", "tick sim active on the requested skill")
 	for i: int in 600:  # ~25 rolls; a Log is effectively certain at p~0.4
 		TickSim.advance(0.1)
-	await get_tree().process_frame
-	var activity: Label = ui.get("activity_label")
-	check(activity.text.contains("Regular Tree"), "activity label shows current node")
-	var feed: RichTextLabel = ui.get("feed")
-	check(feed.text.contains("+1 Logs"), "loot feed shows gathered logs")
+	check(GameState.count_item("Logs") > 0, "gathering yields Logs")
 	TickSim.stop()
-	await get_tree().process_frame
-	check(activity.text.contains("Idle"), "activity label resets on stop")
-	ui.queue_free()
+	check(not TickSim.active, "tick sim idle after stop")
 
 
 ## Drive the player along its A* path instantly (teleport to each waypoint

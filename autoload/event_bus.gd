@@ -36,3 +36,11 @@ signal world_layer_changed(layer: int)
 signal site_depleted(chunk_key: String, site_index: int)
 signal site_respawned(chunk_key: String, site_index: int)
 signal obelisk_unlocked(obelisk_name: String)
+
+# --- UI → world intents (decoupled from the world's method surface) -----------
+# The HUD / admin menu emit these; world.gd connects them to its handlers, so the
+# UI never calls into the world node directly (no more world.call("...")).
+signal bank_requested
+signal gather_requested(skill: String, node_name: String)
+signal station_requested(skill: String, recipe_name: String)
+signal teleport_requested(pos: Vector2)

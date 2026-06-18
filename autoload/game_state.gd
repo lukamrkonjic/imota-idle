@@ -35,6 +35,7 @@ var current_hp: int = 10
 var combat_style: String = "attack"   # trained combat skill (persisted, spec §12)
 var active_prayers: Array = []         # names of prayers toggled on (combat hooks)
 var run_energy: float = 100.0          # Agility meta-stat (spec §16); speeds auto-nav
+var player_pos: Vector2 = Vector2.INF  # last world position; Vector2.INF = "use spawn" (new game)
 var _death_rng := RandomNumberGenerator.new()
 
 # High Alchemy (spec §16/§18): the item->coins magic sink. Placeholder numbers.
@@ -64,6 +65,7 @@ func reset_state() -> void:
 	combat_style = "attack"
 	active_prayers = []
 	run_energy = 100.0
+	player_pos = Vector2.INF
 	# Starter kit: the Bronze tool set (real smithing-recipe items from the
 	# export). Bronze Sword needs Attack 3 — it waits in the inventory; until
 	# then the player fights unarmed (damage = 1 + Strength level).
@@ -232,6 +234,11 @@ func buy_item(item_name: String, qty: int) -> bool:
 ## Slot inference ported from EquipmentSystem.GetEquipmentSlotForItem —
 ## Bloobs maps items to slots by name substring, in this priority order.
 static func slot_for_item(item_name: String) -> String:
+	# Prefer an explicit `slot` on the item definition (data/items.json). The name
+	# inference below is the legacy fallback for content that doesn't declare one yet.
+	var explicit := str(DataRegistry.get_item(item_name).get("slot", ""))
+	if not explicit.is_empty():
+		return explicit
 	var n := item_name.to_lower()
 	if n == "herring":
 		return "Food"
@@ -316,6 +323,10 @@ func weapon_combat_style() -> String:
 	if wid.is_empty():
 		return "melee"
 	var item: Dictionary = DataRegistry.get_item(wid)
+	# Prefer explicit item data; fall back to stat fields, then name inference (legacy).
+	var explicit := str(item.get("combatStyle", "")).to_lower()
+	if explicit in ["melee", "ranged", "magic"]:
+		return explicit
 	var n := str(item.get("name", "")).to_lower()
 	if int(item.get("rangeDamage", 0)) > 0 or n.contains("bow") or n.contains("crossbow") or n.contains("dart") or n.contains("knife"):
 		return "ranged"
@@ -575,6 +586,8 @@ func to_save_dict() -> Dictionary:
 		"current_hp": current_hp,
 		"combat_style": combat_style,
 		"run_energy": run_energy,
+		# Vector2 has no JSON form; store [x, y], or null until the player has moved.
+		"player_pos": ([player_pos.x, player_pos.y] if player_pos.is_finite() else null),
 	}
 
 
@@ -614,6 +627,8 @@ func from_save_dict(d: Dictionary) -> void:
 	coins = int(d.get("coins", d.get("gold", 0)))
 	combat_style = str(d.get("combat_style", "attack"))
 	run_energy = clampf(float(d.get("run_energy", 100.0)), 0.0, 100.0)
+	var pp: Variant = d.get("player_pos", null)
+	player_pos = Vector2(float(pp[0]), float(pp[1])) if (pp is Array and pp.size() == 2) else Vector2.INF
 	active_prayers = []
 	current_hp = clampi(int(d.get("current_hp", max_hp())), 1, max_hp())
 	EventBus.inventory_changed.emit()

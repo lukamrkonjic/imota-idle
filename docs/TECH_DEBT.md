@@ -2,6 +2,11 @@
 
 Risks and concrete files. Ordered by impact on long-term playability.
 
+> **Active plan:** the prioritized, tiered cleanup for the current **3D pixel-art `main`**
+> lives in `docs/REFACTOR_ROADMAP.md`. This file is the longer-standing risk register;
+> some line counts below predate the 3D render layer (which is now the largest debt —
+> `world_render_3d.gd` ~2200, `prop_meshes.gd` ~1855, `osrs_hud.gd` ~1953).
+
 ## P0 — Breaks player worlds
 
 | Risk | Files | Notes |
@@ -29,25 +34,26 @@ Risks and concrete files. Ordered by impact on long-term playability.
 | Dictionary string keys everywhere | All autoloads, world scripts | Typo-prone; no static typing on content shape. |
 | Procedural art dumps | `scripts/world/iso_sprites.gd` (~433), `scripts/world/tree_art.gd` (~207) | Will grow with every new node type; consider data-driven sprite defs. |
 | Activity sims not unified | `tick_sim.gd`, `combat_sim.gd`, `recipe_sim.gd` | Each skill type needs bespoke loop code (Phase 7). |
-| Legacy Melvor UI still in tree | `scenes/main.tscn`, `scripts/ui/main_ui.gd` | Only used by validate smoke; confuses contributors. |
+| ~~Legacy Melvor UI still in tree~~ | ~~`scenes/main.tscn`, `scripts/ui/main_ui.gd`~~ | **Done (Tier 0).** Deleted; validate phase 3 retargeted to the TickSim gather loop. Preserved on `archive/main-2d`. |
 | Import-only content ids | `tools/import_bloobs_data.gd` | Items lack explicit `id` field in JSON; runtime assignment only. |
 
 ## P3 — Cleanup
 
 | Risk | Files | Notes |
 |------|-------|-------|
-| Unused exploration fog | `scripts/worldgen/exploration_edge_fog.gd` | Superseded by `unexplored_backdrop.gd`. Marked `@deprecated`. |
+| ~~Unused exploration fog~~ | ~~`scripts/worldgen/exploration_edge_fog.gd`~~ | **Done (Tier 0).** Deleted (was `@deprecated`, superseded by `unexplored_backdrop.gd`). |
 | Missing contributor docs | `docs/` | Only `DATA_GAPS.md` existed before architecture pass. |
 
-## File size watch list
+## File size watch list (current, 3D `main`)
 
 | File | Lines | Category |
 |------|------:|----------|
-| `scripts/ui/osrs_hud.gd` | ~950 | UI — next split candidate |
-| `scripts/worldgen/skill_site_spawner.gd` | ~375 | World generation |
-| `scripts/worldgen/chunk_renderer.gd` | ~181 | Rendering |
-| `scripts/worldgen/biome_classifier.gd` | ~161 | World generation |
-| `scripts/world/world.gd` | ~141 | Orchestration only (split done) |
+| `scripts/render/world_render_3d.gd` | ~2200 | 3D render — top split candidate |
+| `scripts/ui/osrs_hud.gd` | ~1953 | UI — split into per-tab components |
+| `scripts/render/prop_meshes.gd` | ~1855 | 3D render — data-drive equip/rig |
+| `scripts/worldgen/skill_site_spawner.gd` | ~626 | World generation — rule pile |
+| `scripts/worldgen/chunk_renderer.gd` | ~581 | Rendering — split biome colour out |
+| `scripts/worldgen/biome_classifier.gd` | ~530 | World generation — split water passes |
 
 `iso_sprites.gd` / `tree_art.gd` monoliths were split under `scripts/world/art/`;
 the files at `scripts/world/` are one-line back-compat re-exports.
@@ -72,4 +78,4 @@ there, and keep the disk round-trip test in `validate.gd` Phase 6b green.
 8. Test split + STYLE_GUIDE (Phases 10–11)
 9. Migrate remaining HUD `world.call()` sites to EventBus
 10. Persist player world position in save (currently respawns at `spawn_position()` each launch)
-11. Delete legacy `scenes/main.tscn` / `main_ui.gd` once validate no longer smokes it
+11. ~~Delete legacy `scenes/main.tscn` / `main_ui.gd`~~ — done (Tier 0)

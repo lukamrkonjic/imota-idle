@@ -10,7 +10,8 @@ Godot 4.6 semi-idle incremental RPG. Data-driven content from Bloobs Adventure I
 | **Content** | JSON definitions + indexes | `data/`, `autoload/data_registry.gd`, `scripts/worldgen/world_registry.gd` |
 | **World generation** | Deterministic chunk data | `autoload/world_gen.gd`, `scripts/worldgen/*` |
 | **Persistence** | Player + world deltas | `autoload/save_manager.gd`, `scripts/worldgen/world_store.gd` |
-| **Presentation** | Scene, input, rendering | `scripts/world/world.gd`, `chunk_manager.gd`, `chunk_renderer.gd` |
+| **Presentation (2D substrate)** | Scene, input, gameplay positions | `scripts/world/world.gd`, `chunk_manager.gd`, `chunk_renderer.gd` |
+| **Presentation (3D render)** | Low-poly pixel-art rendering of the 2D substrate | `scripts/render/world_render_3d.gd`, `prop_meshes.gd`, `shaders/*` |
 | **UI** | Displays state, emits intent | `scripts/ui/osrs_hud.gd` |
 
 Communication between layers uses **EventBus** signals. UI and world should not mutate sim state except through autoload APIs.
@@ -158,6 +159,25 @@ Pixel art is split into modules (not one monolithic `iso_sprites.gd`):
 | `art/ground_decor/` | `grass_decor.gd`, `stick_decor.gd`, `shrub_decor.gd`, … + `ground_decor_art.gd` router |
 | `art/iso_sprites.gd` | Public facade; `scripts/world/iso_sprites.gd` re-exports for compatibility |
 
+### 3D render layer (`scripts/render/`)
+
+The game logic, pathing, and picking still run on the **2D iso world** (`world.gd` and
+the CanvasItem entities) as the authoritative substrate. `world_render_3d.gd` renders a
+low-poly pixel-art **view** of that substrate into a `SubViewport`, presented under the
+HUD through a palette-snap post-process. The 2D CanvasItems are hidden but kept alive as
+the logic source (positions, A* pathing, hover/click picking).
+
+| File | Responsibility |
+|------|----------------|
+| `world_render_3d.gd` | Orthographic camera follow, pixelation/present, terrain mesh build, mover animation, static prop batching, spawn dressing, screen↔world projection for picking |
+| `prop_meshes.gd` | Procedural low-poly meshes for trees/structures/enemies/equipment |
+| `pixel3d_preview.gd` | Standalone model viewer (dev) |
+| `shaders/toon_*.gdshader` | Banded toon lighting for world/ground/water/shore |
+| `shaders/palette_snap.gdshader` | Final palette-quantize post-process |
+
+> This layer is the largest tech-debt hotspot (god-object `world_render_3d.gd`). See
+> `docs/REFACTOR_ROADMAP.md` Tier 1.
+
 ### OSRS HUD (`osrs_hud.gd`)
 
 Procedural OSRS-style UI: hover, minimap, HP orb, inventory/equipment/skills panel, chat, popups. Listens to EventBus; `bind_world(w)` for world actions.
@@ -195,6 +215,9 @@ Phases 0–6 cover data, gathering, combat, save roundtrip, recipes, food/shop/o
 | Scene | Script | Use |
 |-------|--------|-----|
 | `scenes/world.tscn` | `world.gd` | **Playable game** |
-| `scenes/main.tscn` | `main_ui.gd` | Legacy Melvor UI (validate smoke only) |
 | `tools/validate.tscn` | `validate.gd` | CI / headless tests |
 | `tools/world_debug.tscn` | `world_debug.gd` | ASCII world-gen scanner |
+
+> The legacy 2D Melvor UI (`scenes/main.tscn` / `main_ui.gd`) was deleted when the 3D
+> pixel-art build became `main`. It is preserved on branch `archive/main-2d` / tag
+> `2d-classic` if ever needed.

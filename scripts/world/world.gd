@@ -77,7 +77,12 @@ func _ready() -> void:
 
 func _finalize_player_spawn() -> void:
 	var pos := WorldGen.spawn_position()
-	if not WorldGen.is_spawn_floor(player.position):
+	# Restore the saved world position if we have one and it's still valid terrain;
+	# otherwise fall back to the spawn floor (new game, or a no-longer-walkable spot).
+	if GameState.player_pos.is_finite() and WorldGen.is_spawn_floor(GameState.player_pos):
+		pos = GameState.player_pos
+		player.position = pos
+	elif not WorldGen.is_spawn_floor(player.position):
 		player.position = pos
 	chunk_manager.update_center(player.position)
 	_entity_spawner.sort_entities_for_targeting()
@@ -188,10 +193,16 @@ func _connect_events() -> void:
 	EventBus.site_respawned.connect(_auto_task_ctrl.on_site_respawned)
 	EventBus.combat_hit_splat.connect(_spawn_hit_splat)
 	EventBus.combat_ranged_shot.connect(_spawn_arrow)
+	# UI → world intents (replaces UI calling world.call("...") directly).
+	EventBus.bank_requested.connect(auto_bank)
+	EventBus.gather_requested.connect(auto_gather)
+	EventBus.station_requested.connect(auto_station)
+	EventBus.teleport_requested.connect(teleport_to)
 
 
 func _process(delta: float) -> void:
 	var t0 := Time.get_ticks_usec()
+	GameState.player_pos = player.position   # kept current so saves capture where you are
 	chunk_manager.update_center(player.position)
 	var t1 := Time.get_ticks_usec()
 	_update_stream_radius()

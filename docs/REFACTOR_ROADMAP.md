@@ -13,6 +13,23 @@ Severity: **P0** architecture-breaking · **P1** blocks scaling · **P2** mainta
 
 ---
 
+## Progress — first cleanup pass (validate green throughout; render-layer changes render-checked)
+
+**Done & verified:**
+- **Tier 0:** deleted legacy 2D UI (`main_ui.gd`/`scenes/main.tscn`, validate retargeted), deleted deprecated `exploration_edge_fog.gd`; wrote `STYLE_GUIDE.md`; refreshed `ARCHITECTURE.md` + `TECH_DEBT.md`.
+- **Tier 2 (safe subset):** combat balance magic numbers → named constants (`combat_sim.gd`); `slot_for_item` and `weapon_combat_style` now prefer explicit `slot`/`combatStyle` item data, inference is fallback only.
+- **Tier 1 (safe extractions):** HUD inner widgets → `scripts/ui/widgets/` (tab_icon, status_orb, icon_button, minimap) + dead `HpOrb` removed (`osrs_hud.gd` 1958→1661); spawn-dressing data → `scripts/render/spawn_dressing_specs.gd` (`world_render_3d.gd` 2202→2093).
+- **Tier 3 (decoupling):** all UI `world.call("...")` sites (HUD + AdminMenu) replaced with EventBus intents (`bank_requested`/`gather_requested`/`station_requested`/`teleport_requested`); world subscribes.
+- **Tier 4:** player world position now persists across launches (`GameState.player_pos`, saved/restored, validated).
+
+**Deliberately deferred (too large/risky for one unsupervised pass — need incremental review):**
+- Tier 1: the *logic* split of `world_render_3d.gd` (camera/terrain/animation controllers), per-tab HUD components, and `prop_meshes.gd` per-category + data-driven equip/rig. The render loop is stateful and `validate` doesn't cover it, so feel-regressions can't be caught automatically — split these one at a time with live play-testing.
+- Tier 2: typed `ItemStack`/`ActionData` (touches the save format), authoring explicit slots across 1803 items, moving all tuning maps to JSON.
+- Tier 3: `ActivitySim` base unifying the four sims (touches save serialization); world-gen pass pipeline (touches generation determinism).
+- Tier 4/5: chunk-snapshot generator-hash invalidation; remaining magic-number/naming sweeps; ASCII icon maps → data.
+
+---
+
 ## Worst-offender files (refactor targets)
 
 | File | Lines | Core problem |

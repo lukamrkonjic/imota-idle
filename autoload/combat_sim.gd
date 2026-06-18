@@ -16,6 +16,15 @@ const PLAYER_CRIT_MULTIPLIER := 2.0
 const PLAYER_DR_CAP := 80.0  # percent; cap so high-tier gear can't zero damage
 const ENEMY_REACT_DELAY := 1.2  # seconds before a mob first retaliates (aggro reaction)
 
+# Hit-chance & damage balance (was scattered as inline literals). OSRS-ish:
+const BASE_ACCURACY := 0.3            # accuracy floor at level 1, before gear
+const ACCURACY_PER_LEVEL := 0.01      # +1% hit chance per combat level
+const ACCURACY_LEVEL_CAP := 1000      # level past which accuracy stops scaling
+const DAMAGE_MIN_MULT := 0.6          # a non-crit hit rolls 60%..120% of base damage
+const DAMAGE_MAX_MULT := 1.2
+const COMBAT_TRIANGLE_BONUS := 1.25   # melee>ranged>magic>melee damage multiplier
+const MISS_STREAK_PITY := 3.0         # forced-hit pity after this many consecutive misses
+
 var active := false
 var enemy: Dictionary = {}
 var enemy_hp := 0.0
@@ -156,15 +165,19 @@ func _style() -> String:
 	return train_skill  # "ranged" or "magic"
 
 
-## AttackSkill: accuracy = 0.3 + 0.01 * level (cap 1000) + equipment accuracy.
+## AttackSkill: accuracy = BASE_ACCURACY + ACCURACY_PER_LEVEL * level (capped) + gear.
 func player_accuracy() -> float:
 	match _style():
 		"ranged":
-			return 0.3 + 0.01 * mini(GameState.level("ranged"), 1000) + GameState.equipment_range_accuracy()
+			return _accuracy_for("ranged") + GameState.equipment_range_accuracy()
 		"magic":
-			return 0.3 + 0.01 * mini(GameState.level("magic"), 1000) + GameState.equipment_magic_accuracy()
+			return _accuracy_for("magic") + GameState.equipment_magic_accuracy()
 		_:
-			return 0.3 + 0.01 * mini(GameState.level("attack"), 1000) + GameState.equipment_accuracy()
+			return _accuracy_for("attack") + GameState.equipment_accuracy()
+
+
+func _accuracy_for(skill: String) -> float:
+	return BASE_ACCURACY + ACCURACY_PER_LEVEL * mini(GameState.level(skill), ACCURACY_LEVEL_CAP)
 
 
 ## StrengthSkill: damage = 1 + 1 * level + equipment damage (per style).
@@ -186,7 +199,7 @@ func triangle_multiplier() -> float:
 	if (s == "melee" and enemy_style.contains("range")) \
 			or (s == "ranged" and enemy_style.contains("mag")) \
 			or (s == "magic" and enemy_style.contains("melee")):
-		return 1.25
+		return COMBAT_TRIANGLE_BONUS
 	return 1.0
 
 
@@ -218,7 +231,7 @@ func _player_attack() -> void:
 	var acc := player_accuracy()
 	# Miss-streak pity (CombatManager.meleeAccuracyBias): +10% after 3 misses,
 	# +20% after 6.
-	if miss_streak >= 3.0:
+	if miss_streak >= MISS_STREAK_PITY:
 		acc += 0.1
 	if miss_streak >= 6.0:
 		acc += 0.2
@@ -250,7 +263,7 @@ func _apply_player_hit() -> void:
 		if is_crit:
 			dmg = base * PLAYER_CRIT_MULTIPLIER
 		else:
-			dmg = rng.randf_range(base * 0.6, base * 1.2)
+			dmg = rng.randf_range(base * DAMAGE_MIN_MULT, base * DAMAGE_MAX_MULT)
 	dmg *= triangle_multiplier()
 	# Enemy damage reduction is a flat percent from the bestiary.
 	dmg *= 1.0 - float(enemy["damageReduction"]) / 100.0
