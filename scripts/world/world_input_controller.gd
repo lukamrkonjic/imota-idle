@@ -45,15 +45,15 @@ func handle_input(event: InputEvent) -> void:
 			else:
 				world.pending_action = {}
 				world.auto_task = {}
-				if CombatSim.active:
-					# Walking off mid-fight doesn't end combat — the mob gives chase
-					# and the leash decides if you actually escape (handled in the
-					# activity controller). Only drop skilling sims here.
-					TickSim.stop()
-					RecipeSim.stop()
-				else:
-					world._activity_ctrl.stop_all_sims()
-					world._activity_ctrl.clear_combat_target()
+				# OSRS: a movement command CLEARS the active attack interaction. You walk
+				# off and STOP auto-attacking (no shooting-while-fleeing) — click the
+				# enemy again to resume the fight. Leaving a fight grants a short aggro
+				# grace so you can actually get away before a mob re-engages.
+				var was_fighting := CombatSim.active
+				world._activity_ctrl.stop_all_sims()
+				world._activity_ctrl.clear_combat_target()
+				if was_fighting:
+					world._activity_ctrl.grant_aggro_grace()
 				# click_pos already comes from the 3D camera's screen_to_iso projection
 				# (mouse_world_pos), so walk straight there — no 2D elevation re-pick.
 				world.walk_to_pos(click_pos)

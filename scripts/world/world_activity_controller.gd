@@ -284,7 +284,17 @@ func on_enemy_killed() -> void:
 		world.combat_target_entity.dimmed = true
 
 
+## Briefly suppress aggro auto-engage (e.g. right after a movement command clears the
+## fight) so the player can actually walk away before a mob re-engages.
+func grant_aggro_grace() -> void:
+	_aggro_grace = AGGRO_GRACE
+
+
 func _check_aggro() -> void:
+	# Auto-retaliate off (OSRS): aggressive mobs no longer pull you into a fight — you
+	# only fight enemies you click.
+	if not GameSettings.auto_retaliate:
+		return
 	if CombatSim.active or _aggro_grace > 0.0 or world.auto_task.get("mode", "") == "gather" and TickSim.active:
 		return
 	var entry := WorldGen.player_entry_level()

@@ -46,6 +46,10 @@ var view_distance: float = DEFAULT_VIEW_DISTANCE  # 0 = near, 1 = far; read by t
 var auto_eat_enabled: bool = true
 var auto_eat_threshold: float = 0.5
 
+# Auto-retaliate (OSRS): when on, the player automatically fights back against (and
+# is auto-engaged by) an aggressive enemy. When off, you only fight enemies you click.
+var auto_retaliate: bool = true
+
 var keybinds: Dictionary = {}  # action id -> Key keycode
 
 
@@ -79,6 +83,7 @@ func load_settings() -> void:
 		fps_limit = DEFAULT_FPS_LIMIT
 	auto_eat_enabled = bool(data.get("auto_eat_enabled", true))
 	auto_eat_threshold = clampf(float(data.get("auto_eat_threshold", 0.5)), 0.0, 1.0)
+	auto_retaliate = bool(data.get("auto_retaliate", true))
 	pixelation = clampf(float(data.get("pixelation", DEFAULT_PIXELATION)), 0.0, 1.0)
 	view_distance = clampf(float(data.get("view_distance", DEFAULT_VIEW_DISTANCE)), 0.0, 1.0)
 	var saved_kb: Dictionary = data.get("keybinds", {})
@@ -102,6 +107,7 @@ func save_settings() -> void:
 		"fps_limit": fps_limit,
 		"auto_eat_enabled": auto_eat_enabled,
 		"auto_eat_threshold": auto_eat_threshold,
+		"auto_retaliate": auto_retaliate,
 		"pixelation": pixelation,
 		"view_distance": view_distance,
 		"keybinds": keybinds,
@@ -157,6 +163,12 @@ func set_show_zone_banner(enabled: bool) -> void:
 	show_zone_banner = enabled
 	save_settings()
 	changed.emit(&"show_zone_banner")
+
+
+func set_auto_retaliate(enabled: bool) -> void:
+	auto_retaliate = enabled
+	save_settings()
+	changed.emit(&"auto_retaliate")
 
 
 func set_show_chat(enabled: bool) -> void:

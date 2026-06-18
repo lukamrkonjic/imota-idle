@@ -101,6 +101,7 @@ var _settings_zone_banner: CheckBox
 var _settings_chat: CheckBox
 var _settings_tooltip: CheckBox
 var _settings_show_fps: CheckBox
+var _settings_auto_retaliate: CheckBox
 var _settings_fps_limit: OptionButton
 var _keybind_buttons: Dictionary = {}  # action id -> rebind Button
 var _rebinding_action := ""             # action id currently capturing a key, or ""
@@ -720,6 +721,8 @@ func _build_settings_popup() -> void:
 		func(on: bool) -> void: GameSettings.set_show_hover_tooltip(on))
 	_settings_show_fps = _add_settings_checkbox(box, "Show FPS", GameSettings.show_fps,
 		func(on: bool) -> void: GameSettings.set_show_fps(on))
+	_settings_auto_retaliate = _add_settings_checkbox(box, "Auto retaliate", GameSettings.auto_retaliate,
+		func(on: bool) -> void: GameSettings.set_auto_retaliate(on))
 	_settings_fps_limit = _add_settings_option_row(
 		box, "FPS limit", GameSettings.FPS_LIMIT_OPTIONS, GameSettings.fps_limit,
 		func(value: int) -> void: GameSettings.set_fps_limit(value))
@@ -1078,6 +1081,7 @@ func open_settings() -> void:
 	_settings_chat.button_pressed = GameSettings.show_chat
 	_settings_tooltip.button_pressed = GameSettings.show_hover_tooltip
 	_settings_show_fps.button_pressed = GameSettings.show_fps
+	_settings_auto_retaliate.button_pressed = GameSettings.auto_retaliate
 	_select_settings_fps_limit(GameSettings.fps_limit)
 	settings_popup.popup_centered()
 
