@@ -41,6 +41,7 @@ func _ready() -> void:
 	phase5_combat_depth()
 	phase6_skill_loops()
 	phase3_gather_smoke()
+	phase_activity_exclusion()
 	phase6_worldgen()
 	phase6_chunk_snapshots()
 	await phase5_world()
@@ -566,6 +567,25 @@ func phase4_food_shop_offline() -> void:
 ## The gather loop drives loot + activity state. Formerly asserted through the legacy
 ## 2D UI's labels (scenes/main.tscn); now tests the underlying TickSim/GameState
 ## behaviour directly, so the legacy UI can be deleted.
+## The three active sims (gather/combat/craft) are mutually exclusive: starting one
+## stops the others via ActivityManager. Guards that registration + arbitration work.
+func phase_activity_exclusion() -> void:
+	print("== Activity mutual exclusion ==")
+	GameState.reset_state()
+	TickSim.rng.seed = 1
+	if not TickSim.start_gather("woodcutting", "Regular Tree"):
+		check(false, "could not start gather for exclusion test")
+		return
+	check(TickSim.active, "gather active before combat")
+	if CombatSim.start_combat("Chickens", "attack"):
+		check(not TickSim.active, "starting combat stops gathering")
+		check(CombatSim.active, "combat active")
+	TickSim.start_gather("woodcutting", "Regular Tree")
+	check(not CombatSim.active, "starting gather stops combat")
+	TickSim.stop()
+	CombatSim.stop()
+
+
 func phase3_gather_smoke() -> void:
 	print("== Phase 3: gather loop smoke test ==")
 	GameState.reset_state()

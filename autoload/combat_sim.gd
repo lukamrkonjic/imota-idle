@@ -9,6 +9,7 @@ extends Node
 
 const CombatStyles := preload("res://scripts/combat/combat_styles.gd")
 const DropRoller := preload("res://scripts/combat/drop_roller.gd")
+const ActivityManager := preload("res://scripts/activity_manager.gd")
 
 const ATTACK_INTERVAL := 3.0  # default; per-weapon speed comes from GameState.attack_interval()
 const PLAYER_BASE_CRIT := 0.01
@@ -49,6 +50,10 @@ var kills := 0
 var rng := RandomNumberGenerator.new()
 
 
+func _ready() -> void:
+	ActivityManager.register(self)
+
+
 func _process(delta: float) -> void:
 	if active:
 		advance(delta)
@@ -67,8 +72,7 @@ func start_combat(enemy_name: String, p_train_skill: String = "attack", player_i
 		EventBus.combat_log.emit("Slayer level %d required for %s" % [slayer_req, str(e.get("displayName", enemy_name))])
 		return false
 	stop("switching")
-	TickSim.stop("switching")
-	RecipeSim.stop("switching")
+	ActivityManager.stop_others(self)
 	enemy = e
 	train_skill = p_train_skill
 	GameState.combat_style = p_train_skill  # remember the style across sessions

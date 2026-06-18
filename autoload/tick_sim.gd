@@ -11,6 +11,7 @@ extends Node
 ## delivery is now a per-roll OSRS-style success instead of a filling bar.
 
 const GATHER_TICKS := 4  # one success roll every 4 ticks (2.4s), like OSRS WC
+const ActivityManager := preload("res://scripts/activity_manager.gd")
 
 var active := false
 var skill := ""
@@ -18,6 +19,10 @@ var node: Dictionary = {}
 var timer := 0.0
 
 var rng := RandomNumberGenerator.new()
+
+
+func _ready() -> void:
+	ActivityManager.register(self)
 
 
 func _process(delta: float) -> void:
@@ -47,8 +52,7 @@ func start_gather(p_skill: String, node_name: String) -> bool:
 		EventBus.combat_log.emit("No suitable tool equipped for %s" % p_skill.capitalize())
 		return false
 	stop("switching")
-	CombatSim.stop("switching")
-	RecipeSim.stop("switching")
+	ActivityManager.stop_others(self)
 	skill = p_skill
 	node = n
 	timer = 0.0

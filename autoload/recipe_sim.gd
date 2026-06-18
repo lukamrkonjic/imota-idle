@@ -2,10 +2,16 @@ extends Node
 ## Production-skill crafting loop (Recipe.cs subclasses): consume inputs,
 ## wait the recipe timer, grant output + XP, auto-repeat while inputs last.
 
+const ActivityManager := preload("res://scripts/activity_manager.gd")
+
 var active := false
 var recipe: Dictionary = {}
 var timer := 0.0
 var crafted := 0
+
+
+func _ready() -> void:
+	ActivityManager.register(self)
 
 
 func _process(delta: float) -> void:
@@ -35,8 +41,7 @@ func start_craft(skill: String, recipe_name: String) -> bool:
 		EventBus.combat_log.emit("Missing ingredients for %s" % recipe_name)
 		return false
 	stop("switching")
-	TickSim.stop("switching")
-	CombatSim.stop("switching")
+	ActivityManager.stop_others(self)
 	recipe = r
 	timer = 0.0
 	crafted = 0
