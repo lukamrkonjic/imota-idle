@@ -107,10 +107,10 @@ func _build() -> void:
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	# A soft sky-green fill so shaded grass/foliage stays lush green instead of going
-	# near-black — the key to the bright, verdant look.
-	env.ambient_light_color = Color(0.62, 0.74, 0.58)
-	env.ambient_light_energy = 0.45
+	# A muted, slightly cool earth-green fill so shaded grass/foliage stays a deep
+	# mossy green (not near-black, not lime) — moody-cozy forest, not bright neon.
+	env.ambient_light_color = Color(0.5, 0.56, 0.47)
+	env.ambient_light_energy = 0.36
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	# Stylized atmospheric perspective (A Short Hike), NOT volumetric fog: a depth
 	# fog in the SAME colour as the sky horizon, ramping from the middle distance to
@@ -136,8 +136,8 @@ func _build() -> void:
 
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-38, 40, 0)   # lower afternoon sun -> longer soft shadows
-	sun.light_color = Color(1.0, 0.97, 0.84)   # bright, slightly warm daylight
-	sun.light_energy = 1.15                    # brighter key light for a lush, sunny look
+	sun.light_color = Color(1.0, 0.95, 0.8)    # warm afternoon daylight
+	sun.light_energy = 1.0                     # softer key light for a moodier, earthy look
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
 	sun.directional_shadow_max_distance = 90.0
@@ -170,9 +170,9 @@ func _build() -> void:
 
 	_ground_mat = ShaderMaterial.new()
 	_ground_mat.shader = TOON_GROUND
-	_ground_mat.set_shader_parameter("shadow_tint", PixelPalette.pal("mid_foliage"))   # shaded grass stays green, not black
+	_ground_mat.set_shader_parameter("shadow_tint", PixelPalette.pal("grass_dark"))   # deeper mossy shade so cast shadows read
 	_ground_mat.set_shader_parameter("light_tint", PixelPalette.pal("hike_grass_light"))
-	_ground_mat.set_shader_parameter("ambient", 0.32)
+	_ground_mat.set_shader_parameter("ambient", 0.26)
 	_ground_mat.set_shader_parameter("softness", 0.03)
 
 	_water_mat = ShaderMaterial.new()
@@ -211,9 +211,9 @@ func _build() -> void:
 	_snap_mat.set_shader_parameter("palette_count", PixelPalette.PAL.size())
 	_snap_mat.set_shader_parameter("enabled", 1.0)
 	_snap_mat.set_shader_parameter("strength", 0.8)
-	_snap_mat.set_shader_parameter("contrast", 1.12)
-	_snap_mat.set_shader_parameter("saturation", 1.22)
-	_snap_mat.set_shader_parameter("brightness", 1.0)   # bright, lush, sunny
+	_snap_mat.set_shader_parameter("contrast", 1.08)
+	_snap_mat.set_shader_parameter("saturation", 1.03)   # muted, earthy — not punchy lime
+	_snap_mat.set_shader_parameter("brightness", 0.92)   # moodier, slightly darker
 	present.material = _snap_mat
 	layer.add_child(present)
 	# Screen-space overlay for combat hitsplats: sits above the world image (added
@@ -843,14 +843,17 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 	# A swing steps the body into the target — the lunge that sells the hit.
 	if atk > 0.0:
 		node.position += Vector3(sin(yaw), 0.0, cos(yaw)) * (sin(atk * PI) * 0.22)
-	# Pin the blob shadow to the ground under the mover (it never bobs), oriented
-	# with the body and sized to its footprint.
+	# Pin the blob shadow to the ground under the mover (it never bobs), oriented with
+	# the body, sized to its footprint, and pushed in the direction the sunlight
+	# travels so it falls down-light like a real cast shadow (sun upper-right ->
+	# shadow down-left), staying consistent with the static props' real shadows.
 	var shadow: Node3D = _shadow_nodes.get(key)
 	if shadow != null:
-		shadow.position = Vector3(pos3.x, pos3.y + 0.04, pos3.z)
+		var off := _shadow_push() * base
+		shadow.position = Vector3(pos3.x + off.x, pos3.y + 0.04, pos3.z + off.y)
 		shadow.rotation.y = yaw
 		var fp := _shadow_footprint(btype)
-		shadow.scale = Vector3(fp.x * base, 1.0, fp.y * base)
+		shadow.scale = Vector3(fp.x * base * 1.12, 1.0, fp.y * base * 1.12)
 	_flow_cloth(node, walk, t, phase)
 	_sway_hair(node, walk, t, phase)
 
@@ -862,6 +865,8 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 func _sway_hair(node: Node3D, walk: float, t: float, phase: float) -> void:
 	for hp: String in ["hair", "beard", "mane"]:
 		var p: Node3D = node.get_node_or_null(NodePath(hp))
+		if p == null:
+			p = node.find_child(hp, true, false) as Node3D   # may sit under the spine pivot
 		if p == null:
 			continue
 		var amp := 0.5 + walk * 1.4
@@ -879,6 +884,8 @@ func _flow_cloth(node: Node3D, walk: float, t: float, phase: float) -> void:
 	for sock_name: String in ["socket_legs", "socket_back"]:
 		var sock: Node = node.get_node_or_null(NodePath(sock_name))
 		if sock == null:
+			sock = node.find_child(sock_name, true, false)   # back socket sits under the spine pivot
+		if sock == null:
 			continue
 		var eq: Node3D = sock.get_node_or_null(^"equip")
 		if eq == null or not bool(eq.get_meta("cloth", false)):
@@ -888,6 +895,18 @@ func _flow_cloth(node: Node3D, walk: float, t: float, phase: float) -> void:
 			-walk * 0.24 + sin(t * 4.2 + phase) * 0.07 * amp,
 			sin(t * 3.1 + phase) * 0.04 * amp,
 			sin(t * 2.6 + phase * 1.7) * 0.06 * amp)
+
+
+## Ground-plane (x,z) offset a blob shadow is pushed, matching the direction the
+## sunlight travels — so shadows fall away from the sun (down-left on screen).
+func _shadow_push() -> Vector2:
+	if _sun == null:
+		return Vector2(0.32, 0.18)
+	var travel := -_sun.global_transform.basis.z   # light shines along -Z of its basis
+	var h := Vector2(travel.x, travel.z)
+	if h.length() < 0.001:
+		return Vector2(0.32, 0.18)
+	return h.normalized() * 0.42
 
 
 ## Footprint (x = width, y = length-along-Z) of the blob shadow per body type.
@@ -907,6 +926,10 @@ func _shadow_footprint(btype: String) -> Vector2:
 func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float) -> void:
 	var rest := 1.0 - walk
 	var lean: float = float(node.get_meta("lean", 0.04))
+	# `hunch` curves the upper back forward at the spine pivot (an old-lady stoop) —
+	# legs/hips stay vertical, so it reads as a natural bent back, NOT a whole-body
+	# forward lean (the Michael-Jackson tilt we want to avoid).
+	var hunch: float = float(node.get_meta("hunch", 0.0))
 	var arm_rest: float = float(node.get_meta("arm_rest", 0.08))
 	var crouch: float = float(node.get_meta("crouch", 0.1))
 	var holds_staff: bool = str(node.get_meta("pose", "")) == "staff"
@@ -924,6 +947,9 @@ func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: flo
 	# compensates for the boot mesh sitting a touch below the rig origin + the crouch.
 	var idle_bob := rest * (0.5 + 0.5 * sin(t * 2.0 + phase)) * 0.02
 	node.rotation = Vector3(lean + walk * 0.06 + breathe * 0.4, yaw, sway + roll)
+	# Curl the upper back forward (head leads, shoulders round) — the spine pivot
+	# carries everything above the hips; a touch more curl while walking.
+	_set_pivot(node, "spine", hunch + walk * 0.05)
 	node.position = pos3 + Vector3(0, bob + idle_bob + 0.09 - crouch * 0.14, 0)
 	node.scale = Vector3(base * (1.0 - settle * 0.4), base * (1.0 + breathe + settle), base * (1.0 - settle * 0.4))
 	# Legs: a natural stride — moderate hip swing, the knee lifting in its swing phase
@@ -1059,6 +1085,17 @@ func _combat_face_pos(key: String) -> Variant:
 
 func _set_pivot(node: Node3D, pivot_name: String, angle: float) -> void:
 	var p: Node3D = node.get_node_or_null(NodePath(pivot_name))
+	# Fallback: the named pivot may now sit deeper in the rig (e.g. arms re-parented
+	# under a `spine` pivot for the hunch). Resolve each path segment by recursive
+	# name search so callers keep using short names ("arm_l", "leg_l/knee_l").
+	if p == null:
+		var segs := pivot_name.split("/")
+		var cur: Node = node.find_child(segs[0], true, false)
+		for i: int in range(1, segs.size()):
+			if cur == null:
+				break
+			cur = cur.get_node_or_null(NodePath(segs[i]))
+		p = cur as Node3D
 	if p != null:
 		p.rotation.x = angle
 
@@ -1416,6 +1453,20 @@ func mover_lift(entity: Node) -> float:
 	if n != null:
 		return float(n.get_meta("base_scale", 1.0)) * 0.95
 	return 0.95
+
+
+## World-Y just ABOVE the model's head, scaled to its size and body type — for
+## floating UI (HP bars) that must clear the body, never sit inside it.
+func mover_top(entity: Node) -> float:
+	var n: Node3D = _player_node if entity == world.player else _mover_nodes.get(entity.get_instance_id())
+	if n == null:
+		return 2.4
+	var base := float(n.get_meta("base_scale", 1.0))
+	var h := 2.05   # humanoid rig top (head/hair ~2.0 local units)
+	match str(n.get_meta("body3d", "humanoid")):
+		"quadruped", "wolf": h = 1.4
+		"bird": h = 1.05
+	return base * h + 0.3
 
 
 ## Window pixels per world unit (orthographic, vertical) — turns a world-space

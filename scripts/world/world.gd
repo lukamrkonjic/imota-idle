@@ -252,8 +252,14 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func show_click_fx(world_pos: Vector2, interactable: bool) -> void:
 	var marker: Node2D = ClickMarkerNode.new()
-	_click_fx_layer.add_child(marker)
-	marker.global_position = world_pos
+	if render_3d != null and render_3d.is_active():
+		# The 2D click layer is hidden under the 3D renderer, so the marker lives on
+		# the screen-space overlay, projected onto the clicked ground point.
+		render_3d.fx_layer.add_child(marker)
+		marker.position = render_3d.iso_to_screen(world_pos, 0.0)
+	else:
+		_click_fx_layer.add_child(marker)
+		marker.global_position = world_pos
 	marker.call("begin", interactable)
 
 

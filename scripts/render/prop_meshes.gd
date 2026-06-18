@@ -247,6 +247,7 @@ static func _tree_parts(leaf: ShaderMaterial) -> Array:
 	# Fuller, rounder canopy (A Short Hike-ish): a big central mass + side lobes;
 	# the toon bands do the soft shading and the per-tree color adds variety.
 	return [
+		_shadow_part(1.05),
 		_part(_cyl("trunk", 0.16, 0.26, 1.5), _mat("bark_brown", "dark_bark", "olive_wood"), Vector3(0, 0.75, 0)),
 		_part(_sphere("can_main", 1.35), leaf, Vector3(0, 2.05, 0), Vector3(1.05, 0.9, 1.05)),
 		_part(_sphere("can_l", 0.95), leaf, Vector3(-0.78, 1.85, 0.32), Vector3(1, 0.85, 1)),
@@ -263,6 +264,7 @@ static func _conifer_parts() -> Array:
 	# forest reads with real vertical presence (≈1.4× the old height).
 	var dark := _mat("forest_green", "forest_teal", "leaf_green")
 	return [
+		_shadow_part(0.78),
 		_part(_cyl("contrunk", 0.15, 0.22, 1.4), _mat("bark_brown", "dark_bark", "olive_wood"), Vector3(0, 0.68, 0)),
 		_part(_cone("fir0", 1.2, 0.82, 1.55), dark, Vector3(0, 1.42, 0)),
 		_part(_cone("fir1", 0.95, 0.58, 1.4), dark, Vector3(0.05, 2.4, 0)),
@@ -280,6 +282,7 @@ static func _pine_parts() -> Array:
 	var needle := _mat("pine_dark", "forest_teal", "pine_mid")
 	var bark := _mat("trunk_a", "trunk_b", "bark_brown")
 	return [
+		_shadow_part(0.7),
 		_part(_cyl("pine_trunk", 0.13, 0.22, 3.3), bark, Vector3(0, 1.65, 0)),
 		_part(_cone("pine_t0", 1.15, 0.76, 0.8), needle, Vector3(0, 3.0, 0)),
 		_part(_cone("pine_t1", 0.9, 0.52, 0.72), needle, Vector3(0.05, 3.66, 0)),
@@ -293,6 +296,7 @@ static func _pine_parts() -> Array:
 static func _maple_parts(leaf: ShaderMaterial) -> Array:
 	var bark := _mat("bark_brown", "dark_bark", "trunk_a")
 	return [
+		_shadow_part(1.15),
 		_part(_cyl("maple_trunk", 0.18, 0.3, 1.45), bark, Vector3(0, 0.72, 0)),
 		_part(_sphere("maple_dome", 1.5), leaf, Vector3(0, 1.95, 0), Vector3(1.3, 0.74, 1.3)),
 		_part(_sphere("maple_l", 1.02), leaf, Vector3(-0.96, 1.66, 0.22), Vector3(1.1, 0.7, 1.1)),
@@ -340,6 +344,7 @@ static func _house_parts(e: Node) -> Array:
 	var hx := 1.28 * ss
 	var hz := 0.98 * ss
 	var parts: Array = [
+		_shadow_part(1.7 * ss, 1.15),
 		_part(_box("med_found", Vector3(2.9, 0.32, 2.3)), stone, Vector3(0, 0.16, 0), Vector3(ss, 1.0, ss)),
 		_part(_box("med_wall", Vector3(2.55, 1.45, 1.96)), plaster, Vector3(0, 1.05, 0), Vector3(ss, 1.0, ss)),
 		_part(_box("med_rail", Vector3(2.62, 0.13, 2.02)), timber, Vector3(0, 1.05, 0), Vector3(ss, 1.0, ss))]
@@ -852,35 +857,40 @@ static func figure_rig(body: Color, head: Color, cape := Color(0, 0, 0, 0)) -> N
 		var knee := _biped_leg(root, side, Vector3(0.13 * side, 0.9, 0), Vector3(0.19, 0.42, 0.21), Vector3(0.17, 0.4, 0.19), pants, "hleg")
 		_attach(knee, _box("hum_boot", Vector3(0.21, 0.16, 0.28)), boot, Vector3(0, -0.46, 0.04))
 	_attach(root, _box("hum_hips", Vector3(0.42, 0.18, 0.27)), pants, Vector3(0, 0.92, 0))
+	# Everything above the hips hangs off a `spine` pivot at the waist, so the pose
+	# code can curl the upper back forward into a natural stoop (legs stay vertical).
+	# Child Y offsets are spine-local (world Y minus the 0.95 pivot height).
+	var spine := _limb(root, "spine", Vector3(0, 0.95, 0))
 	# Torso: a casual shirt with a slightly broader shoulder yoke + a small collar.
-	_attach(root, _box("hum_chest", Vector3(0.46, 0.52, 0.28)), shirt, Vector3(0, 1.24, 0))
-	_attach(root, _box("hum_yoke", Vector3(0.52, 0.14, 0.31)), shirt, Vector3(0, 1.46, 0))
-	_attach(root, _box("hum_collar", Vector3(0.12, 0.12, 0.08)), skin, Vector3(0, 1.46, 0.14))
+	_attach(spine, _box("hum_chest", Vector3(0.46, 0.52, 0.28)), shirt, Vector3(0, 0.29, 0))
+	_attach(spine, _box("hum_yoke", Vector3(0.52, 0.14, 0.31)), shirt, Vector3(0, 0.51, 0))
+	_attach(spine, _box("hum_collar", Vector3(0.12, 0.12, 0.08)), skin, Vector3(0, 0.51, 0.14))
 	# Neck + a squared, natural-sized head.
-	_attach(root, _box("hum_neck", Vector3(0.14, 0.12, 0.15)), skin, Vector3(0, 1.55, 0))
-	_attach(root, _box("hum_head", Vector3(0.32, 0.36, 0.32)), skin, Vector3(0, 1.74, 0))
+	_attach(spine, _box("hum_neck", Vector3(0.14, 0.12, 0.15)), skin, Vector3(0, 0.6, 0))
+	_attach(spine, _box("hum_head", Vector3(0.32, 0.36, 0.32)), skin, Vector3(0, 0.79, 0))
 	# Tousled hair: a crown block, a swept-up front fringe, and short sides.
-	_attach(root, _box("hum_hair", Vector3(0.35, 0.16, 0.35)), hairm, Vector3(0, 1.9, -0.01))
-	_attach(root, _box("hum_fringe", Vector3(0.33, 0.1, 0.13)), hairm, Vector3(0.02, 1.86, 0.16), Vector3.ONE, Vector3(-0.35, 0, 0.1))
-	_attach(root, _box("hum_side", Vector3(0.36, 0.16, 0.3)), hairm, Vector3(0, 1.8, -0.06))
+	_attach(spine, _box("hum_hair", Vector3(0.35, 0.16, 0.35)), hairm, Vector3(0, 0.95, -0.01))
+	_attach(spine, _box("hum_fringe", Vector3(0.33, 0.1, 0.13)), hairm, Vector3(0.02, 0.91, 0.16), Vector3.ONE, Vector3(-0.35, 0, 0.1))
+	_attach(spine, _box("hum_side", Vector3(0.36, 0.16, 0.3)), hairm, Vector3(0, 0.85, -0.06))
 	# Subtle eyes set into the face (+Z).
 	for ex: int in [-1, 1]:
-		_attach(root, _box("hum_eye", Vector3(0.05, 0.06, 0.04)), eyed, Vector3(0.08 * ex, 1.74, 0.16))
+		_attach(spine, _box("hum_eye", Vector3(0.05, 0.06, 0.04)), eyed, Vector3(0.08 * ex, 0.79, 0.16))
 	# Optional cape/strap kept for API compatibility.
 	if cape.a > 0.0:
 		var capem := _mat_from(Color(cape.r, cape.g, cape.b), cape.darkened(0.34), cape.lightened(0.22))
-		_attach(root, _box("hum_cape", Vector3(0.34, 0.6, 0.07)), capem, Vector3(0, 1.1, -0.17), Vector3.ONE, Vector3(0.2, 0, 0))
+		_attach(spine, _box("hum_cape", Vector3(0.34, 0.6, 0.07)), capem, Vector3(0, 0.15, -0.17), Vector3.ONE, Vector3(0.2, 0, 0))
 	# Arms: shirt sleeve (upper) over an elbow joint, bare-skin forearm + hand. Weapon
 	# sockets ride the forearm so a held weapon follows the hand and bends at the elbow.
 	for side2: int in [-1, 1]:
-		var el := _biped_arm(root, side2, Vector3(0.3 * side2, 1.42, 0), Vector3(0.14, 0.26, 0.16), Vector3(0.12, 0.26, 0.14), shirt, skin, "harm")
+		var el := _biped_arm(spine, side2, Vector3(0.3 * side2, 0.47, 0), Vector3(0.14, 0.26, 0.16), Vector3(0.12, 0.26, 0.14), shirt, skin, "harm")
 		_attach(el, _box("hum_hand", Vector3(0.13, 0.13, 0.15)), skin, Vector3(0, -0.34, 0))
 		_socket(el, "socket_mainhand" if side2 > 0 else "socket_offhand", Vector3(0.04 * side2, -0.42, 0.16), Vector3(-0.1, 0, -0.08 * side2))
 	# Worn-gear sockets (see equip_profile): the renderer attaches armor/weapons here.
-	_socket(root, "socket_head", Vector3(0, 1.74, 0))
-	_socket(root, "socket_body", Vector3(0, 1.24, 0))
+	# Upper-body sockets ride the spine; leg armor stays on the (vertical) root.
+	_socket(spine, "socket_head", Vector3(0, 0.79, 0))
+	_socket(spine, "socket_body", Vector3(0, 0.29, 0))
 	_socket(root, "socket_legs", Vector3(0, 0.95, 0))
-	_socket(root, "socket_back", Vector3(0, 1.34, -0.16))
+	_socket(spine, "socket_back", Vector3(0, 0.39, -0.16))
 	return root
 
 
@@ -1189,33 +1199,35 @@ static func beastman_rig(spec: Dictionary) -> Node3D:
 		var knee := _biped_leg(root, side, Vector3(0.16 * side, 0.86, 0), Vector3(0.22, 0.4, 0.24), Vector3(0.16, 0.36, 0.18), furm, "gnleg")
 		_attach(knee, _box("gn_paw", Vector3(0.2, 0.12, 0.3)), claw, Vector3(0, -0.4, 0.08))
 	_attach(root, _box("gn_loin", Vector3(0.48, 0.28, 0.32)), cloth, Vector3(0, 0.84, 0))
-	# Hunched, broad bare torso leaning forward; lighter belly fur.
-	_attach(root, _box("gn_chest", Vector3(0.52, 0.46, 0.34)), furm, Vector3(0, 1.2, 0.06), Vector3.ONE, Vector3(-0.18, 0, 0))
-	_attach(root, _box("gn_belly", Vector3(0.4, 0.3, 0.28)), light, Vector3(0, 1.0, 0.1))
-	_attach(root, _box("gn_shoulders", Vector3(0.64, 0.2, 0.36)), furm, Vector3(0, 1.42, 0.02))
-	# A dark mane running up the back of the neck.
+	# The whole brute torso+head hangs off a `spine` pivot at the hips so it can curl
+	# into a heavy hunched back (legs stay planted). Child Y is spine-local (world-0.88).
+	var spine := _limb(root, "spine", Vector3(0, 0.88, 0))
+	# Broad bare torso; lighter belly fur.
+	_attach(spine, _box("gn_chest", Vector3(0.52, 0.46, 0.34)), furm, Vector3(0, 0.32, 0.06))
+	_attach(spine, _box("gn_belly", Vector3(0.4, 0.3, 0.28)), light, Vector3(0, 0.12, 0.1))
+	_attach(spine, _box("gn_shoulders", Vector3(0.64, 0.2, 0.36)), furm, Vector3(0, 0.54, 0.02))
 	# Mane on a pivot so the hair-sway swings it down the back of the neck.
-	var mane := _limb(root, "mane", Vector3(0, 1.56, -0.06))
+	var mane := _limb(spine, "mane", Vector3(0, 0.68, -0.06))
 	_attach(mane, _box("gn_mane", Vector3(0.16, 0.34, 0.2)), furd, Vector3(0, -0.06, -0.06), Vector3.ONE, Vector3(0.3, 0, 0))
 	# Forward-thrust neck + a hyena head with a long snout and a dark nose.
-	_attach(root, _box("gn_neck", Vector3(0.22, 0.22, 0.26)), furm, Vector3(0, 1.5, 0.12))
-	_attach(root, _box("gn_skull", Vector3(0.3, 0.3, 0.32)), furm, Vector3(0, 1.62, 0.18))
-	_attach(root, _box("gn_snout", Vector3(0.18, 0.16, 0.24)), light, Vector3(0, 1.56, 0.4))
-	_attach(root, _box("gn_nose", Vector3(0.1, 0.09, 0.07)), claw, Vector3(0, 1.58, 0.53))
-	_attach(root, _box("gn_jaw", Vector3(0.16, 0.06, 0.2)), furd, Vector3(0, 1.49, 0.42))
+	_attach(spine, _box("gn_neck", Vector3(0.22, 0.22, 0.26)), furm, Vector3(0, 0.62, 0.12))
+	_attach(spine, _box("gn_skull", Vector3(0.3, 0.3, 0.32)), furm, Vector3(0, 0.74, 0.18))
+	_attach(spine, _box("gn_snout", Vector3(0.18, 0.16, 0.24)), light, Vector3(0, 0.68, 0.4))
+	_attach(spine, _box("gn_nose", Vector3(0.1, 0.09, 0.07)), claw, Vector3(0, 0.7, 0.53))
+	_attach(spine, _box("gn_jaw", Vector3(0.16, 0.06, 0.2)), furd, Vector3(0, 0.61, 0.42))
 	# Perked, pointed ears + fierce orange eyes.
 	for sx: int in [-1, 1]:
-		_attach(root, _cone("gn_ear", 0.08, 0.01, 0.2), furm, Vector3(0.12 * sx, 1.82, 0.12), Vector3.ONE, Vector3(-0.2, 0, 0.3 * sx))
-		_attach(root, _box("gn_eye", Vector3(0.05, 0.05, 0.05)), eyec, Vector3(0.08 * sx, 1.64, 0.34))
+		_attach(spine, _cone("gn_ear", 0.08, 0.01, 0.2), furm, Vector3(0.12 * sx, 0.94, 0.12), Vector3.ONE, Vector3(-0.2, 0, 0.3 * sx))
+		_attach(spine, _box("gn_eye", Vector3(0.05, 0.05, 0.05)), eyec, Vector3(0.08 * sx, 0.76, 0.34))
 	# Long, heavy arms with an elbow joint: fur upper, darker forearm, clawed hand.
 	for side2: int in [-1, 1]:
-		var el := _biped_arm(root, side2, Vector3(0.34 * side2, 1.42, 0.02), Vector3(0.17, 0.32, 0.19), Vector3(0.15, 0.3, 0.16), furm, furd, "gnarm")
+		var el := _biped_arm(spine, side2, Vector3(0.34 * side2, 0.54, 0.02), Vector3(0.17, 0.32, 0.19), Vector3(0.15, 0.3, 0.16), furm, furd, "gnarm")
 		_attach(el, _box("gn_hand", Vector3(0.17, 0.15, 0.2)), claw, Vector3(0, -0.34, 0.02))
 		_socket(el, "socket_mainhand" if side2 > 0 else "socket_offhand", Vector3(0.04 * side2, -0.42, 0.12), Vector3(-0.1, 0, -0.08 * side2))
-	_socket(root, "socket_head", Vector3(0, 1.62, 0.18))
-	_socket(root, "socket_body", Vector3(0, 1.2, 0.06))
+	_socket(spine, "socket_head", Vector3(0, 0.74, 0.18))
+	_socket(spine, "socket_body", Vector3(0, 0.32, 0.06))
 	_socket(root, "socket_legs", Vector3(0, 0.86, 0))
-	_socket(root, "socket_back", Vector3(0, 1.34, -0.14))
+	_socket(spine, "socket_back", Vector3(0, 0.46, -0.14))
 	return root
 
 
@@ -1232,6 +1244,19 @@ static func blob_shadow() -> MeshInstance3D:
 	return mi
 
 
+## Ground-plane offset a static prop's shadow is dropped at — pushed down-light
+## (away from the warm upper-right sun) so it falls down-left, matching movers.
+const SHADOW_DROP := Vector2(-0.28, -0.34)
+
+## A blob-shadow PART for static raised props (trees/houses): a flat soft quad on
+## the ground, pushed down-light. Batches with all other prop shadows into one
+## MultiMesh. `radius` ~ the prop's ground footprint; `lon` stretches it a touch
+## along the shadow's fall for a longer afternoon cast.
+static func _shadow_part(radius: float, lon := 1.25, extra := Vector2.ZERO) -> Dictionary:
+	var off := SHADOW_DROP + extra
+	return _part(_shadow_quad(), _shadow_mat(), Vector3(off.x, 0.03, off.y), Vector3(radius * 2.0, 1.0, radius * 2.0 * lon))
+
+
 static func _shadow_quad() -> Mesh:
 	if not _mesh_cache.has("blob_shadow"):
 		var m := PlaneMesh.new()
@@ -1244,9 +1269,14 @@ static func _shadow_mat() -> StandardMaterial3D:
 	if _shadow_material == null:
 		var m := StandardMaterial3D.new()
 		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		# MULTIPLY blend: the shadow darkens whatever ground colour it sits on (rather
+		# than compositing a fixed dark tint), so after the palette snap it reads as a
+		# DARKER SHADE OF THE SAME HUE — natural green/brown shadows, never a muddy
+		# pink. The radial texture's alpha shapes a soft round blob (clear at the rim).
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.blend_mode = BaseMaterial3D.BLEND_MODE_MUL
 		m.albedo_texture = _shadow_texture()
-		m.albedo_color = Color(0.03, 0.04, 0.07, 0.58)
+		m.albedo_color = Color(0.38, 0.4, 0.34, 1.0)   # multiply factor at the blob centre
 		m.cull_mode = BaseMaterial3D.CULL_DISABLED
 		_shadow_material = m
 	return _shadow_material
@@ -1358,23 +1388,30 @@ static func enemy_rig(e: Node) -> Node3D:
 	node.set_meta("base_scale", size * (1.22 if boss else 1.0))
 	# Characteristic posture: goblins stoop forward with arms hanging low; gnolls
 	# (beastman) are hunched brutes; skeletons lurch a little; others stand looser.
+	# Posture is a curved BACK (hunch at the spine), not a whole-body forward tilt:
+	# `lean` stays near-zero so they don't look like they're falling forward; `hunch`
+	# rounds the upper spine for a natural stoop.
 	if type == "humanoid":
 		if n.contains("goblin") or n.contains("hob"):
-			node.set_meta("lean", 0.28)
+			node.set_meta("lean", 0.02)
+			node.set_meta("hunch", 0.42)
 			node.set_meta("arm_rest", 0.34)
-			node.set_meta("crouch", 0.32)
+			node.set_meta("crouch", 0.3)
 		elif n.contains("skelet") or n.contains("bone"):
-			node.set_meta("lean", 0.12)
+			node.set_meta("lean", 0.02)
+			node.set_meta("hunch", 0.16)
 			node.set_meta("arm_rest", 0.12)
 			node.set_meta("crouch", 0.18)
 		else:
-			node.set_meta("lean", 0.08)
+			node.set_meta("lean", 0.02)
+			node.set_meta("hunch", 0.12)
 			node.set_meta("arm_rest", 0.12)
 			node.set_meta("crouch", 0.14)
 		if n.contains("gnoll"):   # beastman uses the humanoid pose: a low sneaky crouch
-			node.set_meta("lean", 0.18)
+			node.set_meta("lean", 0.02)
+			node.set_meta("hunch", 0.5)
 			node.set_meta("arm_rest", 0.28)
-			node.set_meta("crouch", 0.55)
+			node.set_meta("crouch", 0.5)
 	# Visible gear from the enemy's combat archetype (skipped on rigs without the
 	# matching sockets — beasts/birds just show nothing).
 	var loadout := EquipLoadout.for_enemy(name, int(Dictionary(e.get("action")).get("level", 1)))
