@@ -639,13 +639,15 @@ func _water_surface_height(info: Dictionary) -> float:
 func _rolling_hill(gtx: int, gty: int) -> float:
 	var x := float(gtx)
 	var y := float(gty)
-	# Big slow swells (period ~120-160 tiles) carry the landscape; a medium and a fine
-	# octave add variety without ever getting bumpy (small amplitude, gentle slope).
-	var broad := sin(x * 0.043 + 0.7) * cos(y * 0.038 - 1.2)
-	var roll := sin((x * 0.7 + y * 0.6) * 0.052 + 1.8)
-	var mid := sin(x * 0.095 - 0.4) * cos(y * 0.084 + 0.9)
-	var fine := sin((x - y) * 0.16 + 2.3)
-	return broad * 0.42 + roll * 0.2 + mid * 0.13 + fine * 0.05
+	# Layered swells (periods ~30-90 tiles) give real, light-catching rolling hills:
+	# enough relief that the toon shading paints lit/shaded flanks, but long enough
+	# wavelengths that the slopes stay gentle and natural — never bumpy. Visual only,
+	# so however tall it rolls it never blocks walking.
+	var broad := sin(x * 0.072 + 0.7) * cos(y * 0.063 - 1.2)
+	var roll := sin((x * 0.7 + y * 0.7) * 0.085 + 1.8)
+	var mid := sin(x * 0.155 - 0.4) * cos(y * 0.138 + 0.9)
+	var fine := sin((x - y) * 0.21 + 2.3)
+	return broad * 0.52 + roll * 0.28 + mid * 0.2 + fine * 0.09
 
 
 func _rocky_lift(gtx: int, gty: int) -> float:
