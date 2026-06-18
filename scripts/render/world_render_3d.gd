@@ -104,6 +104,19 @@ func setup(w: Node2D) -> void:
 
 
 func _build() -> void:
+	_setup_viewport()
+	_setup_environment()
+	_setup_sun()
+	_setup_camera()
+	_setup_scene_roots()
+	_setup_materials()
+	_setup_present()
+	# Pixelation is controlled from the Settings menu (GameSettings.pixelation).
+	_pixel_scale = _scale_from_setting(GameSettings.pixelation)
+	GameSettings.changed.connect(_on_settings_changed)
+
+
+func _setup_viewport() -> void:
 	sub = SubViewport.new()
 	sub.size = INTERNAL
 	sub.render_target_update_mode = SubViewport.UPDATE_ALWAYS
@@ -118,6 +131,8 @@ func _build() -> void:
 	world3d = Node3D.new()
 	sub.add_child(world3d)
 
+
+func _setup_environment() -> void:
 	# Soft warm HAZE sky (A Short Hike-ish): a low-contrast warm wash, no cool blue
 	# top, so wherever the terrain edge lands it meets a matching sky and dissolves
 	# instead of forming a seam. The horizon colour is shared with the distance fog.
@@ -164,6 +179,8 @@ func _build() -> void:
 	world3d.add_child(we)
 	_env = env
 
+
+func _setup_sun() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-38, 40, 0)   # lower afternoon sun -> longer soft shadows
 	sun.light_color = Color(1.0, 0.95, 0.8)    # warm afternoon daylight
@@ -182,6 +199,8 @@ func _build() -> void:
 		if p == &"view_distance":
 			_apply_view_distance())
 
+
+func _setup_camera() -> void:
 	# Orthographic camera at the game's 2:1 isometric angle (yaw 45, pitch ~30).
 	cam = Camera3D.new()
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
@@ -190,6 +209,8 @@ func _build() -> void:
 	cam.far = 400.0
 	world3d.add_child(cam)
 
+
+func _setup_scene_roots() -> void:
 	terrain_root = Node3D.new()
 	world3d.add_child(terrain_root)
 	props_root = Node3D.new()
@@ -199,6 +220,8 @@ func _build() -> void:
 	dressing_root = Node3D.new()
 	world3d.add_child(dressing_root)
 
+
+func _setup_materials() -> void:
 	_ground_mat = ShaderMaterial.new()
 	_ground_mat.shader = TOON_GROUND
 	_ground_mat.set_shader_parameter("shadow_tint", PixelPalette.pal("grass_dark"))   # deeper mossy shade so cast shadows read
@@ -258,6 +281,8 @@ func _build() -> void:
 	_shore_mat.set_shader_parameter("var_scale", 0.05)
 	_shore_mat.set_shader_parameter("var_noise", _make_water_noise(0.5, 2, 4))
 
+
+func _setup_present() -> void:
 	# Present the low-res 3D world at nearest-neighbour, under the HUD (layer 1).
 	var layer := CanvasLayer.new()
 	layer.layer = 0
@@ -300,9 +325,6 @@ func _build() -> void:
 	# Drive attack lunges off the combat ticks: each hit splat is one swing landing.
 	EventBus.combat_hit_splat.connect(_on_combat_swing)
 	EventBus.combat_ranged_shot.connect(func(_a: int, _m: bool) -> void: _mark_attack("player"))
-	# Pixelation is controlled from the Settings menu (GameSettings.pixelation).
-	_pixel_scale = _scale_from_setting(GameSettings.pixelation)
-	GameSettings.changed.connect(_on_settings_changed)
 
 
 ## React to the Settings-menu pixelation slider (0 = native, 1 = really crunchy),
