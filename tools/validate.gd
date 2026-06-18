@@ -732,15 +732,16 @@ func phase6_worldgen() -> void:
 	check(has_bank, "home campsite includes a bank chest")
 	check(WorldGen.find_nearest_station(0, Vector2.ZERO, "bank").size() > 0, "find_nearest_station locates a bank")
 
-	# Terrain pathing: water is never a node, one elevation step is climbable,
-	# and a two-step cliff edge is not.
+	# Terrain pathing: water is never a node; gentle slopes up to MAX_CLIMB_STEP (2)
+	# are walkable, but a steeper cliff edge (3+ steps) is not.
 	var pf_chunk: RefCounted = Chunk.new()
 	pf_chunk.setup(0, 200, 200)
 	pf_chunk.zone = {"req": 1}
 	pf_chunk.tiles.fill(int(WorldGen.reg.tile_index["grass"]))
 	pf_chunk.tiles[Chunk.idx(1, 0)] = int(WorldGen.reg.tile_index["shallow"])
 	pf_chunk.elev[Chunk.idx(0, 1)] = 1
-	pf_chunk.elev[Chunk.idx(0, 2)] = 3
+	pf_chunk.elev[Chunk.idx(0, 2)] = 3   # +2 from (0,1): a walkable slope
+	pf_chunk.elev[Chunk.idx(0, 3)] = 6   # +3 from (0,2): too steep to climb
 	var pf := PathFinder.new()
 	pf.rebuild([pf_chunk], WorldGen.reg, 1)
 	var base := Vector2i(pf_chunk.cx, pf_chunk.cy) * WG.CHUNK_TILES
@@ -754,7 +755,12 @@ func phase6_worldgen() -> void:
 		WG.tile_to_world(base.x, base.y + 1),
 		WG.tile_to_world(base.x, base.y + 2),
 		false)
-	check(climb_two.is_empty(), "pathfinder rejects two-step cliff climbs")
+	check(not climb_two.is_empty(), "pathfinder allows two-step slope climbs")
+	var climb_three := pf.find_path(
+		WG.tile_to_world(base.x, base.y + 2),
+		WG.tile_to_world(base.x, base.y + 3),
+		false)
+	check(climb_three.is_empty(), "pathfinder rejects three-step cliff climbs")
 
 	# Admin teleports are allowed to target authored/biome tiles that happen to
 	# be on raised mountain terrain, but the final landing tile must be flat.

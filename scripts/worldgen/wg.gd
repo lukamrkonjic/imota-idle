@@ -10,8 +10,9 @@ const BLOCK_RISE := 6.0                    # vertical extrusion for solid blocks
 const ELEV_STEP_PX := 8.0                  # screen px a terrain raises per elevation step
 const MAX_REACHABLE_ELEV := 15             # player can climb up to this elevation; higher
                                            # rock/snow is unreachable (routed around)
-const MAX_CLIMB_STEP := 1                  # biggest single-step elevation change the player
-                                           # can hop up; Minecraft-style one-block steps
+const MAX_CLIMB_STEP := 2                  # biggest single-step elevation change the player
+                                           # can walk up — gentle foothill slopes are
+                                           # climbable; steeper rock faces route around
 const CHUNK_TILES := 16                    # tiles per chunk side
 const CHUNK_SIZE := TILE * float(CHUNK_TILES)  # legacy ortho estimate; use chunk_aabb()
 const ZONE_CELL := 6                       # zone Voronoi cell size, in chunks

@@ -632,12 +632,20 @@ func _water_surface_height(info: Dictionary) -> float:
 	return float(info["top"]) - 0.035
 
 
+## Gentle rolling-hill undulation laid over ALL land (an "A Short Hike / Swiss
+## meadow" swell). Long wavelengths + low slope so it's pretty and always walkable —
+## it's visual only (the 2D walk grid ignores it), so it never blocks movement; it
+## just lifts the ground the player/props/enemies stand on into soft rolling hills.
 func _rolling_hill(gtx: int, gty: int) -> float:
 	var x := float(gtx)
 	var y := float(gty)
-	var broad := sin(x * 0.118 + 0.7) * cos(y * 0.097 - 1.2)
-	var swell := sin((x + y) * 0.055 + 1.8)
-	return broad * 0.16 + swell * 0.075
+	# Big slow swells (period ~120-160 tiles) carry the landscape; a medium and a fine
+	# octave add variety without ever getting bumpy (small amplitude, gentle slope).
+	var broad := sin(x * 0.043 + 0.7) * cos(y * 0.038 - 1.2)
+	var roll := sin((x * 0.7 + y * 0.6) * 0.052 + 1.8)
+	var mid := sin(x * 0.095 - 0.4) * cos(y * 0.084 + 0.9)
+	var fine := sin((x - y) * 0.16 + 2.3)
+	return broad * 0.42 + roll * 0.2 + mid * 0.13 + fine * 0.05
 
 
 func _rocky_lift(gtx: int, gty: int) -> float:
