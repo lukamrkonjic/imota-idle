@@ -27,9 +27,11 @@ const ZONE_CELL := 6                       # zone Voronoi cell size, in chunks
 # Streaming radii are ZOOM-AWARE: the world scales them up as the camera zooms
 # out so terrain + entities always fill the view with a margin, and back down when
 # zoomed in. These are the MIN (most zoomed-in) values; MAX_* cap the worst case.
-const VIEW_RADIUS := 6                     # min terrain chunks rendered (baked sprite, 1 draw
-                                           # call each, so a wide ring is cheap).
-const MAX_VIEW_RADIUS := 10
+const VIEW_RADIUS := 8                     # min terrain chunks STREAMED (1 baked mesh each). Must
+                                           # cover the terrain cull distance so the rendered edge
+                                           # never falls short of the fog (else the horizon shows a
+                                           # close fog band when the camera pitches toward it).
+const MAX_VIEW_RADIUS := 12
 const ACTIVE_RADIUS := 4                   # min chunks with spawned entities (houses/ore/etc).
 const MAX_ACTIVE_RADIUS := 7               # cap so an extreme zoom-out can't spawn a runaway
                                            # number of entity nodes.
