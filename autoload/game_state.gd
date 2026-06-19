@@ -355,14 +355,13 @@ func equipment_bonus_xp(skill: String) -> float:
 
 ## Gather-tool power: damage dealt to a node per action (Trees.ReduceHealth).
 func tool_progress(skill: String) -> int:
-	# Hunter (traps) and Thieving (bare hands) need no equipped tool — return a usable base
-	# "competence" (like a mid-tier tool) so the gather loop yields at a reasonable rate.
-	# Provisional; better trap/lockpick gear can raise this later.
-	if skill in ["hunter", "thieving"]:
-		return 80
-	var slot: String = {
-		"woodcutting": "Axe", "mining": "Pickaxe", "fishing": "Rod", "foraging": "Lens",
-	}.get(skill, "")
+	# Toolless gather skills (hunter traps / thieving bare hands) carry a base "competence"
+	# from SkillRegistry (baseProgress) so the loop yields without equipped gear. Tool skills
+	# read the `progress` of the item in their gather slot (Axe/Pickaxe/Rod/Lens).
+	var base := SkillRegistry.base_progress(skill)
+	if base > 0:
+		return base
+	var slot := SkillRegistry.tool_slot(skill)
 	if slot.is_empty() or not equipment.has(slot):
 		return 0
 	return int(DataRegistry.get_item(equipment[slot]).get("progress", 0))

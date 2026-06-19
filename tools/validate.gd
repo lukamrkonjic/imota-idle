@@ -316,6 +316,17 @@ func phase2_skill_roster() -> void:
 	check(GameState.SKILLS.size() == 22, "22 skills in roster (got %d)" % GameState.SKILLS.size())
 	for s: String in ["prayer", "slayer", "hunter", "farming", "alchemy", "agility"]:
 		check(GameState.SKILLS.has(s), "roster includes %s" % s)
+	# SkillRegistry (data/skills.json) must cover exactly the roster, in order, with metadata.
+	var reg_ids: Array = SkillRegistry.ids()
+	check(reg_ids.size() == GameState.SKILLS.size(), "SkillRegistry covers the full roster (%d)" % reg_ids.size())
+	var missing_meta := 0
+	for s: String in GameState.SKILLS:
+		if not SkillRegistry.has(s) or SkillRegistry.abbrev(s).is_empty() or SkillRegistry.kind(s).is_empty():
+			missing_meta += 1
+	check(missing_meta == 0, "every skill has registry metadata (abbrev+kind) (%d missing)" % missing_meta)
+	check(SkillRegistry.tool_slot("woodcutting") == "Axe" and SkillRegistry.verb("mining") == "Mine" \
+		and SkillRegistry.anim("fishing") == "fish" and SkillRegistry.base_progress("hunter") == 80,
+		"gather metadata routed (woodcutting tool / mining verb / fishing anim / hunter base)")
 	for s: String in ["devotion", "beastmastery", "tracking", "dexterity", "homesteading", "herbology", "imbuing", "soulbinding"]:
 		check(not GameState.SKILLS.has(s), "roster drops Bloobs skill %s" % s)
 	# Recipes were re-homed: no recipe keeps a Bloobs skill key.

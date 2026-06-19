@@ -21,42 +21,13 @@ const IconButton := preload("res://scripts/ui/widgets/icon_button.gd")
 const MinimapPanel := preload("res://scripts/ui/widgets/minimap.gd")
 const ItemIcon := preload("res://scripts/ui/item_icon.gd")  # preload, not class_name, so a fresh launch never fails to resolve it
 
-const SKILL_ABBREV := {
-	"attack": "Atk", "strength": "Str", "defence": "Def", "hitpoints": "HP",
-	"ranged": "Rng", "magic": "Mag", "prayer": "Pray", "slayer": "Slay",
-	"woodcutting": "WC", "mining": "Min", "fishing": "Fsh", "foraging": "For",
-	"thieving": "Thv", "hunter": "Hunt", "farming": "Farm",
-	"cooking": "Cook", "smithing": "Smth", "firemaking": "FM", "fletching": "Flt",
-	"crafting": "Crft", "alchemy": "Alch", "agility": "Agi",
-}
-
-# Skill / equipment-slot -> ItemIcon shape, and a per-skill theme tint.
-const SKILL_ICON := {
-	"attack": "sword", "strength": "fist", "defence": "shield", "hitpoints": "heart",
-	"ranged": "bow", "magic": "staff", "prayer": "prayer", "slayer": "skull",
-	"woodcutting": "axe", "mining": "pickaxe", "fishing": "fish", "foraging": "leaf",
-	"thieving": "coin", "hunter": "bone", "farming": "seed", "cooking": "food",
-	"smithing": "bar", "firemaking": "fire", "fletching": "arrow", "crafting": "ring",
-	"alchemy": "potion", "agility": "boots",
-}
+# Equipment-slot -> ItemIcon shape. (Per-skill icon / colour / abbrev now live in
+# data/skills.json behind SkillRegistry.)
 const SLOT_ICON := {
 	"Helm": "helm", "Body": "body", "Boots": "boots", "Weapon": "sword",
 	"Shield": "shield", "Ring": "ring", "Gloves": "gloves", "Cape": "cape",
 	"Amulet": "ring", "Ammunition": "arrow", "Axe": "axe", "Pickaxe": "pickaxe",
 	"Rod": "staff", "Lens": "gem",
-}
-const SKILL_COLOR := {
-	"attack": Color(0.80, 0.32, 0.28), "strength": Color(0.62, 0.50, 0.40),
-	"defence": Color(0.42, 0.60, 0.80), "hitpoints": Color(0.84, 0.26, 0.30),
-	"ranged": Color(0.50, 0.62, 0.34), "magic": Color(0.56, 0.46, 0.80),
-	"prayer": Color(0.88, 0.85, 0.62), "slayer": Color(0.80, 0.80, 0.84),
-	"woodcutting": Color(0.56, 0.42, 0.26), "mining": Color(0.56, 0.57, 0.60),
-	"fishing": Color(0.46, 0.62, 0.80), "foraging": Color(0.46, 0.70, 0.32),
-	"thieving": Color(0.84, 0.70, 0.36), "hunter": Color(0.62, 0.52, 0.40),
-	"farming": Color(0.50, 0.70, 0.34), "cooking": Color(0.80, 0.56, 0.36),
-	"smithing": Color(0.60, 0.62, 0.66), "firemaking": Color(0.92, 0.52, 0.24),
-	"fletching": Color(0.62, 0.50, 0.32), "crafting": Color(0.82, 0.70, 0.40),
-	"alchemy": Color(0.60, 0.46, 0.76), "agility": Color(0.52, 0.56, 0.62),
 }
 
 var world: Node2D = null
@@ -522,8 +493,8 @@ func _build_skills_tab() -> Control:
 		hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		hb.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 		var icon := ItemIcon.new()
-		icon.kind = SKILL_ICON.get(skill, "misc")
-		icon.tint = SKILL_COLOR.get(skill, Color(0.72, 0.72, 0.74))
+		icon.kind = SkillRegistry.icon(skill)
+		icon.tint = SkillRegistry.color(skill)
 		icon.custom_minimum_size = UiScale.v2(Vector2(26, 26))
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		hb.add_child(icon)

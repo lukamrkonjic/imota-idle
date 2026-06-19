@@ -154,16 +154,7 @@ func _mode() -> String:
 	if walking:
 		return "run"
 	if TickSim.active:
-		match TickSim.skill:
-			"woodcutting":
-				return "chop"
-			"mining":
-				return "mine"
-			"fishing":
-				return "fish"
-			"foraging":
-				return "forage"
-		return "gather"
+		return SkillRegistry.anim(TickSim.skill)
 	if RecipeSim.active:
 		return "craft"
 	if CombatSim.active:

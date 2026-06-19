@@ -2,9 +2,6 @@ extends RefCounted
 class_name WorldAutoTaskController
 ## Auto-gather, auto-bank, and auto-station routing.
 
-const GATHER_VERB := {"woodcutting": "Chop", "mining": "Mine", "fishing": "Fish", "foraging": "Pick",
-	"hunter": "Trap", "thieving": "Steal"}
-
 var world: Node2D
 
 
@@ -24,7 +21,7 @@ func auto_gather(skill: String, node_name: String) -> void:
 	world._activity_ctrl.clear_combat_target()
 	world.auto_task = {"mode": "gather", "skill": skill, "node": node_name}
 	EventBus.combat_log.emit("[color=#444]Auto-%s: %s — looking for the nearest node.[/color]" % [
-		GATHER_VERB.get(skill, "gather").to_lower(), node_name])
+		SkillRegistry.verb(skill).to_lower(), node_name])
 	find_next()
 
 

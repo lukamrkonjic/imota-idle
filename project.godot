@@ -17,6 +17,7 @@ boot_splash/bg_color=Color(0.133333, 0.133333, 0.156863, 1)
 EventBus="*res://autoload/event_bus.gd"
 DataRegistry="*res://autoload/data_registry.gd"
 GameState="*res://autoload/game_state.gd"
+SkillRegistry="*res://autoload/skill_registry.gd"
 TickSim="*res://autoload/tick_sim.gd"
 CombatSim="*res://autoload/combat_sim.gd"
 RecipeSim="*res://autoload/recipe_sim.gd"

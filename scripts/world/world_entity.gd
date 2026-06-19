@@ -18,7 +18,6 @@ const ROOF_FADE_KINDS := ["house", "building"]
 const FROZEN_VARIANTLESS_KINDS := ["enemy", "campfire", "anvil", "altar", "obelisk", "meteor", "fountain"]
 ## Shared bake cache, set by World. Null in tests/previewer -> fall back to live.
 static var sprite_cache: Node = null
-const GATHER_VERB := {"woodcutting": "Chop", "mining": "Mine", "fishing": "Fish", "foraging": "Pick"}
 const STATION_LABELS := {
 	"bank": "Bank chest",
 	"shop": "General store",
@@ -469,7 +468,7 @@ func tooltip_content() -> Dictionary:
 func action_text() -> String:
 	match str(action.get("type", "")):
 		"gather":
-			return "%s %s" % [GATHER_VERB.get(str(action["skill"]), "Gather"), display_label()]
+			return "%s %s" % [SkillRegistry.verb(str(action["skill"])), display_label()]
 		"enemy":
 			return "Attack %s (%s)" % [display_label(), sub_label]
 		"station":
