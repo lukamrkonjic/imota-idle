@@ -19,7 +19,8 @@ const SpawnDressingSpecs := preload("res://scripts/render/spawn_dressing_specs.g
 
 const INTERNAL := Vector2i(640, 360)   # internal render res (higher = finer/less chunky pixels)
 const TILE_S := 1.0                 # 3D units per tile
-const ELEV_H := 0.25                # height per elevation step (8px / 32px tile)
+const ELEV_H := WG.ELEV_H           # height per elevation step (8px / 32px tile); single
+                                    # source in wg.gd. Render alias kept for call-site brevity.
 # Turn spring: a body accelerates into a turn and damps out of it (slightly
 # underdamped for a snappy-but-physical settle), so facing changes are never instant.
 const TURN_STIFFNESS := 62.0

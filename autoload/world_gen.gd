@@ -239,6 +239,17 @@ func elevation_at(pos: Vector2, layer: int = 0) -> int:
 	return chunk.elev[ly * WG.CHUNK_TILES + lx]
 
 
+## First-class GAMEPLAY ground height (3D world units) under a position — the
+## terraced floor that logic reasons about (climbing, cliffs, entity Y), derived
+## from the elevation steps via the shared WG.ELEV_H unit. Deterministic and
+## free of the cosmetic per-tile sculpting (rolling hills, rocky lift, water
+## basins) that the render layer adds on top for looks. This is the authority
+## the 3D-native migration stores on entities; the renderer adds visual offset
+## only for display.
+func ground_height_at(pos: Vector2, layer: int = 0) -> float:
+	return float(elevation_at(pos, layer)) * WG.ELEV_H
+
+
 func is_water_world(pos: Vector2, layer: int = 0) -> bool:
 	var td: Dictionary = _tile_def_at_world(pos, layer)
 	return not td.is_empty() and bool(td.get("water", false))

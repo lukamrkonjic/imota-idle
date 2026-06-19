@@ -8,6 +8,10 @@ const ISO_HW := TILE * 0.5                 # half-width of top diamond face
 const ISO_HH := TILE * 0.25                # half-height (2:1 isometric ratio)
 const BLOCK_RISE := 6.0                    # vertical extrusion for solid blocks
 const ELEV_STEP_PX := 8.0                  # screen px a terrain raises per elevation step
+const ELEV_H := ELEV_STEP_PX / TILE        # 3D world units per elevation step (8/32 = 0.25).
+                                           # Single source for the step height: the render
+                                           # layer's gameplay floor and the logic layer's
+                                           # height authority both derive from this.
 const MAX_REACHABLE_ELEV := 15             # player can climb up to this elevation; higher
                                            # rock/snow is unreachable (routed around)
 const MAX_CLIMB_STEP := 2                  # biggest single-step elevation change the player
