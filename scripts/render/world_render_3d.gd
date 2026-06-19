@@ -21,6 +21,12 @@ const INTERNAL := Vector2i(640, 360)   # internal render res (higher = finer/les
 const TILE_S := 1.0                 # 3D units per tile
 const ELEV_H := WG.ELEV_H           # height per elevation step (8px / 32px tile); single
                                     # source in wg.gd. Render alias kept for call-site brevity.
+const CLIFF_DROP_STEPS := 3         # gameplay-elevation steps between adjacent plateaus at or
+                                    # above which the boundary renders as a vertical CLIFF face
+                                    # instead of a smoothed ramp. One above WG.MAX_CLIMB_STEP, so
+                                    # every cliff is also unwalkable (pathfinder won't link it).
+const CLIFF_GAP := (float(CLIFF_DROP_STEPS) - 0.5) * ELEV_H  # gameplay-height gap that splits a
+                                    # corner into separate plateaus (2.5 steps -> splits >=3).
 # Turn spring: a body accelerates into a turn and damps out of it (slightly
 # underdamped for a snappy-but-physical settle), so facing changes are never instant.
 const TURN_STIFFNESS := 62.0
@@ -80,6 +86,7 @@ var _ti_cache: Dictionary = {}       # per-frame memo: Vector2i tile -> tile inf
 var _cc_cache: Dictionary = {}       # per-frame memo: Vector2i corner -> corner colour
 var _cb_cache: Dictionary = {}       # per-frame memo: Vector2i corner -> beach fraction
 var _vfh_cache: Dictionary = {}      # per-frame memo: Vector2i tile -> visual floor height
+var _ccl_cache: Dictionary = {}      # per-frame memo: Vector2i corner -> Array of height clusters
 var _batch_xf: Dictionary = {}       # static prop instance_id -> cached world Transform3D
 const _IDENTITY_XF := Transform3D()  # sentinel for "not yet cached" (props never sit at identity)
 var _terrain_built := false          # did a chunk mesh build this frame (stagger batch rebuild off it)
@@ -415,6 +422,7 @@ func _process(delta: float) -> void:
 	_cb_cache.clear()
 	_occ_cache.clear()
 	_vfh_cache.clear()
+	_ccl_cache.clear()
 	_apply_pixelation()   # keeps render res matched to the window + pixelation slider
 	_update_camera_input(delta)
 	_sync_camera()
@@ -737,14 +745,20 @@ func _build_chunk_terrain(chunk: RefCounted) -> Node3D:
 		for tx: int in n:
 			var gtx := cx0 + tx
 			var gty := cy0 + ty
-			# Four shared corners (continuous across cells -> smooth surface).
-			_emit_corner(st, gtx, gty, hc, wfc)
-			_emit_corner(st, gtx + 1, gty, hc, wfc)
-			_emit_corner(st, gtx + 1, gty + 1, hc, wfc)
-			_emit_corner(st, gtx, gty, hc, wfc)
-			_emit_corner(st, gtx + 1, gty + 1, hc, wfc)
-			_emit_corner(st, gtx, gty + 1, hc, wfc)
 			var info := _tile_info(gtx, gty)
+			# Plateau the tile sits on: gameplay floor (terraced, noise-free). Each corner is
+			# emitted on THIS plateau so cliffs stay vertical (see _corner_height_for).
+			var ref_top := float(info["top"]) if not info.is_empty() else 0.0
+			# Four corners (shared within a plateau -> smooth; split across a cliff).
+			_emit_corner(st, gtx, gty, ref_top, wfc)
+			_emit_corner(st, gtx + 1, gty, ref_top, wfc)
+			_emit_corner(st, gtx + 1, gty + 1, ref_top, wfc)
+			_emit_corner(st, gtx, gty, ref_top, wfc)
+			_emit_corner(st, gtx + 1, gty + 1, ref_top, wfc)
+			_emit_corner(st, gtx, gty + 1, ref_top, wfc)
+			# Vertical cliff faces down to any sharply-lower orthogonal neighbour.
+			if not info.is_empty() and not bool(info["water"]):
+				_emit_tile_cliffs(st, gtx, gty, ref_top, info)
 			if not info.is_empty() and bool(info["water"]):
 				has_water = true
 				var wy: float = _water_surface_height(info)
@@ -847,11 +861,13 @@ func _emit_shore_overlay(sst: SurfaceTool, cx0: int, cy0: int, n: int, hc: Dicti
 	return has_shore
 
 
-func _emit_corner(st: SurfaceTool, ci: int, cj: int, hc: Dictionary, wfc: Dictionary) -> void:
-	var h := _corner_height(ci, cj, hc)
-	# Smooth normal from the height field (central differences over the corners).
-	var hx := _corner_height(ci + 1, cj, hc) - _corner_height(ci - 1, cj, hc)
-	var hz := _corner_height(ci, cj + 1, hc) - _corner_height(ci, cj - 1, hc)
+func _emit_corner(st: SurfaceTool, ci: int, cj: int, ref_top: float, wfc: Dictionary) -> void:
+	var h := _corner_height_for(ci, cj, ref_top)
+	# Smooth normal from the height field (central differences over the corners). Sampled on
+	# THIS tile's plateau (ref_top) so a corner at a cliff lip stays flat-shaded on top rather
+	# than tilting toward the drop.
+	var hx := _corner_height_for(ci + 1, cj, ref_top) - _corner_height_for(ci - 1, cj, ref_top)
+	var hz := _corner_height_for(ci, cj + 1, ref_top) - _corner_height_for(ci, cj - 1, ref_top)
 	st.set_normal(Vector3(-hx, 2.0 * TILE_S, -hz).normalized())
 	st.set_color(_corner_color(ci, cj))
 	# UV carries beach data for toon_ground: y = beach fraction (sand vs other, smoothed
@@ -897,6 +913,108 @@ func _corner_height(ci: int, cj: int, hc: Dictionary) -> float:
 	var h: float = sum / float(cnt) if cnt > 0 else 0.0
 	hc[key] = h
 	return h
+
+
+## Corner height CLUSTERS — the up-to-4 tiles touching a grid corner, grouped by their
+## GAMEPLAY floor (info.top, terraced and noise-free) into plateaus separated by gaps of
+## >= CLIFF_GAP. Each cluster carries the gameplay band it spans [lo, hi] plus the average
+## VISUAL floor height ("h") to emit for it. A corner whose tiles are all within one step
+## yields a single cluster -> identical to the old plain average (gentle terrain unchanged).
+## A corner straddling a cliff yields 2+ clusters, so the high plateau and the low ground
+## each keep their own flat height and a vertical face spans the gap (see _emit_tile_cliffs)
+## instead of the corner-average smearing the drop into a walkable-looking ramp.
+func _corner_clusters(ci: int, cj: int) -> Array:
+	var ck := Vector2i(ci, cj)
+	if _ccl_cache.has(ck):
+		return _ccl_cache[ck]
+	var samples := []   # [top, vfh] per touching tile
+	for off: Vector2i in [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(0, 0)]:
+		var info := _tile_info(ci + off.x, cj + off.y)
+		if not info.is_empty():
+			samples.append([float(info["top"]), _visual_floor_height(ci + off.x, cj + off.y, info)])
+	samples.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	var clusters := []
+	if not samples.is_empty():
+		var lo: float = samples[0][0]
+		var hi: float = samples[0][0]
+		var vsum: float = samples[0][1]
+		var vn := 1
+		for i in range(1, samples.size()):
+			if samples[i][0] - hi > CLIFF_GAP:
+				clusters.append({"lo": lo, "hi": hi, "h": vsum / float(vn)})
+				lo = samples[i][0]
+				vsum = 0.0
+				vn = 0
+			hi = samples[i][0]
+			vsum += samples[i][1]
+			vn += 1
+		clusters.append({"lo": lo, "hi": hi, "h": vsum / float(vn)})
+	_ccl_cache[ck] = clusters
+	return clusters
+
+
+## Visual corner height for the plateau that gameplay floor `ref_top` sits on. Gentle
+## terrain (one cluster) just returns the average; at a cliff it returns the cluster
+## matching the caller's own plateau so adjacent same-plateau tiles agree exactly (no
+## cracks) while across-cliff tiles diverge (the vertical face).
+func _corner_height_for(ci: int, cj: int, ref_top: float) -> float:
+	var clusters := _corner_clusters(ci, cj)
+	if clusters.is_empty():
+		return 0.0
+	if clusters.size() == 1:
+		return clusters[0]["h"]
+	var best: Dictionary = clusters[0]
+	var best_d := INF
+	for cl: Dictionary in clusters:
+		var d: float = 0.0
+		if ref_top < cl["lo"]:
+			d = cl["lo"] - ref_top
+		elif ref_top > cl["hi"]:
+			d = ref_top - cl["hi"]
+		if d < best_d:
+			best_d = d
+			best = cl
+	return best["h"]
+
+
+## Emit vertical cliff faces from this (high) tile down to any orthogonal neighbour whose
+## gameplay floor is >= CLIFF_DROP_STEPS lower. The face's top corners sit on this tile's
+## plateau and its bottom corners on the neighbour's, so it closes the vertical gap that the
+## split corners (_corner_height_for) otherwise leave open — turning the drop into an obvious
+## wall. Emitted once, from the high side. Drops to water are coastline, left to the shore band.
+func _emit_tile_cliffs(st: SurfaceTool, gtx: int, gty: int, ref_top: float, info: Dictionary) -> void:
+	# Edge = [neighbour dx, dy, corner0 (di,dj), corner1 (di,dj), outward normal]. Corners are
+	# in the tile's CW order so the face winds outward.
+	var edges := [
+		[0, -1, Vector2i(0, 0), Vector2i(1, 0), Vector3(0, 0, -1)],   # north
+		[1, 0, Vector2i(1, 0), Vector2i(1, 1), Vector3(1, 0, 0)],     # east
+		[0, 1, Vector2i(1, 1), Vector2i(0, 1), Vector3(0, 0, 1)],     # south
+		[-1, 0, Vector2i(0, 1), Vector2i(0, 0), Vector3(-1, 0, 0)],   # west
+	]
+	var face_col: Color = PixelPalette.shade(info["col"], 0.5)
+	for e: Array in edges:
+		var nb := _tile_info(gtx + int(e[0]), gty + int(e[1]))
+		if nb.is_empty() or bool(nb["water"]):
+			continue
+		var nb_top: float = float(nb["top"])
+		if ref_top - nb_top < CLIFF_GAP:
+			continue
+		var c0: Vector2i = Vector2i(gtx, gty) + e[2]
+		var c1: Vector2i = Vector2i(gtx, gty) + e[3]
+		var t0 := Vector3(float(c0.x) * TILE_S, _corner_height_for(c0.x, c0.y, ref_top), float(c0.y) * TILE_S)
+		var t1 := Vector3(float(c1.x) * TILE_S, _corner_height_for(c1.x, c1.y, ref_top), float(c1.y) * TILE_S)
+		var b1 := Vector3(float(c1.x) * TILE_S, _corner_height_for(c1.x, c1.y, nb_top), float(c1.y) * TILE_S)
+		var b0 := Vector3(float(c0.x) * TILE_S, _corner_height_for(c0.x, c0.y, nb_top), float(c0.y) * TILE_S)
+		_cliff_face(st, t0, t1, b1, b0, e[4], face_col)
+
+
+## A vertical cliff quad: top edge t0->t1, bottom edge b0<-b1 (b1 under t1, b0 under t0).
+func _cliff_face(st: SurfaceTool, t0: Vector3, t1: Vector3, b1: Vector3, b0: Vector3, normal: Vector3, col: Color) -> void:
+	for v: Vector3 in [t0, t1, b1, t0, b1, b0]:
+		st.set_color(col)
+		st.set_normal(normal)
+		st.set_uv(Vector2.ZERO)
+		st.add_vertex(v)
 
 
 func _corner_color(ci: int, cj: int) -> Color:
@@ -2092,8 +2210,8 @@ func _tile_center_pos(gtx: int, gty: int, lift := 0.0) -> Vector3:
 	if not info.is_empty() and bool(info["water"]):
 		h = _water_surface_height(info)
 	elif not info.is_empty():
-		var hc := {}
-		h = (_corner_height(gtx, gty, hc) + _corner_height(gtx + 1, gty, hc) + _corner_height(gtx, gty + 1, hc) + _corner_height(gtx + 1, gty + 1, hc)) * 0.25
+		var rt := float(info["top"])
+		h = (_corner_height_for(gtx, gty, rt) + _corner_height_for(gtx + 1, gty, rt) + _corner_height_for(gtx, gty + 1, rt) + _corner_height_for(gtx + 1, gty + 1, rt)) * 0.25
 	return Vector3((float(gtx) + 0.5) * TILE_S, h + lift, (float(gty) + 0.5) * TILE_S)
 
 
@@ -2109,13 +2227,15 @@ func _grid_height(gx: float, gy: float) -> float:
 	var info := _tile_info(t.x, t.y)
 	if not info.is_empty() and bool(info["water"]):
 		return _water_surface_height(info)
-	var hc := {}
+	# Sample on this tile's plateau so a mover near a cliff lip rides its own flat top, not a
+	# corner-average sagging toward the drop.
+	var ref_top := float(info["top"]) if not info.is_empty() else 0.0
 	var fx := gx - floorf(gx)
 	var fy := gy - floorf(gy)
-	var h00 := _corner_height(t.x, t.y, hc)
-	var h10 := _corner_height(t.x + 1, t.y, hc)
-	var h01 := _corner_height(t.x, t.y + 1, hc)
-	var h11 := _corner_height(t.x + 1, t.y + 1, hc)
+	var h00 := _corner_height_for(t.x, t.y, ref_top)
+	var h10 := _corner_height_for(t.x + 1, t.y, ref_top)
+	var h01 := _corner_height_for(t.x, t.y + 1, ref_top)
+	var h11 := _corner_height_for(t.x + 1, t.y + 1, ref_top)
 	return lerpf(lerpf(h00, h10, fx), lerpf(h01, h11, fx), fy)
 
 

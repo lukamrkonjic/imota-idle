@@ -330,6 +330,10 @@ const ELEV_MAX_STEPS := 42
 const ELEV_FOOT_THRESHOLD := 0.18
 const ELEV_PEAK_THRESHOLD := 0.92
 const ELEV_BAND := 1
+const CLIFF_PLATEAU_BAND := 4   # above the walkable line, snap impassable rock elevation to
+                                # plateaus this many steps apart so the high mountains terrace
+                                # into bold, obvious cliffs (each band boundary is a >2-step
+                                # drop the renderer walls off and the pathfinder routes around).
 func elevation_steps(tx: float, ty: float) -> int:
 	if not _finite:
 		return 0
@@ -346,6 +350,15 @@ func elevation_steps(tx: float, ty: float) -> int:
 	# Inland: full height. Approaching the shore: tapers to 0.
 	raw *= 1.0 - smoothstep(0.10, 0.70, coast_sink(tx, ty))
 	var steps := int(round(raw / float(ELEV_BAND))) * ELEV_BAND
+	steps = clampi(steps, 0, ELEV_MAX_STEPS)
+	# Above the walkable line the impassable rock is terraced into bold plateaus so the high
+	# mountains read as stacked CLIFFS (the renderer draws each band boundary as a vertical
+	# face) instead of one smooth massif. Foothills (<= MAX_REACHABLE_ELEV) stay finely graded
+	# and fully walkable, so this reshapes only terrain the player already cannot climb.
+	var reach: int = WG.MAX_REACHABLE_ELEV
+	if steps > reach:
+		var over := int(round(float(steps - reach) / float(CLIFF_PLATEAU_BAND))) * CLIFF_PLATEAU_BAND
+		steps = reach + maxi(over, CLIFF_PLATEAU_BAND)
 	return clampi(steps, 0, ELEV_MAX_STEPS)
 
 
