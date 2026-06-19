@@ -44,11 +44,31 @@ Risks and concrete files. Ordered by impact on long-term playability.
 | ~~Unused exploration fog~~ | ~~`scripts/worldgen/exploration_edge_fog.gd`~~ | **Done (Tier 0).** Deleted (was `@deprecated`, superseded by `unexplored_backdrop.gd`). |
 | Missing contributor docs | `docs/` | Only `DATA_GAPS.md` existed before architecture pass. |
 
+## Render-monolith decomposition (Tier D — in progress)
+
+`world_render_3d.gd` (~2.7k) is being carved into modules so the art/animation can be
+reworked without touching the render pipeline.
+
+- **Done:** terrain colour + tile classification → `scripts/render/terrain_style.gd`
+  (`TerrainStyle`) — the swappable art module (render-verified: terrain shows every frame).
+- **Next (scoped, needs per-body-type / per-FX visual verification, NOT a blind cut):**
+  - `MoverRig` — the pure rig functions: `_pivot`/`_set_pivot`, `_sway_hair`/`_flow_cloth`/
+    `_flow_cape`(+`CAPE_DRAPE`), `_shadow_footprint`, and the 5 `_pose_*` (humanoid/goblin/
+    gnoll/quadruped/bird). All parameterized/pure; the orchestrator `_animate_mover` stays and
+    calls `MoverRig.pose_*`. ~470 lines, interleaved with `_shadow_push`/`_apply_hurt`/
+    `_attack_progress` (which stay), so extract per-function. Verify each body type renders.
+  - `WorldFx3D` — campfire/firemaking/prayer-burst FX (`_light_fire`/`_build_campfire`/
+    `_on_firemaking_burned`/`_on_prayer_activated`/`_update_fx` + `_fire*`/`_fx_bursts`/
+    `_kneel_t` state). Holds a render-ctx ref for `iso_to_3d`/`height_at`/`props_root`/`cam`.
+    Verify by triggering firemaking + a prayer (not visible in a spawn screenshot).
+  - `FXDirector` + a shared `PixelAnim.pulse(t,freq,amp)` helper (dedupe the per-structure
+    `0.5+sin(t*f)*a` glows in campfire/anvil/altar/fountain/obelisk art).
+
 ## File size watch list (current, 3D `main`)
 
 | File | Lines | Category |
 |------|------:|----------|
-| `scripts/render/world_render_3d.gd` | ~2200 | 3D render — top split candidate |
+| `scripts/render/world_render_3d.gd` | ~2700 | 3D render — TerrainStyle split out; MoverRig/WorldFx3D next |
 | `scripts/ui/osrs_hud.gd` | ~1953 | UI — split into per-tab components |
 | `scripts/render/prop_meshes.gd` | ~1855 | 3D render — data-drive equip/rig |
 | `scripts/worldgen/skill_site_spawner.gd` | ~626 | World generation — rule pile |
