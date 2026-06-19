@@ -19,7 +19,8 @@ func setup(h: CanvasLayer) -> void:
 
 	minimap = MinimapControl.new()
 	minimap.hud = hud
-	minimap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	minimap.mouse_filter = Control.MOUSE_FILTER_STOP   # catch clicks for click-to-navigate
+	minimap.clip_contents = true                        # keep route/flag drawing inside the map
 	minimap.position = UiScale.v2(Vector2(0, 0))
 	minimap.custom_minimum_size = UiScale.v2(MAP_SIZE)
 	minimap.size = minimap.custom_minimum_size
@@ -82,6 +83,29 @@ class MinimapControl extends Control:
 	func _view_scale() -> float:
 		return BASE_SCALE * pow(1.35, float(zoom_level))
 
+	# World-units -> minimap-pixels (matches _draw_terrain / _draw_dots).
+	func _map_scale() -> float:
+		return _view_scale() * (TILE_PX / 2.5)
+
+	# Click-to-navigate: a click inside the map disc walks the player toward that world
+	# position. The path controller decides reachability — an unreachable pick doesn't start
+	# a route (so no flag appears); a reachable one starts a route the overlay draws as a
+	# line + destination flag.
+	func _gui_input(event: InputEvent) -> void:
+		if not (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT):
+			return
+		if hud == null or hud.world == null or hud.world.player == null:
+			return
+		var rel: Vector2 = event.position - size * 0.5
+		if rel.length() > size.x * 0.5 - 3.0:
+			return   # outside the circular map
+		var k := _map_scale()
+		if k <= 0.0:
+			return
+		var world_pos: Vector2 = hud.world.player.position + rel / k
+		hud.world.call("navigate_to", world_pos)
+		accept_event()
+
 	func _process(delta: float) -> void:
 		_t += delta
 		if _t >= 0.25:
@@ -94,6 +118,7 @@ class MinimapControl extends Control:
 		draw_circle(c, r, Color(0.08, 0.09, 0.08, 0.95))
 		if hud != null and hud.world != null:
 			_draw_terrain(c, r)
+			_draw_route(c, r)
 			_draw_dots(c, r)
 		draw_arc(c, r - 1.0, 0.0, TAU, 48, Color(0.55, 0.5, 0.35), 2.5)
 		draw_circle(c, 3.0, Color.WHITE)
@@ -147,3 +172,33 @@ class MinimapControl extends Control:
 				"hook":
 					col = Color(0.78, 0.56, 0.34)
 			draw_circle(c + rel, 2.0, col)
+
+	# Active walk route: a line from the player (centre) through the remaining waypoints to
+	# the destination flag. Drawn only while a route is being walked (see active_route()).
+	func _draw_route(c: Vector2, r: float) -> void:
+		var route: Dictionary = hud.world.call("active_route")
+		if route.is_empty():
+			return
+		var player: Node2D = hud.world.player
+		var k := _map_scale()
+		var lim := r - 3.0
+		var pts: PackedVector2Array = route["points"]
+		var prev := c   # player sits at the map centre
+		for wp: Vector2 in pts:
+			var p := c + _clamp_to_circle((wp - player.position) * k, lim)
+			draw_line(prev, p, Color(0.98, 0.95, 0.85, 0.85), 1.5)
+			prev = p
+		var drel: Vector2 = (Vector2(route["dest"]) - player.position) * k
+		if drel.length() <= lim:
+			_draw_flag(c + drel)
+
+	func _clamp_to_circle(v: Vector2, radius: float) -> Vector2:
+		return v if v.length() <= radius else v.normalized() * radius
+
+	func _draw_flag(p: Vector2) -> void:
+		var top := p - Vector2(0.0, 10.0)
+		draw_line(p, top, Color(0.15, 0.12, 0.08), 1.6)                 # pole
+		draw_colored_polygon(PackedVector2Array([
+			top, top + Vector2(8.0, 2.5), top + Vector2(0.0, 5.0)]),
+			Color(0.86, 0.16, 0.12))                                   # red pennant
+		draw_circle(p, 1.8, Color(0.96, 0.93, 0.72))                    # base

@@ -106,6 +106,30 @@ func walk_to_pos(target: Vector2) -> bool:
 	return true
 
 
+## --- Route introspection (minimap flag + route line) ------------------------
+## True while the player is actively walking a computed route. Gated on player.walking
+## so a finished/failed walk shows no flag (an unreachable click never starts a route).
+func has_active_route() -> bool:
+	return _path.size() > 0 and world.player.walking
+
+
+## The route's REMAINING waypoints (iso world positions) from the one the player is
+## currently heading to onward, so the overlay line runs player -> destination, not back
+## through already-walked points.
+func route_waypoints() -> PackedVector2Array:
+	return _path.slice(maxi(_path_i - 1, 0))
+
+
+## Final destination of the active route (the long target for cross-region walks,
+## else the last waypoint).
+func route_destination() -> Vector2:
+	if _has_long_target:
+		return _long_target
+	if _path.size() > 0:
+		return _path[_path.size() - 1]
+	return world.player.position
+
+
 func _clamp_to_region(target: Vector2) -> Vector2:
 	var rect := WG.tile_region_world_rect(path_finder.region, 2)
 	return target.clamp(rect.position, rect.end)

@@ -328,6 +328,21 @@ func walk_to_pos(target: Vector2) -> bool:
 	return _path_ctrl.walk_to_pos(target)
 
 
+## Navigate to a map/minimap-picked world position: clear any pending action / auto-task
+## (this is a plain move command) and path there. Returns false if unreachable.
+func navigate_to(target: Vector2) -> bool:
+	pending_action = {}
+	auto_task = {}
+	return walk_to_pos(target)
+
+
+## Active route for overlays (minimap). Returns {} when no route is being walked.
+func active_route() -> Dictionary:
+	if _path_ctrl == null or not _path_ctrl.has_active_route():
+		return {}
+	return {"points": _path_ctrl.route_waypoints(), "dest": _path_ctrl.route_destination()}
+
+
 ## Mouse position in 2D iso world space. With the 3D renderer active, the on-screen
 ## image comes from the 3D camera, so we project the cursor through THAT camera onto
 ## the terrain instead of trusting the (hidden) Camera2D's screen mapping.

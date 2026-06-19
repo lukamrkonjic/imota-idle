@@ -2408,21 +2408,48 @@ func world_px_per_unit() -> float:
 	return float(sub.size.y) * _present_scale / cam.size
 
 
-## Intersect a ray with the terrain height field. The surface isn't flat, so we
-## intersect a horizontal plane, sample the ground height there, and re-intersect
-## a couple of times — converges fast on the gentle hike terrain.
+## First (nearest) intersection of a ray with the terrain height field. We march forward
+## from where the ray enters the terrain's vertical band and stop at the FIRST sample that
+## dips below the sampled surface, then bisect. This returns the actual clicked face — a
+## click on a tall mountain returns that mountain, not the distant low ground the ray would
+## eventually cross (the old plane-iteration converged to that far surface, which put the
+## click marker "on the ground" instead of where the user clicked).
+const _TERR_MAX_Y := 14.0   # generous ceiling above the tallest summit (ELEV_MAX*ELEV_H + relief)
+const _TERR_MIN_Y := -3.0   # below the deepest water basin
 func _ray_to_ground(origin: Vector3, dir: Vector3) -> Vector3:
-	if absf(dir.y) < 0.00001:
-		return origin
-	var y := 0.0
-	var hit := origin
-	for _i: int in 4:
-		var t: float = (y - origin.y) / dir.y
-		if t < 0.0:
-			t = 0.0
-		hit = origin + dir * t
-		y = _grid_height(hit.x / TILE_S, hit.z / TILE_S)
-	return hit
+	if dir.y > -0.00001:
+		# Ray parallel or pointing up — fall back to the flat ground plane.
+		var tp := (0.0 - origin.y) / dir.y if absf(dir.y) > 0.00001 else 0.0
+		return origin + dir * maxf(tp, 0.0)
+	# Restrict the march to the slab the terrain occupies (enter at the top, exit at the floor).
+	var t_enter: float = maxf((_TERR_MAX_Y - origin.y) / dir.y, 0.0)
+	var t_exit: float = (_TERR_MIN_Y - origin.y) / dir.y
+	if t_exit <= t_enter:
+		var tp2 := (0.0 - origin.y) / dir.y
+		return origin + dir * maxf(tp2, 0.0)
+	var steps := 96
+	var dt := (t_exit - t_enter) / float(steps)
+	var prev_t := t_enter
+	for i: int in steps + 1:
+		var t := t_enter + dt * float(i)
+		var p := origin + dir * t
+		var h := _grid_height(p.x / TILE_S, p.z / TILE_S)
+		if p.y <= h:
+			# Crossed below the surface between prev_t and t — bisect for the precise hit.
+			var lo := prev_t
+			var hi := t
+			for _b: int in 8:
+				var mt := (lo + hi) * 0.5
+				var mp := origin + dir * mt
+				if mp.y <= _grid_height(mp.x / TILE_S, mp.z / TILE_S):
+					hi = mt
+				else:
+					lo = mt
+			return origin + dir * hi
+		prev_t = t
+	# Ray passed over all terrain (e.g. pointing at open sky/sea) — flat plane fallback.
+	var tp3 := (0.0 - origin.y) / dir.y
+	return origin + dir * maxf(tp3, 0.0)
 
 
 func _palette_texture() -> ImageTexture:
