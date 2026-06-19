@@ -12,7 +12,6 @@ const ChunkRenderer := preload("res://scripts/worldgen/chunk_renderer.gd")
 const OUTLINE_SHADER := preload("res://shaders/outline.gdshader")
 const TOON_GROUND := preload("res://shaders/toon_ground.gdshader")
 const TOON_WATER := preload("res://shaders/toon_water.gdshader")
-const TOON_SHORE := preload("res://shaders/toon_shore.gdshader")
 const PALETTE_SNAP := preload("res://shaders/palette_snap.gdshader")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 const PropMeshes := preload("res://scripts/render/prop_meshes.gd")
@@ -32,6 +31,7 @@ const DRESSING_ANCHOR := 4          # visual set dressing snaps to this tile gri
 const SPAWN_LAYER := 0              # overworld layer the home-campsite dressing lives on
 const DRESSING_SPREAD := 1.7        # fan the camp pieces apart so nothing is squished
 const FOREST_PREVIEW_ARG := "--forest-preview"
+const WATER_PREVIEW_ARG := "--water-preview"   # verification: teleport to a deterministic ocean coast
 
 var world: Node2D
 var sub: SubViewport
@@ -42,7 +42,6 @@ var terrain_root: Node3D
 var props_root: Node3D
 var _ground_mat: ShaderMaterial
 var _water_mat: ShaderMaterial
-var _shore_mat: ShaderMaterial
 var _snap_mat: ShaderMaterial
 var _occ_cache: Dictionary = {}   # global tile -> is_water (deterministic; persists)
 var _chunk_meshes: Dictionary = {}   # chunk key -> Node3D (ground + water)
@@ -123,6 +122,7 @@ var _spawn_placed := -1               # how many camp-dressing pieces have groun
 var _spawn_stable := 0                # frames the placed count has held steady
 var _spawn_dressing_built := false    # latched true once the whole camp scene is placed
 var _forest_preview_done := false
+var _water_preview_done := false
 var _frames := 0
 var _captured := false
 var _active := false
@@ -284,13 +284,17 @@ func _setup_materials() -> void:
 
 	_water_mat = ShaderMaterial.new()
 	_water_mat.shader = TOON_WATER
-	# Deep-blue ocean with MID-scale domain-warped contour loops (between the old dense
-	# version and the over-large one): clear medium/large irregular loops, plenty of dark
-	# negative space. World-space sampled (camera-stable). The visible shallow band is the
-	# separate shore overlay below — this just fades its own contours out near the coast.
-	_water_mat.set_shader_parameter("base_color", Color(0.067, 0.380, 0.498))      # #11617F deep
-	_water_mat.set_shader_parameter("secondary_color", Color(0.090, 0.431, 0.537)) # #176E89 subtle var
-	_water_mat.set_shader_parameter("line_color", Color(0.290, 0.588, 0.655))      # #4A96A7 lines
+	# wf-driven water on a FINELY TESSELLATED plane: the smoothed coast field (UV.x), sampled
+	# bicubically per sub-vertex, gives a pixel-smooth 0.5 contour decoupled from the coarse
+	# terrain mesh — no per-tile triangulation teeth. Shallows / foam / illustrated contour
+	# loops all key off that one field. World-space sampled (camera-stable).
+	_water_mat.set_shader_parameter("deep_color", Color(0.067, 0.380, 0.498))     # #11617F deep ocean
+	_water_mat.set_shader_parameter("shallow_color", Color(0.420, 0.780, 0.760))  # #6BC7C2 lit shallow
+	_water_mat.set_shader_parameter("line_color", Color(0.290, 0.588, 0.655))     # #4A96A7 contour
+	_water_mat.set_shader_parameter("foam_color", Color(0.886, 0.953, 0.965))     # #E2F3F6 sea foam
+	_water_mat.set_shader_parameter("sd_scale", SHORE_SD_SCALE)   # (wf-0.5) -> signed cells
+	_water_mat.set_shader_parameter("shore_aa", 0.10)            # AA width of the waterline (cells)
+	_water_mat.set_shader_parameter("shallow_cells", 0.9)        # shallow band before the deep ramp
 	_water_mat.set_shader_parameter("pattern_scale", 0.072)       # mid features (dense 0.105 .. sparse 0.032)
 	_water_mat.set_shader_parameter("contour_count", 3.5)         # medium line density / spacing
 	_water_mat.set_shader_parameter("line_width", 0.038)
@@ -300,35 +304,14 @@ func _setup_materials() -> void:
 	_water_mat.set_shader_parameter("secondary_scale", 1.7)
 	_water_mat.set_shader_parameter("primary_speed", Vector2(0.006, 0.003))
 	_water_mat.set_shader_parameter("secondary_speed", Vector2(-0.003, 0.005))
-	_water_mat.set_shader_parameter("sd_scale", SHORE_SD_SCALE)
-	_water_mat.set_shader_parameter("coast_cut", -0.1)            # deep water laps slightly under overlay
-	_water_mat.set_shader_parameter("contour_fade_in", 0.55)      # cells: contours start returning
-	_water_mat.set_shader_parameter("contour_fade_out", 1.15)     # cells: contours fully back
+	_water_mat.set_shader_parameter("contour_fade_in", 0.7)       # cells: contours start returning
+	_water_mat.set_shader_parameter("contour_fade_out", 1.6)      # cells: contours fully back
+	_water_mat.set_shader_parameter("foam_cells", 0.55)          # foam band width at the shore (cells)
+	_water_mat.set_shader_parameter("foam_scale", 0.17)
+	_water_mat.set_shader_parameter("foam_speed", 0.05)
+	_water_mat.set_shader_parameter("foam_tex", _make_water_noise(0.7, 3, 6))
 	_water_mat.set_shader_parameter("noise_tex", _make_water_noise(0.9, 2, 1))
 	_water_mat.set_shader_parameter("warp_tex", _make_water_noise(0.35, 2, 2))
-
-	# Render-only coastal overlay: wet-sand + two-tone aqua bands hiding the coastline
-	# teeth. Driven by the SAME smoothed water-fraction field (UV.x) as the water mesh.
-	_shore_mat = ShaderMaterial.new()
-	_shore_mat.shader = TOON_SHORE
-	_shore_mat.set_shader_parameter("wet_sand_color", Color(0.788, 0.678, 0.451)) # #C9AD73
-	_shore_mat.set_shader_parameter("inner_color", Color(0.510, 0.820, 0.796))    # #82D1CB light aqua
-	_shore_mat.set_shader_parameter("outer_color", Color(0.263, 0.682, 0.698))    # #43AEB2 turquoise
-	# A Short Hike-inspired alpine shore: cool periwinkle ice with lavender shadow,
-	# selected per vertex near tundra/alpine terrain instead of recolouring warm seas.
-	# Sea-foam shore: white wet edge -> pale aqua -> foam blue (was lavender/periwinkle,
-	# which snapped to the purple roof swatch in linear space).
-	_shore_mat.set_shader_parameter("cold_wet_color", Color(0.820, 0.880, 0.930))
-	_shore_mat.set_shader_parameter("cold_inner_color", Color(0.780, 0.900, 0.970))
-	_shore_mat.set_shader_parameter("cold_outer_color", Color(0.600, 0.760, 0.920))
-	_shore_mat.set_shader_parameter("sd_scale", SHORE_SD_SCALE)
-	_shore_mat.set_shader_parameter("wet_cells", 0.26)
-	_shore_mat.set_shader_parameter("inner_cells", 0.30)
-	_shore_mat.set_shader_parameter("outer_cells", 0.50)
-	_shore_mat.set_shader_parameter("fade_cells", 0.22)
-	_shore_mat.set_shader_parameter("width_var", 0.22)
-	_shore_mat.set_shader_parameter("var_scale", 0.05)
-	_shore_mat.set_shader_parameter("var_noise", _make_water_noise(0.5, 2, 4))
 
 
 func _setup_present() -> void:
@@ -446,6 +429,7 @@ func _process(delta: float) -> void:
 	if not _active or world.player == null:
 		return
 	_maybe_teleport_to_forest_preview()
+	_maybe_teleport_to_water_preview()
 	# Per-frame memo for tile-info/corner-colour sampling (terrain build + every mover
 	# height sample hit the same tiles thousands of times in a frame).
 	_ti_cache.clear()
@@ -467,7 +451,7 @@ func _process(delta: float) -> void:
 	# arrive at, not canned props that follow you everywhere (the old failure mode).
 	_sync_spawn_dressing()
 	_frames += 1
-	var capture_frame := 150 if _forest_preview_enabled() else 90
+	var capture_frame := 150 if (_forest_preview_enabled() or _water_preview_enabled()) else 90
 	if _frames == capture_frame and not _captured:
 		_capture()
 
@@ -547,6 +531,49 @@ func _water_near_tile(gtx: int, gty: int, radius: int) -> bool:
 		if WorldGen.is_water_world(WG.tile_to_world(gtx + off.x, gty + off.y), 0):
 			return true
 	return false
+
+
+# --- water-coast verification view -------------------------------------------
+# Deterministic teleport to a dry beach tile that overlooks open ocean, so coastline
+# tweaks can be eyeballed at the SAME spot every run (the save position drifts).
+func _maybe_teleport_to_water_preview() -> void:
+	if _water_preview_done:
+		return
+	_water_preview_done = true
+	if not _water_preview_enabled():
+		return
+	var pos := _water_preview_position()
+	if pos == Vector2.INF:
+		push_warning("World3D water preview: no ocean coast found")
+		return
+	world.teleport_to(pos)
+	if world._camera != null:
+		world._camera.zoom = Vector2(1.05, 1.05)   # frame a good stretch of coast
+	_static_sig = ""
+	_dressing_sig = ""
+	print("[world3d] water preview teleport to tile %s" % [WG.world_to_tile(pos)])
+
+
+func _water_preview_enabled() -> bool:
+	return WATER_PREVIEW_ARG in OS.get_cmdline_args() or WATER_PREVIEW_ARG in OS.get_cmdline_user_args()
+
+
+# The nearest ocean BEACH (the finite world's edge coast). A beach tile is dry,
+# walkable land directly against open ocean — the long diagonal coastline where the
+# per-tile triangulation is most exposed. Falls back to any large water body.
+func _water_preview_position() -> Vector2:
+	var spawn := WorldGen.spawn_position()
+	var beach: Dictionary = WorldGen.find_nearest_biome(spawn, "beach", 200)
+	if not beach.is_empty():
+		var bt := WG.world_to_tile(beach["pos"])
+		# Step one tile inland onto firm ground if the beach tile itself is borderline.
+		if WorldGen.is_admin_teleport_floor(beach["pos"]):
+			return beach["pos"]
+		for off: Vector2i in [Vector2i(0, -1), Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, 1)]:
+			var p := WG.tile_to_world(bt.x + off.x, bt.y + off.y)
+			if WorldGen.is_admin_teleport_floor(p):
+				return p
+	return Vector2.INF
 
 
 const CAM_SIZE_BASE := 19.5   # ortho size at the default 1.65 zoom
@@ -753,7 +780,13 @@ func _apply_view_distance() -> void:
 		_sun.directional_shadow_max_distance = clampf(vt * 0.85, 30.0, 52.0)
 
 
-const WATER_DROP := 0.45   # how far the ground floor dips under water (shore basin)
+# Water basin model. The surface rides the LOCAL sea-level rolling baseline minus
+# WATER_SINK, so it follows the meadow swells and is always WATER_SINK below the dry
+# shore (no flat sheet floating on a pedestal). The lakebed dips further: a shallow
+# clearance at the shore ramping to the full interior drop in open water.
+const WATER_SINK := 0.16        # surface below the local dry-land baseline
+const WATER_SHORE_DEPTH := 0.12 # lakebed clearance just under the surface at the shore
+const WATER_DEEP_DROP := 0.62   # extra interior lakebed depth (deep_water) below the surface
 const SHORE := Color(0.80, 0.75, 0.58)  # sandy shore tone under/at water edges
 const PATH_TILES := ["dirt", "cobble", "mud", "gravel", "badland_clay"]
 const ROCK_TILES := ["rock", "lava_rock", "ash", "peak_rock"]
@@ -767,8 +800,8 @@ func _build_chunk_terrain(chunk: RefCounted) -> Node3D:
 	var n := WG.CHUNK_TILES
 	var cx0: int = int(chunk.cx) * n
 	var cy0: int = int(chunk.cy) * n
-	var hc := {}  # memoized corner heights
 	var wfc := {}  # memoized corner water-fraction (the ONE shared coastline field)
+	var wlc := {}  # memoized corner water-surface level (watertight, calm sheet)
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	st.set_smooth_group(0)
@@ -786,46 +819,20 @@ func _build_chunk_terrain(chunk: RefCounted) -> Node3D:
 			# Four shared corners (continuous across cells -> one smooth surface). Steep
 			# terrace risers come through as steep smooth slopes (no axis-aligned vertical
 			# faces, which would staircase into sawtooth teeth along diagonal contours).
-			_emit_corner(st, gtx, gty, ref_top, wfc)
-			_emit_corner(st, gtx + 1, gty, ref_top, wfc)
-			_emit_corner(st, gtx + 1, gty + 1, ref_top, wfc)
-			_emit_corner(st, gtx, gty, ref_top, wfc)
-			_emit_corner(st, gtx + 1, gty + 1, ref_top, wfc)
-			_emit_corner(st, gtx, gty + 1, ref_top, wfc)
-			if not info.is_empty() and bool(info["water"]):
+			_emit_corner(st, gtx, gty, ref_top, wfc, wlc)
+			_emit_corner(st, gtx + 1, gty, ref_top, wfc, wlc)
+			_emit_corner(st, gtx + 1, gty + 1, ref_top, wfc, wlc)
+			_emit_corner(st, gtx, gty, ref_top, wfc, wlc)
+			_emit_corner(st, gtx + 1, gty + 1, ref_top, wfc, wlc)
+			_emit_corner(st, gtx, gty + 1, ref_top, wfc, wlc)
+			# The water sheet covers the water bodies + a small coastal margin and is FINELY
+			# TESSELLATED. Each sub-vertex bakes the smoothed coast field (UV.x), sampled
+			# BICUBICALLY, so the shader's 0.5 contour (the shoreline) is a smooth curve at
+			# sub-tile resolution — decoupled from the coarse terrain mesh, so the coast can
+			# never staircase into per-tile teeth.
+			if _water_plane_tile(gtx, gty):
 				has_water = true
-				var wy: float = _water_surface_height(info)
-				var x0 := float(gtx) * TILE_S
-				var z0 := float(gty) * TILE_S
-				var x1 := x0 + TILE_S
-				var z1 := z0 + TILE_S
-				# Bake the SHARED smoothed water-fraction field at each corner into UV.x
-				# (same field the shore overlay uses), so the deep-mesh coast discard and
-				# the overlay bands derive from ONE source and can never open a seam.
-				var fA := _coast_wf(gtx, gty, wfc)
-				var fB := _coast_wf(gtx + 1, gty, wfc)
-				var fC := _coast_wf(gtx + 1, gty + 1, wfc)
-				var fD := _coast_wf(gtx, gty + 1, wfc)
-				var quad := [
-					[Vector3(x0, wy, z0), fA], [Vector3(x1, wy, z0), fB], [Vector3(x1, wy, z1), fC],
-					[Vector3(x0, wy, z0), fA], [Vector3(x1, wy, z1), fC], [Vector3(x0, wy, z1), fD],
-				]
-				for p: Array in quad:
-					wst.set_normal(Vector3.UP)
-					wst.set_uv(Vector2(float(p[1]), 0.0))
-					wst.add_vertex(p[0])
-	# Coastal overlay: a smooth two-tone aqua band draped just above the coast that hides
-	# the ground mesh's per-tile triangulation teeth. Covers any tile straddling/near the
-	# smoothed coastline; the shader (driven by the per-vertex smoothed water-fraction in
-	# UV.x) decides where it's land (transparent), inner aqua, outer turquoise, or deep.
-	var sst := SurfaceTool.new()
-	sst.begin(Mesh.PRIMITIVE_TRIANGLES)
-	# The shore overlay (and the costly coastline field it samples) is only needed where
-	# water is within reach of this chunk. Skip it entirely for inland chunks — forests,
-	# mountains, plains — which are the vast majority, saving the whole 256-tile wf sweep.
-	var has_shore := false
-	if has_water or _chunk_near_water(cx0, cy0, n):
-		has_shore = _emit_shore_overlay(sst, cx0, cy0, n, hc, wfc)
+				_emit_water_tile(wst, gtx, gty, wfc, wlc)
 	var root := Node3D.new()
 	var ground := MeshInstance3D.new()
 	ground.mesh = st.commit()
@@ -838,105 +845,33 @@ func _build_chunk_terrain(chunk: RefCounted) -> Node3D:
 		water.material_override = _water_mat
 		water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(water)
-	if has_shore:
-		var shore := MeshInstance3D.new()
-		shore.mesh = sst.commit()
-		shore.material_override = _shore_mat
-		shore.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		root.add_child(shore)
 	return root
 
 
-# Any water tile within reach of this chunk (chunk + the shore field's radius), early-out.
-# Gates the shore overlay so inland chunks pay nothing for it.
-const SHORE_REACH := SHORE_SMOOTH + 1
-func _chunk_near_water(cx0: int, cy0: int, n: int) -> bool:
-	for ty: int in range(cy0 - SHORE_REACH, cy0 + n + SHORE_REACH):
-		for tx: int in range(cx0 - SHORE_REACH, cx0 + n + SHORE_REACH):
-			if _coast_water(tx, ty):
+# A tile the continuous water plane covers: any water tile, or dry land within a few
+# tiles of water (the coastal margin the sheet dips into so the depth shader can carve
+# the shoreline per-pixel). Cheap-gated by the per-frame water occupancy cache.
+const WATER_PLANE_MARGIN := 3
+func _water_plane_tile(gtx: int, gty: int) -> bool:
+	for dy: int in range(-WATER_PLANE_MARGIN, WATER_PLANE_MARGIN + 1):
+		for dx: int in range(-WATER_PLANE_MARGIN, WATER_PLANE_MARGIN + 1):
+			if _coast_water(gtx + dx, gty + dy):
 				return true
 	return false
 
 
-# Build the coastal aqua/wet-sand overlay band for a coastal chunk. Returns true if any
-# geometry was emitted. Split out of _build_chunk_terrain so it can be skipped wholesale.
-func _emit_shore_overlay(sst: SurfaceTool, cx0: int, cy0: int, n: int, hc: Dictionary, wfc: Dictionary) -> bool:
-	var has_shore := false
-	for ty: int in n:
-		for tx: int in n:
-			var gtx := cx0 + tx
-			var gty := cy0 + ty
-			var cell_info := _tile_info(gtx, gty)
-			# Shore colour may soften a low beach, but must never drape across a
-			# raised dry slope. That was the large light-blue "water on land" bug.
-			if not cell_info.is_empty() and not bool(cell_info["water"]):
-				var shore_tile := str(cell_info["tile"])
-				if float(cell_info["top"]) > 0.0 or shore_tile not in ["sand", "sand_dune"]:
-					continue
-			var w00 := _coast_wf(gtx, gty, wfc)
-			var w10 := _coast_wf(gtx + 1, gty, wfc)
-			var w11 := _coast_wf(gtx + 1, gty + 1, wfc)
-			var w01 := _coast_wf(gtx, gty + 1, wfc)
-			var wmax: float = maxf(maxf(w00, w10), maxf(w11, w01))
-			var wmin: float = minf(minf(w00, w10), minf(w11, w01))
-			if wmax <= 0.08 or wmin >= 0.98:
-				continue   # fully dry inland (no band) or open deep water (deep mesh only)
-			has_shore = true
-			var x0 := float(gtx) * TILE_S
-			var z0 := float(gty) * TILE_S
-			var x1 := x0 + TILE_S
-			var z1 := z0 + TILE_S
-			var yA := _coast_corner_height(gtx, gty, hc)
-			var yB := _coast_corner_height(gtx + 1, gty, hc)
-			var yC := _coast_corner_height(gtx + 1, gty + 1, hc)
-			var yD := _coast_corner_height(gtx, gty + 1, hc)
-			var cold := _shore_coldness(gtx, gty)
-			var quad := [
-				[Vector3(x0, yA, z0), w00], [Vector3(x1, yB, z0), w10], [Vector3(x1, yC, z1), w11],
-				[Vector3(x0, yA, z0), w00], [Vector3(x1, yC, z1), w11], [Vector3(x0, yD, z1), w01],
-			]
-			for p: Array in quad:
-				sst.set_normal(Vector3.UP)
-				sst.set_uv(Vector2(float(p[1]), cold))
-				sst.add_vertex(p[0])
-	return has_shore
 
-
-# Climate tint for the shoreline. Water cells commonly inherit an ocean parent, so sample
-# nearby dry land and softly vote for a cold edge. This keeps tropical coasts turquoise
-# while tundra/alpine coves become periwinkle ice without a hard biome-colour seam.
-func _shore_coldness(gtx: int, gty: int) -> float:
-	# The macro climate is authoritative across open water, where the tile's parent is
-	# normally "ocean" and no nearby land vote exists. This carries the alpine palette
-	# cleanly through broad northern lakes and fjords.
-	if WorldGen.generator != null and WorldGen.generator.classifier.continent_kind(float(gtx), float(gty)) == "cold":
-		return 1.0
-	# Most inland water keeps the surrounding parent biome. Honour that first so a broad
-	# frozen basin does not turn tropical in its middle merely because land is farther away.
-	var center := _tile_info(gtx, gty)
-	if not center.is_empty() and str(center.get("biome", "")) in ["tundra", "alpine"]:
-		return 1.0
-	var cold := 0.0
-	var dry := 0.0
-	for oy: int in range(-6, 7):
-		for ox: int in range(-6, 7):
-			var info := _tile_info(gtx + ox, gty + oy)
-			if info.is_empty() or bool(info["water"]):
-				continue
-			var weight := 1.0 / (1.0 + sqrt(float(ox * ox + oy * oy)))
-			dry += weight
-			if str(info.get("biome", "")) in ["tundra", "alpine"] or str(info["tile"]) in SNOW_TILES:
-				cold += weight
-	return clampf(cold / maxf(dry * 0.42, 0.001), 0.0, 1.0)
-
-
-func _emit_corner(st: SurfaceTool, ci: int, cj: int, ref_top: float, wfc: Dictionary) -> void:
+func _emit_corner(st: SurfaceTool, ci: int, cj: int, ref_top: float, wfc: Dictionary, wlc: Dictionary) -> void:
 	var h := _corner_height_for(ci, cj, ref_top)
 	# Smooth normal from the height field (central differences over the corners). Sampled on
 	# THIS tile's plateau (ref_top) so a corner at a cliff lip stays flat-shaded on top rather
 	# than tilting toward the drop.
 	var hx := _corner_height_for(ci + 1, cj, ref_top) - _corner_height_for(ci - 1, cj, ref_top)
 	var hz := _corner_height_for(ci, cj + 1, ref_top) - _corner_height_for(ci, cj - 1, ref_top)
+	# If this ground corner sits UNDER the water sheet, push it safely below the sheet so a
+	# terrain facet can never poke through and clip the shader's smooth waterline contour.
+	if _corner_touches_water(ci, cj):
+		h = minf(h, _water_corner_level(ci, cj, wlc) - WATER_BED_CLEARANCE)
 	st.set_normal(Vector3(-hx, 2.0 * TILE_S, -hz).normalized())
 	st.set_color(_corner_color(ci, cj))
 	# UV carries beach data for toon_ground: y = beach fraction (sand vs other, smoothed
@@ -982,22 +917,6 @@ func _corner_snow(ci: int, cj: int) -> float:
 		if str(info["tile"]) in SNOW_TILES:
 			frozen += 1
 	return float(frozen) / float(cnt) if cnt > 0 else 0.0
-
-
-func _corner_height(ci: int, cj: int, hc: Dictionary) -> float:
-	var key := Vector2i(ci, cj)   # Vector2i key: far cheaper than a formatted string in a hot loop
-	if hc.has(key):
-		return hc[key]
-	var sum := 0.0
-	var cnt := 0
-	for off: Vector2i in [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(0, 0)]:
-		var info := _tile_info(ci + off.x, cj + off.y)
-		if not info.is_empty():
-			sum += _visual_floor_height(ci + off.x, cj + off.y, info)
-			cnt += 1
-	var h: float = sum / float(cnt) if cnt > 0 else 0.0
-	hc[key] = h
-	return h
 
 
 ## Smooth visual corner height: average of the up-to-4 tiles touching the grid corner.
@@ -1109,8 +1028,16 @@ func _visual_floor_height(gtx: int, gty: int, info: Dictionary) -> float:
 	var tile := str(info["tile"])
 	var h: float
 	if bool(info["water"]):
-		var extra := 0.18 if tile == "deep_water" else (0.08 if tile == "water" else 0.0)
-		h = top - WATER_DROP - extra
+		# Lakebed rides the SAME sea-level rolling baseline as the water surface, dipped
+		# below it: a shallow clearance at the rim ramping to a deeper bed under open
+		# water, keyed off the tile depth (shallow -> water -> deep_water). Parallel to
+		# the surface, so narrow rivers and broad lakes both nestle without a flat floor.
+		var depth := WATER_SHORE_DEPTH
+		if tile == "water":
+			depth += WATER_DEEP_DROP * 0.45
+		elif tile == "deep_water":
+			depth += WATER_DEEP_DROP
+		h = _rolling_hill(gtx, gty) - WATER_SINK - depth
 	elif top > 0.0:
 		# Elevation is authoritative for the mountain surface. Biome/structure passes
 		# can leave gravel, snow, or another gameplay tile on a raised cell; all of
@@ -1138,8 +1065,116 @@ func _smoothed_elevation_height(gtx: int, gty: int) -> float:
 	return sum / weight * ELEV_H
 
 
-func _water_surface_height(info: Dictionary) -> float:
-	return float(info["top"]) - 0.035
+# Water-surface level at a grid CORNER. The sheet rides the LOCAL sea-level rolling
+# baseline (water is always elev 0) minus WATER_SINK. We average ONLY the WATER tiles
+# touching the corner, so high land on the shore never lifts the sheet up its flank — a
+# mountain tarn stays at the bottom of its basin. Memoised over shared corners (wlc) so
+# neighbouring water tiles agree exactly: the surface is watertight and calm.
+func _water_corner_level(ci: int, cj: int, wlc: Dictionary) -> float:
+	var key := Vector2i(ci, cj)
+	if wlc.has(key):
+		return wlc[key]
+	var sum := 0.0
+	var cnt := 0
+	for off: Vector2i in [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(0, 0)]:
+		var info := _tile_info(ci + off.x, cj + off.y)
+		if not info.is_empty() and bool(info["water"]):
+			sum += _rolling_hill(ci + off.x, cj + off.y)
+			cnt += 1
+	var base: float = sum / float(cnt) if cnt > 0 else _rolling_hill(ci, cj)
+	var lvl := base - WATER_SINK
+	wlc[key] = lvl
+	return lvl
+
+
+# Water-surface height at a tile CENTRE (for movers/decor/fish that ride the sheet).
+# Matches the mesh: the sheet rides the sea-level rolling baseline minus WATER_SINK.
+func _water_surface_at(gtx: int, gty: int) -> float:
+	return _rolling_hill(gtx, gty) - WATER_SINK
+
+
+# True if any of the four tiles touching this grid corner is water (cheap occupancy read).
+func _corner_touches_water(ci: int, cj: int) -> bool:
+	return _coast_water(ci - 1, cj - 1) or _coast_water(ci, cj - 1) \
+		or _coast_water(ci - 1, cj) or _coast_water(ci, cj)
+
+
+# Emit ONE water tile as a finely tessellated patch. Each sub-vertex bakes the smoothed
+# coast field (UV.x) sampled BICUBICALLY, so the shader's 0.5 contour is smooth at sub-tile
+# resolution. Heights bilerp the four watertight corner levels (the sheet is near-flat).
+const WATER_SUBDIV := 5            # sub-quads per tile edge (25 quads / tile near the coast)
+const WATER_BED_CLEARANCE := 0.07  # how far submerged ground sits below the sheet
+func _emit_water_tile(wst: SurfaceTool, gtx: int, gty: int, wfc: Dictionary, wlc: Dictionary) -> void:
+	var lA := _water_corner_level(gtx, gty, wlc)
+	var lB := _water_corner_level(gtx + 1, gty, wlc)
+	var lC := _water_corner_level(gtx + 1, gty + 1, wlc)
+	var lD := _water_corner_level(gtx, gty + 1, wlc)
+	# Only the COASTAL RING needs tessellation (that's where the 0.5 contour lives). Open
+	# deep water (every corner well offshore) and far-inland margin (every corner on land)
+	# are flat in wf — emit them as a cheap 2-tri quad so the subdivision cost stays tiny.
+	var c00 := _coast_wf(gtx, gty, wfc)
+	var c10 := _coast_wf(gtx + 1, gty, wfc)
+	var c11 := _coast_wf(gtx + 1, gty + 1, wfc)
+	var c01 := _coast_wf(gtx, gty + 1, wfc)
+	var lo: float = minf(minf(c00, c10), minf(c11, c01))
+	var hi: float = maxf(maxf(c00, c10), maxf(c11, c01))
+	if lo >= 0.9 or hi <= 0.12:
+		var x0 := float(gtx) * TILE_S
+		var z0 := float(gty) * TILE_S
+		var x1 := x0 + TILE_S
+		var z1 := z0 + TILE_S
+		var qa := [[Vector3(x0, lA, z0), c00], [Vector3(x1, lB, z0), c10], [Vector3(x1, lC, z1), c11],
+			[Vector3(x0, lA, z0), c00], [Vector3(x1, lC, z1), c11], [Vector3(x0, lD, z1), c01]]
+		for v: Array in qa:
+			wst.set_normal(Vector3.UP)
+			wst.set_uv(Vector2(float(v[1]), 0.0))
+			wst.add_vertex(v[0])
+		return
+	var s := WATER_SUBDIV
+	var pos := []        # (s+1)x(s+1) sub-vertex positions
+	var wfv := []        # matching bicubic water-fraction
+	for j: int in range(s + 1):
+		var fz := float(j) / float(s)
+		var prow := []
+		var wrow := []
+		for i: int in range(s + 1):
+			var fx := float(i) / float(s)
+			var hy := lerpf(lerpf(lA, lB, fx), lerpf(lD, lC, fx), fz)
+			var wx := float(gtx) + fx
+			var wz := float(gty) + fz
+			prow.append(Vector3(wx * TILE_S, hy, wz * TILE_S))
+			wrow.append(_wf_cubic(wx, wz, wfc))
+		pos.append(prow)
+		wfv.append(wrow)
+	for j: int in range(s):
+		for i: int in range(s):
+			var quad := [Vector2i(i, j), Vector2i(i + 1, j), Vector2i(i + 1, j + 1),
+				Vector2i(i, j), Vector2i(i + 1, j + 1), Vector2i(i, j + 1)]
+			for c: Vector2i in quad:
+				wst.set_normal(Vector3.UP)
+				wst.set_uv(Vector2(float(wfv[c.y][c.x]), 0.0))
+				wst.add_vertex(pos[c.y][c.x])
+
+
+# Catmull-Rom cubic through p1,p2 (p0,p3 are the outer tangents), t in [0,1].
+func _cubic1(p0: float, p1: float, p2: float, p3: float, t: float) -> float:
+	return p1 + 0.5 * t * (p2 - p0 + t * (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3 + t * (3.0 * (p1 - p2) + p3 - p0)))
+
+
+# Bicubic sample of the smoothed coast field at a fractional world position. Built on the
+# memoised integer-corner _coast_wf grid, so it's smooth (C1) and exact at integer corners
+# (no cracks between neighbouring water tiles). This is what makes the coastline curve.
+func _wf_cubic(fx: float, fz: float, wfc: Dictionary) -> float:
+	var x0 := floori(fx)
+	var z0 := floori(fz)
+	var tx := fx - float(x0)
+	var tz := fz - float(z0)
+	var rows := []
+	for dz: int in range(-1, 3):
+		rows.append(_cubic1(
+			_coast_wf(x0 - 1, z0 + dz, wfc), _coast_wf(x0, z0 + dz, wfc),
+			_coast_wf(x0 + 1, z0 + dz, wfc), _coast_wf(x0 + 2, z0 + dz, wfc), tx))
+	return clampf(_cubic1(rows[0], rows[1], rows[2], rows[3], tz), 0.0, 1.0)
 
 
 ## Gentle rolling-hill undulation laid over ALL land (an "A Short Hike / Swiss
@@ -1269,8 +1304,9 @@ func _coast_water(gtx: int, gty: int) -> bool:
 # of the true boundary (so bays/peninsulas are preserved). Both the water mesh and the shore
 # overlay read this same field, so their layers can never disagree. Memoized over shared
 # corners so neighbouring tiles agree exactly (no cracks).
-const SHORE_SMOOTH := 3
-const SHORE_SD_SCALE := 4.0   # maps (wf - 0.5) -> signed distance to coast, in cells
+const SHORE_SMOOTH := 4
+const SHORE_RADIUS := 4.0       # kernel reach in cells (round, Euclidean — NOT square)
+const SHORE_SD_SCALE := 5.2     # maps (wf - 0.5) -> signed distance to coast, in cells
 func _coast_wf(ci: int, cj: int, wfc: Dictionary) -> float:
 	var key := Vector2i(ci, cj)
 	if wfc.has(key):
@@ -1279,11 +1315,14 @@ func _coast_wf(ci: int, cj: int, wfc: Dictionary) -> float:
 	var wsum := 0.0
 	for dy: int in range(-SHORE_SMOOTH, SHORE_SMOOTH):
 		for dx: int in range(-SHORE_SMOOTH, SHORE_SMOOTH):
-			# Tile (ci+dx, cj+dy) sits with its centre 0.5 off the corner; weight by a
-			# triangular falloff so the centre dominates (smooth, low displacement).
-			var rx := absf(float(dx) + 0.5)
-			var ry := absf(float(dy) + 0.5)
-			var w: float = maxf(0.0, float(SHORE_SMOOTH) - maxf(rx, ry))
+			# Tile (ci+dx, cj+dy) sits with its centre 0.5 off the corner. Weight by a
+			# ROUND (Euclidean) smooth falloff: a square/Chebyshev kernel makes the 0.5
+			# iso-line diamond-shaped, which reads as an angular sawtooth coast. The radial
+			# bump rounds the contour so bays and headlands curve smoothly.
+			var rx := float(dx) + 0.5
+			var ry := float(dy) + 0.5
+			var d := sqrt(rx * rx + ry * ry)
+			var w := smoothstep(SHORE_RADIUS, 0.0, d)   # 1 at centre -> 0 at the reach
 			if w <= 0.0:
 				continue
 			if _coast_water(ci + dx, cj + dy):
@@ -1292,23 +1331,6 @@ func _coast_wf(ci: int, cj: int, wfc: Dictionary) -> float:
 	var wf: float = sum / wsum if wsum > 0.0 else 0.0
 	wfc[key] = wf
 	return wf
-
-
-# Drape height for the coastal overlay at a grid corner: sit just above BOTH the local
-# terrain and the water surface so the aqua reliably covers the tan teeth and never
-# z-fights. Over water corners the terrain floor is the basin (below sea) so the sea
-# level wins; over the low beach the terrain wins.
-const COAST_LIFT := 0.06
-func _coast_corner_height(ci: int, cj: int, hc: Dictionary) -> float:
-	var g := _corner_height(ci, cj, hc)
-	var sea := -1.0e9
-	for off: Vector2i in [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(0, 0)]:
-		var info := _tile_info(ci + off.x, cj + off.y)
-		if not info.is_empty() and bool(info["water"]):
-			sea = maxf(sea, _water_surface_height(info))
-	if sea < -1.0e8:
-		return g + COAST_LIFT
-	return maxf(sea, g) + COAST_LIFT
 
 
 ## Warm + enrich a terrain tile color and add BROAD low-frequency variation
@@ -2607,7 +2629,7 @@ func _tile_center_pos(gtx: int, gty: int, lift := 0.0) -> Vector3:
 	var info := _tile_info(gtx, gty)
 	var h := 0.0
 	if not info.is_empty() and bool(info["water"]):
-		h = _water_surface_height(info)
+		h = _water_surface_at(gtx, gty)
 	elif not info.is_empty():
 		var rt := float(info["top"])
 		h = (_corner_height_for(gtx, gty, rt) + _corner_height_for(gtx + 1, gty, rt) + _corner_height_for(gtx, gty + 1, rt) + _corner_height_for(gtx + 1, gty + 1, rt)) * 0.25
@@ -2625,7 +2647,7 @@ func _grid_height(gx: float, gy: float) -> float:
 	var t := Vector2i(floori(gx), floori(gy))
 	var info := _tile_info(t.x, t.y)
 	if not info.is_empty() and bool(info["water"]):
-		return _water_surface_height(info)
+		return _water_surface_at(t.x, t.y)
 	# Sample on this tile's plateau so a mover near a cliff lip rides its own flat top, not a
 	# corner-average sagging toward the drop.
 	var ref_top := float(info["top"]) if not info.is_empty() else 0.0

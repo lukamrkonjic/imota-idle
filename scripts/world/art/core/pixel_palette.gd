@@ -36,6 +36,11 @@ const PAL := {
 	"water_b": 0x3A4558,
 	"water_c": 0x3A8688,
 	"water_deep": 0x125E78,
+	# Mid + lit ocean blues. The 3D water surface runs a deep->lit gradient; without dense
+	# blue swatches here its brighter, fog-touched tones were nearest (in LINEAR space) to
+	# the roof_purple family and snapped to violet. These give every water tone a blue home.
+	"water_mid": 0x1F6F91,
+	"water_lit": 0x3E9CBE,
 	"water_foam": 0x6A7A92,
 	"water_spark": 0xA6DED8,
 	"trunk_a": 0x6B5740,
