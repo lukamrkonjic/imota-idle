@@ -13,12 +13,18 @@ func setup(w: Node2D) -> void:
 	world = w
 
 
-## True when the cursor is over a HUD control, so world hover/click must be suppressed
-## (the panels sit on a CanvasLayer above the world; without this the world tooltip and
-## walk-here fire through the inventory/minimap/etc.).
+## True when the cursor is over an actual HUD panel, so world hover/click must be suppressed.
+## The HUD root is a FULL-SCREEN passthrough (MOUSE_FILTER_PASS) covering the whole window, so
+## gui_get_hovered_control() returns it even over empty world — we must NOT treat that as UI.
+## Walk up from the hovered control: only an ancestor that actually STOPS the mouse (a real
+## panel) counts. The passthrough root is PASS, so over open world this returns false.
 func _over_ui() -> bool:
 	var c: Control = world.get_viewport().gui_get_hovered_control()
-	return c != null and world.hud != null and world.hud.is_ancestor_of(c)
+	while c != null:
+		if c.mouse_filter == Control.MOUSE_FILTER_STOP:
+			return true
+		c = c.get_parent() as Control
+	return false
 
 
 func handle_input(event: InputEvent) -> void:
