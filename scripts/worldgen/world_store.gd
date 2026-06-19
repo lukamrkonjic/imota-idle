@@ -9,7 +9,7 @@ const Chunk := preload("res://scripts/worldgen/chunk.gd")
 const SaveMigration := preload("res://autoload/save_migration.gd")
 
 ## Bump when generation logic changes; stale explored snapshots regenerate.
-const GENERATOR_VERSION := 13
+const GENERATOR_VERSION := 17
 
 var world_seed: int = 0
 var obelisks: Dictionary = {}       # chunk_key -> {name, x, y}

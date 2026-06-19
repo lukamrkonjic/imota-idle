@@ -47,6 +47,12 @@ func _run() -> void:
 		{"name": "north_peaks", "chunk": Vector2i(-3, -24), "zoom": 0.85},
 		{"name": "north_peaks2", "chunk": Vector2i(6, -22), "zoom": 0.85},
 		{"name": "rim_closeup", "chunk": Vector2i(-3, -24), "zoom": 1.9},
+		# Version-15 compact massifs: approach from the lower shelf so the camera
+		# frames the cliff face and summit instead of spawning on top of it.
+		{"name": "summit_approach", "chunk": Vector2i(3, -28), "zoom": 0.72},
+		{"name": "alpine_shelves", "chunk": Vector2i(-9, -27), "zoom": 0.82},
+		{"name": "north_water_regression", "chunk": Vector2i(12, -28), "zoom": 0.82},
+		{"name": "north_lake_regression", "chunk": Vector2i(10, -28), "zoom": 0.82},
 		{"name": "grand_north", "chunk": Vector2i(0, -32), "zoom": 0.42},
 		{"name": "grand_north2", "chunk": Vector2i(-10, -30), "zoom": 0.5},
 	]

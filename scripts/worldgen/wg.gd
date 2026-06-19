@@ -12,8 +12,8 @@ const ELEV_H := ELEV_STEP_PX / TILE        # 3D world units per elevation step (
                                            # Single source for the step height: the render
                                            # layer's gameplay floor and the logic layer's
                                            # height authority both derive from this.
-const MAX_REACHABLE_ELEV := 15             # player can climb up to this elevation; higher
-                                           # rock/snow is unreachable (routed around)
+const MAX_REACHABLE_ELEV := 36             # alpine shelves and trail remain climbable;
+                                           # only the final summit crown is impassable
 const MAX_CLIMB_STEP := 2                  # biggest single-step elevation change the player
                                            # can walk up — gentle foothill slopes are
                                            # climbable; steeper rock faces route around

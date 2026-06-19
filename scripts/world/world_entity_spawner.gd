@@ -246,11 +246,10 @@ func _spawn_ground_decor(chunk: RefCounted, container: Node2D) -> void:
 func _spawn_ground_decor_tile(chunk: RefCounted, container: Node2D, seed: int, tx: int, ty: int) -> void:
 	var tile: Dictionary = WorldGen.reg.tile_def(chunk.tile_id(tx, ty))
 	var tname: String = WorldGen.reg.tile_order[chunk.tile_id(tx, ty)]
-	if chunk.elev.size() > 0 and chunk.elev[ty * WG.CHUNK_TILES + tx] > 0:
+	var elev := int(chunk.elev[ty * WG.CHUNK_TILES + tx]) if chunk.elev.size() > 0 else 0
+	if bool(tile.get("water", false)) or (elev <= 0 and not bool(tile.get("walkable", true))):
 		return
-	if bool(tile.get("water", false)) or not bool(tile.get("walkable", true)):
-		return
-	if tname in ["sand", "sand_dune", "shallow", "rock", "cobble", "snow", "gravel", "savanna_grass", "jungle_loam", "boreal_moss", "badland_clay"]:
+	if elev <= 0 and tname in ["sand", "sand_dune", "shallow", "rock", "cobble", "snow", "gravel", "savanna_grass", "jungle_loam", "boreal_moss", "badland_clay"]:
 		return
 	var r := WG.r01(seed, chunk.cx * 251 + tx, chunk.cy * 263 + ty, 201)
 	var biome_id := _tile_biome_id(chunk, tx, ty)
@@ -258,12 +257,19 @@ func _spawn_ground_decor_tile(chunk: RefCounted, container: Node2D, seed: int, t
 	var parent_id: String = WorldGen.reg.parent_biome_id(b_idx) if b_idx != 255 else biome_id
 	var near_water := _tile_near_water(chunk, tx, ty)
 	var chance := _decor_chance(biome_id, parent_id, near_water)
+	if elev > 0:
+		# Medium-scale alpine clusters: sparse open slopes alternating with denser
+		# ledges/outcrop pockets. The low-frequency cell gate prevents even scatter.
+		var gx: int = int(chunk.cx) * WG.CHUNK_TILES + tx
+		var gy: int = int(chunk.cy) * WG.CHUNK_TILES + ty
+		var cluster := WG.r01(seed, floori(float(gx) / 5.0), floori(float(gy) / 5.0), 231)
+		chance = (0.12 if cluster > 0.48 else 0.025)
 	if r > chance:
 		return
 	var d: Node2D = WorldDecor.new()
 	d.variant = int(WG.hash_i(seed, chunk.cx * 97 + tx, chunk.cy * 101 + ty, 202) % 1000)
 	var kroll := WG.r01(seed, chunk.cx * 97 + tx, chunk.cy * 101 + ty, 205)
-	d.kind = _pick_decor_kind(biome_id, near_water, kroll)
+	d.kind = _pick_alpine_decor(elev, kroll, d.variant) if elev > 0 else _pick_decor_kind(biome_id, near_water, kroll)
 	var jitter := Vector2(
 		(WG.r01(seed, tx, ty, 203) - 0.5) * WG.TILE * 0.28,
 		(WG.r01(seed, tx, ty, 204) - 0.5) * WG.TILE * 0.14)
@@ -271,6 +277,20 @@ func _spawn_ground_decor_tile(chunk: RefCounted, container: Node2D, seed: int, t
 	d.visible = false
 	container.add_child(d)
 	world._decor_nodes.append(d)
+
+
+func _pick_alpine_decor(elev: int, roll: float, variant: int) -> String:
+	# Pine groups hold lower/mid shelves, chunky outcrops mark cliff feet, and
+	# high shelves thin into lichen/stone so the summit silhouette stays clear.
+	if elev < 28 and roll < 0.18 and variant % 3 != 0:
+		return "alpine_pine"
+	if roll < 0.42:
+		return "alpine_boulder"
+	if roll < 0.64:
+		return "rubble"
+	if roll < 0.82 and elev < 30:
+		return "grass"
+	return "lichen"
 
 
 func _spawn_water_decor(chunk: RefCounted, container: Node2D) -> void:

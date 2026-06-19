@@ -115,6 +115,12 @@ static func is_moving(e: Node) -> bool:
 
 static func decor_parts(kind: String) -> Array:
 	match kind:
+		"alpine_pine":
+			# Small visual-only pines arrive in deterministic clusters from the
+			# elevated decor pass; reuse the established hiking silhouette.
+			return _hike_conifer_parts(2)
+		"alpine_boulder":
+			return _hike_boulder_parts()
 		"flower":
 			return [
 				_part(_sphere("d_ftuft", 0.16), _mat("foliage_c", "grass_dark", "foliage_c"), Vector3(0, 0.12, 0), Vector3(1.0, 0.7, 1.0)),

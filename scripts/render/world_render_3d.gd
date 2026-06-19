@@ -247,6 +247,8 @@ func _setup_materials() -> void:
 	_ground_mat.shader = TOON_GROUND
 	_ground_mat.set_shader_parameter("shadow_tint", PixelPalette.pal("grass_dark"))   # deeper mossy shade so cast shadows read
 	_ground_mat.set_shader_parameter("light_tint", PixelPalette.pal("hike_grass_light"))
+	_ground_mat.set_shader_parameter("cold_shadow_tint", Color(0.48, 0.51, 0.74))
+	_ground_mat.set_shader_parameter("cold_light_tint", Color(0.88, 0.89, 1.0))
 	_ground_mat.set_shader_parameter("ambient", 0.26)
 	_ground_mat.set_shader_parameter("softness", 0.03)
 	# Beach sand: warm golden tones + world-space macro/speckle variation (toon_ground
@@ -293,6 +295,11 @@ func _setup_materials() -> void:
 	_shore_mat.set_shader_parameter("wet_sand_color", Color(0.788, 0.678, 0.451)) # #C9AD73
 	_shore_mat.set_shader_parameter("inner_color", Color(0.510, 0.820, 0.796))    # #82D1CB light aqua
 	_shore_mat.set_shader_parameter("outer_color", Color(0.263, 0.682, 0.698))    # #43AEB2 turquoise
+	# A Short Hike-inspired alpine shore: cool periwinkle ice with lavender shadow,
+	# selected per vertex near tundra/alpine terrain instead of recolouring warm seas.
+	_shore_mat.set_shader_parameter("cold_wet_color", Color(0.790, 0.780, 0.850))
+	_shore_mat.set_shader_parameter("cold_inner_color", Color(0.770, 0.810, 0.950))
+	_shore_mat.set_shader_parameter("cold_outer_color", Color(0.570, 0.640, 0.860))
 	_shore_mat.set_shader_parameter("sd_scale", SHORE_SD_SCALE)
 	_shore_mat.set_shader_parameter("wet_cells", 0.26)
 	_shore_mat.set_shader_parameter("inner_cells", 0.30)
@@ -831,6 +838,13 @@ func _emit_shore_overlay(sst: SurfaceTool, cx0: int, cy0: int, n: int, hc: Dicti
 		for tx: int in n:
 			var gtx := cx0 + tx
 			var gty := cy0 + ty
+			var cell_info := _tile_info(gtx, gty)
+			# Shore colour may soften a low beach, but must never drape across a
+			# raised dry slope. That was the large light-blue "water on land" bug.
+			if not cell_info.is_empty() and not bool(cell_info["water"]):
+				var shore_tile := str(cell_info["tile"])
+				if float(cell_info["top"]) > 0.0 or shore_tile not in ["sand", "sand_dune"]:
+					continue
 			var w00 := _coast_wf(gtx, gty, wfc)
 			var w10 := _coast_wf(gtx + 1, gty, wfc)
 			var w11 := _coast_wf(gtx + 1, gty + 1, wfc)
@@ -848,15 +862,44 @@ func _emit_shore_overlay(sst: SurfaceTool, cx0: int, cy0: int, n: int, hc: Dicti
 			var yB := _coast_corner_height(gtx + 1, gty, hc)
 			var yC := _coast_corner_height(gtx + 1, gty + 1, hc)
 			var yD := _coast_corner_height(gtx, gty + 1, hc)
+			var cold := _shore_coldness(gtx, gty)
 			var quad := [
 				[Vector3(x0, yA, z0), w00], [Vector3(x1, yB, z0), w10], [Vector3(x1, yC, z1), w11],
 				[Vector3(x0, yA, z0), w00], [Vector3(x1, yC, z1), w11], [Vector3(x0, yD, z1), w01],
 			]
 			for p: Array in quad:
 				sst.set_normal(Vector3.UP)
-				sst.set_uv(Vector2(float(p[1]), 0.0))
+				sst.set_uv(Vector2(float(p[1]), cold))
 				sst.add_vertex(p[0])
 	return has_shore
+
+
+# Climate tint for the shoreline. Water cells commonly inherit an ocean parent, so sample
+# nearby dry land and softly vote for a cold edge. This keeps tropical coasts turquoise
+# while tundra/alpine coves become periwinkle ice without a hard biome-colour seam.
+func _shore_coldness(gtx: int, gty: int) -> float:
+	# The macro climate is authoritative across open water, where the tile's parent is
+	# normally "ocean" and no nearby land vote exists. This carries the alpine palette
+	# cleanly through broad northern lakes and fjords.
+	if WorldGen.generator != null and WorldGen.generator.classifier.continent_kind(float(gtx), float(gty)) == "cold":
+		return 1.0
+	# Most inland water keeps the surrounding parent biome. Honour that first so a broad
+	# frozen basin does not turn tropical in its middle merely because land is farther away.
+	var center := _tile_info(gtx, gty)
+	if not center.is_empty() and str(center.get("biome", "")) in ["tundra", "alpine"]:
+		return 1.0
+	var cold := 0.0
+	var dry := 0.0
+	for oy: int in range(-6, 7):
+		for ox: int in range(-6, 7):
+			var info := _tile_info(gtx + ox, gty + oy)
+			if info.is_empty() or bool(info["water"]):
+				continue
+			var weight := 1.0 / (1.0 + sqrt(float(ox * ox + oy * oy)))
+			dry += weight
+			if str(info.get("biome", "")) in ["tundra", "alpine"] or str(info["tile"]) in SNOW_TILES:
+				cold += weight
+	return clampf(cold / maxf(dry * 0.42, 0.001), 0.0, 1.0)
 
 
 func _emit_corner(st: SurfaceTool, ci: int, cj: int, ref_top: float, wfc: Dictionary) -> void:
@@ -874,6 +917,7 @@ func _emit_corner(st: SurfaceTool, ci: int, cj: int, ref_top: float, wfc: Dictio
 	var beach := _corner_beach(ci, cj)
 	var wet: float = clampf((_coast_wf(ci, cj, wfc) - 0.30) / 0.16, 0.0, 1.0) if beach > 0.0 else 0.0
 	st.set_uv(Vector2(wet, beach))
+	st.set_uv2(Vector2(_corner_snow(ci, cj), 0.0))
 	st.add_vertex(Vector3(float(ci) * TILE_S, h, float(cj) * TILE_S))
 
 
@@ -895,6 +939,21 @@ func _corner_beach(ci: int, cj: int) -> float:
 	var b: float = float(sand) / float(cnt) if cnt > 0 else 0.0
 	_cb_cache[ck] = b
 	return b
+
+
+# Snow fraction at a shared corner, used by the toon shader to swap the mossy grass
+# lighting ramp for slate/periwinkle alpine lighting without a hard tile seam.
+func _corner_snow(ci: int, cj: int) -> float:
+	var cnt := 0
+	var frozen := 0
+	for off: Vector2i in [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(0, 0)]:
+		var info := _tile_info(ci + off.x, cj + off.y)
+		if info.is_empty():
+			continue
+		cnt += 1
+		if str(info["tile"]) in SNOW_TILES:
+			frozen += 1
+	return float(frozen) / float(cnt) if cnt > 0 else 0.0
 
 
 func _corner_height(ci: int, cj: int, hc: Dictionary) -> float:
@@ -995,15 +1054,19 @@ func _tile_info_compute(gtx: int, gty: int) -> Dictionary:
 	var tid: int = chunk.tile_id(lx, ly)
 	var tdef: Dictionary = WorldGen.reg.tile_def(tid)
 	var tile_name := str(WorldGen.reg.tile_order[tid])
+	var biome_idx: int = chunk.parent_biome_at(lx, ly)
+	var biome_id := "" if biome_idx == 255 or biome_idx >= WorldGen.reg.biomes.size() else str(WorldGen.reg.biomes[biome_idx]["id"])
 	var water := bool(tdef.get("water", false))
 	var elev: int = chunk.elev[ly * WG.CHUNK_TILES + lx]
 	var top: float = float(elev) * ELEV_H
 	var slope: int = _tile_slope_steps(gtx, gty, elev) if (not water and elev > 0) else 0
-	var col: Color = SHORE if water else _grade_ground(tdef["colors"][0], tile_name, gtx, gty, elev, slope)
+	var curve: int = _tile_curvature_steps(gtx, gty, elev) if (not water and elev > 0) else 0
+	var col: Color = SHORE if water else _grade_ground(tdef["colors"][0], tile_name, gtx, gty, elev, slope, curve)
 	return {
 		"top": top,
 		"water": water,
 		"tile": tile_name,
+		"biome": biome_id,
 		"col": col,
 	}
 
@@ -1020,14 +1083,31 @@ func _visual_floor_height(gtx: int, gty: int, info: Dictionary) -> float:
 	if bool(info["water"]):
 		var extra := 0.18 if tile == "deep_water" else (0.08 if tile == "water" else 0.0)
 		h = top - WATER_DROP - extra
+	elif top > 0.0:
+		# Elevation is authoritative for the mountain surface. Biome/structure passes
+		# can leave gravel, snow, or another gameplay tile on a raised cell; all of
+		# them must share the same smoothed geometry or visible seams reappear.
+		h = _smoothed_elevation_height(gtx, gty) + _rolling_hill(gtx, gty) * 0.42 + _rocky_lift(gtx, gty) * 0.35
 	elif _is_path(tile):
 		h = top + _rolling_hill(gtx, gty) * 0.28 - 0.055
 	elif _is_rock(tile):
-		h = top + _rolling_hill(gtx, gty) * 0.78 + _rocky_lift(gtx, gty)
+		h = _smoothed_elevation_height(gtx, gty) + _rolling_hill(gtx, gty) * 0.42 + _rocky_lift(gtx, gty) * 0.35
 	else:
 		h = top + _rolling_hill(gtx, gty)
 	_vfh_cache[fk] = h
 	return h
+
+
+func _smoothed_elevation_height(gtx: int, gty: int) -> float:
+	var sum := float(_elev_raw(gtx, gty)) * 4.0
+	var weight := 4.0
+	for off: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		sum += float(_elev_raw(gtx + off.x, gty + off.y)) * 2.0
+		weight += 2.0
+	for off: Vector2i in [Vector2i(1, 1), Vector2i(-1, 1), Vector2i(1, -1), Vector2i(-1, -1)]:
+		sum += float(_elev_raw(gtx + off.x, gty + off.y))
+		weight += 1.0
+	return sum / weight * ELEV_H
 
 
 func _water_surface_height(info: Dictionary) -> float:
@@ -1104,6 +1184,14 @@ func _tile_slope_steps(gtx: int, gty: int, e: int) -> int:
 	m = maxi(m, absi(_elev_raw(gtx, gty + 1) - e))
 	m = maxi(m, absi(_elev_raw(gtx, gty - 1) - e))
 	return m
+
+
+## Signed local curvature: positive on convex shelf lips/crests, negative in bowls.
+## This breaks material regions away from simple elevation rings.
+func _tile_curvature_steps(gtx: int, gty: int, e: int) -> int:
+	var neighbours := _elev_raw(gtx + 1, gty) + _elev_raw(gtx - 1, gty) \
+		+ _elev_raw(gtx, gty + 1) + _elev_raw(gtx, gty - 1)
+	return e * 4 - neighbours
 
 
 # Build one seamless tiling noise texture for the water shader. `freq_mul` scales the
@@ -1207,9 +1295,9 @@ const ALP_OLIVE := Color(0.53, 0.55, 0.33)       # dry mid-slope olive
 const ALP_DIRT := Color(0.60, 0.47, 0.30)        # ochre worn earth / scree
 const ALP_ROCK := Color(0.60, 0.53, 0.47)        # warm taupe stone
 const ALP_ROCK_HI := Color(0.74, 0.73, 0.76)     # cool desaturated high rock
-const SNOW_LIT := Color(0.95, 0.96, 0.99)        # warm sunlit snow
-const SNOW_SHADE := Color(0.74, 0.80, 0.92)      # cool blue snow shadow
-func _grade_ground(col: Color, tile: String, gtx: int, gty: int, elev: int = 0, slope: int = 0) -> Color:
+const SNOW_LIT := Color(0.91, 0.91, 1.00)        # soft lilac-white sunlit snow
+const SNOW_SHADE := Color(0.61, 0.64, 0.88)      # periwinkle alpine shadow
+func _grade_ground(col: Color, tile: String, gtx: int, gty: int, elev: int = 0, slope: int = 0, curve: int = 0) -> Color:
 	var c := col
 	var fx := float(gtx)
 	var fz := float(gty)
@@ -1220,21 +1308,44 @@ func _grade_ground(col: Color, tile: String, gtx: int, gty: int, elev: int = 0, 
 	var warm := clampf(sin((fx + fz) * 0.045 + 1.3), 0.0, 1.0)
 	var hi := clampf(float(elev) / ALPINE_SUMMIT, 0.0, 1.0)   # 0 foot .. 1 summit
 	var steep := clampf(float(slope) / 5.0, 0.0, 1.0)         # 0 flat shelf .. 1 cliff face
+	var convex := clampf(float(curve) / 16.0, -1.0, 1.0)
 	if _is_snow(tile):
 		# Snow only holds on gentle, top-facing surfaces (caps, shelves, bowls). Steep faces
 		# shed it, so bare rock shows through instead of a snow "curtain" down a cliff.
 		if steep > 0.5:
 			return _alpine_ramp(elev, bright, band2).lerp(ALP_ROCK_HI, 0.55)
-		return SNOW_SHADE.lerp(SNOW_LIT, clampf(bright * 0.55 + hi * 0.45, 0.0, 1.0))
-	if _is_path(tile):
+		# Keep a visible blue-violet midtone even on low frozen plains. The old near-white
+		# ramp picked up the green ambient light and read as tropical mint beside the beach.
+		var snow_light := clampf(bright * 0.46 + hi * 0.32, 0.08, 0.82)
+		var snow := SNOW_SHADE.lerp(SNOW_LIT, snow_light)
+		var lavender_patch := 0.5 + 0.5 * sin(fx * 0.045 - fz * 0.038 + 0.7)
+		return snow.lerp(Color(0.70, 0.68, 0.91), lavender_patch * 0.10)
+	if _is_path(tile) and elev <= 0:
 		var path_col := PixelPalette.pal("path_orange").lerp(PixelPalette.pal("path_light"), bright * 0.42)
 		c = c.lerp(path_col, 0.94)
-	elif _is_rock(tile):
-		# Elevation ramp for the surface, then push steep faces toward bare exposed rock so
-		# cliffs read as rock outcrops while gentle shelves keep their grassy/earthy tone.
-		var rock := _alpine_ramp(elev, bright, band2)
-		rock = rock.lerp(ALP_ROCK.lerp(ALP_ROCK_HI, hi).darkened(0.10), steep * 0.7)
-		c = c.lerp(rock, 0.92)
+	elif _is_rock(tile) or elev > 0:
+		# Material follows LANDFORM first. Steep/convex areas become one continuous
+		# warm cliff mass; calm shelves keep grass or ochre. A broad spatial bias
+		# offsets the zones so they cannot trace parallel elevation rings.
+		var patch := sin(fx * 0.031 + fz * 0.019 + 0.8) * 0.11 \
+			+ cos(fx * 0.017 - fz * 0.027 - 1.4) * 0.08
+		var zone := clampf(hi + patch + convex * 0.08, 0.0, 1.0)
+		var shelf := ALP_MEADOW.lerp(ALP_OLIVE, smoothstep(0.18, 0.62, zone))
+		shelf = shelf.lerp(ALP_DIRT, smoothstep(0.52, 0.82, zone) * 0.72)
+		var cliff := ALP_ROCK.lerp(ALP_ROCK_HI, smoothstep(0.58, 0.96, zone))
+		cliff = cliff.lightened(bright * 0.08).darkened((1.0 - band2) * 0.06)
+		var cliff_mass := smoothstep(0.20, 0.58, steep + maxf(convex, 0.0) * 0.24)
+		var landform := shelf.lerp(cliff, cliff_mass)
+		# One broad meandering route crosses occasional gentle lower/mid shelves.
+		# The wavelength is larger than a massif, so it reads as a placed trail,
+		# never a repeated contour stripe.
+		var trail_wave := sin((fx + fz) * 0.020 + sin(fx * 0.011 - 0.6) * 1.4)
+		var trail := (1.0 - smoothstep(0.025, 0.105, absf(trail_wave))) \
+			* (1.0 - smoothstep(0.24, 0.46, steep)) \
+			* smoothstep(0.10, 0.22, hi) * (1.0 - smoothstep(0.66, 0.80, hi))
+		var trail_col := PixelPalette.pal("path_orange").lerp(PixelPalette.pal("path_light"), 0.28 + bright * 0.18)
+		landform = landform.lerp(trail_col, trail * 0.72)
+		c = c.lerp(landform, 0.94)
 	elif tile in ["sand", "sand_dune"]:
 		c = c.lerp(PixelPalette.pal("warm_stone"), 0.5)
 	else:
@@ -1249,9 +1360,8 @@ func _grade_ground(col: Color, tile: String, gtx: int, gty: int, elev: int = 0, 
 	return c
 
 
-## Continuous alpine slope colour by elevation (steps): grassy foot -> dry olive -> ochre
-## dirt/scree -> warm rock -> cool high rock. A faint elevation striation and the broad
-## sun/shade bands add stylized rock detail so faces never read as flat colour fields.
+## Continuous alpine fallback used for snow shedding. It stays softly graded and
+## deliberately avoids horizontal striation; primary rock surfaces use slope + curvature.
 func _alpine_ramp(elev: int, bright: float, band2: float) -> Color:
 	var e := float(elev)
 	var col: Color
@@ -1265,9 +1375,6 @@ func _alpine_ramp(elev: int, bright: float, band2: float) -> Color:
 		col = ALP_DIRT.lerp(ALP_ROCK, smoothstep(19.0, 28.0, e))
 	else:
 		col = ALP_ROCK.lerp(ALP_ROCK_HI, smoothstep(28.0, 42.0, e))
-	# Horizontal rock striation (cliff-band bands) + sun/shade relief.
-	var stria := 0.5 + 0.5 * sin(e * 1.15)
-	col = col.darkened(stria * 0.06)
 	col = col.lightened(bright * 0.12).darkened((1.0 - band2) * 0.08)
 	return col
 

@@ -99,6 +99,25 @@ Each entry is a load-bearing choice: **decision → why → consequence**.
   [WORLDGEN_GUIDE.md](WORLDGEN_GUIDE.md), and bump `generatorVersion` when
   generation rules change).
 
+### D7 — Mountains are localized masses, not elevation-band scenery
+
+- **Decision:** mountain geography gates compact local mass fields with one
+  dominant dome/summit. The main slope stays continuous; two spatially masked
+  shelf cuts create partial ledges without closing into contour rings. Visual
+  material follows slope and curvature before elevation, and elevated decor is
+  clustered by landform. The renderer lightly low-passes geometry without
+  changing the gameplay height grid.
+- **Why:** a broad geographic belt split into many height bands exposes the
+  generator as parallel contour stripes and creates sawtooth silhouettes.
+- **Consequence:** do not use a compass belt as mountain height by itself, add
+  thin shelf bands, or assign alpine material from elevation alone. Preserve
+  exact `chunk.elev` values for gameplay and smooth only the rendered surface.
+  Procedural lakes must pass a broad-basin test, mountains displace stray water
+  above their feet, and the visible alpine trail must also carve a climbable
+  ramp through shelf cliffs. Only the final summit crown is non-navigable.
+  In finite worlds, the signed landmass field is the sole source of ocean/beach
+  parent biomes; low inland macro-height is a valley, never an inland sea.
+
 ## Seamless expansion — how content grows
 
 This is the point of the whole design: add content **without** reshuffling the

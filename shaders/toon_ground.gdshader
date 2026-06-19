@@ -13,6 +13,8 @@ render_mode specular_disabled, ambient_light_disabled, diffuse_lambert;
 
 uniform vec4 shadow_tint : source_color = vec4(0.27, 0.34, 0.22, 1.0);
 uniform vec4 light_tint : source_color  = vec4(0.42, 0.47, 0.28, 1.0);
+uniform vec4 cold_shadow_tint : source_color = vec4(0.48, 0.51, 0.74, 1.0);
+uniform vec4 cold_light_tint : source_color  = vec4(0.88, 0.89, 1.0, 1.0);
 uniform float shadow_threshold : hint_range(0.0, 1.0) = 0.30;
 uniform float light_threshold : hint_range(0.0, 1.0)  = 0.58;
 uniform float softness : hint_range(0.0, 0.4) = 0.04;
@@ -32,12 +34,14 @@ varying vec3 v_col;
 varying vec3 v_world;
 varying float v_beach;   // 1 = sand tile (UV.y)
 varying float v_wet;     // 0 dry .. 1 wet, near the waterline (UV.x)
+varying float v_cold;    // snow/frozen surface fraction at this shared corner (UV2.x)
 
 void vertex() {
 	v_col = COLOR.rgb;
 	v_world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	v_beach = UV.y;
 	v_wet = UV.x;
+	v_cold = UV2.x;
 }
 
 vec3 beach_color(vec2 wp) {
@@ -75,8 +79,10 @@ void light() {
 	lit = ambient + (1.0 - ambient) * lit;
 	lit = floor(lit * posterize_steps + 0.5) / posterize_steps;
 	vec3 base = ALBEDO;
-	vec3 shad = mix(base, shadow_tint.rgb, 0.62);
-	vec3 lite = mix(base, light_tint.rgb, 0.42);
+	vec3 surface_shadow = mix(shadow_tint.rgb, cold_shadow_tint.rgb, v_cold);
+	vec3 surface_light = mix(light_tint.rgb, cold_light_tint.rgb, v_cold);
+	vec3 shad = mix(base, surface_shadow, 0.62);
+	vec3 lite = mix(base, surface_light, 0.42);
 	float s = smoothstep(shadow_threshold - softness, shadow_threshold + softness, lit);
 	float l = smoothstep(light_threshold - softness, light_threshold + softness, lit);
 	vec3 ramp = mix(shad, base, s);

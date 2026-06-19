@@ -120,8 +120,14 @@ func _place_mountains(chunk: RefCounted) -> void:
 				continue
 			var i := Chunk.idx(tx, ty)
 			if bool(reg.tile_def(chunk.tiles[i]).get("water", false)):
-				chunk.elev[i] = 0
-				continue
+				# Ocean and genuine low channels remain water. Procedural lake/river
+				# noise on a mountain shoulder is displaced by the massif instead of
+				# surviving as a flat aqua cutout halfway up the slope.
+				var shore: float = classifier.coast_sink(float(gtx), float(gty))
+				if shore > 0.18 or e <= 3:
+					chunk.elev[i] = 0
+					continue
+				chunk.tiles[i] = t_rock
 			chunk.elev[i] = e
 			var level: int = classifier.mountain_level(float(gtx), float(gty))
 			# Snow on peaks AND high foothill slopes, by the latitude-driven snowline, so

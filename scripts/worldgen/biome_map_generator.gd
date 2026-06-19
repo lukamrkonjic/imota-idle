@@ -130,10 +130,21 @@ func _parent_id(gtx: int, gty: int) -> String:
 ##              swamp (S) · jungle (SE)
 ##                  ocean (rim)              volcanic = NE corner
 func _pick_parent_id(h: float, m: float, t: float, tx: float, ty: float) -> String:
-	if h < 0.30:
-		return "ocean"
-	if h < 0.345:
-		return "beach"
+	# In a finite world, ONLY the signed continent/coastline field may create
+	# ocean. Treating every low macro-height pocket as sea produced enormous
+	# inland ocean biomes on perfectly ordinary valleys and mountain shelves.
+	# Inland lakes/rivers are separate tile passes and keep the surrounding biome.
+	if reg.spec.active and reg.spec.finite:
+		var shore: float = classifier.coast_sink(tx, ty)
+		if shore > 0.72:
+			return "ocean"
+		if shore > 0.34:
+			return "beach"
+	else:
+		if h < 0.30:
+			return "ocean"
+		if h < 0.345:
+			return "beach"
 	var g: Dictionary = classifier.geo(tx, ty)
 	var n: float = g["n"]            # +north / -south
 	var e: float = g["e"]            # +east / -west

@@ -786,6 +786,17 @@ func phase6_worldgen() -> void:
 				sand_count += 1
 		check(sand_count < int(float(top_edge.tiles.size()) * 0.80),
 			"finite coastline avoids all-sand square edge chunks (%d/%d sand)" % [sand_count, top_edge.tiles.size()])
+		var elevated_water := 0
+		for cc: Vector2i in [Vector2i(-3, -24), Vector2i(6, -22), Vector2i(3, -28)]:
+			var alpine_chunk: RefCounted = WorldGen.get_chunk(0, cc.x, cc.y)
+			for i: int in alpine_chunk.tiles.size():
+				if alpine_chunk.elev[i] > 3 and bool(WorldGen.reg.tile_def(alpine_chunk.tiles[i]).get("water", false)):
+					elevated_water += 1
+		check(elevated_water == 0, "mountains displace stray lake/river water above their feet")
+		for inland: Vector2i in [Vector2i(203, -447), Vector2i(165, -448)]:
+			var inland_parent_idx: int = WorldGen.generator.classifier.parent_biome_idx(float(inland.x), float(inland.y))
+			var inland_parent: String = str(WorldGen.reg.biomes[inland_parent_idx]["id"])
+			check(inland_parent != "ocean", "low inland valley %s is not classified as ocean" % [inland])
 	var has_bank := false
 	for part: Dictionary in camp.get("parts", []):
 		if str(part.get("station", "")) == "bank":
@@ -803,6 +814,8 @@ func phase6_worldgen() -> void:
 	pf_chunk.elev[Chunk.idx(0, 1)] = 1
 	pf_chunk.elev[Chunk.idx(0, 2)] = 3   # +2 from (0,1): a walkable slope
 	pf_chunk.elev[Chunk.idx(0, 3)] = 6   # +3 from (0,2): too steep to climb
+	pf_chunk.elev[Chunk.idx(2, 0)] = 34  # high shelf remains a valid navigation node
+	pf_chunk.elev[Chunk.idx(3, 0)] = 40  # only summit crown is excluded
 	var pf := PathFinder.new()
 	pf.rebuild([pf_chunk], WorldGen.reg, 1)
 	var base := Vector2i(pf_chunk.cx, pf_chunk.cy) * WG.CHUNK_TILES
@@ -822,6 +835,8 @@ func phase6_worldgen() -> void:
 		WG.tile_to_world(base.x, base.y + 3),
 		false)
 	check(climb_three.is_empty(), "pathfinder rejects three-step cliff climbs")
+	check(pf.has_reachable_tile(base + Vector2i(2, 0)), "pathfinder includes high climbable alpine shelves")
+	check(not pf.has_reachable_tile(base + Vector2i(3, 0)), "pathfinder excludes only the summit crown")
 
 	# Admin teleports are allowed to target authored/biome tiles that happen to
 	# be on raised mountain terrain, but the final landing tile must be flat.

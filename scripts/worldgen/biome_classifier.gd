@@ -78,7 +78,7 @@ func setup(p_reg: RefCounted, p_seed: int) -> void:
 			(float(b.position.y) + float(b.size.y) * 0.5) * WG.CHUNK_TILES)
 		_radius = float(mini(b.size.x, b.size.y)) * WG.CHUNK_TILES * 0.5
 	_region = _noise(p_seed + 1407, 0.0030, 2)
-	_mtn_range = _noise(p_seed + 1511, 0.0050, 2)
+	_mtn_range = _noise(p_seed + 1511, 0.0072, 2) # compact massif cells, not continent-scale walls
 	_mtn_ridge = _noise(p_seed + 1607, 0.0190, 3)
 	_mtn_peak = _noise(p_seed + 1521, 0.0060, 1)   # ~165-tile crests -> dominant peaks/valleys
 	_mtn_spur = _noise(p_seed + 1531, 0.0130, 1)   # ~75-tile spurs off the main ridgelines
@@ -289,31 +289,34 @@ func mountain_field(tx: float, ty: float) -> float:
 	var shore := coast_sink(tx, ty)
 	if shore > 0.88:
 		return 0.0
-	# Smooth range gates create shoulders and foothills on every side of the
-	# crest, so the hidden/back side of an isometric mountain has real depth.
+	# Geography only says WHERE mountains are allowed.  The local range mask
+	# must still say there is an actual massif here; letting the north belt act
+	# as a mountain by itself produced one continent-wide striped ramp.
 	var north_belt := smoothstep(0.16, 0.42, nn) \
 		* smoothstep(0.28, 0.46, dd) \
 		* (1.0 - smoothstep(0.86, 1.06, dd))
-	var spine := smoothstep(0.58, 0.82, range_mask) \
+	var local_mass := smoothstep(0.43, 0.72, range_mask)
+	var spine := smoothstep(0.62, 0.84, range_mask) \
 		* smoothstep(0.30, 0.48, dd) \
 		* (1.0 - smoothstep(0.90, 1.08, dd))
-	var gate: float = clampf(maxf(north_belt, spine), 0.0, 1.0)
+	var gate: float = clampf(maxf(north_belt * local_mass, spine), 0.0, 1.0)
 	if gate <= 0.01:
 		return 0.0
-	# Ridged multifractal: 1-|noise| peaks at ~1 along crests and falls toward 0 in the
-	# troughs between, so the massif breaks into RIDGELINES and recessed VALLEYS instead of
-	# one smooth dome. Squaring sharpens the crests into readable peaks; the spur term adds
-	# secondary ridges branching off the mains.
+	# Keep ridge detail subordinate to the big mass. Strong ridge noise at this
+	# stage makes every contour inherit the same long, parallel wiggle.
 	var r1 := 1.0 - absf(_mtn_peak.get_noise_2d(tx, ty))
 	var r2 := 1.0 - absf(_mtn_spur.get_noise_2d(tx, ty))
-	var ridged := (r1 * r1) * 0.78 + (r2 * r2) * 0.22                 # 0 valley .. 1 crest
+	var ridged := (r1 * r1) * 0.82 + (r2 * r2) * 0.18                 # 0 valley .. 1 crest
 	# A broad DOME (range_mask, raised to a power to concentrate height) gives each range one
 	# dominant summit and gentle foothills; the ridged crests are carved INTO that dome so the
 	# flanks break into ridgelines and recessed valleys instead of a uniform ridge net or a
 	# smooth wall. Summit = dome high AND on a crest; valleys = troughs on the dome flanks.
-	var dome := pow(smoothstep(0.34, 0.92, range_mask), 1.25)
-	var carved := dome * (0.45 + 0.55 * ridged)
-	const FOOT_BASE := 0.15
+	var dome := pow(smoothstep(0.40, 0.94, range_mask), 1.42)
+	# The dome owns the silhouette and guarantees one legible high point. Ridges
+	# only carve broad shoulders/valleys into it; they no longer redraw every
+	# elevation boundary as a parallel contour.
+	var carved := dome * (0.82 + 0.18 * ridged)
+	const FOOT_BASE := 0.10
 	var mass := gate * (FOOT_BASE + (1.0 - FOOT_BASE) * carved)
 	mass *= 1.0 - smoothstep(0.18, 0.76, shore)
 	return clampf(mass, 0.0, 1.30)
@@ -328,30 +331,29 @@ func mountain_field(tx: float, ty: float) -> float:
 ## Smoothed heightfield used by elevation_steps(). Neighbour samples give the
 ## ridge physical shoulders on all sides, not just a thin visible crest.
 func mountain_height_field(tx: float, ty: float) -> float:
-	# Moderate low-pass of the raw mountain mass: enough to kill tile-scale noise (so the
-	# shelves read as clean contours) but TIGHT enough to keep peaks and ridges sharp and
-	# dramatic rather than smearing them into mushy plateaus. Rings at ~2/3/5 tiles.
-	var total := mountain_field(tx, ty) * 4.0
-	var weight := 4.0
-	for off: Vector2 in [Vector2(2, 0), Vector2(-2, 0), Vector2(0, 2), Vector2(0, -2)]:
-		total += mountain_field(tx + off.x, ty + off.y) * 1.3
-		weight += 1.3
-	for off: Vector2 in [Vector2(3, 3), Vector2(-3, 3), Vector2(3, -3), Vector2(-3, -3)]:
-		total += mountain_field(tx + off.x, ty + off.y) * 0.7
-		weight += 0.7
-	for off: Vector2 in [Vector2(5, 0), Vector2(-5, 0), Vector2(0, 5), Vector2(0, -5)]:
-		total += mountain_field(tx + off.x, ty + off.y) * 0.5
-		weight += 0.5
+	# A broad isotropic low-pass removes grid teeth before quantisation.  Sampling
+	# a balanced 5x5-ish kernel is important: cardinal-only rings preserve axis
+	# aligned staircases, while this kernel produces calm rounded silhouettes.
+	var total := mountain_field(tx, ty) * 5.0
+	var weight := 5.0
+	for off: Vector2 in [Vector2(3, 0), Vector2(-3, 0), Vector2(0, 3), Vector2(0, -3)]:
+		total += mountain_field(tx + off.x, ty + off.y) * 1.5
+		weight += 1.5
+	for off: Vector2 in [Vector2(2, 2), Vector2(-2, 2), Vector2(2, -2), Vector2(-2, -2)]:
+		total += mountain_field(tx + off.x, ty + off.y) * 1.25
+		weight += 1.25
+	for off: Vector2 in [Vector2(6, 0), Vector2(-6, 0), Vector2(0, 6), Vector2(0, -6)]:
+		total += mountain_field(tx + off.x, ty + off.y) * 0.65
+		weight += 0.65
+	for off: Vector2 in [Vector2(5, 5), Vector2(-5, 5), Vector2(5, -5), Vector2(-5, -5)]:
+		total += mountain_field(tx + off.x, ty + off.y) * 0.4
+		weight += 0.4
 	return clampf(total / weight, 0.0, 1.20)
 
 
 const ELEV_MAX_STEPS := 44       # summit height in steps — large, impressive alpine peaks
 const ELEV_FOOT_THRESHOLD := 0.18
 const ELEV_PEAK_THRESHOLD := 0.96
-const ELEV_SHELF_BANDS := 7      # stacked alpine shelves; more bands keep tall peaks readable
-const ELEV_SHELF_RISER := 0.18   # fraction of each band spent on the steep cliff riser; the
-                                 # remaining ~82% is a flat, walkable grassy shelf. Small ->
-                                 # the climb compresses into a short, steep, dramatic slope
 func elevation_steps(tx: float, ty: float) -> int:
 	if not _finite:
 		return 0
@@ -363,16 +365,36 @@ func elevation_steps(tx: float, ty: float) -> int:
 	# Slope down toward the sea using the SMOOTH coastline so coastal mountains taper
 	# to the beach instead of dropping a wall into the surf.
 	shaped *= 1.0 - smoothstep(0.10, 0.70, coast_sink(tx, ty))
-	# Alpine SHELF terracing: split the smooth height into a few bands; each band is a flat
-	# walkable shelf capped by a steep cliff riser (the lower ELEV_SHELF_RISER of the band
-	# compresses the climb, the rest is level). Because the height field is broad and smooth,
-	# the shelves come out wide and the risers fall on coherent contour lines — bold layered
-	# terraces (A Short Hike-style), not per-tile checkerboard.
-	var s := clampf(shaped, 0.0, 1.0) * float(ELEV_SHELF_BANDS)
-	var band := floorf(s)
-	var frac := s - band
-	var terraced := (band + smoothstep(0.0, ELEV_SHELF_RISER, frac)) / float(ELEV_SHELF_BANDS)
-	return clampi(int(round(terraced * float(ELEV_MAX_STEPS))), 0, ELEV_MAX_STEPS)
+	# Keep the main slope continuous. Two LOCAL shelf masks flatten selected
+	# shoulders into scenic ledges; because each mask fades in world space, neither
+	# shelf completes a ring around the summit. The remaining sides stay grassy
+	# slopes or recessed valleys instead of becoming stacked contour bands.
+	var shelf_field := _mtn_spur.get_noise_2d(tx * 0.72 + 31.0, ty * 0.72 - 19.0) * 0.5 + 0.5
+	var continuous := shaped
+	shaped = _localized_shelf(shaped, 0.34, shelf_field, 0.56)
+	shaped = _localized_shelf(shaped, 0.63, 1.0 - shelf_field, 0.61)
+	# The painted hiking trail is also a physical ramp: restore the continuous
+	# pre-shelf slope along it so shelf cliffs never seal off the upper mountain.
+	shaped = lerpf(shaped, continuous, alpine_trail01(tx, ty, shaped) * 0.92)
+	return clampi(int(round(clampf(shaped, 0.0, 1.0) * float(ELEV_MAX_STEPS))), 0, ELEV_MAX_STEPS)
+
+
+## Flatten a short segment of one shoulder without creating a closed elevation
+## ring. `mask` is broad spatial noise; thresholding it leaves deliberate shelf
+## patches separated by uninterrupted slope and valley faces.
+static func _localized_shelf(height01: float, level: float, mask: float, threshold: float) -> float:
+	var spatial := smoothstep(threshold, threshold + 0.20, mask)
+	var near_level := 1.0 - smoothstep(0.055, 0.15, absf(height01 - level))
+	var flattened := level + (height01 - level) * 0.16
+	return lerpf(height01, flattened, spatial * near_level * 0.88)
+
+
+## Shared traversal language: one sparse meandering route on lower/mid slopes.
+## Renderer uses the same equation for its ochre trail material.
+static func alpine_trail01(tx: float, ty: float, height01: float) -> float:
+	var wave := sin((tx + ty) * 0.020 + sin(tx * 0.011 - 0.6) * 1.4)
+	return (1.0 - smoothstep(0.025, 0.105, absf(wave))) \
+		* smoothstep(0.10, 0.22, height01) * (1.0 - smoothstep(0.66, 0.80, height01))
 
 
 const SNOW_BLEND_STEPS := 7.0
@@ -385,7 +407,9 @@ func snow01(tx: float, ty: float, e: int) -> float:
 	var g: Dictionary = geo(tx, ty)
 	var north := clampf(float(g["n"]) * 0.5 + 0.5, 0.0, 1.0)   # 0 due-south .. 1 due-north
 	# Snowline (in steps): high up on southern slopes, dropping toward the far north.
-	var snowline := lerpf(0.95, 0.42, north) * float(ELEV_MAX_STEPS)
+	# Even the cold north keeps snow on the summit crown rather than painting
+	# every upper shoulder white; exposed cliff and alpine grass remain visible.
+	var snowline := lerpf(0.96, 0.64, north) * float(ELEV_MAX_STEPS)
 	return clampf((float(e) - snowline) / SNOW_BLEND_STEPS, 0.0, 1.0)
 
 
@@ -483,12 +507,24 @@ func lake_at(tx: float, ty: float, h: float, parent_id: String = "") -> int:
 		return 0
 	if h < 0.345 or h > 0.62:
 		return 0
+	# Lakes occupy broad local basins. Noise alone used to stamp pale aqua onto
+	# hillsides and mountain feet, producing water-shaped decals on dry land.
+	if _basin_depth(tx, ty, h) < 0.012:
+		return 0
 	var lv := _lake.get_noise_2d(tx, ty) * 0.5 + 0.5
 	if lv > 0.84:
 		return 2
 	if lv > 0.815:
 		return 1
 	return 0
+
+
+func _basin_depth(tx: float, ty: float, h: float) -> float:
+	var rim := 0.0
+	for off: Vector2 in [Vector2(12, 0), Vector2(-12, 0), Vector2(0, 12), Vector2(0, -12),
+			Vector2(8, 8), Vector2(-8, 8), Vector2(8, -8), Vector2(-8, -8)]:
+		rim += fields(tx + off.x, ty + off.y).x
+	return rim / 8.0 - h
 
 
 func _touches_water_tile(tx: float, ty: float) -> bool:

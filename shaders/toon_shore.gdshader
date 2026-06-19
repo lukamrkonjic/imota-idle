@@ -16,6 +16,9 @@ render_mode unshaded, cull_back, blend_mix;
 uniform vec4 wet_sand_color : source_color = vec4(0.788, 0.678, 0.451, 1.0);  // #C9AD73 wet sand
 uniform vec4 inner_color : source_color = vec4(0.510, 0.820, 0.796, 1.0);     // #82D1CB light aqua
 uniform vec4 outer_color : source_color = vec4(0.263, 0.682, 0.698, 1.0);     // #43AEB2 turquoise
+uniform vec4 cold_wet_color : source_color = vec4(0.790, 0.780, 0.850, 1.0); // mauve-grey frozen edge
+uniform vec4 cold_inner_color : source_color = vec4(0.770, 0.810, 0.950, 1.0); // pale periwinkle ice
+uniform vec4 cold_outer_color : source_color = vec4(0.570, 0.640, 0.860, 1.0); // lavender-blue shadow
 uniform float sd_scale = 4.0;        // (wf-0.5) -> signed cells (matches the smoothing kernel)
 uniform float wet_cells = 0.26;      // wet-sand band on the LAND side of the coast
 uniform float inner_cells = 0.30;    // light-aqua inner band width (cells)
@@ -27,10 +30,12 @@ uniform float edge_aa = 0.04;        // small AA on the colour/alpha edges (cell
 uniform sampler2D var_noise : repeat_enable, filter_linear;
 
 varying float v_wf;
+varying float v_cold;
 varying vec3 v_world;
 
 void vertex() {
 	v_wf = UV.x;
+	v_cold = UV.y;
 	v_world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
 
@@ -51,8 +56,11 @@ void fragment() {
 	// Colour: wet sand below the waterline (sd<0), then light aqua, then turquoise.
 	float tw = smoothstep(-edge_aa, edge_aa, sd);                  // wet sand -> aqua at the coast
 	float ta = smoothstep(inner_end - edge_aa, inner_end + edge_aa, sd);  // inner -> outer aqua
-	vec3 col = mix(wet_sand_color.rgb, inner_color.rgb, tw);
-	col = mix(col, outer_color.rgb, ta);
+	vec3 warm_col = mix(wet_sand_color.rgb, inner_color.rgb, tw);
+	warm_col = mix(warm_col, outer_color.rgb, ta);
+	vec3 cold_col = mix(cold_wet_color.rgb, cold_inner_color.rgb, tw);
+	cold_col = mix(cold_col, cold_outer_color.rgb, ta);
+	vec3 col = mix(warm_col, cold_col, smoothstep(0.15, 0.85, v_cold));
 
 	ALBEDO = col;
 	ALPHA = clamp(alpha, 0.0, 1.0);
