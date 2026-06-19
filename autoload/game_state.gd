@@ -350,6 +350,11 @@ func equipment_bonus_xp(skill: String) -> float:
 
 ## Gather-tool power: damage dealt to a node per action (Trees.ReduceHealth).
 func tool_progress(skill: String) -> int:
+	# Hunter (traps) and Thieving (bare hands) need no equipped tool — return a usable base
+	# "competence" (like a mid-tier tool) so the gather loop yields at a reasonable rate.
+	# Provisional; better trap/lockpick gear can raise this later.
+	if skill in ["hunter", "thieving"]:
+		return 80
 	var slot: String = {
 		"woodcutting": "Axe", "mining": "Pickaxe", "fishing": "Rod", "foraging": "Lens",
 	}.get(skill, "")

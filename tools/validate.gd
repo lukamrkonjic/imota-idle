@@ -564,6 +564,21 @@ func phase3_recipes() -> void:
 	GameState.toggle_prayer("Improved Reflexes")
 	check(GameState.active_prayers.is_empty(), "prayer toggled off")
 
+	# Hunter + Thieving (M6): new GATHER skills via the existing pipeline (no tool gate).
+	for sk: Array in [["hunter", "Bird Snare"], ["thieving", "Fruit Stall"]]:
+		var gnode := DataRegistry.get_gather_node(str(sk[0]), str(sk[1]))
+		check(not gnode.is_empty(), "%s node exists (%s)" % [sk[0], sk[1]])
+		if not gnode.is_empty():
+			GameState.reset_state()
+			check(TickSim.start_gather(str(sk[0]), str(sk[1])), "%s gather started without a tool" % sk[0])
+			var gxp := GameState.xp(str(sk[0]))
+			for i: int in 600:
+				TickSim.advance(0.1)
+				if GameState.xp(str(sk[0])) > gxp:
+					break
+			check(GameState.xp(str(sk[0])) > gxp, "%s XP gained from gathering" % sk[0])
+			TickSim.stop("test")
+
 
 func phase4_food_shop_offline() -> void:
 	print("== Phase 4: food / shop / no-offline / coins migration ==")

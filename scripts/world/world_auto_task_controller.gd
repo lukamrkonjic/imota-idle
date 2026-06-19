@@ -2,7 +2,8 @@ extends RefCounted
 class_name WorldAutoTaskController
 ## Auto-gather, auto-bank, and auto-station routing.
 
-const GATHER_VERB := {"woodcutting": "Chop", "mining": "Mine", "fishing": "Fish", "foraging": "Pick"}
+const GATHER_VERB := {"woodcutting": "Chop", "mining": "Mine", "fishing": "Fish", "foraging": "Pick",
+	"hunter": "Trap", "thieving": "Steal"}
 
 var world: Node2D
 
