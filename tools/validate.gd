@@ -396,8 +396,12 @@ func phase1_inventory_bank_equipment() -> void:
 	check(GameState.count_item("Logs") == 2 and int(GameState.bank.get(logs_id, 0)) == 3, "deposit moves to bank")
 	GameState.withdraw("Logs", 3)
 	check(GameState.count_item("Logs") == 5 and not GameState.bank.has("Logs"), "withdraw returns")
-	check(GameState.slot_for_item("Bronze Sword") == "Weapon", "slot inference: sword -> Weapon")
-	check(GameState.slot_for_item("Bronze Pickaxe") == "Pickaxe", "slot inference: pickaxe before axe")
+	# Typed item shape: slot/equippability are DATA-driven (explicit slot + category), never
+	# name-inferred. A material with a colliding name must not read as equippable.
+	check(DataRegistry.item_def("Bronze Sword").slot == "Weapon", "explicit slot: Bronze Sword -> Weapon")
+	check(DataRegistry.item_def("Bronze Sword").is_equippable(), "Bronze Sword is equippable (equipment)")
+	check(DataRegistry.item_def("Bronze Sword").weapon_style() == "melee", "Bronze Sword combat style = melee")
+	check(not DataRegistry.item_def("Logs").is_equippable(), "Logs (material) is not equippable")
 	check(GameState.equipment.get("Axe", "") == DataRegistry.resolve_item_id("Bronze Axe"), "starter axe equipped")
 	check(GameState.tool_progress("woodcutting") == 25, "tool progress read from Axe slot")
 	# Bronze Sword requires Attack 3 — equip must be gated, then succeed.

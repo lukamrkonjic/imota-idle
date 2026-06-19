@@ -2,6 +2,7 @@ extends Node
 ## Loads the imported Bloobs data (res://data/*.json) and indexes it by stable id.
 
 const ContentId := preload("res://scripts/content/content_id.gd")
+# ItemDef is a global class_name (scripts/content/item_def.gd).
 
 var items: Dictionary = {}           # display name -> item dict (legacy key)
 var items_by_id: Dictionary = {}     # stable id -> item dict
@@ -221,6 +222,12 @@ func resolve_recipe_id(skill: String, value: String) -> String:
 func get_item(name_or_id: String) -> Dictionary:
 	var id := resolve_item_id(name_or_id)
 	return items_by_id.get(id, {})
+
+
+## Typed view of an item (empty ItemDef if unknown). Prefer this over get_item().get("…")
+## on the equipment/combat paths — see scripts/content/item_def.gd.
+func item_def(name_or_id: String) -> ItemDef:
+	return ItemDef.from_dict(get_item(name_or_id))
 
 
 func item_display_name(name_or_id: String) -> String:

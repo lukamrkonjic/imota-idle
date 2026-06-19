@@ -31,7 +31,7 @@ Risks and concrete files. Ordered by impact on long-term playability.
 
 | Risk | Files | Notes |
 |------|-------|-------|
-| Dictionary string keys everywhere | All autoloads, world scripts | Typo-prone; no static typing on content shape. |
+| Dictionary string keys everywhere | All autoloads, world scripts | Typo-prone; no static typing on content shape. **Started (Tier C):** typed `ItemDef` (`scripts/content/item_def.gd`) + `DataRegistry.item_def()` now back the equipment/combat paths; slot + combat-style are data-driven (no name inference). Remaining incremental: typed Recipe/Enemy/GatherNode + the broader Item dict sites. |
 | Procedural art dumps | `scripts/world/iso_sprites.gd` (~433), `scripts/world/tree_art.gd` (~207) | Will grow with every new node type; consider data-driven sprite defs. |
 | Activity sims not unified | `tick_sim.gd`, `combat_sim.gd`, `recipe_sim.gd` | Each skill type needs bespoke loop code (Phase 7). |
 | ~~Legacy Melvor UI still in tree~~ | ~~`scenes/main.tscn`, `scripts/ui/main_ui.gd`~~ | **Done (Tier 0).** Deleted; validate phase 3 retargeted to the TickSim gather loop. Preserved on `archive/main-2d`. |

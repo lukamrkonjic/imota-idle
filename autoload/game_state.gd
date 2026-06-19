@@ -240,34 +240,6 @@ func buy_item(item_name: String, qty: int) -> bool:
 
 ## Slot inference ported from EquipmentSystem.GetEquipmentSlotForItem —
 ## Bloobs maps items to slots by name substring, in this priority order.
-static func slot_for_item(item_name: String) -> String:
-	# Prefer an explicit `slot` on the item definition (data/items.json). The name
-	# inference below is the legacy fallback for content that doesn't declare one yet.
-	var explicit := str(DataRegistry.get_item(item_name).get("slot", ""))
-	if not explicit.is_empty():
-		return explicit
-	var n := item_name.to_lower()
-	if n == "herring":
-		return "Food"
-	for rule: Array in [
-		["helm", "Helm"], ["hat", "Helm"], ["coif", "Helm"],
-		["body", "Body"], ["tunic", "Body"], ["robe", "Body"],
-		["boots", "Boots"], ["slippers", "Boots"], ["moccasins", "Boots"],
-		["sword", "Weapon"], ["dagger", "Weapon"], ["scimitar", "Weapon"],
-		["reaver", "Weapon"], ["shortbow", "Weapon"], ["bow", "Weapon"],
-		["longbow", "Weapon"], ["staff", "Weapon"],
-		["shield", "Shield"], ["ring", "Ring"],
-		["gloves", "Gloves"], ["mitts", "Gloves"], ["wraps", "Gloves"],
-		["cape", "Cape"], ["necklace", "Amulet"],
-		["arrows", "Ammunition"],
-		["pickaxe", "Pickaxe"], ["axe", "Axe"], ["rod", "Rod"], ["lens", "Lens"],
-		["potion", "Potion"], ["lockpick", "Lockpick"], ["slate", "Slate"],
-	]:
-		if n.contains(rule[0]):
-			return rule[1]
-	return "Food"
-
-
 func meets_requirements(item: Dictionary) -> bool:
 	var reqs: Dictionary = item.get("reqs", {})
 	for skill: String in reqs:
@@ -277,24 +249,22 @@ func meets_requirements(item: Dictionary) -> bool:
 
 
 func equip(item_name_or_id: String) -> bool:
-	var item := DataRegistry.get_item(item_name_or_id)
+	var item := DataRegistry.item_def(item_name_or_id)
 	if item.is_empty() or count_item(item_name_or_id) <= 0:
 		return false
-	if not meets_requirements(item):
+	if not meets_requirements(item.raw):
 		return false
-	var item_id: String = str(item["id"])
-	var slot := slot_for_item(DataRegistry.item_display_name(item_id))
-	if slot in ["Food", "Potion", "Lockpick", "Slate"]:
-		return false  # consumable pseudo-slots are not worn gear (Phase 4)
-	if not remove_item(item_id, 1):
+	if not item.is_equippable():
+		return false  # materials / consumables (incl. Potion/Slate/Lockpick) are not worn gear
+	if not remove_item(item.id, 1):
 		return false
 	# Swap in place: the new item just vacated an inventory slot, so the previously-worn
 	# item goes back into that freed slot. This can't destroy the old gear even on a full
 	# inventory (the old unequip-first path overwrote the slot and lost the worn item).
-	var prev: String = str(equipment.get(slot, ""))
+	var prev: String = str(equipment.get(item.slot, ""))
 	if not prev.is_empty():
 		add_item(prev, 1)
-	equipment[slot] = item_id
+	equipment[item.slot] = item.id
 	EventBus.equipment_changed.emit()
 	return true
 
@@ -333,17 +303,7 @@ func weapon_combat_style() -> String:
 	var wid := str(equipment.get("Weapon", ""))
 	if wid.is_empty():
 		return "melee"
-	var item: Dictionary = DataRegistry.get_item(wid)
-	# Prefer explicit item data; fall back to stat fields, then name inference (legacy).
-	var explicit := str(item.get("combatStyle", "")).to_lower()
-	if explicit in ["melee", "ranged", "magic"]:
-		return explicit
-	var n := str(item.get("name", "")).to_lower()
-	if int(item.get("rangeDamage", 0)) > 0 or n.contains("bow") or n.contains("crossbow") or n.contains("dart") or n.contains("knife"):
-		return "ranged"
-	if int(item.get("magicDamage", 0)) > 0 or n.contains("staff") or n.contains("wand"):
-		return "magic"
-	return "melee"
+	return DataRegistry.item_def(wid).weapon_style()
 
 
 func equipment_bonus_xp(skill: String) -> float:
@@ -460,12 +420,8 @@ static func snap_to_tick(seconds: float) -> float:
 ## Player attack speed in ticks — the equipped weapon's `attackSpeed` (ticks) if
 ## the data defines one, else the 4-tick default.
 func attack_ticks() -> int:
-	var wid := str(equipment.get("Weapon", ""))
-	if not wid.is_empty():
-		var spd := int(DataRegistry.get_item(wid).get("attackSpeed", 0))
-		if spd > 0:
-			return spd
-	return DEFAULT_ATTACK_TICKS
+	var spd := DataRegistry.item_def(str(equipment.get("Weapon", ""))).attack_speed
+	return spd if spd > 0 else DEFAULT_ATTACK_TICKS
 
 
 ## Seconds between player attacks (attack speed in ticks × the tick length).

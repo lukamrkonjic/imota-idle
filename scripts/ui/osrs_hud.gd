@@ -1646,8 +1646,7 @@ func _inv_default_action(item_id: String) -> void:
 		else:
 			_push_chat("[color=#444]You're already at full health.[/color]")
 		return
-	var slot := GameState.slot_for_item(item_name)
-	if slot not in ["Food", "Potion", "Lockpick", "Slate"]:
+	if DataRegistry.item_def(item_id).is_equippable():
 		if GameState.equip(item_id):
 			_push_chat("[color=#444]Equipped %s.[/color]" % item_name)
 		else:
