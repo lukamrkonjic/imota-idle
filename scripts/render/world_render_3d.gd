@@ -350,6 +350,15 @@ func _setup_present() -> void:
 	bars.world = world
 	bars.render_3d = self
 	fx_layer.add_child(bars)
+	# White brackets around interactable entities/enemies (Alt-hold or hover) so the player
+	# can temporarily see what's interactable. Projects each entity through the 3D camera.
+	var outlines := preload("res://scripts/ui/interact_outlines.gd").new()
+	outlines.name = "InteractOutlines"
+	outlines.world = world
+	outlines.r3 = self
+	outlines.set_anchors_preset(Control.PRESET_FULL_RECT)
+	outlines.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fx_layer.add_child(outlines)
 	# Drive attack lunges off the combat ticks: each hit splat is one swing landing.
 	EventBus.combat_hit_splat.connect(_on_combat_swing)
 	EventBus.combat_ranged_shot.connect(func(_a: int, _m: bool) -> void: _mark_attack("player"))
