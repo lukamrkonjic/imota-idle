@@ -335,12 +335,12 @@ func mountain_height_field(tx: float, ty: float) -> float:
 	return clampf(total / weight, 0.0, 1.20)
 
 
-const ELEV_MAX_STEPS := 26       # summit height in steps — alpine and tall, but readable
+const ELEV_MAX_STEPS := 44       # summit height in steps — large, impressive alpine peaks
 const ELEV_FOOT_THRESHOLD := 0.18
-const ELEV_PEAK_THRESHOLD := 0.95
-const ELEV_SHELF_BANDS := 5      # stacked alpine shelves from foot to summit
-const ELEV_SHELF_RISER := 0.30   # fraction of each band spent on the steep cliff riser; the
-                                 # remaining ~70% is a flat, walkable grassy shelf
+const ELEV_PEAK_THRESHOLD := 0.96
+const ELEV_SHELF_BANDS := 7      # stacked alpine shelves; more bands keep tall peaks readable
+const ELEV_SHELF_RISER := 0.32   # fraction of each band spent on the steep cliff riser; the
+                                 # remaining ~68% is a flat, walkable grassy shelf
 func elevation_steps(tx: float, ty: float) -> int:
 	if not _finite:
 		return 0
@@ -364,18 +364,28 @@ func elevation_steps(tx: float, ty: float) -> int:
 	return clampi(int(round(terraced * float(ELEV_MAX_STEPS))), 0, ELEV_MAX_STEPS)
 
 
+const SNOW_BLEND_STEPS := 7.0
+## Snow coverage 0..1 at a mountain tile, from LATITUDE (north = colder) and ELEVATION.
+## Northern mountains gain snow well down their flanks; southern peaks must be very tall
+## to cap at all — so the snowline visibly communicates the world's climate gradient.
+func snow01(tx: float, ty: float, e: int) -> float:
+	if e <= 0:
+		return 0.0
+	var g: Dictionary = geo(tx, ty)
+	var north := clampf(float(g["n"]) * 0.5 + 0.5, 0.0, 1.0)   # 0 due-south .. 1 due-north
+	# Snowline (in steps): high up on southern slopes, dropping toward the far north.
+	var snowline := lerpf(0.95, 0.42, north) * float(ELEV_MAX_STEPS)
+	return clampf((float(e) - snowline) / SNOW_BLEND_STEPS, 0.0, 1.0)
+
+
 ## Mountain elevation at a tile: 0 none, 1 foothill (walkable rock), 2 rock peak
-## (impassable), 3 snow peak (impassable).
+## (impassable), 3 snow peak (impassable, snow-capped).
 func mountain_level(tx: float, ty: float) -> int:
 	var e := elevation_steps(tx, ty)
 	if e <= 0:
 		return 0
-	var g: Dictionary = geo(tx, ty)
-	if e > WG.MAX_REACHABLE_ELEV and e >= int(float(ELEV_MAX_STEPS) * 0.58) \
-			and (float(g["n"]) > 0.36 or float(g["d"]) > 0.62):
-		return 3                                                       # snow cap
 	if e > WG.MAX_REACHABLE_ELEV:
-		return 2                                                       # rock peak (impassable)
+		return 3 if snow01(tx, ty, e) >= 0.5 else 2
 	return 1                                                           # foothill
 
 

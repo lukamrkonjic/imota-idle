@@ -723,7 +723,8 @@ func _apply_view_distance() -> void:
 const WATER_DROP := 0.45   # how far the ground floor dips under water (shore basin)
 const SHORE := Color(0.80, 0.75, 0.58)  # sandy shore tone under/at water edges
 const PATH_TILES := ["dirt", "cobble", "mud", "gravel", "badland_clay"]
-const ROCK_TILES := ["rock", "lava_rock", "ash"]
+const ROCK_TILES := ["rock", "lava_rock", "ash", "peak_rock"]
+const SNOW_TILES := ["snow", "frozen_grass", "peak_snow"]
 
 ## Smooth, continuous, SEAMLESS terrain: each grid corner's height/normal/color
 ## is averaged from the tiles around it (sampled globally so chunk borders match),
@@ -991,28 +992,47 @@ func _emit_tile_cliffs(st: SurfaceTool, gtx: int, gty: int, ref_top: float, info
 		[0, 1, Vector2i(1, 1), Vector2i(0, 1), Vector3(0, 0, 1)],     # south
 		[-1, 0, Vector2i(0, 1), Vector2i(0, 0), Vector3(-1, 0, 0)],   # west
 	]
-	var face_col: Color = PixelPalette.shade(info["col"], 0.5)
+	var elev_top: int = int(round(ref_top / ELEV_H))
 	for e: Array in edges:
 		var nb := _tile_info(gtx + int(e[0]), gty + int(e[1]))
-		if nb.is_empty() or bool(nb["water"]):
-			continue
+		if nb.is_empty():
+			continue   # unloaded neighbour (map/apron edge) — nothing to wall against
 		var nb_top: float = float(nb["top"])
 		if ref_top - nb_top < CLIFF_GAP:
-			continue
+			continue   # gentle step or flush — the smooth ground mesh already covers it
 		var c0: Vector2i = Vector2i(gtx, gty) + e[2]
 		var c1: Vector2i = Vector2i(gtx, gty) + e[3]
+		var normal: Vector3 = e[4]
+		var face_col := _cliff_color(elev_top, normal, info["col"])
 		var t0 := Vector3(float(c0.x) * TILE_S, _corner_height_for(c0.x, c0.y, ref_top), float(c0.y) * TILE_S)
 		var t1 := Vector3(float(c1.x) * TILE_S, _corner_height_for(c1.x, c1.y, ref_top), float(c1.y) * TILE_S)
 		var b1 := Vector3(float(c1.x) * TILE_S, _corner_height_for(c1.x, c1.y, nb_top), float(c1.y) * TILE_S)
 		var b0 := Vector3(float(c0.x) * TILE_S, _corner_height_for(c0.x, c0.y, nb_top), float(c0.y) * TILE_S)
-		_cliff_face(st, t0, t1, b1, b0, e[4], face_col)
+		_cliff_face(st, t0, t1, b1, b0, normal, face_col)
+
+
+## Layered rock colour for a cliff face: warm low stone -> cool high rock by the top
+## tile's elevation, with a sun lean (south/east faces lit, north/west shaded) so the
+## escarpments catch light and read as solid carved rock rather than a flat band.
+func _cliff_color(elev_top: int, normal: Vector3, base: Color) -> Color:
+	var hi := clampf(float(elev_top) / ALPINE_SUMMIT, 0.0, 1.0)
+	var rock := ROCK_LOW.lerp(ROCK_HIGH, hi).lerp(base, 0.22)
+	var lit := clampf((normal.x + normal.z) * 0.5 + 0.5, 0.0, 1.0)   # 0 NW shade .. 1 SE sun
+	return rock.darkened((1.0 - lit) * 0.30)
 
 
 ## A vertical cliff quad: top edge t0->t1, bottom edge b0<-b1 (b1 under t1, b0 under t0).
+## Emitted DOUBLE-SIDED so an orbiting camera can never see through the wall — the
+## terrace sides stay solid from every angle (no culled/missing-face holes).
 func _cliff_face(st: SurfaceTool, t0: Vector3, t1: Vector3, b1: Vector3, b0: Vector3, normal: Vector3, col: Color) -> void:
 	for v: Vector3 in [t0, t1, b1, t0, b1, b0]:
 		st.set_color(col)
 		st.set_normal(normal)
+		st.set_uv(Vector2.ZERO)
+		st.add_vertex(v)
+	for v: Vector3 in [t0, b1, t1, t0, b0, b1]:
+		st.set_color(col)
+		st.set_normal(-normal)
 		st.set_uv(Vector2.ZERO)
 		st.add_vertex(v)
 
@@ -1080,8 +1100,9 @@ func _tile_info_compute(gtx: int, gty: int) -> Dictionary:
 	var tdef: Dictionary = WorldGen.reg.tile_def(tid)
 	var tile_name := str(WorldGen.reg.tile_order[tid])
 	var water := bool(tdef.get("water", false))
-	var top: float = float(chunk.elev[ly * WG.CHUNK_TILES + lx]) * ELEV_H
-	var col: Color = SHORE if water else _grade_ground(tdef["colors"][0], tile_name, gtx, gty)
+	var elev: int = chunk.elev[ly * WG.CHUNK_TILES + lx]
+	var top: float = float(elev) * ELEV_H
+	var col: Color = SHORE if water else _grade_ground(tdef["colors"][0], tile_name, gtx, gty, elev)
 	return {
 		"top": top,
 		"water": water,
@@ -1144,12 +1165,12 @@ func _surface_family(tile: String) -> String:
 		return "water"
 	if _is_path(tile):
 		return "path"
+	if _is_snow(tile):
+		return "snow"
 	if _is_rock(tile):
 		return "rock"
 	if tile in ["sand", "sand_dune"]:
 		return "sand"
-	if tile == "snow" or tile == "frozen_grass":
-		return "snow"
 	return "grass"
 
 
@@ -1159,6 +1180,10 @@ func _is_path(tile: String) -> bool:
 
 func _is_rock(tile: String) -> bool:
 	return tile in ROCK_TILES
+
+
+func _is_snow(tile: String) -> bool:
+	return tile in SNOW_TILES
 
 
 # Build one seamless tiling noise texture for the water shader. `freq_mul` scales the
@@ -1253,7 +1278,13 @@ func _coast_corner_height(ci: int, cj: int, hc: Dictionary) -> float:
 ## Warm + enrich a terrain tile color and add BROAD low-frequency variation
 ## (large painted regions, not noise) so the ground reads painterly, not as flat
 ## monotone diamonds. Original warm grading — our palette, A Short Hike vibe.
-func _grade_ground(col: Color, tile: String, gtx: int, gty: int) -> Color:
+# Alpine colour layering: warm low rock -> cooler, lighter rock at altitude -> snow.
+const ALPINE_SUMMIT := 44.0                      # ELEV_MAX_STEPS — height normaliser
+const ROCK_LOW := Color(0.62, 0.55, 0.50)        # warm taupe foothill stone
+const ROCK_HIGH := Color(0.72, 0.71, 0.74)       # cool desaturated high rock
+const SNOW_LIT := Color(0.95, 0.96, 0.99)        # warm sunlit snow
+const SNOW_SHADE := Color(0.78, 0.83, 0.93)      # cool blue snow shadow
+func _grade_ground(col: Color, tile: String, gtx: int, gty: int, elev: int = 0) -> Color:
 	var c := col
 	var fx := float(gtx)
 	var fz := float(gty)
@@ -1262,11 +1293,18 @@ func _grade_ground(col: Color, tile: String, gtx: int, gty: int) -> Color:
 	var bright := 0.5 + 0.5 * sin(fx * 0.07) * cos(fz * 0.06)
 	var band2 := 0.5 + 0.5 * sin(fx * 0.13 + 1.2) * cos(fz * 0.115 - 0.7)
 	var warm := clampf(sin((fx + fz) * 0.045 + 1.3), 0.0, 1.0)
+	var hi := clampf(float(elev) / ALPINE_SUMMIT, 0.0, 1.0)   # 0 foot .. 1 summit
+	if _is_snow(tile):
+		# Snow: bright warm white in the sun, cool blue in shade, cleaner higher up.
+		return SNOW_SHADE.lerp(SNOW_LIT, clampf(bright * 0.6 + hi * 0.4, 0.0, 1.0))
 	if _is_path(tile):
 		var path_col := PixelPalette.pal("path_orange").lerp(PixelPalette.pal("path_light"), bright * 0.42)
 		c = c.lerp(path_col, 0.94)
 	elif _is_rock(tile):
-		c = c.lerp(PixelPalette.pal("cliff_warm").lerp(PixelPalette.pal("cliff_light"), bright * 0.34), 0.78)
+		# Warm cliff stone low down, drifting cooler and lighter toward the peaks.
+		var rock := PixelPalette.pal("cliff_warm").lerp(PixelPalette.pal("cliff_light"), bright * 0.34)
+		rock = rock.lerp(ROCK_LOW, 0.35).lerp(ROCK_HIGH, hi * 0.7)
+		c = c.lerp(rock, 0.85)
 	elif tile in ["sand", "sand_dune"]:
 		c = c.lerp(PixelPalette.pal("warm_stone"), 0.5)
 	else:

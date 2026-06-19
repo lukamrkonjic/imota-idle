@@ -124,7 +124,9 @@ func _place_mountains(chunk: RefCounted) -> void:
 				continue
 			chunk.elev[i] = e
 			var level: int = classifier.mountain_level(float(gtx), float(gty))
-			var snowy: bool = level == 3 or (level == 1 and e >= WG.MAX_REACHABLE_ELEV - 3)
+			# Snow on peaks AND high foothill slopes, by the latitude-driven snowline, so
+			# northern ranges carry snow down their flanks while southern ones stay bare.
+			var snowy: bool = classifier.snow01(float(gtx), float(gty), e) >= 0.5
 			if level >= 2:
 				chunk.tiles[i] = t_snow if (snowy and t_snow >= 0) else t_peak
 			else:
