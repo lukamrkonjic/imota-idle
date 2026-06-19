@@ -13,6 +13,14 @@ func setup(w: Node2D) -> void:
 	world = w
 
 
+## True when the cursor is over a HUD control, so world hover/click must be suppressed
+## (the panels sit on a CanvasLayer above the world; without this the world tooltip and
+## walk-here fire through the inventory/minimap/etc.).
+func _over_ui() -> bool:
+	var c: Control = world.get_viewport().gui_get_hovered_control()
+	return c != null and world.hud != null and world.hud.is_ancestor_of(c)
+
+
 func handle_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F6:
 		if world.get("_biome_debug") != null:
@@ -36,6 +44,8 @@ func handle_input(event: InputEvent) -> void:
 			world.get_viewport().set_input_as_handled()
 			return
 		if event.button_index == MOUSE_BUTTON_LEFT:
+			if _over_ui():
+				return   # click is on the HUD, not the world
 			var click_pos: Vector2 = world.mouse_world_pos()
 			var target := entity_at(click_pos)
 			world.show_click_fx(click_pos, target != null)
@@ -63,6 +73,14 @@ func handle_input(event: InputEvent) -> void:
 
 
 func update_hover() -> void:
+	if _over_ui():
+		# Cursor is on the HUD — clear any world hover so a world entity behind a panel
+		# doesn't keep its tooltip/highlight showing over the UI.
+		if world.hovered_entity != null:
+			world.hovered_entity.hovered = false
+			world.hovered_entity = null
+		world.hud.call("update_world_tooltip", null)
+		return
 	var mouse: Vector2 = world.mouse_world_pos()
 	var found := entity_at(mouse)
 	if found != world.hovered_entity:

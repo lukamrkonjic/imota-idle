@@ -80,6 +80,10 @@ var prayer_orb: Control
 var run_orb: Control
 var _prayer_rows: VBoxContainer       # data-driven prayer toggle list (rebuilt on change)
 var _prayer_devotion_lbl: Label
+var _skill_hover: PanelContainer       # hover card: skill name + XP-to-next-level bar
+var _skill_hover_name: Label
+var _skill_hover_bar: ProgressBar
+var _skill_hover_xp: Label
 var popup: PopupPanel
 var popup_list: VBoxContainer
 var popup_title: Label
@@ -510,6 +514,8 @@ func _build_skills_tab() -> Control:
 			if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 				show_ui_click_marker(event.global_position)
 				open_skill_guide(skill_copy))
+		cell.mouse_entered.connect(func() -> void: _show_skill_hover(skill_copy, cell))
+		cell.mouse_exited.connect(func() -> void: _hide_skill_hover())
 		var hb := HBoxContainer.new()
 		hb.alignment = BoxContainer.ALIGNMENT_CENTER
 		hb.add_theme_constant_override("separation", UiScale.i(5))
@@ -531,6 +537,68 @@ func _build_skills_tab() -> Control:
 		skills_grid.add_child(cell)
 		skill_cells[skill] = lbl
 	return skills_grid
+
+
+## Hover card over a skill cell: the skill's name + a bar of progress to the next level.
+func _show_skill_hover(skill: String, cell: Control) -> void:
+	if _skill_hover == null or not is_instance_valid(_skill_hover):
+		_skill_hover = PanelContainer.new()
+		_skill_hover.add_theme_stylebox_override("panel", _style(Color(0.12, 0.12, 0.14, 0.97), Color(0.55, 0.5, 0.35)))
+		_skill_hover.z_index = 200
+		_skill_hover.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var vb := VBoxContainer.new()
+		vb.add_theme_constant_override("separation", UiScale.i(3))
+		_skill_hover_name = Label.new()
+		_skill_hover_name.add_theme_font_size_override("font_size", UiScale.i(13))
+		_skill_hover_name.add_theme_color_override("font_color", Color(0.95, 0.92, 0.75))
+		vb.add_child(_skill_hover_name)
+		_skill_hover_bar = ProgressBar.new()
+		_skill_hover_bar.show_percentage = false
+		_skill_hover_bar.custom_minimum_size = UiScale.v2(Vector2(150, 10))
+		_skill_hover_bar.max_value = 1.0
+		vb.add_child(_skill_hover_bar)
+		_skill_hover_xp = Label.new()
+		_skill_hover_xp.add_theme_font_size_override("font_size", UiScale.i(10))
+		_skill_hover_xp.add_theme_color_override("font_color", Color(0.78, 0.82, 0.7))
+		vb.add_child(_skill_hover_xp)
+		_skill_hover.add_child(vb)
+		hud_root.add_child(_skill_hover)
+	var lvl := GameState.level(skill)
+	var cur := GameState.xp(skill)
+	_skill_hover_name.text = "%s — Level %d" % [skill.capitalize(), lvl]
+	if lvl >= DataRegistry.max_level:
+		_skill_hover_bar.value = 1.0
+		_skill_hover_xp.text = "%s XP · MAX level" % _fmt_int(int(cur))
+	else:
+		var xp_lvl := float(DataRegistry.xp_for_level(lvl))
+		var xp_next := float(DataRegistry.xp_for_level(lvl + 1))
+		var span := maxf(xp_next - xp_lvl, 1.0)
+		_skill_hover_bar.value = clampf((cur - xp_lvl) / span, 0.0, 1.0)
+		_skill_hover_xp.text = "%s / %s XP · %s to level %d" % [
+			_fmt_int(int(cur - xp_lvl)), _fmt_int(int(span)), _fmt_int(int(ceil(xp_next - cur))), lvl + 1]
+	_skill_hover.reset_size()
+	# Sit the card just left of the cell (the skills panel hugs the right edge).
+	var pos := cell.global_position + Vector2(-_skill_hover.size.x - UiScale.f(6.0), 0.0)
+	pos.x = maxf(pos.x, UiScale.f(4.0))
+	_skill_hover.global_position = pos
+	_skill_hover.visible = true
+
+
+func _hide_skill_hover() -> void:
+	if _skill_hover != null and is_instance_valid(_skill_hover):
+		_skill_hover.visible = false
+
+
+func _fmt_int(n: int) -> String:
+	var s := str(n)
+	var out := ""
+	var c := 0
+	for i: int in range(s.length() - 1, -1, -1):
+		out = s[i] + out
+		c += 1
+		if c % 3 == 0 and i > 0:
+			out = "," + out
+	return out
 
 
 ## Inventory tab: fixed 4x7 (28-slot) grid like OSRS.
