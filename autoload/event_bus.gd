@@ -48,3 +48,4 @@ signal bank_requested
 signal gather_requested(skill: String, node_name: String)
 signal station_requested(skill: String, recipe_name: String)
 signal teleport_requested(pos: Vector2)
+signal navigate_requested(pos: Vector2)   # minimap click → walk-route to a world position

@@ -453,7 +453,7 @@ func _build_combat_tab() -> Control:
 	for s: String in ["Attack", "Strength", "Defence", "Ranged", "Magic"]:
 		train_select.add_item(s)
 	train_select.item_selected.connect(func(idx: int) -> void:
-		GameState.combat_style = train_select.get_item_text(idx).to_lower()
+		GameState.set_combat_style(train_select.get_item_text(idx).to_lower())
 		_refresh_combat_info())
 	train_row.add_child(train_select)
 	combat_box.add_child(train_row)

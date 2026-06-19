@@ -103,7 +103,7 @@ class MinimapControl extends Control:
 		if k <= 0.0:
 			return
 		var world_pos: Vector2 = hud.world.player.position + rel / k
-		hud.world.call("navigate_to", world_pos)
+		EventBus.navigate_requested.emit(world_pos)   # decoupled: no world.call("...")
 		accept_event()
 
 	func _process(delta: float) -> void:
@@ -176,7 +176,7 @@ class MinimapControl extends Control:
 	# Active walk route: a line from the player (centre) through the remaining waypoints to
 	# the destination flag. Drawn only while a route is being walked (see active_route()).
 	func _draw_route(c: Vector2, r: float) -> void:
-		var route: Dictionary = hud.world.call("active_route")
+		var route: Dictionary = hud.world.active_route()   # typed read, not call("...")
 		if route.is_empty():
 			return
 		var player: Node2D = hud.world.player

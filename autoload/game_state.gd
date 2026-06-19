@@ -306,6 +306,13 @@ func weapon_combat_style() -> String:
 	return DataRegistry.item_def(wid).weapon_style()
 
 
+## Set the trained combat skill (the combat-style dropdown). The single write path for
+## `combat_style`, so the UI never pokes the field directly. Guards against a non-combat key.
+func set_combat_style(skill: String) -> void:
+	if SkillRegistry.is_combat(skill):
+		combat_style = skill
+
+
 func equipment_bonus_xp(skill: String) -> float:
 	var total := 0.0
 	for slot: String in equipment:

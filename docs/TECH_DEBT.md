@@ -11,7 +11,7 @@ Risks and concrete files. Ordered by impact on long-term playability.
 
 | Risk | Files | Notes |
 |------|-------|-------|
-| Explored chunks regenerate when generator code changes | `autoload/world_gen.gd`, `scripts/worldgen/world_store.gd`, `scripts/worldgen/world_generator.gd` | Only depletions/obelisks persisted; terrain/sites re-derived from current code. **Mitigation:** chunk snapshots (Phase 5). |
+| Procedural-fallback chunks regenerate on a `GENERATOR_VERSION` bump | `autoload/world_gen.gd`, `scripts/worldgen/world_store.gd`, `scripts/worldgen/world_generator.gd` | **Scoped narrower than first thought:** the SHIPPED world is a baked `.world` asset (read-only, not save-derived) — changing `biome_classifier` does NOT shift existing saves unless you re-bake + ship. Only the *procedural fallback* path is snapshot-versioned (`GENERATOR_VERSION`); bump it and explored procedural land regenerates. Depletions/obelisks keyed by `(chunk_key, site_index)` are the one save↔gen coupling. **Mitigation:** chunk snapshots (Phase 5). |
 | Display names used as save/inventory keys | `autoload/game_state.gd`, `autoload/save_manager.gd`, `data/items.json` | Renaming "Logs" breaks saves. **Mitigation:** stable ids + aliases (Phase 2). |
 
 ## P1 — Blocks scaling content
@@ -22,10 +22,10 @@ Risks and concrete files. Ordered by impact on long-term playability.
 | World-gen rule pile | `scripts/worldgen/skill_site_spawner.gd` (~441 lines) | Tree/water/biome special cases accumulate. Needs pass pipeline + `data/world/generation_rules.json` (Phase 8). |
 | Biome classifier owns too much | `scripts/worldgen/biome_classifier.gd` | Classification + rivers + lakes + shore decoration intertwined. |
 | Chunk renderer + biome shading tangled | `scripts/worldgen/chunk_renderer.gd` | Visual baking mixed with biome-specific logic. |
-| HUD coupled to world internals | `scripts/ui/osrs_hud.gd` (~950 lines) | Four remaining `world.call()` sites (auto_bank, auto_gather, auto_station, teleport_to); migrate to EventBus. |
-| ~~No content schema validation~~ | `tools/validate_content.gd` | **Done (Phase 3).** 202 dangling Bloobs-export refs remain as warnings. |
+| ~~HUD coupled to world internals~~ | `scripts/ui/osrs_hud.gd` | **Done.** The HUD's four `world.call()` sites migrated to EventBus intents (`bank/gather/station/teleport_requested`). Tier E also moved the minimap's `navigate_to` to `EventBus.navigate_requested` and `active_route` to a typed read; the minimap still *reads* `world.player`/`chunk_manager`/`entities` for drawing (acceptable display reads). |
+| ~~No content schema validation~~ | `tools/validate_content.gd` | **Done (Phase 3).** Dangling refs resolved (Tier A): recipe/node/drop reference checks are now hard ERRORS. |
 | ~~No save migration layer~~ | `autoload/save_migration.gd` | **Done (Phase 4).** v1→v2 migration, `schemaVersion` on all saves. |
-| Equipment slot inferred from display name | `autoload/game_state.gd` (`slot_for_item`) | Renaming an item can change its inferred slot. Saves are unaffected (store slot→id), but slots should be explicit item data (Phase 9). |
+| ~~Equipment slot inferred from display name~~ | `autoload/game_state.gd` | **Done (Tier C).** `slot_for_item` + the name-rule table deleted; equip/slot/combat-style read explicit data via `ItemDef` (`is_equippable()` is category-driven). |
 
 ## P2 — Maintainability / modding
 
@@ -94,8 +94,8 @@ there, and keep the disk round-trip test in `validate.gd` Phase 6b green.
 4. ~~Split `world.gd` into controllers~~ — done (Phase 6)
 5. Unified activity model (Phase 7)
 6. World-gen pass pipeline (Phase 8)
-7. `data/skills.json` + explicit item slots/tags (Phase 9)
+7. ~~`data/skills.json`~~ — done (Tier B: `SkillRegistry`). Explicit item slots — done (Tier C: `ItemDef`).
 8. Test split + STYLE_GUIDE (Phases 10–11)
-9. Migrate remaining HUD `world.call()` sites to EventBus
-10. Persist player world position in save (currently respawns at `spawn_position()` each launch)
+9. ~~Migrate HUD `world.call()` sites to EventBus~~ — done (HUD + minimap navigate)
+10. ~~Persist player world position~~ — already done: `game_state.gd` saves `player_pos`; `world.gd` restores it if walkable, else `spawn_position()`.
 11. ~~Delete legacy `scenes/main.tscn` / `main_ui.gd`~~ — done (Tier 0)

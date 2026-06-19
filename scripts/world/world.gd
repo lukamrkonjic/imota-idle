@@ -200,6 +200,7 @@ func _connect_events() -> void:
 	EventBus.gather_requested.connect(auto_gather)
 	EventBus.station_requested.connect(auto_station)
 	EventBus.teleport_requested.connect(teleport_to)
+	EventBus.navigate_requested.connect(func(p: Vector2) -> void: navigate_to(p))
 
 
 func _process(delta: float) -> void:
