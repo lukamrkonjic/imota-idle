@@ -994,7 +994,8 @@ func _tile_info_compute(gtx: int, gty: int) -> Dictionary:
 	var water := bool(tdef.get("water", false))
 	var elev: int = chunk.elev[ly * WG.CHUNK_TILES + lx]
 	var top: float = float(elev) * ELEV_H
-	var col: Color = SHORE if water else _grade_ground(tdef["colors"][0], tile_name, gtx, gty, elev)
+	var slope: int = _tile_slope_steps(gtx, gty, elev) if (not water and elev > 0) else 0
+	var col: Color = SHORE if water else _grade_ground(tdef["colors"][0], tile_name, gtx, gty, elev, slope)
 	return {
 		"top": top,
 		"water": water,
@@ -1076,6 +1077,29 @@ func _is_rock(tile: String) -> bool:
 
 func _is_snow(tile: String) -> bool:
 	return tile in SNOW_TILES
+
+
+## Raw baked elevation step at a global tile (0 if the chunk/apron isn't loaded). Cheap
+## array read — used for slope (no noise re-eval).
+func _elev_raw(gtx: int, gty: int) -> int:
+	var ck := WG.tile_to_chunk(Vector2i(gtx, gty))
+	var chunk: RefCounted = _chunk_by_key.get(WG.key(world.current_layer, ck.x, ck.y))
+	if chunk == null or chunk.elev.size() == 0:
+		return 0
+	var lx: int = gtx - ck.x * WG.CHUNK_TILES
+	var ly: int = gty - ck.y * WG.CHUNK_TILES
+	return chunk.elev[ly * WG.CHUNK_TILES + lx]
+
+
+## Local terrain steepness in elevation steps: the largest drop to a 4-neighbour. Flat
+## shelves read ~0-1; steep cliff risers read high. Drives slope-aware materials/snow.
+func _tile_slope_steps(gtx: int, gty: int, e: int) -> int:
+	var m := 0
+	m = maxi(m, absi(_elev_raw(gtx + 1, gty) - e))
+	m = maxi(m, absi(_elev_raw(gtx - 1, gty) - e))
+	m = maxi(m, absi(_elev_raw(gtx, gty + 1) - e))
+	m = maxi(m, absi(_elev_raw(gtx, gty - 1) - e))
+	return m
 
 
 # Build one seamless tiling noise texture for the water shader. `freq_mul` scales the
@@ -1181,7 +1205,7 @@ const ALP_ROCK := Color(0.60, 0.53, 0.47)        # warm taupe stone
 const ALP_ROCK_HI := Color(0.74, 0.73, 0.76)     # cool desaturated high rock
 const SNOW_LIT := Color(0.95, 0.96, 0.99)        # warm sunlit snow
 const SNOW_SHADE := Color(0.74, 0.80, 0.92)      # cool blue snow shadow
-func _grade_ground(col: Color, tile: String, gtx: int, gty: int, elev: int = 0) -> Color:
+func _grade_ground(col: Color, tile: String, gtx: int, gty: int, elev: int = 0, slope: int = 0) -> Color:
 	var c := col
 	var fx := float(gtx)
 	var fz := float(gty)
@@ -1191,14 +1215,22 @@ func _grade_ground(col: Color, tile: String, gtx: int, gty: int, elev: int = 0) 
 	var band2 := 0.5 + 0.5 * sin(fx * 0.13 + 1.2) * cos(fz * 0.115 - 0.7)
 	var warm := clampf(sin((fx + fz) * 0.045 + 1.3), 0.0, 1.0)
 	var hi := clampf(float(elev) / ALPINE_SUMMIT, 0.0, 1.0)   # 0 foot .. 1 summit
+	var steep := clampf(float(slope) / 5.0, 0.0, 1.0)         # 0 flat shelf .. 1 cliff face
 	if _is_snow(tile):
-		# Snow: bright warm white in the sun, cool blue in shade, cleaner higher up.
+		# Snow only holds on gentle, top-facing surfaces (caps, shelves, bowls). Steep faces
+		# shed it, so bare rock shows through instead of a snow "curtain" down a cliff.
+		if steep > 0.5:
+			return _alpine_ramp(elev, bright, band2).lerp(ALP_ROCK_HI, 0.55)
 		return SNOW_SHADE.lerp(SNOW_LIT, clampf(bright * 0.55 + hi * 0.45, 0.0, 1.0))
 	if _is_path(tile):
 		var path_col := PixelPalette.pal("path_orange").lerp(PixelPalette.pal("path_light"), bright * 0.42)
 		c = c.lerp(path_col, 0.94)
 	elif _is_rock(tile):
-		c = c.lerp(_alpine_ramp(elev, bright, band2), 0.92)
+		# Elevation ramp for the surface, then push steep faces toward bare exposed rock so
+		# cliffs read as rock outcrops while gentle shelves keep their grassy/earthy tone.
+		var rock := _alpine_ramp(elev, bright, band2)
+		rock = rock.lerp(ALP_ROCK.lerp(ALP_ROCK_HI, hi).darkened(0.10), steep * 0.7)
+		c = c.lerp(rock, 0.92)
 	elif tile in ["sand", "sand_dune"]:
 		c = c.lerp(PixelPalette.pal("warm_stone"), 0.5)
 	else:
