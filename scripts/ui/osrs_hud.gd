@@ -596,7 +596,7 @@ func _build_prayer_tab() -> Control:
 func _refresh_prayer_tab() -> void:
 	if _prayer_rows == null or not is_instance_valid(_prayer_rows):
 		return
-	_prayer_devotion_lbl.text = "Devotion: %d / %d" % [int(GameState.devotion_points()), GameState.devotion_max()]
+	_prayer_devotion_lbl.text = "Prayer: %d / %d" % [int(GameState.devotion_points()), GameState.devotion_max()]
 	for c: Node in _prayer_rows.get_children():
 		c.queue_free()
 	var defs: Dictionary = DataRegistry.prayers
@@ -1088,7 +1088,7 @@ func _process(_delta: float) -> void:
 	# Live Devotion readout: PrayerSim drains every frame but only emits prayer_changed on
 	# toggle/empty, so refresh the number here while the Prayer tab is open.
 	if _prayer_devotion_lbl != null and is_instance_valid(_prayer_devotion_lbl) and _prayer_devotion_lbl.is_visible_in_tree():
-		_prayer_devotion_lbl.text = "Devotion: %d / %d" % [int(GameState.devotion_points()), GameState.devotion_max()]
+		_prayer_devotion_lbl.text = "Prayer: %d / %d" % [int(GameState.devotion_points()), GameState.devotion_max()]
 	if fps_label == null:
 		return
 	if not GameSettings.show_fps:

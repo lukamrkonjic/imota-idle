@@ -79,6 +79,8 @@ func _complete_craft() -> void:
 		return
 	crafted += 1
 	EventBus.loot_gained.emit(out["item"], int(out["qty"]))
+	if str(recipe.get("skill", "")) == "firemaking":
+		EventBus.firemaking_log_burned.emit()   # world FX: feed a log into the fire
 	GameState.add_xp(recipe["skill"], float(recipe["xp"]))
 	# Stop as soon as the last possible craft finishes rather than waiting
 	# for the next timer to expire on missing ingredients.

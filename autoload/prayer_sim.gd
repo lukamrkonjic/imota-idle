@@ -7,3 +7,5 @@ extends Node
 func _process(delta: float) -> void:
 	if not GameState.active_prayers.is_empty():
 		GameState.drain_devotion(delta)
+	else:
+		GameState.regen_devotion(delta)   # refill toward max when no prayer is active

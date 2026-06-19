@@ -496,7 +496,7 @@ func toggle_prayer(prayer_name: String) -> bool:
 		EventBus.combat_log.emit("[color=#a01010]Prayer level %d required for %s.[/color]" % [int(def.get("levelReq", 1)), prayer_name])
 		return false
 	if devotion_points() <= 0.0:
-		EventBus.combat_log.emit("[color=#a01010]You have no Devotion left — recharge at an altar.[/color]")
+		EventBus.combat_log.emit("[color=#a01010]You have no prayer points left — recharge at an altar.[/color]")
 		return false
 	var group := str(def.get("group", ""))
 	if group != "":
@@ -519,8 +519,17 @@ func drain_devotion(delta: float) -> void:
 	devotion = maxf(devotion_points() - rate * delta, 0.0)
 	if devotion <= 0.0 and not active_prayers.is_empty():
 		active_prayers.clear()
-		EventBus.combat_log.emit("[color=#a01010]Your Devotion runs dry; your prayers fade.[/color]")
+		EventBus.combat_log.emit("[color=#a01010]Your prayer points run out; your prayers fade.[/color]")
 		EventBus.prayer_changed.emit()
+
+
+## Passive regen toward max while no prayer is active, so points reflect your Prayer level
+## instead of getting stuck at 0 after a drain. (Altars still snap to full instantly.)
+const DEVOTION_REGEN_PER_SEC := 2.0
+func regen_devotion(delta: float) -> void:
+	var mx := float(devotion_max())
+	if devotion_points() < mx:
+		devotion = minf(devotion + DEVOTION_REGEN_PER_SEC * delta, mx)
 
 
 func recharge_devotion() -> void:

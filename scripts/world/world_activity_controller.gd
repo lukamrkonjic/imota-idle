@@ -227,8 +227,8 @@ func execute_action(action: Dictionary) -> void:
 				world.hud.call("open_shop")
 			elif not open.is_empty():
 				if open == "prayer":
-					GameState.recharge_devotion()   # altars restore Devotion to full
-					EventBus.combat_log.emit("[color=#6a8ac0]You feel your Devotion restored at the altar.[/color]")
+					GameState.recharge_devotion()   # altars restore prayer points to full
+					EventBus.combat_log.emit("[color=#6a8ac0]Your prayer points are restored at the altar.[/color]")
 				if action.has("recipe"):
 					RecipeSim.start_craft(str(action.get("skill", open)), str(action["recipe"]))
 				else:
