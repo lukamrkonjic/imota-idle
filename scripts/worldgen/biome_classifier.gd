@@ -28,6 +28,8 @@ var _surface_detail: FastNoiseLite
 var _region: FastNoiseLite       # blends geographic biome-region boundaries
 var _mtn_range: FastNoiseLite    # where mountain RANGES sit (large blobs)
 var _mtn_ridge: FastNoiseLite    # the ridgelines within a range (ridged)
+var _mtn_peak: FastNoiseLite     # primary ridged crests -> big peaks & valleys
+var _mtn_spur: FastNoiseLite     # secondary ridged spurs off the main crests
 var _continent: FastNoiseLite    # big landmass blobs (low freq) — peninsulas/gulfs
 var _coast_detail: FastNoiseLite # ridged coast fingers (fjords, capes, coves)
 var _island: FastNoiseLite       # offshore archipelago field (scattered islands)
@@ -78,6 +80,8 @@ func setup(p_reg: RefCounted, p_seed: int) -> void:
 	_region = _noise(p_seed + 1407, 0.0030, 2)
 	_mtn_range = _noise(p_seed + 1511, 0.0050, 2)
 	_mtn_ridge = _noise(p_seed + 1607, 0.0190, 3)
+	_mtn_peak = _noise(p_seed + 1521, 0.0060, 1)   # ~165-tile crests -> dominant peaks/valleys
+	_mtn_spur = _noise(p_seed + 1531, 0.0130, 1)   # ~75-tile spurs off the main ridgelines
 	_continent = _noise(p_seed + 1700, 0.0013, 4)
 	_coast_detail = _noise(p_seed + 1701, 0.0045, 3)
 	_island = _noise(p_seed + 1702, 0.0060, 2)
@@ -296,15 +300,23 @@ func mountain_field(tx: float, ty: float) -> float:
 	var gate: float = clampf(maxf(north_belt, spine), 0.0, 1.0)
 	if gate <= 0.01:
 		return 0.0
-	var ridged := 1.0 - absf(_mtn_ridge.get_noise_2d(tx, ty))          # ~0..1, peaks ~1
-	var ridge := smoothstep(0.42, 0.92, ridged)
-	var shoulder := smoothstep(0.46, 0.80, range_mask)
-	var macro := _height_macro.get_noise_2d(tx * 0.7, ty * 0.7) * 0.5 + 0.5
-	# Broad low-frequency masses (shoulder/macro) carry the landform; a moderate ridge
-	# term adds dramatic ridgelines and sharper crests without tipping into noise.
-	var mass := gate * (0.26 + shoulder * 0.46 + ridge * 0.20 + macro * 0.08)
+	# Ridged multifractal: 1-|noise| peaks at ~1 along crests and falls toward 0 in the
+	# troughs between, so the massif breaks into RIDGELINES and recessed VALLEYS instead of
+	# one smooth dome. Squaring sharpens the crests into readable peaks; the spur term adds
+	# secondary ridges branching off the mains.
+	var r1 := 1.0 - absf(_mtn_peak.get_noise_2d(tx, ty))
+	var r2 := 1.0 - absf(_mtn_spur.get_noise_2d(tx, ty))
+	var ridged := (r1 * r1) * 0.78 + (r2 * r2) * 0.22                 # 0 valley .. 1 crest
+	# A broad DOME (range_mask, raised to a power to concentrate height) gives each range one
+	# dominant summit and gentle foothills; the ridged crests are carved INTO that dome so the
+	# flanks break into ridgelines and recessed valleys instead of a uniform ridge net or a
+	# smooth wall. Summit = dome high AND on a crest; valleys = troughs on the dome flanks.
+	var dome := pow(smoothstep(0.34, 0.92, range_mask), 1.25)
+	var carved := dome * (0.45 + 0.55 * ridged)
+	const FOOT_BASE := 0.15
+	var mass := gate * (FOOT_BASE + (1.0 - FOOT_BASE) * carved)
 	mass *= 1.0 - smoothstep(0.18, 0.76, shore)
-	return clampf(mass, 0.0, 1.20)
+	return clampf(mass, 0.0, 1.30)
 
 
 ## Discrete terrain elevation in steps (0 = flat lowland). The mountains ARE this
