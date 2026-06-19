@@ -28,6 +28,16 @@ func auto_gather(skill: String, node_name: String) -> void:
 
 
 func auto_station(skill: String, recipe_name: String = "") -> void:
+	# Firemaking needs no station — you light logs where you stand (OSRS-style). Start the
+	# burn immediately (or open the log list) instead of walking to a station.
+	if skill == "firemaking":
+		world._activity_ctrl.stop_all_sims()
+		world._activity_ctrl.clear_combat_target()
+		if not recipe_name.is_empty():
+			RecipeSim.start_craft("firemaking", recipe_name)
+		else:
+			world.hud.call("open_recipes", "firemaking")
+		return
 	var wanted: Array = WorldGen.reg.stations.get(skill, [])
 	var best: Dictionary = {}
 	var best_d := INF

@@ -535,6 +535,19 @@ func phase3_recipes() -> void:
 	check(not RecipeSim.active, "crafting auto-stopped when out of inputs")
 	check(absf(GameState.xp("cooking") - xp_before - 3.0 * float(recipe["xp"])) < 0.01, "cooking XP from recipe data")
 
+	# Firemaking (M6): burn logs -> Ashes + Firemaking XP, via RecipeSim (no station).
+	var fm := DataRegistry.get_recipe("firemaking", "Burn Logs")
+	check(not fm.is_empty(), "firemaking recipe exists (Burn Logs)")
+	if not fm.is_empty():
+		GameState.add_item("Logs", 4)
+		var fm_ash := GameState.count_item("Ashes")
+		var fm_xp := GameState.xp("firemaking")
+		check(RecipeSim.start_craft("firemaking", "Burn Logs"), "firemaking started (no station)")
+		for i: int in int(float(fm["time"]) * 10.0 * 4.5):
+			RecipeSim.advance(0.1)
+		check(GameState.count_item("Ashes") - fm_ash >= 3, "logs burned to Ashes (got %d)" % (GameState.count_item("Ashes") - fm_ash))
+		check(GameState.xp("firemaking") > fm_xp, "firemaking XP gained")
+
 
 func phase4_food_shop_offline() -> void:
 	print("== Phase 4: food / shop / no-offline / coins migration ==")

@@ -75,7 +75,8 @@ Sequenced after the economy gives them things to touch:
 - **Firemaking** — burn logs → light/ash, light-gated nodes.
 - **Hunter** — trap loop → hides/feathers.
 - **Thieving** — steal from humanoid POIs → coins/cloth/keys.
-- **Agility** — shortcuts + run-energy/efficiency.
+- **Agility** — shortcuts + run-energy/efficiency. **DEFERRED** (chilling on this one for now;
+  re-pick up after the other five skill systems land).
 
 ### M7 — Bosses & chase content
 ~16–20 original bosses: entry gate, one mechanical trait, economy-linked uniques (cores finished by
