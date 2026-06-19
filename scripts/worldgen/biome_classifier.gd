@@ -298,9 +298,12 @@ func mountain_field(tx: float, ty: float) -> float:
 		return 0.0
 	var ridged := 1.0 - absf(_mtn_ridge.get_noise_2d(tx, ty))          # ~0..1, peaks ~1
 	var ridge := smoothstep(0.42, 0.92, ridged)
-	var shoulder := smoothstep(0.50, 0.76, range_mask)
+	var shoulder := smoothstep(0.46, 0.80, range_mask)
 	var macro := _height_macro.get_noise_2d(tx * 0.7, ty * 0.7) * 0.5 + 0.5
-	var mass := gate * (0.22 + shoulder * 0.34 + ridge * 0.48 + macro * 0.16)
+	# Favour the broad low-frequency masses (shoulder/macro) and keep only a light
+	# touch of the fine ridge, so the massif reads as a few big landforms rather than
+	# high-frequency noise that terraces into checkerboard.
+	var mass := gate * (0.30 + shoulder * 0.50 + ridge * 0.12 + macro * 0.08)
 	mass *= 1.0 - smoothstep(0.18, 0.76, shore)
 	return clampf(mass, 0.0, 1.20)
 
@@ -314,52 +317,51 @@ func mountain_field(tx: float, ty: float) -> float:
 ## Smoothed heightfield used by elevation_steps(). Neighbour samples give the
 ## ridge physical shoulders on all sides, not just a thin visible crest.
 func mountain_height_field(tx: float, ty: float) -> float:
-	var total := mountain_field(tx, ty) * 4.0
-	var weight := 4.0
-	for off: Vector2 in [Vector2(2, 0), Vector2(-2, 0), Vector2(0, 2), Vector2(0, -2)]:
-		total += mountain_field(tx + off.x, ty + off.y) * 1.4
-		weight += 1.4
-	for off: Vector2 in [Vector2(4, 0), Vector2(-4, 0), Vector2(0, 4), Vector2(0, -4),
-			Vector2(3, 3), Vector2(-3, 3), Vector2(3, -3), Vector2(-3, -3)]:
-		total += mountain_field(tx + off.x, ty + off.y) * 0.55
-		weight += 0.55
+	# Broad low-pass of the raw mountain mass: a wide weighted kernel turns the field into
+	# smooth, gradual slopes so the shelf terracing resolves into wide readable contours
+	# instead of tile-scale noise. Rings at ~3/7/12 tiles approximate a Gaussian blur.
+	var total := mountain_field(tx, ty) * 3.0
+	var weight := 3.0
+	for off: Vector2 in [Vector2(3, 0), Vector2(-3, 0), Vector2(0, 3), Vector2(0, -3)]:
+		total += mountain_field(tx + off.x, ty + off.y) * 1.6
+		weight += 1.6
+	for off: Vector2 in [Vector2(7, 0), Vector2(-7, 0), Vector2(0, 7), Vector2(0, -7),
+			Vector2(5, 5), Vector2(-5, 5), Vector2(5, -5), Vector2(-5, -5)]:
+		total += mountain_field(tx + off.x, ty + off.y) * 0.9
+		weight += 0.9
+	for off: Vector2 in [Vector2(12, 0), Vector2(-12, 0), Vector2(0, 12), Vector2(0, -12)]:
+		total += mountain_field(tx + off.x, ty + off.y) * 0.5
+		weight += 0.5
 	return clampf(total / weight, 0.0, 1.20)
 
 
-const ELEV_MAX_STEPS := 42
+const ELEV_MAX_STEPS := 26       # summit height in steps — alpine and tall, but readable
 const ELEV_FOOT_THRESHOLD := 0.18
-const ELEV_PEAK_THRESHOLD := 0.92
-const ELEV_BAND := 1
-const CLIFF_PLATEAU_BAND := 4   # above the walkable line, snap impassable rock elevation to
-                                # plateaus this many steps apart so the high mountains terrace
-                                # into bold, obvious cliffs (each band boundary is a >2-step
-                                # drop the renderer walls off and the pathfinder routes around).
+const ELEV_PEAK_THRESHOLD := 0.95
+const ELEV_SHELF_BANDS := 5      # stacked alpine shelves from foot to summit
+const ELEV_SHELF_RISER := 0.30   # fraction of each band spent on the steep cliff riser; the
+                                 # remaining ~70% is a flat, walkable grassy shelf
 func elevation_steps(tx: float, ty: float) -> int:
 	if not _finite:
 		return 0
 	var mh := mountain_height_field(tx, ty)
 	if mh < ELEV_FOOT_THRESHOLD:
 		return 0
-	# Steep exponent so foothills stay low but the cold alpine ridges (high mf)
-	# climb to a towering height; quantise into bands for big readable terraces.
+	# Smooth normalised height up the massif (0 at the foot, 1 at the summit).
 	var shaped := smoothstep(ELEV_FOOT_THRESHOLD, ELEV_PEAK_THRESHOLD, mh)
-	var raw := pow(shaped, 1.18) * float(ELEV_MAX_STEPS)
-	# Slope down toward the sea using the SMOOTH coastline. (The old version keyed
-	# off the fine height noise, which fluctuates everywhere and randomly flattened
-	# inland mountains to elevation 0 — letting the player walk straight up peaks.)
-	# Inland: full height. Approaching the shore: tapers to 0.
-	raw *= 1.0 - smoothstep(0.10, 0.70, coast_sink(tx, ty))
-	var steps := int(round(raw / float(ELEV_BAND))) * ELEV_BAND
-	steps = clampi(steps, 0, ELEV_MAX_STEPS)
-	# Above the walkable line the impassable rock is terraced into bold plateaus so the high
-	# mountains read as stacked CLIFFS (the renderer draws each band boundary as a vertical
-	# face) instead of one smooth massif. Foothills (<= MAX_REACHABLE_ELEV) stay finely graded
-	# and fully walkable, so this reshapes only terrain the player already cannot climb.
-	var reach: int = WG.MAX_REACHABLE_ELEV
-	if steps > reach:
-		var over := int(round(float(steps - reach) / float(CLIFF_PLATEAU_BAND))) * CLIFF_PLATEAU_BAND
-		steps = reach + maxi(over, CLIFF_PLATEAU_BAND)
-	return clampi(steps, 0, ELEV_MAX_STEPS)
+	# Slope down toward the sea using the SMOOTH coastline so coastal mountains taper
+	# to the beach instead of dropping a wall into the surf.
+	shaped *= 1.0 - smoothstep(0.10, 0.70, coast_sink(tx, ty))
+	# Alpine SHELF terracing: split the smooth height into a few bands; each band is a flat
+	# walkable shelf capped by a steep cliff riser (the lower ELEV_SHELF_RISER of the band
+	# compresses the climb, the rest is level). Because the height field is broad and smooth,
+	# the shelves come out wide and the risers fall on coherent contour lines — bold layered
+	# terraces (A Short Hike-style), not per-tile checkerboard.
+	var s := clampf(shaped, 0.0, 1.0) * float(ELEV_SHELF_BANDS)
+	var band := floorf(s)
+	var frac := s - band
+	var terraced := (band + smoothstep(0.0, ELEV_SHELF_RISER, frac)) / float(ELEV_SHELF_BANDS)
+	return clampi(int(round(terraced * float(ELEV_MAX_STEPS))), 0, ELEV_MAX_STEPS)
 
 
 ## Mountain elevation at a tile: 0 none, 1 foothill (walkable rock), 2 rock peak
