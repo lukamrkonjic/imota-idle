@@ -42,39 +42,58 @@ func _ready() -> void:
 	get_tree().quit(0)
 
 
+# Alpine elevation colour ramp (mirrors world_render_3d._alpine_ramp) for a top-down
+# preview that approximates the smooth 3D look.
+const MEADOW := Color(0.42, 0.55, 0.31)
+const OLIVE := Color(0.53, 0.55, 0.33)
+const DIRT := Color(0.60, 0.47, 0.30)
+const ROCK := Color(0.60, 0.53, 0.47)
+const ROCK_HI := Color(0.74, 0.73, 0.76)
+const SNOW := Color(0.93, 0.95, 0.99)
+
+
+func _ramp(e: float) -> Color:
+	if e < 6.0:
+		return MEADOW
+	elif e < 12.0:
+		return MEADOW.lerp(OLIVE, smoothstep(6.0, 12.0, e))
+	elif e < 19.0:
+		return OLIVE.lerp(DIRT, smoothstep(12.0, 19.0, e))
+	elif e < 28.0:
+		return DIRT.lerp(ROCK, smoothstep(19.0, 28.0, e))
+	return ROCK.lerp(ROCK_HI, smoothstep(28.0, 42.0, e))
+
+
 func _render(clf: RefCounted, name: String, center: Vector2i, out_dir: String) -> void:
 	var n := REGION
 	var ox := center.x - n / 2
 	var oy := center.y - n / 2
-	var elev := PackedInt32Array()
+	var elev := PackedFloat32Array()
 	elev.resize(n * n)
-	var emax := 1
+	var snow := PackedFloat32Array()
+	snow.resize(n * n)
 	for j: int in n:
 		for i: int in n:
 			var e: int = clf.elevation_steps(float(ox + i), float(oy + j))
-			elev[j * n + i] = e
-			emax = maxi(emax, e)
+			elev[j * n + i] = float(e)
+			snow[j * n + i] = clf.snow01(float(ox + i), float(oy + j), e)
+	# Hillshade: light from the NW, exaggerated so steep slopes read as relief.
+	var light := Vector3(-0.5, 1.4, -0.5).normalized()
 	var img := Image.create_empty(n, n, false, Image.FORMAT_RGB8)
-	var low := Color(0.30, 0.55, 0.32)    # foothill green
-	var high := Color(0.86, 0.82, 0.74)   # bare rock
 	for j: int in n:
 		for i: int in n:
-			var e: int = elev[j * n + i]
-			var col: Color
-			if e <= 0:
-				col = Color(0.20, 0.40, 0.46)   # lowland / sea-ish
-			else:
-				col = low.lerp(high, clampf(float(e) / float(emax), 0.0, 1.0))
-				# Contour banding: darken every 4th step boundary for a topographic read.
-				if e % 4 == 0:
-					col = col.darkened(0.12)
-			# Cliff edge (unwalkable step) to the right/below neighbour -> red.
-			var cliff := false
-			if i + 1 < n and absi(elev[j * n + i + 1] - e) > WG.MAX_CLIMB_STEP:
-				cliff = true
-			if j + 1 < n and absi(elev[(j + 1) * n + i] - e) > WG.MAX_CLIMB_STEP:
-				cliff = true
-			if cliff:
-				col = Color(0.85, 0.12, 0.10)
-			img.set_pixel(i, j, col)
+			var e: float = elev[j * n + i]
+			if e <= 0.0:
+				img.set_pixel(i, j, Color(0.20, 0.40, 0.46))   # lowland / sea
+				continue
+			var col := _ramp(e) if snow[j * n + i] < 0.5 else SNOW
+			# Slope shading from elevation gradient (in step units, ~ELEV_H world height).
+			var el: float = elev[j * n + maxi(i - 1, 0)]
+			var er: float = elev[j * n + mini(i + 1, n - 1)]
+			var eu: float = elev[maxi(j - 1, 0) * n + i]
+			var ed: float = elev[mini(j + 1, n - 1) * n + i]
+			var nrm := Vector3(-(er - el) * 0.25, 2.0, -(ed - eu) * 0.25).normalized()
+			var sh := clampf(nrm.dot(light), 0.0, 1.0)
+			sh = 0.55 + 0.55 * sh
+			img.set_pixel(i, j, Color(col.r * sh, col.g * sh, col.b * sh).clamp())
 	img.save_png(out_dir.path_join(name + ".png"))

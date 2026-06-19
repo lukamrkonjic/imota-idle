@@ -21,12 +21,6 @@ const INTERNAL := Vector2i(640, 360)   # internal render res (higher = finer/les
 const TILE_S := 1.0                 # 3D units per tile
 const ELEV_H := WG.ELEV_H           # height per elevation step (8px / 32px tile); single
                                     # source in wg.gd. Render alias kept for call-site brevity.
-const CLIFF_DROP_STEPS := 3         # gameplay-elevation steps between adjacent plateaus at or
-                                    # above which the boundary renders as a vertical CLIFF face
-                                    # instead of a smoothed ramp. One above WG.MAX_CLIMB_STEP, so
-                                    # every cliff is also unwalkable (pathfinder won't link it).
-const CLIFF_GAP := (float(CLIFF_DROP_STEPS) - 0.5) * ELEV_H  # gameplay-height gap that splits a
-                                    # corner into separate plateaus (2.5 steps -> splits >=3).
 # Turn spring: a body accelerates into a turn and damps out of it (slightly
 # underdamped for a snappy-but-physical settle), so facing changes are never instant.
 const TURN_STIFFNESS := 62.0
@@ -750,16 +744,15 @@ func _build_chunk_terrain(chunk: RefCounted) -> Node3D:
 			# Plateau the tile sits on: gameplay floor (terraced, noise-free). Each corner is
 			# emitted on THIS plateau so cliffs stay vertical (see _corner_height_for).
 			var ref_top := float(info["top"]) if not info.is_empty() else 0.0
-			# Four corners (shared within a plateau -> smooth; split across a cliff).
+			# Four shared corners (continuous across cells -> one smooth surface). Steep
+			# terrace risers come through as steep smooth slopes (no axis-aligned vertical
+			# faces, which would staircase into sawtooth teeth along diagonal contours).
 			_emit_corner(st, gtx, gty, ref_top, wfc)
 			_emit_corner(st, gtx + 1, gty, ref_top, wfc)
 			_emit_corner(st, gtx + 1, gty + 1, ref_top, wfc)
 			_emit_corner(st, gtx, gty, ref_top, wfc)
 			_emit_corner(st, gtx + 1, gty + 1, ref_top, wfc)
 			_emit_corner(st, gtx, gty + 1, ref_top, wfc)
-			# Vertical cliff faces down to any sharply-lower orthogonal neighbour.
-			if not info.is_empty() and not bool(info["water"]):
-				_emit_tile_cliffs(st, gtx, gty, ref_top, info)
 			if not info.is_empty() and bool(info["water"]):
 				has_water = true
 				var wy: float = _water_surface_height(info)
@@ -916,125 +909,24 @@ func _corner_height(ci: int, cj: int, hc: Dictionary) -> float:
 	return h
 
 
-## Corner height CLUSTERS — the up-to-4 tiles touching a grid corner, grouped by their
-## GAMEPLAY floor (info.top, terraced and noise-free) into plateaus separated by gaps of
-## >= CLIFF_GAP. Each cluster carries the gameplay band it spans [lo, hi] plus the average
-## VISUAL floor height ("h") to emit for it. A corner whose tiles are all within one step
-## yields a single cluster -> identical to the old plain average (gentle terrain unchanged).
-## A corner straddling a cliff yields 2+ clusters, so the high plateau and the low ground
-## each keep their own flat height and a vertical face spans the gap (see _emit_tile_cliffs)
-## instead of the corner-average smearing the drop into a walkable-looking ramp.
-func _corner_clusters(ci: int, cj: int) -> Array:
+## Smooth visual corner height: average of the up-to-4 tiles touching the grid corner.
+## ref_top is unused now (kept in the signature so terrace/mover/prop callers share one
+## entry point). Continuous across cells, so terrace risers render as steep smooth slopes
+## rather than vertical faces that would staircase into sawtooth along diagonal contours.
+func _corner_height_for(ci: int, cj: int, _ref_top: float) -> float:
 	var ck := Vector2i(ci, cj)
 	if _ccl_cache.has(ck):
 		return _ccl_cache[ck]
-	var samples := []   # [top, vfh] per touching tile
+	var sum := 0.0
+	var cnt := 0
 	for off: Vector2i in [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(0, 0)]:
 		var info := _tile_info(ci + off.x, cj + off.y)
 		if not info.is_empty():
-			samples.append([float(info["top"]), _visual_floor_height(ci + off.x, cj + off.y, info)])
-	samples.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
-	var clusters := []
-	if not samples.is_empty():
-		var lo: float = samples[0][0]
-		var hi: float = samples[0][0]
-		var vsum: float = samples[0][1]
-		var vn := 1
-		for i in range(1, samples.size()):
-			if samples[i][0] - hi > CLIFF_GAP:
-				clusters.append({"lo": lo, "hi": hi, "h": vsum / float(vn)})
-				lo = samples[i][0]
-				vsum = 0.0
-				vn = 0
-			hi = samples[i][0]
-			vsum += samples[i][1]
-			vn += 1
-		clusters.append({"lo": lo, "hi": hi, "h": vsum / float(vn)})
-	_ccl_cache[ck] = clusters
-	return clusters
-
-
-## Visual corner height for the plateau that gameplay floor `ref_top` sits on. Gentle
-## terrain (one cluster) just returns the average; at a cliff it returns the cluster
-## matching the caller's own plateau so adjacent same-plateau tiles agree exactly (no
-## cracks) while across-cliff tiles diverge (the vertical face).
-func _corner_height_for(ci: int, cj: int, ref_top: float) -> float:
-	var clusters := _corner_clusters(ci, cj)
-	if clusters.is_empty():
-		return 0.0
-	if clusters.size() == 1:
-		return clusters[0]["h"]
-	var best: Dictionary = clusters[0]
-	var best_d := INF
-	for cl: Dictionary in clusters:
-		var d: float = 0.0
-		if ref_top < cl["lo"]:
-			d = cl["lo"] - ref_top
-		elif ref_top > cl["hi"]:
-			d = ref_top - cl["hi"]
-		if d < best_d:
-			best_d = d
-			best = cl
-	return best["h"]
-
-
-## Emit vertical cliff faces from this (high) tile down to any orthogonal neighbour whose
-## gameplay floor is >= CLIFF_DROP_STEPS lower. The face's top corners sit on this tile's
-## plateau and its bottom corners on the neighbour's, so it closes the vertical gap that the
-## split corners (_corner_height_for) otherwise leave open — turning the drop into an obvious
-## wall. Emitted once, from the high side. Drops to water are coastline, left to the shore band.
-func _emit_tile_cliffs(st: SurfaceTool, gtx: int, gty: int, ref_top: float, info: Dictionary) -> void:
-	# Edge = [neighbour dx, dy, corner0 (di,dj), corner1 (di,dj), outward normal]. Corners are
-	# in the tile's CW order so the face winds outward.
-	var edges := [
-		[0, -1, Vector2i(0, 0), Vector2i(1, 0), Vector3(0, 0, -1)],   # north
-		[1, 0, Vector2i(1, 0), Vector2i(1, 1), Vector3(1, 0, 0)],     # east
-		[0, 1, Vector2i(1, 1), Vector2i(0, 1), Vector3(0, 0, 1)],     # south
-		[-1, 0, Vector2i(0, 1), Vector2i(0, 0), Vector3(-1, 0, 0)],   # west
-	]
-	var elev_top: int = int(round(ref_top / ELEV_H))
-	for e: Array in edges:
-		var nb := _tile_info(gtx + int(e[0]), gty + int(e[1]))
-		if nb.is_empty():
-			continue   # unloaded neighbour (map/apron edge) — nothing to wall against
-		var nb_top: float = float(nb["top"])
-		if ref_top - nb_top < CLIFF_GAP:
-			continue   # gentle step or flush — the smooth ground mesh already covers it
-		var c0: Vector2i = Vector2i(gtx, gty) + e[2]
-		var c1: Vector2i = Vector2i(gtx, gty) + e[3]
-		var normal: Vector3 = e[4]
-		var face_col := _cliff_color(elev_top, normal, info["col"])
-		var t0 := Vector3(float(c0.x) * TILE_S, _corner_height_for(c0.x, c0.y, ref_top), float(c0.y) * TILE_S)
-		var t1 := Vector3(float(c1.x) * TILE_S, _corner_height_for(c1.x, c1.y, ref_top), float(c1.y) * TILE_S)
-		var b1 := Vector3(float(c1.x) * TILE_S, _corner_height_for(c1.x, c1.y, nb_top), float(c1.y) * TILE_S)
-		var b0 := Vector3(float(c0.x) * TILE_S, _corner_height_for(c0.x, c0.y, nb_top), float(c0.y) * TILE_S)
-		_cliff_face(st, t0, t1, b1, b0, normal, face_col)
-
-
-## Layered rock colour for a cliff face: warm low stone -> cool high rock by the top
-## tile's elevation, with a sun lean (south/east faces lit, north/west shaded) so the
-## escarpments catch light and read as solid carved rock rather than a flat band.
-func _cliff_color(elev_top: int, normal: Vector3, base: Color) -> Color:
-	var hi := clampf(float(elev_top) / ALPINE_SUMMIT, 0.0, 1.0)
-	var rock := ROCK_LOW.lerp(ROCK_HIGH, hi).lerp(base, 0.22)
-	var lit := clampf((normal.x + normal.z) * 0.5 + 0.5, 0.0, 1.0)   # 0 NW shade .. 1 SE sun
-	return rock.darkened((1.0 - lit) * 0.30)
-
-
-## A vertical cliff quad: top edge t0->t1, bottom edge b0<-b1 (b1 under t1, b0 under t0).
-## Emitted DOUBLE-SIDED so an orbiting camera can never see through the wall — the
-## terrace sides stay solid from every angle (no culled/missing-face holes).
-func _cliff_face(st: SurfaceTool, t0: Vector3, t1: Vector3, b1: Vector3, b0: Vector3, normal: Vector3, col: Color) -> void:
-	for v: Vector3 in [t0, t1, b1, t0, b1, b0]:
-		st.set_color(col)
-		st.set_normal(normal)
-		st.set_uv(Vector2.ZERO)
-		st.add_vertex(v)
-	for v: Vector3 in [t0, b1, t1, t0, b0, b1]:
-		st.set_color(col)
-		st.set_normal(-normal)
-		st.set_uv(Vector2.ZERO)
-		st.add_vertex(v)
+			sum += _visual_floor_height(ci + off.x, cj + off.y, info)
+			cnt += 1
+	var h: float = sum / float(cnt) if cnt > 0 else 0.0
+	_ccl_cache[ck] = h
+	return h
 
 
 func _corner_color(ci: int, cj: int) -> Color:
@@ -1278,12 +1170,17 @@ func _coast_corner_height(ci: int, cj: int, hc: Dictionary) -> float:
 ## Warm + enrich a terrain tile color and add BROAD low-frequency variation
 ## (large painted regions, not noise) so the ground reads painterly, not as flat
 ## monotone diamonds. Original warm grading — our palette, A Short Hike vibe.
-# Alpine colour layering: warm low rock -> cooler, lighter rock at altitude -> snow.
+# Alpine colour layering by elevation (A Short Hike-style): grassy lower slopes climb
+# through dry olive and ochre dirt into warm rock, cool high rock, and snow. The mountain
+# is one continuous ramp so it never reads as a flat single-tone mass.
 const ALPINE_SUMMIT := 44.0                      # ELEV_MAX_STEPS — height normaliser
-const ROCK_LOW := Color(0.62, 0.55, 0.50)        # warm taupe foothill stone
-const ROCK_HIGH := Color(0.72, 0.71, 0.74)       # cool desaturated high rock
+const ALP_MEADOW := Color(0.42, 0.55, 0.31)      # grassy foothill green
+const ALP_OLIVE := Color(0.53, 0.55, 0.33)       # dry mid-slope olive
+const ALP_DIRT := Color(0.60, 0.47, 0.30)        # ochre worn earth / scree
+const ALP_ROCK := Color(0.60, 0.53, 0.47)        # warm taupe stone
+const ALP_ROCK_HI := Color(0.74, 0.73, 0.76)     # cool desaturated high rock
 const SNOW_LIT := Color(0.95, 0.96, 0.99)        # warm sunlit snow
-const SNOW_SHADE := Color(0.78, 0.83, 0.93)      # cool blue snow shadow
+const SNOW_SHADE := Color(0.74, 0.80, 0.92)      # cool blue snow shadow
 func _grade_ground(col: Color, tile: String, gtx: int, gty: int, elev: int = 0) -> Color:
 	var c := col
 	var fx := float(gtx)
@@ -1296,15 +1193,12 @@ func _grade_ground(col: Color, tile: String, gtx: int, gty: int, elev: int = 0) 
 	var hi := clampf(float(elev) / ALPINE_SUMMIT, 0.0, 1.0)   # 0 foot .. 1 summit
 	if _is_snow(tile):
 		# Snow: bright warm white in the sun, cool blue in shade, cleaner higher up.
-		return SNOW_SHADE.lerp(SNOW_LIT, clampf(bright * 0.6 + hi * 0.4, 0.0, 1.0))
+		return SNOW_SHADE.lerp(SNOW_LIT, clampf(bright * 0.55 + hi * 0.45, 0.0, 1.0))
 	if _is_path(tile):
 		var path_col := PixelPalette.pal("path_orange").lerp(PixelPalette.pal("path_light"), bright * 0.42)
 		c = c.lerp(path_col, 0.94)
 	elif _is_rock(tile):
-		# Warm cliff stone low down, drifting cooler and lighter toward the peaks.
-		var rock := PixelPalette.pal("cliff_warm").lerp(PixelPalette.pal("cliff_light"), bright * 0.34)
-		rock = rock.lerp(ROCK_LOW, 0.35).lerp(ROCK_HIGH, hi * 0.7)
-		c = c.lerp(rock, 0.85)
+		c = c.lerp(_alpine_ramp(elev, bright, band2), 0.92)
 	elif tile in ["sand", "sand_dune"]:
 		c = c.lerp(PixelPalette.pal("warm_stone"), 0.5)
 	else:
@@ -1317,6 +1211,29 @@ func _grade_ground(col: Color, tile: String, gtx: int, gty: int, elev: int = 0) 
 		grass = grass.lerp(PixelPalette.pal("moss_hi"), warm * 0.18)
 		c = c.lerp(grass, 0.82)
 	return c
+
+
+## Continuous alpine slope colour by elevation (steps): grassy foot -> dry olive -> ochre
+## dirt/scree -> warm rock -> cool high rock. A faint elevation striation and the broad
+## sun/shade bands add stylized rock detail so faces never read as flat colour fields.
+func _alpine_ramp(elev: int, bright: float, band2: float) -> Color:
+	var e := float(elev)
+	var col: Color
+	if e < 6.0:
+		col = ALP_MEADOW
+	elif e < 12.0:
+		col = ALP_MEADOW.lerp(ALP_OLIVE, smoothstep(6.0, 12.0, e))
+	elif e < 19.0:
+		col = ALP_OLIVE.lerp(ALP_DIRT, smoothstep(12.0, 19.0, e))
+	elif e < 28.0:
+		col = ALP_DIRT.lerp(ALP_ROCK, smoothstep(19.0, 28.0, e))
+	else:
+		col = ALP_ROCK.lerp(ALP_ROCK_HI, smoothstep(28.0, 42.0, e))
+	# Horizontal rock striation (cliff-band bands) + sun/shade relief.
+	var stria := 0.5 + 0.5 * sin(e * 1.15)
+	col = col.darkened(stria * 0.06)
+	col = col.lightened(bright * 0.12).darkened((1.0 - band2) * 0.08)
+	return col
 
 
 ## A vertical riser quad from the top edge (p0->p1 at height top_y) down to bot_y.

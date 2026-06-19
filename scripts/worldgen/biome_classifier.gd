@@ -300,10 +300,9 @@ func mountain_field(tx: float, ty: float) -> float:
 	var ridge := smoothstep(0.42, 0.92, ridged)
 	var shoulder := smoothstep(0.46, 0.80, range_mask)
 	var macro := _height_macro.get_noise_2d(tx * 0.7, ty * 0.7) * 0.5 + 0.5
-	# Favour the broad low-frequency masses (shoulder/macro) and keep only a light
-	# touch of the fine ridge, so the massif reads as a few big landforms rather than
-	# high-frequency noise that terraces into checkerboard.
-	var mass := gate * (0.30 + shoulder * 0.50 + ridge * 0.12 + macro * 0.08)
+	# Broad low-frequency masses (shoulder/macro) carry the landform; a moderate ridge
+	# term adds dramatic ridgelines and sharper crests without tipping into noise.
+	var mass := gate * (0.26 + shoulder * 0.46 + ridge * 0.20 + macro * 0.08)
 	mass *= 1.0 - smoothstep(0.18, 0.76, shore)
 	return clampf(mass, 0.0, 1.20)
 
@@ -317,19 +316,18 @@ func mountain_field(tx: float, ty: float) -> float:
 ## Smoothed heightfield used by elevation_steps(). Neighbour samples give the
 ## ridge physical shoulders on all sides, not just a thin visible crest.
 func mountain_height_field(tx: float, ty: float) -> float:
-	# Broad low-pass of the raw mountain mass: a wide weighted kernel turns the field into
-	# smooth, gradual slopes so the shelf terracing resolves into wide readable contours
-	# instead of tile-scale noise. Rings at ~3/7/12 tiles approximate a Gaussian blur.
-	var total := mountain_field(tx, ty) * 3.0
-	var weight := 3.0
-	for off: Vector2 in [Vector2(3, 0), Vector2(-3, 0), Vector2(0, 3), Vector2(0, -3)]:
-		total += mountain_field(tx + off.x, ty + off.y) * 1.6
-		weight += 1.6
-	for off: Vector2 in [Vector2(7, 0), Vector2(-7, 0), Vector2(0, 7), Vector2(0, -7),
-			Vector2(5, 5), Vector2(-5, 5), Vector2(5, -5), Vector2(-5, -5)]:
-		total += mountain_field(tx + off.x, ty + off.y) * 0.9
-		weight += 0.9
-	for off: Vector2 in [Vector2(12, 0), Vector2(-12, 0), Vector2(0, 12), Vector2(0, -12)]:
+	# Moderate low-pass of the raw mountain mass: enough to kill tile-scale noise (so the
+	# shelves read as clean contours) but TIGHT enough to keep peaks and ridges sharp and
+	# dramatic rather than smearing them into mushy plateaus. Rings at ~2/3/5 tiles.
+	var total := mountain_field(tx, ty) * 4.0
+	var weight := 4.0
+	for off: Vector2 in [Vector2(2, 0), Vector2(-2, 0), Vector2(0, 2), Vector2(0, -2)]:
+		total += mountain_field(tx + off.x, ty + off.y) * 1.3
+		weight += 1.3
+	for off: Vector2 in [Vector2(3, 3), Vector2(-3, 3), Vector2(3, -3), Vector2(-3, -3)]:
+		total += mountain_field(tx + off.x, ty + off.y) * 0.7
+		weight += 0.7
+	for off: Vector2 in [Vector2(5, 0), Vector2(-5, 0), Vector2(0, 5), Vector2(0, -5)]:
 		total += mountain_field(tx + off.x, ty + off.y) * 0.5
 		weight += 0.5
 	return clampf(total / weight, 0.0, 1.20)
@@ -339,8 +337,9 @@ const ELEV_MAX_STEPS := 44       # summit height in steps — large, impressive 
 const ELEV_FOOT_THRESHOLD := 0.18
 const ELEV_PEAK_THRESHOLD := 0.96
 const ELEV_SHELF_BANDS := 7      # stacked alpine shelves; more bands keep tall peaks readable
-const ELEV_SHELF_RISER := 0.32   # fraction of each band spent on the steep cliff riser; the
-                                 # remaining ~68% is a flat, walkable grassy shelf
+const ELEV_SHELF_RISER := 0.18   # fraction of each band spent on the steep cliff riser; the
+                                 # remaining ~82% is a flat, walkable grassy shelf. Small ->
+                                 # the climb compresses into a short, steep, dramatic slope
 func elevation_steps(tx: float, ty: float) -> int:
 	if not _finite:
 		return 0
