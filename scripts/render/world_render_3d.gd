@@ -8,6 +8,7 @@ extends Node
 ## Stage A: 3D terrain from real chunk data + camera follow.  Stage C adds props.
 
 const WG := preload("res://scripts/worldgen/wg.gd")
+const ChunkRenderer := preload("res://scripts/worldgen/chunk_renderer.gd")
 const TOON_GROUND := preload("res://shaders/toon_ground.gdshader")
 const TOON_WATER := preload("res://shaders/toon_water.gdshader")
 const TOON_SHORE := preload("res://shaders/toon_shore.gdshader")
@@ -398,6 +399,9 @@ func _apply_pixelation() -> void:
 ## Hide the 2D world visuals — every CanvasItem child of the world root — while
 ## the nodes stay alive as the logic substrate (positions, pathing, picking).
 func _hide_2d() -> void:
+	# The 3D renderer is the display; stop the chunk substrate from baking 2D ground meshes
+	# that are never shown (saves CPU per streamed chunk), then hide the 2D canvas.
+	ChunkRenderer.build_meshes = false
 	for node: Node in world.get_children():
 		if node is CanvasItem:
 			(node as CanvasItem).visible = false

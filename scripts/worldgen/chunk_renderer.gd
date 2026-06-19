@@ -29,6 +29,10 @@ var _placeholder: Color = Color(0.25, 0.35, 0.22)
 var _mesh: ArrayMesh = null
 var _mesh_dirty := true
 static var _white_tex: Texture2D = null
+# The 3D renderer is the active display and hides this whole 2D substrate, so building the
+# per-chunk 2D ground mesh is wasted CPU. world_render_3d flips this off once it's up; it
+# stays true by default so any pure-2D path (tools, fallback) still renders normally.
+static var build_meshes := true
 
 
 func _init(p_chunk: RefCounted, avg_color: Color, p_detail_level: int = DETAIL_FULL) -> void:
@@ -86,6 +90,8 @@ func _ready() -> void:
 
 
 func _draw() -> void:
+	if not build_meshes:
+		return   # 2D substrate hidden under the 3D renderer — draw nothing
 	if _mesh != null:
 		draw_mesh(_mesh, _white_texture())
 		return
@@ -102,11 +108,14 @@ func mark_dirty() -> void:
 
 
 func needs_mesh_rebuild() -> bool:
-	return _mesh_dirty
+	return _mesh_dirty and build_meshes
 
 
 func rebuild_mesh() -> void:
 	if not _mesh_dirty:
+		return
+	if not build_meshes:
+		_mesh_dirty = false   # 3D active: skip the hidden 2D mesh bake entirely
 		return
 	_rebuild_mesh()
 	queue_redraw()
