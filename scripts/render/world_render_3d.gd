@@ -2071,15 +2071,12 @@ func _collect(parts: Array, placement: Transform3D, groups: Dictionary) -> void:
 
 ## Map a 2D iso-pixel position to a 3D world position (Y from elevation/height).
 func iso_to_3d(pos: Vector2, y: float) -> Vector3:
-	var gx := (pos.x / WG.ISO_HW + pos.y / WG.ISO_HH) * 0.5
-	var gy := (pos.y / WG.ISO_HH - pos.x / WG.ISO_HW) * 0.5
-	return Vector3(gx * TILE_S, y, gy * TILE_S)
+	var g := WG.iso_to_grid(pos)
+	return Vector3(g.x * TILE_S, y, g.y * TILE_S)
 
 
 func _world_to_grid(pos: Vector2) -> Vector2:
-	var gx := (pos.x / WG.ISO_HW + pos.y / WG.ISO_HH) * 0.5
-	var gy := (pos.y / WG.ISO_HH - pos.x / WG.ISO_HW) * 0.5
-	return Vector2(gx, gy)
+	return WG.iso_to_grid(pos)
 
 
 func _near_visual_grid(pos: Vector2, radius_tiles: float) -> bool:
@@ -2101,9 +2098,8 @@ func _tile_center_pos(gtx: int, gty: int, lift := 0.0) -> Vector3:
 
 ## Terrain height (3D Y) at a 2D iso position, sampled from the loaded chunk.
 func height_at(pos: Vector2) -> float:
-	var gx := (pos.x / WG.ISO_HW + pos.y / WG.ISO_HH) * 0.5
-	var gy := (pos.y / WG.ISO_HH - pos.x / WG.ISO_HW) * 0.5
-	return _grid_height(gx, gy)
+	var g := WG.iso_to_grid(pos)
+	return _grid_height(g.x, g.y)
 
 
 ## Terrain height (3D Y) at fractional grid coordinates (gx,gy = 3D x/z over TILE_S).
@@ -2142,9 +2138,7 @@ func screen_to_iso(screen: Vector2) -> Vector2:
 	var dir := cam.project_ray_normal(sub_px)
 	var hit := _ray_to_ground(origin, dir)
 	# 3D (x,z) -> grid -> iso world position (inverse of iso_to_3d / WG.tile_to_world).
-	var gx := hit.x / TILE_S
-	var gy := hit.z / TILE_S
-	return Vector2((gx - gy) * WG.ISO_HW, (gx + gy) * WG.ISO_HH)
+	return WG.grid_to_iso(Vector2(hit.x / TILE_S, hit.z / TILE_S))
 
 
 ## Inverse of screen_to_iso: where an entity at iso position `pos` (lifted `lift`

@@ -67,18 +67,35 @@ static func pick_weighted(weights: Dictionary, roll: float) -> String:
 	return weights.keys().back()
 
 
+## --- Projection authority -------------------------------------------------
+## The single source of truth for converting between fractional GRID space
+## (continuous tile coordinates; whole numbers land on tile corners, +0.5 on
+## centres) and iso-pixel SCREEN space. Everything else — tile_to_world,
+## world_to_tile, and the 3D renderer's iso_to_3d/height_at/screen_to_iso —
+## routes through these two functions so the 2:1 diamond projection is defined
+## in exactly one place. This is the seam the 3D-native migration pivots on.
+
+## Fractional grid coords (gx, gy) from an iso-pixel position.
+static func iso_to_grid(pos: Vector2) -> Vector2:
+	return Vector2(
+		(pos.x / ISO_HW + pos.y / ISO_HH) * 0.5,
+		(pos.y / ISO_HH - pos.x / ISO_HW) * 0.5)
+
+
+## Iso-pixel position from fractional grid coords (gx, gy).
+static func grid_to_iso(g: Vector2) -> Vector2:
+	return Vector2((g.x - g.y) * ISO_HW, (g.x + g.y) * ISO_HH)
+
+
 ## Isometric screen position of a tile centre (2:1 diamond grid).
 static func tile_to_world(tx: int, ty: int) -> Vector2:
-	var gx := float(tx) + 0.5
-	var gy := float(ty) + 0.5
-	return Vector2((gx - gy) * ISO_HW, (gx + gy) * ISO_HH)
+	return grid_to_iso(Vector2(float(tx) + 0.5, float(ty) + 0.5))
 
 
 ## Inverse isometric projection — snap world position to tile grid.
 static func world_to_tile(pos: Vector2) -> Vector2i:
-	var gx := (pos.x / ISO_HW + pos.y / ISO_HH) * 0.5
-	var gy := (pos.y / ISO_HH - pos.x / ISO_HW) * 0.5
-	return Vector2i(floori(gx), floori(gy))
+	var g := iso_to_grid(pos)
+	return Vector2i(floori(g.x), floori(g.y))
 
 
 static func tile_to_chunk(t: Vector2i) -> Vector2i:
