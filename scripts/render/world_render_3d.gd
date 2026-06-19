@@ -195,8 +195,7 @@ func _setup_environment() -> void:
 	env.fog_density = 1.0
 	env.fog_depth_begin = 24.0
 	env.fog_depth_end = 48.0      # full opacity before the streamed terrain's edge depth
-	env.fog_depth_curve = 1.4     # gentler ramp: terrain fades into the sky over a longer band
-                                  # (a soft aerial haze) rather than a hard fog wall at the edge
+	env.fog_depth_curve = 2.0     # > 1 = hold the mid distance clear, then ramp hard at the end
 	# Bleed the fog into the lower sky too, so the fogged terrain and the sky behind
 	# it are the SAME haze — no seam at the horizon, and the sky itself reads foggy.
 	env.fog_sky_affect = 0.5
@@ -728,15 +727,12 @@ func _update_terrain_visibility() -> void:
 ## still hides the terrain boundary), and the shadow distance (capped — shadows
 ## past the fogged range are invisible, so keeping them short is a free perf win).
 func _apply_view_distance() -> void:
-	var vt := lerpf(56.0, 112.0, clampf(GameSettings.view_distance, 0.0, 1.0))
+	var vt := lerpf(34.0, 64.0, clampf(GameSettings.view_distance, 0.0, 1.0))
 	_terrain_cull = vt
-	_prop_cull = vt - 6.0
+	_prop_cull = vt - 4.0
 	if _env != null:
-		# Push the haze out to the (now farther) terrain edge and ramp it over a longer
-		# distance so the horizon dissolves into the sky as gentle aerial haze, instead of a
-		# close fog band the player meets when the camera pitches toward the horizon.
-		_env.fog_depth_end = vt + 20.0     # camera-depth ≈ CAM_DIST + tiles; full haze past the edge
-		_env.fog_depth_begin = vt - 24.0
+		_env.fog_depth_end = vt + 14.0     # camera-depth ≈ CAM_DIST + tiles; full haze past the edge
+		_env.fog_depth_begin = vt - 10.0
 	if _sun != null:
 		_sun.directional_shadow_max_distance = clampf(vt * 0.85, 30.0, 52.0)
 
