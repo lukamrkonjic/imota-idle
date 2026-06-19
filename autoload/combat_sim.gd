@@ -171,13 +171,15 @@ func _style() -> String:
 
 ## AttackSkill: accuracy = BASE_ACCURACY + ACCURACY_PER_LEVEL * level (capped) + gear.
 func player_accuracy() -> float:
+	var a: float
 	match _style():
 		"ranged":
-			return _accuracy_for("ranged") + GameState.equipment_range_accuracy()
+			a = _accuracy_for("ranged") + GameState.equipment_range_accuracy()
 		"magic":
-			return _accuracy_for("magic") + GameState.equipment_magic_accuracy()
+			a = _accuracy_for("magic") + GameState.equipment_magic_accuracy()
 		_:
-			return _accuracy_for("attack") + GameState.equipment_accuracy()
+			a = _accuracy_for("attack") + GameState.equipment_accuracy()
+	return a * GameState.prayer_accuracy_mult(_style())   # active prayers layer in here
 
 
 func _accuracy_for(skill: String) -> float:
@@ -186,13 +188,15 @@ func _accuracy_for(skill: String) -> float:
 
 ## StrengthSkill: damage = 1 + 1 * level + equipment damage (per style).
 func player_damage() -> float:
+	var d: float
 	match _style():
 		"ranged":
-			return 1.0 + float(GameState.level("ranged")) + GameState.equipment_range_damage()
+			d = 1.0 + float(GameState.level("ranged")) + GameState.equipment_range_damage()
 		"magic":
-			return 1.0 + float(GameState.level("magic")) + GameState.equipment_magic_damage()
+			d = 1.0 + float(GameState.level("magic")) + GameState.equipment_magic_damage()
 		_:
-			return 1.0 + float(GameState.level("strength")) + GameState.equipment_damage()
+			d = 1.0 + float(GameState.level("strength")) + GameState.equipment_damage()
+	return d * GameState.prayer_damage_mult(_style())   # active prayers layer in here
 
 
 ## Combat triangle (GetCombatTriangleDamageMultiplier): melee beats Range
@@ -295,7 +299,11 @@ func _enemy_attack() -> void:
 	var dmg := float(enemy["damage"])
 	if rng.randf() < float(enemy["critChance"]):
 		dmg *= float(enemy["critMultiplier"])
-	var dr := minf(GameState.equipment_damage_reduction(), PLAYER_DR_CAP)
+	# Protect-from-Melee prayer cuts incoming melee damage.
+	if str(enemy["style"]).to_lower().contains("melee"):
+		dmg *= GameState.prayer_melee_protect()
+	# Defence prayers add to damage reduction (still capped).
+	var dr := minf(GameState.equipment_damage_reduction() + GameState.prayer_dr_bonus(), PLAYER_DR_CAP)
 	dmg *= 1.0 - dr / 100.0
 	var final := maxi(int(ceil(dmg)), 0)
 	GameState.set_hp(GameState.current_hp - final)

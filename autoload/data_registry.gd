@@ -23,6 +23,7 @@ var xp_required: Array = []
 var max_level: int = 99
 
 var recipes_by_skill: Dictionary = {}
+var prayers: Dictionary = {}          # name -> prayer def (data/prayers.json)
 var food_hp: Dictionary = {}       # item id -> hp restored
 
 var aliases: Dictionary = {
@@ -46,6 +47,7 @@ func load_all() -> void:
 	recipes = _read("recipes.json")
 	gather_nodes = _read("gather_nodes.json")
 	tools = _read("tools.json")
+	prayers = _read("prayers.json").get("prayers", {})
 	var xp: Dictionary = _read("xp_table.json")
 	xp_required = xp.get("xpRequired", [])
 	max_level = int(xp.get("maxLevel", 99))

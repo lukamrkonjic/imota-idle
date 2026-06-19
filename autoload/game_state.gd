@@ -34,6 +34,7 @@ var coins: int = 0
 var current_hp: int = 10
 var combat_style: String = "attack"   # trained combat skill (persisted, spec §12)
 var active_prayers: Array = []         # names of prayers toggled on (combat hooks)
+var devotion: float = -1.0             # current Devotion points (-1 = uninit -> full on first use)
 var run_energy: float = 100.0          # Agility meta-stat (spec §16); speeds auto-nav
 var player_pos: Vector2 = Vector2.INF  # last world position; Vector2.INF = "use spawn" (new game)
 var _death_rng := RandomNumberGenerator.new()
@@ -64,6 +65,7 @@ func reset_state() -> void:
 	coins = 0
 	combat_style = "attack"
 	active_prayers = []
+	devotion = -1.0   # lazily filled to full on first read
 	run_energy = 100.0
 	player_pos = Vector2.INF
 	# Starter kit: the Bronze tool set (real smithing-recipe items from the
@@ -466,6 +468,91 @@ func is_prayer_active(prayer_name: String) -> bool:
 	return active_prayers.has(prayer_name)
 
 
+# ----------------------------------------------------------------- Prayer ----
+## Devotion points: max = Prayer level (1/level). Drained while prayers are active
+## (PrayerSim), restored to full at an altar or on respawn.
+func devotion_max() -> int:
+	return maxi(1, level("prayer"))
+
+
+## Lazily fill on first read so a fresh/legacy save starts with full Devotion.
+func devotion_points() -> float:
+	if devotion < 0.0:
+		devotion = float(devotion_max())
+	return devotion
+
+
+## Toggle a prayer on/off. Off-on requires the level + some Devotion left, and turns
+## off any already-active prayer in the same exclusivity group. Returns the new state.
+func toggle_prayer(prayer_name: String) -> bool:
+	var def: Dictionary = DataRegistry.prayers.get(prayer_name, {})
+	if def.is_empty():
+		return false
+	if active_prayers.has(prayer_name):
+		active_prayers.erase(prayer_name)
+		EventBus.prayer_changed.emit()
+		return false
+	if level("prayer") < int(def.get("levelReq", 1)):
+		EventBus.combat_log.emit("[color=#a01010]Prayer level %d required for %s.[/color]" % [int(def.get("levelReq", 1)), prayer_name])
+		return false
+	if devotion_points() <= 0.0:
+		EventBus.combat_log.emit("[color=#a01010]You have no Devotion left — recharge at an altar.[/color]")
+		return false
+	var group := str(def.get("group", ""))
+	if group != "":
+		for other: String in active_prayers.duplicate():
+			if str(DataRegistry.prayers.get(other, {}).get("group", "")) == group:
+				active_prayers.erase(other)
+	active_prayers.append(prayer_name)
+	EventBus.prayer_changed.emit()
+	return true
+
+
+## Drain Devotion by the active prayers' total per-second cost; deactivate all at empty.
+func drain_devotion(delta: float) -> void:
+	if active_prayers.is_empty():
+		return
+	var rate := 0.0
+	for n: String in active_prayers:
+		rate += float(DataRegistry.prayers.get(n, {}).get("drain", 0.2))
+	devotion = maxf(devotion_points() - rate * delta, 0.0)
+	if devotion <= 0.0 and not active_prayers.is_empty():
+		active_prayers.clear()
+		EventBus.combat_log.emit("[color=#a01010]Your Devotion runs dry; your prayers fade.[/color]")
+		EventBus.prayer_changed.emit()
+
+
+func recharge_devotion() -> void:
+	devotion = float(devotion_max())
+	EventBus.prayer_changed.emit()
+
+
+## Combined multiplier/bonus from active prayers for a given combat style.
+func _prayer_field(field: String, style: String, base: float) -> float:
+	var v := base
+	for n: String in active_prayers:
+		var def: Dictionary = DataRegistry.prayers.get(n, {})
+		var ps := str(def.get("style", "any"))
+		if ps != "any" and ps != style:
+			continue
+		if field == "dr":
+			v += float(def.get("dr", 0.0))
+		elif def.has(field):
+			v *= float(def[field])
+	return v
+
+
+func prayer_accuracy_mult(style: String) -> float: return _prayer_field("accuracy", style, 1.0)
+func prayer_damage_mult(style: String) -> float: return _prayer_field("damage", style, 1.0)
+func prayer_dr_bonus() -> float: return _prayer_field("dr", "any", 0.0)
+func prayer_melee_protect() -> float:
+	for n: String in active_prayers:
+		var m := float(DataRegistry.prayers.get(n, {}).get("meleeProtect", 0.0))
+		if m > 0.0:
+			return m
+	return 1.0
+
+
 # --------------------------------------------------------- skill loops (§16) ----
 
 ## Prayer: bury every bone in the inventory for Prayer XP. Returns how many were
@@ -590,6 +677,8 @@ func to_save_dict() -> Dictionary:
 		"current_hp": current_hp,
 		"combat_style": combat_style,
 		"run_energy": run_energy,
+		"active_prayers": active_prayers.duplicate(),
+		"devotion": devotion,
 		# Vector2 has no JSON form; store [x, y], or null until the player has moved.
 		"player_pos": ([player_pos.x, player_pos.y] if player_pos.is_finite() else null),
 	}
@@ -638,6 +727,10 @@ func from_save_dict(d: Dictionary) -> void:
 	var pp: Variant = d.get("player_pos", null)
 	player_pos = Vector2(float(pp[0]), float(pp[1])) if (pp is Array and pp.size() == 2) else Vector2.INF
 	active_prayers = []
+	for pn: Variant in d.get("active_prayers", []):
+		if DataRegistry.prayers.has(str(pn)):
+			active_prayers.append(str(pn))
+	devotion = float(d.get("devotion", -1.0))
 	current_hp = clampi(int(d.get("current_hp", max_hp())), 1, max_hp())
 	EventBus.inventory_changed.emit()
 	EventBus.bank_changed.emit()

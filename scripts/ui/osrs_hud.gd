@@ -78,6 +78,8 @@ var _side_tabs: TabContainer
 var _tab_icons: Array = []          # TabIcon widgets, index-aligned with the tabs
 var prayer_orb: Control
 var run_orb: Control
+var _prayer_rows: VBoxContainer       # data-driven prayer toggle list (rebuilt on change)
+var _prayer_devotion_lbl: Label
 var popup: PopupPanel
 var popup_list: VBoxContainer
 var popup_title: Label
@@ -568,45 +570,12 @@ func _build_prayer_tab() -> Control:
 	head.add_theme_font_size_override("font_size", UiScale.i(15))
 	head.add_theme_color_override("font_color", Color(0.6, 0.78, 0.95))
 	box.add_child(head)
-	for p: Array in [
-		["Thick Skin", 1], ["Burst of Strength", 4], ["Clarity of Thought", 7],
-		["Sharp Eye", 8], ["Mystic Will", 9], ["Rock Skin", 10],
-		["Protect Item", 25], ["Protect from Melee", 43],
-	]:
-		var name: String = str(p[0])
-		var req: int = int(p[1])
-		var unlocked := GameState.level("prayer") >= req
-		var row := HBoxContainer.new()
-		row.mouse_filter = Control.MOUSE_FILTER_PASS
-		row.add_theme_constant_override("separation", UiScale.i(6))
-		var icon := ItemIcon.new()
-		if name.contains("Skin") or name.contains("Protect from Melee"):
-			icon.kind = "shield"
-		elif name.contains("Strength"):
-			icon.kind = "fist"
-		elif name.contains("Eye"):
-			icon.kind = "bow"
-		elif name.contains("Mystic") or name.contains("Will"):
-			icon.kind = "staff"
-		elif name.contains("Protect Item"):
-			icon.kind = "ring"
-		else:
-			icon.kind = "prayer"
-		icon.tint = Color(0.88, 0.85, 0.62) if unlocked else Color(0.40, 0.40, 0.40)
-		icon.custom_minimum_size = UiScale.v2(Vector2(20, 20))
-		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		row.add_child(icon)
-		var lbl := Label.new()
-		lbl.add_theme_font_size_override("font_size", UiScale.i(12))
-		lbl.text = "%s  (Lvl %d)" % [name, req]
-		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		lbl.add_theme_color_override("font_color",
-			Color(0.9, 0.9, 0.8) if unlocked else Color(0.45, 0.45, 0.45))
-		row.add_child(lbl)
-		world_tooltip.attach(row, {
-			"title": name, "subtitle": "Level %d" % req,
-			"action": "Unlocked" if unlocked else "Locked — needs Prayer %d" % req})
-		box.add_child(row)
+	_prayer_devotion_lbl = Label.new()
+	_prayer_devotion_lbl.add_theme_font_size_override("font_size", UiScale.i(12))
+	_prayer_devotion_lbl.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	box.add_child(_prayer_devotion_lbl)
+	_prayer_rows = VBoxContainer.new()
+	box.add_child(_prayer_rows)
 	var bury := Button.new()
 	bury.text = "Bury all bones"
 	bury.tooltip_text = "Bury every bone in your inventory for Prayer XP"
@@ -614,7 +583,50 @@ func _build_prayer_tab() -> Control:
 		var n := GameState.bury_bones()
 		_push_chat("[color=#444]Buried %d bones.[/color]" % n if n > 0 else "[color=#444]No bones to bury.[/color]"))
 	box.add_child(bury)
+	if not EventBus.prayer_changed.is_connected(_refresh_prayer_tab):
+		EventBus.prayer_changed.connect(_refresh_prayer_tab)
+		EventBus.level_up.connect(func(s: String, _l: int) -> void:
+			if s == "prayer":
+				_refresh_prayer_tab())
+	_refresh_prayer_tab()
 	return box
+
+
+## Rebuild the toggle list from data/prayers.json with current unlock/active state.
+func _refresh_prayer_tab() -> void:
+	if _prayer_rows == null or not is_instance_valid(_prayer_rows):
+		return
+	_prayer_devotion_lbl.text = "Devotion: %d / %d" % [int(GameState.devotion_points()), GameState.devotion_max()]
+	for c: Node in _prayer_rows.get_children():
+		c.queue_free()
+	var defs: Dictionary = DataRegistry.prayers
+	var names: Array = defs.keys()
+	names.sort_custom(func(a: String, b: String) -> bool:
+		return int(defs[a].get("levelReq", 1)) < int(defs[b].get("levelReq", 1)))
+	for name: String in names:
+		var def: Dictionary = defs[name]
+		var req := int(def.get("levelReq", 1))
+		var unlocked := GameState.level("prayer") >= req
+		var active := GameState.is_prayer_active(name)
+		var btn := Button.new()
+		btn.toggle_mode = true
+		btn.button_pressed = active
+		btn.disabled = not unlocked
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.text = "%s%s  (Lvl %d)" % ["● " if active else "○ ", name, req]
+		btn.add_theme_font_size_override("font_size", UiScale.i(12))
+		var fx := []
+		if def.has("accuracy"): fx.append("+%d%% accuracy" % int(round((float(def["accuracy"]) - 1.0) * 100.0)))
+		if def.has("damage"): fx.append("+%d%% damage" % int(round((float(def["damage"]) - 1.0) * 100.0)))
+		if def.has("dr"): fx.append("+%d%% damage reduction" % int(def["dr"]))
+		if def.has("meleeProtect"): fx.append("-%d%% melee damage taken" % int(round((1.0 - float(def["meleeProtect"])) * 100.0)))
+		if name == "Protect Item": fx.append("keep an item on death")
+		btn.tooltip_text = "%s\nStyle: %s · Drain: %.2f/s\n%s" % [
+			name, str(def.get("style", "any")).capitalize(), float(def.get("drain", 0.2)),
+			", ".join(fx) if not fx.is_empty() else "—"]
+		var nm := name
+		btn.pressed.connect(func() -> void: GameState.toggle_prayer(nm))
+		_prayer_rows.add_child(btn)
 
 
 ## Magic tab (placeholder spellbook until Magic combat lands).

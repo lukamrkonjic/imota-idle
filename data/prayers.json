@@ -1,0 +1,19 @@
+{
+  "_comment": "Toggleable prayers (M6). Each drains Devotion/sec while active; effects layer into combat. group = mutually-exclusive set (turning one on turns its group-mates off). accuracy/damage are multipliers, dr is a flat damage-reduction % added, meleeProtect scales incoming melee damage. style: any/melee/ranged/magic gates which combat style the buff applies to. Numbers provisional.",
+  "prayers": {
+    "Thick Skin":            { "levelReq": 1,  "drain": 0.20, "group": "defence",  "dr": 5.0,  "style": "any" },
+    "Burst of Strength":     { "levelReq": 4,  "drain": 0.20, "group": "damage",   "damage": 1.05, "style": "melee" },
+    "Clarity of Thought":    { "levelReq": 7,  "drain": 0.20, "group": "accuracy", "accuracy": 1.05, "style": "melee" },
+    "Sharp Eye":             { "levelReq": 8,  "drain": 0.20, "group": "accuracy", "accuracy": 1.05, "style": "ranged" },
+    "Mystic Will":           { "levelReq": 9,  "drain": 0.20, "group": "accuracy", "accuracy": 1.05, "style": "magic" },
+    "Rock Skin":             { "levelReq": 10, "drain": 0.40, "group": "defence",  "dr": 10.0, "style": "any" },
+    "Superhuman Strength":   { "levelReq": 13, "drain": 0.40, "group": "damage",   "damage": 1.10, "style": "melee" },
+    "Improved Reflexes":     { "levelReq": 16, "drain": 0.40, "group": "accuracy", "accuracy": 1.10, "style": "melee" },
+    "Sharp Eye II":          { "levelReq": 26, "drain": 0.45, "group": "accuracy", "accuracy": 1.10, "style": "ranged" },
+    "Mystic Lore":           { "levelReq": 27, "drain": 0.45, "group": "accuracy", "accuracy": 1.10, "style": "magic" },
+    "Protect Item":          { "levelReq": 25, "drain": 0.10, "group": "utility",  "style": "any" },
+    "Steel Skin":            { "levelReq": 28, "drain": 0.60, "group": "defence",  "dr": 15.0, "style": "any" },
+    "Ultimate Strength":     { "levelReq": 31, "drain": 0.60, "group": "damage",   "damage": 1.15, "style": "melee" },
+    "Protect from Melee":    { "levelReq": 43, "drain": 0.80, "group": "protect",  "meleeProtect": 0.6, "style": "any" }
+  }
+}

@@ -548,6 +548,22 @@ func phase3_recipes() -> void:
 		check(GameState.count_item("Ashes") - fm_ash >= 3, "logs burned to Ashes (got %d)" % (GameState.count_item("Ashes") - fm_ash))
 		check(GameState.xp("firemaking") > fm_xp, "firemaking XP gained")
 
+	# Prayer (M6): Devotion, toggle, group exclusivity, drain, combat multiplier.
+	GameState.reset_state()
+	GameState.add_xp("prayer", float(DataRegistry.xp_for_level(20)))
+	GameState.recharge_devotion()
+	check(GameState.devotion_points() == float(GameState.devotion_max()), "devotion full after recharge")
+	check(GameState.toggle_prayer("Clarity of Thought"), "prayer toggled on")
+	check(GameState.is_prayer_active("Clarity of Thought"), "prayer is active")
+	check(absf(GameState.prayer_accuracy_mult("melee") - 1.05) < 0.001, "prayer accuracy multiplier applies")
+	GameState.toggle_prayer("Improved Reflexes")  # same "accuracy" group
+	check(not GameState.is_prayer_active("Clarity of Thought"), "same-group prayer auto-deactivated")
+	var dev0 := GameState.devotion_points()
+	GameState.drain_devotion(1.0)
+	check(GameState.devotion_points() < dev0, "devotion drains while a prayer is active")
+	GameState.toggle_prayer("Improved Reflexes")
+	check(GameState.active_prayers.is_empty(), "prayer toggled off")
+
 
 func phase4_food_shop_offline() -> void:
 	print("== Phase 4: food / shop / no-offline / coins migration ==")
