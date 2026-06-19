@@ -55,6 +55,12 @@ var _outlines_root: Node3D           # inverted-hull silhouette outlines for hig
 var _outline_mat: ShaderMaterial     # shared white outline material (grown hull, cull_front)
 var _outline_nodes: Dictionary = {}  # static entity id -> outline Node3D
 var _outlined_movers: Dictionary = {} # mover id -> true (material_overlay applied)
+var _fire: Node3D                    # the single firemaking fire (one per burning session)
+var _fire_light: OmniLight3D
+var _fire_phase := ""                 # "" | "burn" | "decay"
+var _fire_t := 0.0                    # flicker clock
+var _fire_decay := 0.0                # seconds since the player stopped feeding it
+var _fx_bursts: Array = []            # transient prayer-activation effects {node, t, dur, rise}
 var _mover_nodes: Dictionary = {}    # moving entity id -> Node3D (player/enemies)
 var _mover_prev: Dictionary = {}     # key -> last 3D pos (for walk detection)
 var _mover_yaw: Dictionary = {}      # key -> facing yaw (turned with spring inertia)
@@ -364,6 +370,10 @@ func _setup_present() -> void:
 	# Drive attack lunges off the combat ticks: each hit splat is one swing landing.
 	EventBus.combat_hit_splat.connect(_on_combat_swing)
 	EventBus.combat_ranged_shot.connect(func(_a: int, _m: bool) -> void: _mark_attack("player"))
+	# Firemaking fire + prayer-activation bursts (world FX).
+	EventBus.activity_started.connect(_on_activity_started)
+	EventBus.activity_stopped.connect(_on_activity_stopped)
+	EventBus.prayer_activated.connect(_on_prayer_activated)
 
 
 ## React to the Settings-menu pixelation slider (0 = native, 1 = really crunchy),
@@ -446,6 +456,7 @@ func _process(delta: float) -> void:
 	_sync_movers()
 	_sync_static_batches()
 	_sync_outlines()
+	_update_fx(delta)
 	# Compose the cozy A Short Hike camp ONCE around the spawn tile (the home
 	# campsite). Anchored to spawn, NOT the camera — so it's a finished place you
 	# arrive at, not canned props that follow you everywhere (the old failure mode).
@@ -1463,6 +1474,119 @@ func _set_rig_outline(rig: Node3D, on: bool) -> void:
 			(n as MeshInstance3D).material_overlay = _outline_mat if on else null
 		for c: Node in n.get_children():
 			stack.append(c)
+
+
+# ---- world FX: firemaking fire + prayer-activation bursts -------------------
+func _on_activity_started(kind: String, detail: String) -> void:
+	if kind == "craft" and detail.begins_with("Firemaking"):
+		_light_fire()
+
+
+func _on_activity_stopped(_reason: String) -> void:
+	# Player stopped feeding logs — let the fire burn down to embers and vanish.
+	if _fire != null and _fire_phase == "burn":
+		_fire_phase = "decay"
+		_fire_decay = 0.0
+
+
+func _light_fire() -> void:
+	if _fire == null or not is_instance_valid(_fire):
+		_fire = _build_parts_node(PropMeshes.campfire_parts())
+		_fire.position = iso_to_3d(world.player.position, height_at(world.player.position))
+		props_root.add_child(_fire)
+		_fire_light = OmniLight3D.new()
+		_fire_light.light_color = Color(1.0, 0.6, 0.25)
+		_fire_light.omni_range = 6.0
+		_fire_light.position = Vector3(0.0, 0.6, 0.0)
+		_fire.add_child(_fire_light)
+	_fire_phase = "burn"   # resumes if it was decaying
+
+
+func _on_prayer_activated(prayer_name: String) -> void:
+	if world.player == null:
+		return
+	var col := _prayer_color(prayer_name)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(col.r, col.g, col.b, 0.85)
+	mat.emission_enabled = true
+	mat.emission = col
+	mat.emission_energy_multiplier = 2.2
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.4
+	mesh.height = 0.8
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var node := Node3D.new()
+	node.add_child(mi)
+	node.position = iso_to_3d(world.player.position, height_at(world.player.position) + 1.2)
+	props_root.add_child(node)
+	_fx_bursts.append({"node": node, "mat": mat, "t": 0.0, "dur": 0.8})
+
+
+func _update_fx(delta: float) -> void:
+	if _fire != null and is_instance_valid(_fire):
+		_fire_t += delta
+		if _fire_phase == "burn":
+			var f := 1.0 + 0.12 * sin(_fire_t * 11.0) + 0.06 * sin(_fire_t * 23.0)
+			_fire.scale = Vector3(1.0, f, 1.0)
+			if _fire_light != null:
+				_fire_light.light_energy = 1.4 + 0.6 * (0.5 + 0.5 * sin(_fire_t * 17.0))
+		elif _fire_phase == "decay":
+			_fire_decay += delta
+			var k := clampf(1.0 - _fire_decay / 5.0, 0.0, 1.0)   # embers over ~5s
+			_fire.scale = Vector3(lerpf(0.5, 1.0, k), k, lerpf(0.5, 1.0, k))
+			if _fire_light != null:
+				_fire_light.light_energy = 1.6 * k
+			if _fire_decay >= 5.0:
+				_fire.queue_free()
+				_fire = null
+				_fire_light = null
+				_fire_phase = ""
+	for i: int in range(_fx_bursts.size() - 1, -1, -1):
+		var b: Dictionary = _fx_bursts[i]
+		var node: Node3D = b["node"]
+		if not is_instance_valid(node):
+			_fx_bursts.remove_at(i)
+			continue
+		b["t"] += delta
+		var p: float = clampf(b["t"] / b["dur"], 0.0, 1.0)
+		node.scale = Vector3.ONE * (0.4 + p * 1.4)
+		node.position.y += delta * 1.1
+		(b["mat"] as StandardMaterial3D).albedo_color.a = (1.0 - p) * 0.85
+		if p >= 1.0:
+			node.queue_free()
+			_fx_bursts.remove_at(i)
+
+
+func _build_parts_node(parts: Array) -> Node3D:
+	var node := Node3D.new()
+	for pt: Dictionary in parts:
+		var mi := MeshInstance3D.new()
+		mi.mesh = pt["mesh"]
+		mi.material_override = pt["mat"]
+		mi.transform = Transform3D(Basis.from_euler(pt.get("rot", Vector3.ZERO)).scaled(pt.get("scl", Vector3.ONE)), pt.get("off", Vector3.ZERO))
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		node.add_child(mi)
+	return node
+
+
+## Distinct colour per prayer: a base hue by its group, nudged by the prayer name so each
+## reads a little differently (a unique-ish activation flash without bespoke art per prayer).
+func _prayer_color(prayer_name: String) -> Color:
+	var group := str(DataRegistry.prayers.get(prayer_name, {}).get("group", ""))
+	var base: Color
+	match group:
+		"defence": base = Color(0.40, 0.62, 1.0)
+		"damage": base = Color(1.0, 0.42, 0.20)
+		"accuracy": base = Color(1.0, 0.88, 0.30)
+		"protect": base = Color(0.72, 0.42, 1.0)
+		_: base = Color(0.75, 1.0, 0.78)
+	var h := float(absi(hash(prayer_name)) % 1000) / 1000.0
+	return base.lerp(Color.from_hsv(h, 0.5, 1.0), 0.18)
 
 
 ## Movers (player + enemies) stay individual nodes — few of them, and they move.

@@ -399,6 +399,11 @@ static func _stall_parts() -> Array:
 		_part(_box("stall_post", Vector3(0.08, 0.85, 0.08)), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0.78, 0.55, 0.36))]
 
 
+## Public accessor for the campfire model (reused by the firemaking fire effect).
+static func campfire_parts() -> Array:
+	return _campfire_parts()
+
+
 static func _campfire_parts() -> Array:
 	return [
 		_part(_sphere("fire_coals", 0.24), _mat("trunk_b", "shadow", "dirt_a"), Vector3(0, 0.08, 0), Vector3(1.2, 0.35, 1.0)),

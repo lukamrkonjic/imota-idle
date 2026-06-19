@@ -505,6 +505,7 @@ func toggle_prayer(prayer_name: String) -> bool:
 				active_prayers.erase(other)
 	active_prayers.append(prayer_name)
 	EventBus.prayer_changed.emit()
+	EventBus.prayer_activated.emit(prayer_name)   # world activation FX
 	return true
 
 

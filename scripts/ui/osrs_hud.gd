@@ -1085,6 +1085,10 @@ func _build_fps_overlay() -> void:
 
 
 func _process(_delta: float) -> void:
+	# Live Devotion readout: PrayerSim drains every frame but only emits prayer_changed on
+	# toggle/empty, so refresh the number here while the Prayer tab is open.
+	if _prayer_devotion_lbl != null and is_instance_valid(_prayer_devotion_lbl) and _prayer_devotion_lbl.is_visible_in_tree():
+		_prayer_devotion_lbl.text = "Devotion: %d / %d" % [int(GameState.devotion_points()), GameState.devotion_max()]
 	if fps_label == null:
 		return
 	if not GameSettings.show_fps:

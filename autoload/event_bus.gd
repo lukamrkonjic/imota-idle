@@ -10,6 +10,7 @@ signal coins_changed(new_amount: int)
 signal hp_changed(current: int, max_hp: int)
 signal farming_changed
 signal prayer_changed   # active prayers or Devotion changed (HUD prayer tab + orb refresh)
+signal prayer_activated(prayer_name: String)   # a prayer was just toggled ON (world FX)
 signal run_energy_changed(value: float)
 
 signal activity_started(kind: String, label: String)
