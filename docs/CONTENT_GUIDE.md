@@ -8,9 +8,16 @@
 
 ## Adding an item
 
-1. Add to `data/items.json` (or re-run `tools/import_bloobs_data.gd` from export).
-2. Runtime assigns `id` = `item.<slug>` unless an explicit `id` field is set.
-3. Run validation: `godot --headless --path <project> res://tools/validate.tscn`
+`data/*.json` is the canonical, hand-authored source of truth — see [content/SCHEMA.md](content/SCHEMA.md)
+for the field reference. (The old `tools/import_bloobs_data.gd` is **retired**; the data has
+diverged from any export and re-importing would discard enrichment fields.)
+
+1. Add an entry to `data/items.json` keyed by `name`, with `value` + a `category`, mirroring a
+   sibling item of the same kind (material / equipment / tool / consumable).
+2. Stamp an explicit opaque `id` (`item.<N>`, next id from `data/id_registry.json`) and record
+   its slug→id in `data/id_registry.json` and `data/content_aliases.json` — never name-derived.
+3. Run validation: `godot --headless --path <project> res://tools/validate.tscn`. Recipe/node/
+   drop references to items are now **hard errors** if they don't resolve.
 
 ## Renaming an item safely
 

@@ -1,12 +1,15 @@
 extends SceneTree
-## Imports the Bloobs Adventure Idle data export into slim res://data/*.json files.
-## Run headless:
-##   godot --headless --path C:/Dev/bloobs-godot --script res://tools/import_bloobs_data.gd
+## RETIRED — historical provenance only. Do NOT run.
 ##
-## Reads from EXPORT_DIR (absolute path on this machine), strips Unity asset
-## bookkeeping (m_Script, image refs, pathIds), parses drop strings into
-## structured tables, and parses raw text lists (trees) that have no JSON form.
+## This was the one-shot importer of the Bloobs Adventure Idle export into res://data/*.json.
+## The data has since DIVERGED from any export: ids are frozen (id_registry.json), names were
+## re-originated (rename_map.json), and items/recipes were hand-enriched with fields this
+## importer never emitted (slot, category, tier, levelBand, ...). The export path below no
+## longer exists, and re-running would DISCARD all of that enrichment. `data/*.json` is now
+## the canonical, hand-authored source of truth. Kept for provenance (gather_xp_for_level,
+## the drop-string parser, the rename/id-mint flow); guarded so it can't accidentally run.
 
+const RETIRED := true
 const EXPORT_DIR := "C:/Dev/aldenfall/data/bloobs-export"
 const OUT_DIR := "res://data"
 
@@ -28,6 +31,11 @@ static func gather_xp_for_level(level: int) -> int:
 
 
 func _init() -> void:
+	if RETIRED:
+		push_error("import_bloobs_data is RETIRED: data/*.json is canonical and hand-authored; "
+			+ "re-importing would discard enrichment (slot/category/tier/...). Refusing to run.")
+		quit(1)
+		return
 	var t0 := Time.get_ticks_msec()
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
 	_reg = IdRegistry.load_or_new()

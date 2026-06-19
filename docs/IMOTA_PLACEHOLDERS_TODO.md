@@ -13,10 +13,17 @@
 - **Un-renamed Bloobs flavor names** — distinctive forage/herb/mushroom names
   (Sunsnap, Thornfoot, Sporecap, Starshroom, Glowstalk, Emberplume, …) were left
   as-is. Decide which still need renaming for IP and add tokens.
-- **"Gold" enemy drop** — a dangling currency-as-item drop reference; should resolve
-  to **Coins** once the economy/drop system handles currency drops (Phase 7).
-- **~200 dangling content refs** — export-gap warnings in `validate_content.gd`
-  (recipes/drops referencing items that weren't exported). Triage later.
+- **"Gold" enemy drop** — a currency-as-item drop token; whitelisted in `validate_content.gd`
+  (`CURRENCY_TOKENS`); should resolve to **Coins** once the drop system handles currency
+  drops (Phase 7).
+- **~~200 dangling content refs~~** — RESOLVED (Tier A). 39 missing items were authored
+  (`item.2804`–`item.2842`): the Brightberry line, forage spores/shrooms, Rune Bar/Axe, the
+  boss-weapon parts, event "Presents"/Carrot/Cookie, Raw Yak Haunch, Bone Arrow Tips. All
+  recipe/node/drop references now resolve; `validate_content.gd` ref checks are hard ERRORS.
+- **NEW placeholder items need balance tuning** — the 39 items above have **derived-not-tuned
+  `value`** (forage scaled by gather level; boss parts a flat 50k; Rune tier ≈ Aeronite). Their
+  frozen `name`s keep the original tokens; **IP-clean `displayName`s** were applied (Bloob→Bright,
+  Glowstalk→Lumecap, …). Tune values/tiers when the economy pass lands.
 
 ## Numbers — tune knobs
 

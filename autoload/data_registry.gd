@@ -63,7 +63,7 @@ func load_all() -> void:
 func _read(name: String) -> Dictionary:
 	var path := "res://data/" + name
 	if not FileAccess.file_exists(path):
-		push_error("Missing data file %s — run tools/import_bloobs_data.gd first" % path)
+		push_error("Missing canonical data file %s (data/*.json is the source of truth)" % path)
 		return {}
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
 	return parsed if parsed is Dictionary else {}

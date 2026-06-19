@@ -4,6 +4,11 @@ class_name ValidateContent
 
 const ContentId := preload("res://scripts/content/content_id.gd")
 
+## Currency drops are authored as a pseudo-item token, not a real inventory item — the
+## drop system converts them to Coins (economy wiring is Phase 7). Whitelisted from the
+## item-reference checks so they don't read as dangling content.
+const CURRENCY_TOKENS := ["Gold", "Coins"]
+
 
 ## Returns { "errors": String[], "warnings": String[] }.
 static func run() -> Dictionary:
@@ -11,9 +16,11 @@ static func run() -> Dictionary:
 	var warnings: Array = []
 	_check_duplicate_ids(errors)
 	_check_items(errors)
-	_check_gather_nodes(warnings)
-	_check_recipes(warnings)
-	_check_enemies(warnings)
+	# Reference integrity is now a HARD error: every recipe/node/drop must point at a real
+	# item (the content graph must resolve). The currency token is whitelisted below.
+	_check_gather_nodes(errors)
+	_check_recipes(errors)
+	_check_enemies(errors)
 	_check_drop_probabilities(errors)
 	_check_economy_summary(warnings)
 	_check_world_biomes(errors)
@@ -58,6 +65,8 @@ static func _check_gather_nodes(errors: Array) -> void:
 			if nid.is_empty():
 				errors.append("Gather node %s/%s: missing id" % [skill, node.get("name", "?")])
 			for item_name: String in node.get("items", []):
+				if item_name in CURRENCY_TOKENS:
+					continue
 				if DataRegistry.resolve_item_id(item_name).is_empty():
 					errors.append("Node %s references unknown item '%s'" % [nid, item_name])
 
@@ -67,12 +76,14 @@ static func _check_recipes(errors: Array) -> void:
 		var r: Dictionary = DataRegistry.recipes_by_id[id]
 		for inp: Dictionary in r.get("inputs", []):
 			var item_name: String = str(inp.get("item", ""))
+			if item_name in CURRENCY_TOKENS:
+				continue
 			if DataRegistry.resolve_item_id(item_name).is_empty():
 				errors.append("Recipe %s input '%s' not found" % [id, item_name])
 		var out: Dictionary = r.get("output", {})
 		if not out.is_empty():
 			var out_item: String = str(out.get("item", ""))
-			if DataRegistry.resolve_item_id(out_item).is_empty():
+			if out_item not in CURRENCY_TOKENS and DataRegistry.resolve_item_id(out_item).is_empty():
 				errors.append("Recipe %s output '%s' not found" % [id, out_item])
 
 
@@ -81,6 +92,8 @@ static func _check_enemies(errors: Array) -> void:
 		var e: Dictionary = DataRegistry.enemies_by_id[id]
 		for d: Dictionary in e.get("drops", []):
 			var item_name: String = str(d.get("item", ""))
+			if item_name in CURRENCY_TOKENS:
+				continue
 			if DataRegistry.resolve_item_id(item_name).is_empty():
 				errors.append("Enemy %s drop '%s' not found" % [id, item_name])
 
