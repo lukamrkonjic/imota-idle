@@ -316,9 +316,11 @@ func _setup_materials() -> void:
 	_shore_mat.set_shader_parameter("outer_color", Color(0.263, 0.682, 0.698))    # #43AEB2 turquoise
 	# A Short Hike-inspired alpine shore: cool periwinkle ice with lavender shadow,
 	# selected per vertex near tundra/alpine terrain instead of recolouring warm seas.
-	_shore_mat.set_shader_parameter("cold_wet_color", Color(0.790, 0.780, 0.850))
-	_shore_mat.set_shader_parameter("cold_inner_color", Color(0.770, 0.810, 0.950))
-	_shore_mat.set_shader_parameter("cold_outer_color", Color(0.570, 0.640, 0.860))
+	# Sea-foam shore: white wet edge -> pale aqua -> foam blue (was lavender/periwinkle,
+	# which snapped to the purple roof swatch in linear space).
+	_shore_mat.set_shader_parameter("cold_wet_color", Color(0.820, 0.880, 0.930))
+	_shore_mat.set_shader_parameter("cold_inner_color", Color(0.780, 0.900, 0.970))
+	_shore_mat.set_shader_parameter("cold_outer_color", Color(0.600, 0.760, 0.920))
 	_shore_mat.set_shader_parameter("sd_scale", SHORE_SD_SCALE)
 	_shore_mat.set_shader_parameter("wet_cells", 0.26)
 	_shore_mat.set_shader_parameter("inner_cells", 0.30)

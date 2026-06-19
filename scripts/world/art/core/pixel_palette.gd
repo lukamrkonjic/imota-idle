@@ -72,6 +72,12 @@ const PAL := {
 	"roof_purple": 0x58339A,
 	"roof_purple_dark": 0x33215F,
 	"roof_purple_light": 0x7250BF,
+	# Foam blue-white — the snap pass compares in LINEAR space, where the cold-shore
+	# band and snowy-mountain shadows (SNOW_SHADE ~#9CA3E0) are otherwise nearest to
+	# roof_purple_light and snap to a saturated purple. This light foam blue gives the
+	# shore band a clean sea-foam look (white -> blue), while the violet roofs still
+	# snap to themselves.
+	"shore_foam": 0xB6D2E6,
 	"fire_red": 0xF04127,
 	"fire_hot": 0xFFCA45,
 	"fir_a": 0x313D28,
