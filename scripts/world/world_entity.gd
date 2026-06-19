@@ -370,7 +370,7 @@ func display_label() -> String:
 
 func is_interactable() -> bool:
 	return str(action.get("type", "")) in [
-		"gather", "enemy", "station", "descend", "ascend", "obelisk", "landmark"]
+		"gather", "enemy", "station", "descend", "ascend", "obelisk", "landmark", "npc"]
 
 
 func _plate(text: String, at: Vector2, size: int, color: Color) -> void:
@@ -455,6 +455,9 @@ func tooltip_content() -> Dictionary:
 			details.append(str(action.get("message", "Coming soon.")))
 		"landmark":
 			subtitle = "Landmark"
+		"npc":
+			subtitle = "NPC"
+			details.append("Click to talk")
 	return {
 		"title": title,
 		"subtitle": subtitle,
@@ -486,4 +489,6 @@ func action_text() -> String:
 			return "Inspect %s" % label
 		"landmark":
 			return "Marvel at %s" % label
+		"npc":
+			return "Talk to %s" % label
 	return ""

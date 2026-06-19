@@ -44,6 +44,10 @@ static func entity_parts(e: Node) -> Array:
 			if species == "broadleaf" and th % 6 == 0:
 				return _maple_parts(_maple_mat())
 			return _tree_parts(_canopy_mat(e))
+		"npc":
+			# A robed humanoid NPC (Slayer Master etc.) — reuse the figure model with a
+			# distinct robe/skin so it reads as a person, not a monster.
+			return figure_parts(PixelPalette.pal("outfit_b"), PixelPalette.pal("skin_a"))
 		"rock":
 			return _rock_parts()
 		"bush", "node":

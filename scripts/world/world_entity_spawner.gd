@@ -542,6 +542,15 @@ func _spawn_poi_part(chunk: RefCounted, poi: Dictionary, part: Dictionary, conta
 			e.display_size = 40.0
 			e.click_radius = 30.0
 			e.action = {"type": "landmark", "label": e.label if not e.label.is_empty() else "Fountain"}
+		"npc":
+			var npc_id := str(part.get("npc", ""))
+			var npc_def: Dictionary = DataRegistry.npcs.get(npc_id, {})
+			e.label = str(npc_def.get("name", e.label))
+			e.sub_label = "NPC"
+			e.display_size = 44.0
+			e.click_radius = 32.0
+			e.variant = absi(hash(npc_id)) % 1000
+			e.action = {"type": "npc", "npc": npc_id, "label": e.label}
 		_:
 			if part.has("station"):
 				e.action = {"type": "station", "station": str(part["station"]), "label": e.label}

@@ -579,6 +579,23 @@ func phase3_recipes() -> void:
 			check(GameState.xp(str(sk[0])) > gxp, "%s XP gained from gathering" % sk[0])
 			TickSim.stop("test")
 
+	# Slayer (M6): assign a task, progress it via enemy_killed, complete it for points.
+	GameState.reset_state()
+	GameState.add_xp("slayer", float(DataRegistry.xp_for_level(50)))
+	var task := GameState.assign_slayer_task()
+	check(not task.is_empty(), "slayer task assigned")
+	if not task.is_empty():
+		var mon := str(task["monster"])
+		var need := int(task["required"])
+		var pts0 := GameState.slayer_points
+		GameState.slayer_kill("Some Other Monster")
+		check(int(GameState.slayer_task.get("done", 0)) == 0, "off-task kills don't progress the task")
+		for i: int in need:
+			GameState.slayer_kill(mon)
+		check(GameState.slayer_task.is_empty(), "task cleared on completion")
+		check(GameState.slayer_points > pts0, "slayer points awarded on completion")
+	check(not DataRegistry.npcs.get("slayer_master", {}).is_empty(), "slayer_master NPC defined")
+
 
 func phase4_food_shop_offline() -> void:
 	print("== Phase 4: food / shop / no-offline / coins migration ==")

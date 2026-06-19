@@ -184,7 +184,9 @@ func _connect_events() -> void:
 	EventBus.action_progress.connect(func(f: float) -> void: player.set_progress(f))
 	EventBus.activity_stopped.connect(_activity_ctrl.on_activity_stopped)
 	EventBus.enemy_hp_changed.connect(_activity_ctrl.on_enemy_hp_changed)
-	EventBus.enemy_killed.connect(func(_n: String) -> void: _activity_ctrl.on_enemy_killed())
+	EventBus.enemy_killed.connect(func(n: String) -> void:
+		_activity_ctrl.on_enemy_killed()
+		GameState.slayer_kill(n))
 	EventBus.xp_gained.connect(_activity_ctrl.on_xp_gained)
 	EventBus.player_died.connect(func(k: String) -> void:
 		_activity_ctrl.on_activity_stopped("player_died")

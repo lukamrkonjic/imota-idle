@@ -67,6 +67,13 @@
           "label": "Camp Shop",
           "dx": -2,
           "dy": -1
+        },
+        {
+          "kind": "npc",
+          "npc": "slayer_master",
+          "label": "Slayer Master",
+          "dx": -1,
+          "dy": 2
         }
       ]
     },

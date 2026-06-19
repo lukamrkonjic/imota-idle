@@ -35,6 +35,9 @@ var current_hp: int = 10
 var combat_style: String = "attack"   # trained combat skill (persisted, spec §12)
 var active_prayers: Array = []         # names of prayers toggled on (combat hooks)
 var devotion: float = -1.0             # current Devotion points (-1 = uninit -> full on first use)
+var slayer_task: Dictionary = {}       # {monster, required, done} or {} when none
+var slayer_points: int = 0             # currency earned from completing slayer tasks
+var _slayer_rng := RandomNumberGenerator.new()
 var run_energy: float = 100.0          # Agility meta-stat (spec §16); speeds auto-nav
 var player_pos: Vector2 = Vector2.INF  # last world position; Vector2.INF = "use spawn" (new game)
 var _death_rng := RandomNumberGenerator.new()
@@ -66,6 +69,8 @@ func reset_state() -> void:
 	combat_style = "attack"
 	active_prayers = []
 	devotion = -1.0   # lazily filled to full on first read
+	slayer_task = {}
+	slayer_points = 0
 	run_energy = 100.0
 	player_pos = Vector2.INF
 	# Starter kit: the Bronze tool set (real smithing-recipe items from the
@@ -568,6 +573,49 @@ func prayer_melee_protect() -> float:
 	return 1.0
 
 
+# ----------------------------------------------------------------- Slayer ----
+## Assign a new slayer task: a random eligible monster (within Slayer level, non-boss) and a
+## kill count scaled by level. No-op (returns the current task) if one is already active.
+func assign_slayer_task() -> Dictionary:
+	if not slayer_task.is_empty():
+		return slayer_task
+	var slvl := level("slayer")
+	var pool: Array = []
+	for e: Dictionary in DataRegistry.enemies.values():
+		if bool(e.get("isBoss", false)):
+			continue
+		if int(e.get("beastMasteryReq", 0)) > slvl:
+			continue
+		# Store the DISPLAY name — that's what EventBus.enemy_killed emits, so kills match.
+		pool.append(str(e.get("displayName", e.get("name", ""))))
+	if pool.is_empty():
+		return {}
+	var monster: String = pool[_slayer_rng.randi() % pool.size()]
+	var required := 15 + slvl / 2 + _slayer_rng.randi() % 10
+	slayer_task = {"monster": monster, "required": required, "done": 0}
+	EventBus.slayer_changed.emit()
+	return slayer_task
+
+
+## A kill toward the active task. On completion: a Slayer XP bonus + Slayer points, task cleared.
+func slayer_kill(enemy_name: String) -> void:
+	if slayer_task.is_empty() or str(slayer_task.get("monster", "")) != enemy_name:
+		return
+	slayer_task["done"] = int(slayer_task["done"]) + 1
+	if int(slayer_task["done"]) >= int(slayer_task["required"]):
+		var pts := 8 + level("slayer") / 4
+		slayer_points += pts
+		add_xp("slayer", float(int(slayer_task["required"]) * 12))   # completion bonus
+		EventBus.combat_log.emit("[color=#9ad29a]Slayer task complete! +%d Slayer points.[/color]" % pts)
+		slayer_task = {}
+	EventBus.slayer_changed.emit()
+
+
+func cancel_slayer_task() -> void:
+	slayer_task = {}
+	EventBus.slayer_changed.emit()
+
+
 # --------------------------------------------------------- skill loops (§16) ----
 
 ## Prayer: bury every bone in the inventory for Prayer XP. Returns how many were
@@ -694,6 +742,8 @@ func to_save_dict() -> Dictionary:
 		"run_energy": run_energy,
 		"active_prayers": active_prayers.duplicate(),
 		"devotion": devotion,
+		"slayer_task": slayer_task.duplicate(),
+		"slayer_points": slayer_points,
 		# Vector2 has no JSON form; store [x, y], or null until the player has moved.
 		"player_pos": ([player_pos.x, player_pos.y] if player_pos.is_finite() else null),
 	}
@@ -746,6 +796,8 @@ func from_save_dict(d: Dictionary) -> void:
 		if DataRegistry.prayers.has(str(pn)):
 			active_prayers.append(str(pn))
 	devotion = float(d.get("devotion", -1.0))
+	slayer_task = Dictionary(d.get("slayer_task", {})).duplicate()
+	slayer_points = int(d.get("slayer_points", 0))
 	current_hp = clampi(int(d.get("current_hp", max_hp())), 1, max_hp())
 	EventBus.inventory_changed.emit()
 	EventBus.bank_changed.emit()

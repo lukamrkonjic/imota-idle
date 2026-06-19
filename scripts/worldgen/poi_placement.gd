@@ -153,6 +153,8 @@ func _try_place(chunk: RefCounted, type: String, def: Dictionary, occupied: Dict
 		}
 		if raw.has("station"):
 			part["station"] = str(raw["station"])
+		if raw.has("npc"):
+			part["npc"] = str(raw["npc"])
 		if raw.has("hook"):
 			part["hook"] = str(raw["hook"])
 			part["hookMessage"] = str(raw.get("hookMessage", "Coming soon."))

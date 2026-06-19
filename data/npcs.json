@@ -1,0 +1,10 @@
+{
+  "_comment": "World NPCs (M6). The first NPC framework — npc entities placed via POI parts (kind:'npc', npc:<id>) open a popup dialog driven by these defs. type selects behaviour (slayer_master now; shopkeeper / quest_giver / etc. later). greeting is the opening line.",
+  "npcs": {
+    "slayer_master": {
+      "name": "Slayer Master Kr-tok",
+      "type": "slayer_master",
+      "greeting": "Looking for a hunt? I've targets that need culling — bring me proof and I'll make it worth your while."
+    }
+  }
+}

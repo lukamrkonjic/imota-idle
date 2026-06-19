@@ -233,6 +233,8 @@ func execute_action(action: Dictionary) -> void:
 					RecipeSim.start_craft(str(action.get("skill", open)), str(action["recipe"]))
 				else:
 					world.hud.call("open_recipes", str(action.get("skill", open)))
+		"npc":
+			world.hud.call("open_npc_dialog", str(action.get("npc", "")))
 		"hook":
 			EventBus.combat_log.emit("[color=#444]%s[/color]" % str(action["message"]))
 		"descend":

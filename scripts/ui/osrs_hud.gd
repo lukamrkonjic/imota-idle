@@ -491,9 +491,9 @@ func _build_combat_tab() -> Control:
 	combat_info.add_theme_font_size_override("font_size", UiScale.i(13))
 	combat_box.add_child(combat_info)
 	var slayer := Button.new()
-	slayer.text = "Slayer targets"
-	slayer.tooltip_text = "Browse monsters you can fight (Slayer level gated)"
-	slayer.pressed.connect(open_slayer)
+	slayer.text = "Slayer Master"
+	slayer.tooltip_text = "Talk to the Slayer Master: get a task, check progress, browse targets"
+	slayer.pressed.connect(func() -> void: open_npc_dialog("slayer_master"))
 	combat_box.add_child(slayer)
 	return combat_box
 
@@ -1438,6 +1438,57 @@ func open_slayer() -> void:
 				popup.hide())
 		row.add_child(go)
 		popup_list.add_child(row)
+
+
+## Generic NPC dialog (the reusable framework — shopkeepers/quest-givers slot in by `type`).
+## Driven by data/npcs.json: shows the NPC's name + greeting, then type-specific options.
+func open_npc_dialog(npc_id: String) -> void:
+	var npc: Dictionary = DataRegistry.npcs.get(npc_id, {})
+	if npc.is_empty():
+		return
+	_open_popup(str(npc.get("name", "Stranger")))
+	var greet := Label.new()
+	greet.text = str(npc.get("greeting", ""))
+	greet.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	greet.add_theme_color_override("font_color", Color(0.85, 0.85, 0.7))
+	popup_list.add_child(greet)
+	match str(npc.get("type", "")):
+		"slayer_master":
+			_npc_slayer_options(npc_id)
+
+
+func _npc_slayer_options(npc_id: String) -> void:
+	var pts := Label.new()
+	pts.text = "Slayer points: %d   ·   Slayer level %d" % [GameState.slayer_points, GameState.level("slayer")]
+	pts.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
+	popup_list.add_child(pts)
+	if GameState.slayer_task.is_empty():
+		var get_btn := Button.new()
+		get_btn.text = "Get a Slayer task"
+		get_btn.pressed.connect(func() -> void:
+			GameState.assign_slayer_task()
+			var t: Dictionary = GameState.slayer_task
+			if not t.is_empty():
+				_push_chat("[color=#9ad29a]New Slayer task: kill %d %s.[/color]" % [
+					int(t["required"]), str(t["monster"])])
+			open_npc_dialog(npc_id))
+		popup_list.add_child(get_btn)
+	else:
+		var t: Dictionary = GameState.slayer_task
+		var tl := Label.new()
+		tl.text = "Current task: %s   (%d / %d)" % [
+			str(t["monster"]), int(t["done"]), int(t["required"])]
+		popup_list.add_child(tl)
+		var cancel := Button.new()
+		cancel.text = "Cancel task"
+		cancel.pressed.connect(func() -> void:
+			GameState.cancel_slayer_task()
+			open_npc_dialog(npc_id))
+		popup_list.add_child(cancel)
+	var browse := Button.new()
+	browse.text = "Browse monsters to fight"
+	browse.pressed.connect(open_slayer)
+	popup_list.add_child(browse)
 
 
 ## Teleport list: every obelisk the player has attuned to.
