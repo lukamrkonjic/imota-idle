@@ -393,8 +393,10 @@ static func _localized_shelf(height01: float, level: float, mask: float, thresho
 ## Renderer uses the same equation for its ochre trail material.
 static func alpine_trail01(tx: float, ty: float, height01: float) -> float:
 	var wave := sin((tx + ty) * 0.020 + sin(tx * 0.011 - 0.6) * 1.4)
+	# Fade in above the foot; stay active nearly to the summit so the trail is a continuous
+	# gentle ramp all the way to the top (it only eases off on the final crown).
 	return (1.0 - smoothstep(0.025, 0.105, absf(wave))) \
-		* smoothstep(0.10, 0.22, height01) * (1.0 - smoothstep(0.66, 0.80, height01))
+		* smoothstep(0.10, 0.22, height01) * (1.0 - smoothstep(0.93, 1.0, height01))
 
 
 const SNOW_BLEND_STEPS := 7.0
