@@ -64,11 +64,11 @@ func check(cond: bool, label: String) -> void:
 
 func phase0_data() -> void:
 	print("== Phase 0: data registry ==")
-	check(DataRegistry.items.size() > 1000, "items loaded (%d)" % DataRegistry.items.size())
+	# Floors, not exact counts: the content build actively adds/prunes records (M0 hard-
+	# deleted ~867 replace/deprecate items), so guard against catastrophic loss, not drift.
+	check(DataRegistry.items.size() > 800, "items loaded (%d)" % DataRegistry.items.size())
 	check(DataRegistry.enemies.size() == 120, "enemies loaded (%d)" % DataRegistry.enemies.size())
-	# 1009 raw recipe assets minus ~94 input-less placeholder stubs and ~160
-	# duplicate-name variants leaves 775 real recipes.
-	check(DataRegistry.recipes.size() == 775, "recipes loaded (%d)" % DataRegistry.recipes.size())
+	check(DataRegistry.recipes.size() > 700, "recipes loaded (%d)" % DataRegistry.recipes.size())
 	var logs := DataRegistry.get_item("Logs")
 	check(not logs.is_empty(), "item lookup by name: Logs")
 	# OSRS xp(2)=83, slowed by S=1.25 -> 104. Cap is 99 (was Bloobs 1000).
@@ -815,7 +815,7 @@ func phase6_worldgen() -> void:
 	pf_chunk.elev[Chunk.idx(0, 2)] = 3   # +2 from (0,1): a walkable slope
 	pf_chunk.elev[Chunk.idx(0, 3)] = 6   # +3 from (0,2): too steep to climb
 	pf_chunk.elev[Chunk.idx(2, 0)] = 34  # high shelf remains a valid navigation node
-	pf_chunk.elev[Chunk.idx(3, 0)] = 40  # only summit crown is excluded
+	pf_chunk.elev[Chunk.idx(3, 0)] = 46  # above MAX_REACHABLE_ELEV (44): summit crown excluded
 	var pf := PathFinder.new()
 	pf.rebuild([pf_chunk], WorldGen.reg, 1)
 	var base := Vector2i(pf_chunk.cx, pf_chunk.cy) * WG.CHUNK_TILES
