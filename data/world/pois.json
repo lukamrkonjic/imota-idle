@@ -72,8 +72,8 @@
           "kind": "npc",
           "npc": "slayer_master",
           "label": "Slayer Master",
-          "dx": -1,
-          "dy": 2
+          "dx": 2,
+          "dy": 0
         }
       ]
     },
