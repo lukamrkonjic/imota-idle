@@ -9,6 +9,7 @@ extends Node
 
 const WG := preload("res://scripts/worldgen/wg.gd")
 const ChunkRenderer := preload("res://scripts/worldgen/chunk_renderer.gd")
+const OUTLINE_SHADER := preload("res://shaders/outline.gdshader")
 const TOON_GROUND := preload("res://shaders/toon_ground.gdshader")
 const TOON_WATER := preload("res://shaders/toon_water.gdshader")
 const TOON_SHORE := preload("res://shaders/toon_shore.gdshader")
@@ -50,6 +51,10 @@ var _chunk_wait: Dictionary = {}     # chunk key -> frames waited for neighbour 
 var _chunk_by_key: Dictionary = {}   # chunk key -> chunk RefCounted (O(1) height lookup)
 var batches_root: Node3D             # holds the per-(mesh,material) MultiMeshInstance3D
 var dressing_root: Node3D            # visual-only hiking-diorama silhouettes near camera
+var _outlines_root: Node3D           # inverted-hull silhouette outlines for highlighted entities
+var _outline_mat: ShaderMaterial     # shared white outline material (grown hull, cull_front)
+var _outline_nodes: Dictionary = {}  # static entity id -> outline Node3D
+var _outlined_movers: Dictionary = {} # mover id -> true (material_overlay applied)
 var _mover_nodes: Dictionary = {}    # moving entity id -> Node3D (player/enemies)
 var _mover_prev: Dictionary = {}     # key -> last 3D pos (for walk detection)
 var _mover_yaw: Dictionary = {}      # key -> facing yaw (turned with spring inertia)
@@ -240,6 +245,12 @@ func _setup_scene_roots() -> void:
 	world3d.add_child(batches_root)
 	dressing_root = Node3D.new()
 	world3d.add_child(dressing_root)
+	_outlines_root = Node3D.new()
+	world3d.add_child(_outlines_root)
+	_outline_mat = ShaderMaterial.new()
+	_outline_mat.shader = OUTLINE_SHADER
+	_outline_mat.set_shader_parameter("outline_color", Color(1.0, 1.0, 1.0, 1.0))
+	_outline_mat.set_shader_parameter("width", 0.045)
 
 
 func _setup_materials() -> void:
@@ -350,15 +361,6 @@ func _setup_present() -> void:
 	bars.world = world
 	bars.render_3d = self
 	fx_layer.add_child(bars)
-	# White brackets around interactable entities/enemies (Alt-hold or hover) so the player
-	# can temporarily see what's interactable. Projects each entity through the 3D camera.
-	var outlines := preload("res://scripts/ui/interact_outlines.gd").new()
-	outlines.name = "InteractOutlines"
-	outlines.world = world
-	outlines.r3 = self
-	outlines.set_anchors_preset(Control.PRESET_FULL_RECT)
-	outlines.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	fx_layer.add_child(outlines)
 	# Drive attack lunges off the combat ticks: each hit splat is one swing landing.
 	EventBus.combat_hit_splat.connect(_on_combat_swing)
 	EventBus.combat_ranged_shot.connect(func(_a: int, _m: bool) -> void: _mark_attack("player"))
@@ -443,6 +445,7 @@ func _process(delta: float) -> void:
 	_sync_terrain()
 	_sync_movers()
 	_sync_static_batches()
+	_sync_outlines()
 	# Compose the cozy A Short Hike camp ONCE around the spawn tile (the home
 	# campsite). Anchored to spawn, NOT the camera — so it's a finished place you
 	# arrive at, not canned props that follow you everywhere (the old failure mode).
@@ -1398,6 +1401,68 @@ func _riser(st: SurfaceTool, p0: Vector3, p1: Vector3, bot_y: float, normal: Vec
 		st.set_color(col)
 		st.set_normal(normal)
 		st.add_vertex(v)
+
+
+## White contour outlines for entities flagged highlight_outline (Alt-hold) or hovered.
+## Enemies (movers) get a material_overlay on their rig; static interactables get a parts-
+## built inverted-hull node. Both trace the silhouette with a thin white stroke. Pooled by
+## entity id and rebuilt only when the highlighted set changes.
+func _sync_outlines() -> void:
+	var want := {}
+	for e: Node2D in world.entities:
+		if is_instance_valid(e) and (e.highlight_outline or e.hovered):
+			want[e.get_instance_id()] = e
+	for id: int in _outline_nodes.keys():
+		if not want.has(id):
+			_outline_nodes[id].queue_free()
+			_outline_nodes.erase(id)
+	for id: int in _outlined_movers.keys():
+		if not want.has(id):
+			var rig: Node3D = _mover_nodes.get(id)
+			if rig != null:
+				_set_rig_outline(rig, false)
+			_outlined_movers.erase(id)
+	for id: int in want:
+		var e: Node2D = want[id]
+		if PropMeshes.is_moving(e):
+			var rig: Node3D = _mover_nodes.get(id)
+			if rig != null and not _outlined_movers.has(id):
+				_set_rig_outline(rig, true)
+				_outlined_movers[id] = true
+		else:
+			var node: Node3D = _outline_nodes.get(id)
+			if node == null:
+				node = _build_outline_node(e)
+				if node == null:
+					continue
+				_outlines_root.add_child(node)
+				_outline_nodes[id] = node
+			node.transform = Transform3D(Basis.IDENTITY, iso_to_3d(e.position, height_at(e.position)))
+
+
+func _build_outline_node(e: Node2D) -> Node3D:
+	var parts: Array = PropMeshes.entity_parts(e)
+	if parts.is_empty():
+		return null
+	var node := Node3D.new()
+	for p: Dictionary in parts:
+		var mi := MeshInstance3D.new()
+		mi.mesh = p["mesh"]
+		mi.material_override = _outline_mat
+		mi.transform = Transform3D(Basis.from_euler(p.get("rot", Vector3.ZERO)).scaled(p["scl"]), p["off"])
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		node.add_child(mi)
+	return node
+
+
+func _set_rig_outline(rig: Node3D, on: bool) -> void:
+	var stack: Array = [rig]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n is MeshInstance3D:
+			(n as MeshInstance3D).material_overlay = _outline_mat if on else null
+		for c: Node in n.get_children():
+			stack.append(c)
 
 
 ## Movers (player + enemies) stay individual nodes — few of them, and they move.
