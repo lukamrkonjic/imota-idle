@@ -1,0 +1,949 @@
+Acacia Tree Seed
+Acuity Potion
+Adamantite Geode
+Zephite Geode
+Etherwood Tree Seed
+Alpha Beastmaster's Potion
+Direhowl's Soul
+Glimmerleaf Seed
+Amethyst Argyle Easter Egg
+Amethyst Lumecap Capling
+Ancient Fighter Soul
+Ancient Pick
+Angling Potion
+Aqua Bubbles Easter Egg
+Aqua Drake Soul
+Archmage's Ascension Potion
+Arctic Bass
+Arctic Bass Egg
+Arid Bear Egg
+Arid Bear Meat
+Arid Bear Soul
+Artisan Potion
+Ashen Moth Egg
+Ashen Moth Soul
+Attuned Hound Soul
+Solheim the Sunbound Pharaoh's Soul
+Dawnite Geode
+Azure Astercap Capling
+Banana
+Banana Coin
+Husk Warlord Soul
+Husk Grunt Soul
+Banana Key
+Banana Peel
+Husk Skirmisher Soul
+Banana Split
+Banana Trophy
+Husk Warrior Soul
+Barkhide
+Bat Soul
+Sludge Elemental Soul
+Bear Meat
+Beef
+Beetroot Seed
+Bird Meat
+Birthday Cake
+Frostpine Tree Seed
+Black Wolf Soul
+Blinded Acolyte Soul
+Bloated Zombie Soul
+Brightberry Seed
+Lumabird Egg
+Lumabird Soul
+Crimsonmoss Seed
+Verdant Wyvern Soul
+Blue Banana
+Blue Jay Soul
+Blue Marlin
+Blue Marlin Egg
+Blue Oozing Core Soul
+Azurelume Spore Capling
+Boar Meat
+Boar Soul
+Bone Golem Soul
+Bone Key
+Bony Soldier Soul
+Bootzafrau Soul
+Boreal Yak Egg
+Boreal Yak Soul
+Bound Cadaver Soul
+Bowl
+Skullsmasher's Soul
+Taurok the Crimsonhoof's Soul
+Goldscale Viper Soul
+Brindle Hyena Egg
+Brindle Hyena Soul
+Frost Wyvern Soul
+Bubblegum Ripple Easter Egg
+Buffalo Meat
+Bulwark of Resolve Potion
+Bulwarked Tortoise Soul
+Burnt Barkhide
+Burnt Bear Meat
+Burnt Beef
+Burnt Bird Meat
+Burnt Blue Marlin
+Burnt Boar Meat
+Burnt Buffalo Meat
+Burnt Catfish
+Burnt Chevon
+Burnt Chicken
+Burnt Clownfish
+Burnt Crayfish
+Burnt Fried Egg
+Burnt Herring
+Burnt Lobster
+Burnt Mackerel
+Burnt Pig Meat
+Burnt Salmon
+Burnt Shark
+Burnt Shrimp
+Burnt Stingray
+Burnt Sunfish
+Burnt Trout
+Burnt Wolf Meat
+Cabbage Seed
+Cage
+Candy Cookie
+Carcass Feeder Soul
+Carrion Crawler Soul
+Carving Beaver Soul
+Catfish
+Catfish Egg
+Cauliflower Seed
+Caustic Frog Soul
+Cave Bat Soul
+Cerasilk Spider Egg
+Cerasilk Spider Soul
+Azurite Geode
+Chef's Potion
+Chevon
+Chicken
+Chicken Soul
+Chocolate Egg
+Christmas Key
+Christmas Tree Seed
+Citrus Meadow Easter Egg
+Clay Geode
+Clay Golem Soul
+Clover
+Clownfish
+Clownfish Egg
+Coal Geode
+Frostbud Seed
+Common Gem Geode
+Common Swiftness Potion
+Conjuring Oni Soul
+Copper Geode
+Corn Seed
+Corpse Walker Soul
+Corrupted Direhowl's Soul
+Corrupted Ancient Fighter Soul
+Corrupted Aqua Drake Soul
+Corrupted Arid Bear Soul
+Corrupted Ashen Moth Soul
+Corrupted Attuned Hound Soul
+Corrupted Solheim the Sunbound Pharaoh's Soul
+Corrupted Husk Warlord Soul
+Corrupted Husk Grunt Soul
+Corrupted Husk Skirmisher Soul
+Corrupted Husk Warrior Soul
+Corrupted Bat Soul
+Corrupted Sludge Elemental Soul
+Corrupted Black Wolf Soul
+Corrupted Blinded Acolyte Soul
+Corrupted Bloated Zombie Soul
+Corrupted Lumabird Soul
+Corrupted Verdant Wyvern Soul
+Corrupted Blue Jay Soul
+Corrupted Blue Oozing Core Soul
+Corrupted Boar Soul
+Corrupted Bone Golem Soul
+Corrupted Bony Soldier Soul
+Corrupted Bootzafrau Soul
+Corrupted Boreal Yak Soul
+Corrupted Bound Cadaver Soul
+Corrupted Skullsmasher's Soul
+Corrupted Taurok the Crimsonhoof's Soul
+Corrupted Goldscale Viper Soul
+Corrupted Brindle Hyena Soul
+Corrupted Frost Wyvern Soul
+Corrupted Bulwarked Tortoise Soul
+Corrupted Carcass Feeder Soul
+Corrupted Carrion Crawler Soul
+Corrupted Carving Beaver Soul
+Corrupted Caustic Frog Soul
+Corrupted Cave Bat Soul
+Corrupted Cerasilk Spider Soul
+Corrupted Chicken Soul
+Corrupted Clay Golem Soul
+Corrupted Conjuring Oni Soul
+Corrupted Corpse Walker Soul
+Corrupted Cow Soul
+Corrupted Crab Soul
+Corrupted Crushing Cyclops Soul
+Corrupted Cuddly Bicolor Cat Soul
+Corrupted Cuddly Calico Cat Soul
+Corrupted Cuddly Cow Cat Soul
+Corrupted Cuddly Grey Cat Soul
+Corrupted Dark Crab Soul
+Corrupted Grokk the Brawler's Soul
+Corrupted Dismembered Crawler Soul
+Corrupted Divine Pegasus Soul
+Corrupted Duck Soul
+Corrupted Sand Viper Soul
+Corrupted Dusty Shambler Soul
+Corrupted Easter Bunny Soul
+Corrupted Elderglow Spider Soul
+Corrupted Elf's Soul
+Corrupted Emerald Viper Soul
+Corrupted Ethereal Lumabird Soul
+Corrupted Fire Giant Soul
+Corrupted Fire Spectre Soul
+Corrupted Fireweave Spider Soul
+Corrupted Fog Giant Soul
+Corrupted Frost Giant Soul
+Corrupted Rimejaw Yeti's Soul
+Corrupted Ghastly Eye Soul
+Corrupted Giant Royal Scarab Soul
+Corrupted Vorlach the Glacierborn's Soul
+Corrupted Gnoll Chief's Soul
+Corrupted Gnoll Soul
+Corrupted Goat Soul
+Corrupted Goblin Fighter Soul
+Corrupted Goblin Mage Soul
+Corrupted Goblin Ranger Soul
+Corrupted Goblin Soul
+Corrupted Goose Soul
+Corrupted Drommok the Twin-Titan's Soul
+Corrupted Tombheart The Revenant Overlord's Soul
+Corrupted Green Oozing Core Soul
+Corrupted Grey Boar Soul
+Corrupted Mortis's Soul
+Corrupted Hearty Elephant Soul
+Corrupted Hill Giant Soul
+Corrupted Hobgoblin Brawler Soul
+Corrupted Hobgoblin Soul
+Corrupted Ice Golem Soul
+Corrupted Insulated Lumabird Soul
+Corrupted Intellect Devourer Soul
+Corrupted Juvenile Entropic Dragon Soul
+Corrupted Key
+Corrupted Sethra the Sandborn's Soul
+Corrupted Leaping Kangaroo Soul
+Corrupted Crystalline Maw's Soul
+Corrupted Colossal Cockerel Soul
+Corrupted Mighty Lion Soul
+Corrupted Mochi Soul
+Corrupted Molten Slug Soul
+Corrupted Matron Aurochs's Soul
+Corrupted Matron Hog's Soul
+Corrupted Matron Hen's Soul
+Corrupted Matron Ewe's Soul
+Corrupted Mummified Ritualist Soul
+Corrupted Mystical Owl Soul
+Corrupted Nefarious Raccoon Soul
+Corrupted Mirewyrm Core's Soul
+Corrupted Gloomweb Matriarch's Soul
+Corrupted Orange Lumabird Soul
+Corrupted Ossified Slayer Soul
+Corrupted Bonescale Wyvern Soul
+Corrupted Pestilence's Soul
+Corrupted Pig Soul
+Corrupted Pigeon Soul
+Corrupted Playful Blue Cat Soul
+Corrupted Playful Orange Cat Soul
+Corrupted Playful Torbie Cat Soul
+Corrupted Playful Tuxedo Cat Soul
+Corrupted Poison Ghost Soul
+Corrupted Polar Bear Soul
+Corrupted Polly Soul
+Corrupted Preying Eagle Soul
+Corrupted Hollow Jack's Soul
+Corrupted Purple Oozing Core Soul
+Corrupted Reaving Manticore Soul
+Corrupted Red Oozing Core Soul
+Corrupted Returned Poisoner Soul
+Corrupted Revenant Soul
+Corrupted Rotting Archer Soul
+Corrupted Royal Scarab Soul
+Corrupted Royal Sentinel Soul
+Corrupted Santa's Soul
+Corrupted Scrounging Squirrel Soul
+Corrupted Duskfang's Soul
+Corrupted Shadowweave Buffalo Soul
+Corrupted Sheep Soul
+Corrupted Carapace Titan's Soul
+Corrupted Shrieker Mushroom Soul
+Corrupted Silk Moth Soul
+Corrupted Skeletal Archer Soul
+Corrupted Skeletal Hound Soul
+Corrupted Skeletal Mage Soul
+Corrupted Skeleton Soul
+Corrupted Skittering Hands Soul
+Corrupted Snow Yeti Soul
+Corrupted Solar Moth Soul
+Corrupted Spectral Wisp Soul
+Corrupted Spice Weasel Soul
+Corrupted Spitting Cobra Soul
+Corrupted Stalking Fox Soul
+Corrupted Stormhorn Yak Soul
+Corrupted Striking Scorpion Soul
+Corrupted Solfang the Oasis Matriarch's Soul
+Corrupted The Eye's Soul
+Corrupted Toad Soul
+Corrupted Tomb Guardian Soul
+Corrupted Towering Treant Soul
+Corrupted Toxic Bear Soul
+Corrupted Toxic Hound Soul
+Corrupted Toxic Wolf Soul
+Corrupted Tunneling Mole Soul
+Corrupted Twinfang The Blight Bringer's Soul
+Corrupted Oskar the Buried Prince's Soul
+Corrupted Undead Roamer Soul
+Corrupted Undead Shuffler Soul
+Corrupted Unraveling Crawler Soul
+Corrupted Nyxthrax, the Ebon Maw's Soul
+Corrupted Gorewatcher Soul
+Corrupted Verdict's Soul
+Corrupted Sangthrax the Bloodbound's Soul
+Corrupted Vibrant Dragonfly Soul
+Corrupted Emerald Dragon Soul
+Corrupted Virulent Wight Soul
+Corrupted Void Bear Soul
+Corrupted Walla Soul
+Corrupted Corrupt Wyvern Soul
+Corrupted Water Elemental Soul
+Corrupted Wolf Rider Soul
+Corrupted Wolf Soul
+Corrupted Yellow Oozing Core Soul
+Corrupted Young Crimson Dragon Soul
+Corrupted Young Black Dragon Soul
+Corrupted Zombie Giant Soul
+Corrupted Zombie Soul
+Cotton Seed
+Cow Soul
+Crab Soul
+Cranberry Seed
+Crayfish
+Crayfish Egg
+Crimson Candy Spots Easter Egg
+Crushing Cyclops Soul
+Rimite Geode
+Cuddly Bicolor Cat Soul
+Cuddly Calico Cat Soul
+Cuddly Cow Cat Soul
+Cuddly Grey Cat Soul
+Dark Crab Soul
+Grokk the Brawler's Soul
+Mistglow Capling
+Dismembered Crawler Soul
+Divine Pegasus Soul
+Duck Soul
+Sand Viper Soul
+Dune Thicket Tree Seed
+Dusty Shambler Soul
+Easter Bunny Soul
+Eggplant Seed
+Elderglow Spider Egg
+Elderglow Spider Soul
+Elf's Soul
+Cinderplume Seed
+Emerald Glory Seed
+Emerald Viper Soul
+Ethereal Lumabird Soul
+Eucalyptus Tree Seed
+Excavation Potion
+Farmer's Golden Boots
+Fire Giant Soul
+Fire Spectre Soul
+Fireweave Spider Egg
+Fireweave Spider Soul
+Fisherman's Charm Necklace
+Fishing Trophy
+Flameberry Seed
+Fletcher Potion
+Flourishing Etherwood Tree Seed
+Fog Giant Soul
+Forager's Charm Necklace
+Fortitude Potion
+Fried Egg
+Frost Ear Capling
+Frost Giant Soul
+Frost Tuna
+Frost Tuna Egg
+Frost Worm
+Frosted Brightberry Seed
+Rimejaw Yeti's Soul
+Garlic Seed
+Gatherer Potion
+Ghastly Eye Soul
+Ghost Cookie
+Giant Royal Scarab Soul
+Vorlach the Glacierborn's Soul
+Gnoll Chief's Soul
+Gnoll Soul
+Goat Soul
+Goblin Fighter Soul
+Goblin Key
+Goblin Mage Soul
+Goblin Ranger Soul
+Goblin Soul
+Goblin Wolf Rider Soul
+Gold Geode
+Golden Direhowl's Soul
+Golden Ancient Fighter Soul
+Golden Aqua Drake Soul
+Golden Arctic Bass
+Golden Arid Bear Soul
+Golden Ashen Moth Soul
+Golden Attuned Hound Soul
+Golden Solheim the Sunbound Pharaoh's Soul
+Golden Husk Warlord Soul
+Golden Banana Fish
+Golden Husk Grunt Soul
+Golden Husk Skirmisher Soul
+Golden Husk Warrior Soul
+Golden Bat Soul
+Golden Sludge Elemental Soul
+Golden Black Wolf Soul
+Golden Blinded Acolyte Soul
+Golden Bloated Zombie Soul
+Golden Brightberries
+Golden Lumabird Soul
+Golden Verdant Wyvern Soul
+Golden Blue Jay Soul
+Golden Blue Marlin
+Golden Blue Oozing Core Soul
+Golden Boar Soul
+Golden Bone Golem Soul
+Golden Bony Soldier Soul
+Golden Bootzafrau Soul
+Golden Boreal Yak Soul
+Golden Bound Cadaver Soul
+Golden Skullsmasher's Soul
+Golden Taurok the Crimsonhoof's Soul
+Golden Goldscale Viper Soul
+Golden Brindle Hyena Soul
+Golden Frost Wyvern Soul
+Golden Bulwarked Tortoise Soul
+Golden Carcass Feeder Soul
+Golden Carrion Crawler Soul
+Golden Carrot
+Golden Carving Beaver Soul
+Golden Catfish
+Golden Caustic Frog Soul
+Golden Cave Bat Soul
+Golden Cerasilk Spider Soul
+Golden Acorncap Capling
+Golden Chicken Soul
+Golden Clay Golem Soul
+Golden Cloth
+Golden Clover
+Golden Clownfish
+Golden Conjuring Oni Soul
+Golden Cookie
+Golden Corpse Walker Soul
+Golden Cow Soul
+Golden Crab Soul
+Golden Crayfish
+Golden Crown Shell Easter Egg
+Golden Crushing Cyclops Soul
+Golden Cuddly Bicolor Cat Soul
+Golden Cuddly Calico Cat Soul
+Golden Cuddly Cow Cat Soul
+Golden Cuddly Grey Cat Soul
+Golden Dark Crab Soul
+Golden Grokk the Brawler's Soul
+Golden Desiccated Bones
+Golden Dismembered Crawler Soul
+Golden Divine Pegasus Soul
+Golden Dog Biscuit
+Golden Duck Soul
+Golden Sand Viper Soul
+Golden Dusty Shambler Soul
+Golden Easter Bunny Soul
+Golden Easter Egg
+Golden Egg
+Golden Elderglow Spider Soul
+Golden Elf's Soul
+Golden Emerald Viper Soul
+Golden Ethereal Lumabird Soul
+Golden Eye
+Golden Feather
+Golden Fire Giant Soul
+Golden Fire Spectre Soul
+Golden Fireweave Spider Soul
+Golden Fleece
+Golden Fog Giant Soul
+Golden Frost Giant Soul
+Golden Frost Tuna
+Golden Rimejaw Yeti's Soul
+Golden Ghastly Eye Soul
+Golden Giant Royal Scarab Soul
+Golden Vorlach the Glacierborn's Soul
+Golden Gnoll Chief's Soul
+Golden Gnoll Soul
+Golden Goat Skull
+Golden Goat Soul
+Golden Goblin Fighter Soul
+Golden Goblin Mage Soul
+Golden Goblin Ranger Soul
+Golden Goblin Soul
+Golden Gold Ore
+Golden Goose Soul
+Golden Drommok the Twin-Titan's Soul
+Golden Tombheart The Revenant Overlord's Soul
+Golden Green Oozing Core Soul
+Golden Grey Boar Soul
+Golden Mortis's Soul
+Golden Hearty Elephant Soul
+Golden Herring
+Golden Hill Giant Soul
+Golden Hobgoblin Brawler Soul
+Golden Hobgoblin Soul
+Golden Hook
+Golden Horns
+Golden Ice Golem Soul
+Golden Insulated Lumabird Soul
+Golden Intellect Devourer Soul
+Golden Jaw
+Golden Juvenile Entropic Dragon Soul
+Golden Sethra the Sandborn's Soul
+Golden Leaping Kangaroo Soul
+Golden Leather
+Golden Lobster
+Golden Lockpick
+Golden Log
+Golden Mackerel
+Golden Crystalline Maw's Soul
+Golden Colossal Cockerel Soul
+Golden Mighty Lion Soul
+Golden Mirage Minnow
+Golden Mochi Soul
+Golden Molten Slug Soul
+Golden Matron Aurochs's Soul
+Golden Matron Hog's Soul
+Golden Matron Hen's Soul
+Golden Matron Ewe's Soul
+Golden Mummified Ritualist Soul
+Golden Mystical Owl Soul
+Golden Nefarious Raccoon Soul
+Golden Mirewyrm Core's Soul
+Golden Oasis Skimmer
+Golden Gloomweb Matriarch's Soul
+Golden Orange Lumabird Soul
+Golden Ossified Slayer Soul
+Golden Bonescale Wyvern Soul
+Golden Pestilence's Soul
+Golden Pig Soul
+Golden Pigeon Soul
+Golden Playful Blue Cat Soul
+Golden Playful Orange Cat Soul
+Golden Playful Torbie Cat Soul
+Golden Playful Tuxedo Cat Soul
+Golden Poison Ghost Soul
+Golden Polar Bear Soul
+Golden Polly Soul
+Golden Pot
+Golden Pretzel
+Golden Preying Eagle Soul
+Golden Hollow Jack's Soul
+Golden Purple Oozing Core Soul
+Golden Reaving Manticore Soul
+Golden Red Oozing Core Soul
+Golden Returned Poisoner Soul
+Golden Revenant Soul
+Golden Rotting Archer Soul
+Golden Royal Scarab Soul
+Golden Royal Sentinel Soul
+Golden Salmon
+Golden Santa's Soul
+Golden Scorched Pile Of Bones
+Golden Scrounging Squirrel Soul
+Golden Duskfang's Soul
+Golden Shadowweave Buffalo Soul
+Golden Shark
+Golden Sheep Soul
+Golden Carapace Titan's Soul
+Golden Shrieker Mushroom Soul
+Golden Shrimp
+Golden Silk Moth Soul
+Golden Skeletal Archer Soul
+Golden Skeletal Hound Soul
+Golden Skeletal Mage Soul
+Golden Skeleton Soul
+Golden Skittering Hands Soul
+Golden Skull
+Golden Snow Yeti Soul
+Golden Solar Moth Soul
+Golden Spectral Pufferfish
+Golden Spectral Wisp Soul
+Golden Spice Weasel Soul
+Golden Spitting Cobra Soul
+Golden Splintered Bone
+Golden Stalking Fox Soul
+Golden Starfish
+Golden Stingray
+Golden Stormhorn Yak Soul
+Golden Striking Scorpion Soul
+Golden String
+Golden Sun Carp
+Golden Solfang the Oasis Matriarch's Soul
+Golden Sunfish
+Golden Dawncap Capling
+Golden The Eye's Soul
+Golden Ticket
+Golden Toad Soul
+Golden Tomb Guardian Soul
+Golden Tooth
+Golden Towering Treant Soul
+Golden Toxic Bear Soul
+Golden Toxic Hound Soul
+Golden Toxic Wolf Soul
+Golden Trout
+Golden Tunneling Mole Soul
+Golden Twinfang The Blight Bringer's Soul
+Golden Oskar the Buried Prince's Soul
+Golden Undead Roamer Soul
+Golden Undead Shuffler Soul
+Golden Unraveling Crawler Soul
+Golden Nyxthrax, the Ebon Maw's Soul
+Golden Vase
+Golden Gorewatcher Soul
+Golden Verdict's Soul
+Golden Sangthrax the Bloodbound's Soul
+Golden Vertebrae
+Golden Vibrant Dragonfly Soul
+Golden Emerald Dragon Soul
+Golden Virulent Wight Soul
+Golden Void Bear Soul
+Golden Walla Soul
+Golden Corrupt Wyvern Soul
+Golden Water Elemental Soul
+Golden Wolf Rider Soul
+Golden Wolf Soul
+Golden Worm
+Golden Worn Fang
+Golden Yellow Oozing Core Soul
+Golden Young Crimson Dragon Soul
+Golden Young Black Dragon Soul
+Golden Zombie Giant Soul
+Golden Zombie Soul
+Goose Soul
+Drommok the Twin-Titan's Soul
+Grand Artisan's Potion
+Grand Botanists Potion
+Grand Imbuer's Potion
+Tombheart The Revenant Overlord's Soul
+Green Banana
+Green Bean Seed
+Green Oozing Core Soul
+Grey Brightberry Seed
+Grey Boar Soul
+Grilling Potion
+Mortis's Soul
+Hawkeye's Dominion Potion
+Hearty Elephant Soul
+Herring
+Herring Egg
+Hill Giant Soul
+Hoarfrost Mint Seed
+Hobgoblin Brawler Soul
+Hobgoblin Soul
+Huntsman's Potion
+Hyena Meat
+I AM APPLE
+Ice Cubes
+Ice Golem Soul
+Icebound Etherwood Core
+Icebound Frostpine Logs
+Icebound Frostbud
+Icebound Rimite Ore
+Icebound Frost Ear
+Icebound Frost Worm
+Icebound Frosted Brightberries
+Icebound Hoarfrost Mint
+Icebound Rime Salt
+Icebound Emberbough Logs
+Icebound Wyldite Ore
+Icebound Winter Oyster
+Runed Lumabird Egg
+Runed Blood Slate
+Runed Geode
+Runed Glory Seed
+Runed Omni Slate
+Runed Shards
+Runed Starfish
+Runed Starfish Egg
+Runed Substance
+Runed Tree Seed
+Imbuer's Potion
+Infusion Potion
+Insulated Lumabird Egg
+Insulated Lumabird Soul
+Intellect Devourer Soul
+Iron Geode
+Jade Necklace
+Jade Ring
+Juvenile Entropic Dragon Soul
+Kale Seed
+Glaciite Geode
+Sethra the Sandborn's Soul
+Shadeleaf Shroom Capling
+Leaping Kangaroo Soul
+Lobster
+Lobster Egg
+Lockpick
+Lost Hatchet
+Lost Pick
+Lumberjack's Potion
+Luminous Geode
+Moonbark Tree Seed
+Mackerel
+Mackerel Egg
+Magic Tree Seed
+Crystalline Maw's Soul
+Maple Tree Seed
+Marksman's Might Potion
+Meadow Cress Seed
+Colossal Cockerel Soul
+Melted Banana Split
+Message In A Bottle
+Metal Trap
+Mighty Lion Soul
+Miner's Charm Necklace
+Mirage Minnow
+Mirage Minnow Egg
+Mithril Geode
+Mithril Trap
+Mochi Soul
+Molten Slug Soul
+Matron Aurochs's Soul
+Matron Hog's Soul
+Mossfoot Potion
+Matron Hen's Soul
+Matron Ewe's Soul
+Mummified Ritualist Soul
+Mystical Owl Soul
+Mortite Geode
+Nefarious Raccoon Soul
+Mirewyrm Core's Soul
+Oak Tree Seed
+Oasis Skimmer
+Oasis Skimmer Egg
+Old Scroll
+Gloomweb Matriarch's Soul
+Opal Necklace
+Opal Ring
+Orange Banana
+Orange Brightberry Seed
+Orange Lumabird Egg
+Orange Lumabird Soul
+Oreheart Potion
+Ossified Slayer Soul
+Bonescale Wyvern Soul
+Frondshade Capling
+Papyrus Seed
+Parsnip Seed
+Pestilence's Soul
+Wraithite Cage
+Wraithite Geode
+Pig Meat
+Pig Soul
+Pigeon Soul
+Pink Banana
+Pinkberry Seed
+Playful Blue Cat Soul
+Playful Orange Cat Soul
+Playful Torbie Cat Soul
+Playful Tuxedo Cat Soul
+Poison Ghost Soul
+Polar Bear Egg
+Polar Bear Meat
+Polar Bear Soul
+Polly Soul
+Pot
+Potato Seed
+Precision Potion
+Preying Eagle Soul
+Prickle Brightberry Seed
+Prismatic Banana Bunch
+Pumpkin
+Pumpkin Cookie
+Hollow Jack's Soul
+Purple Banana
+Purple Brightberry Seed
+Purple Oozing Core Soul
+Quickness Potion
+Radish Seed
+Random Tier 0 Slate
+Ranger Potion
+Rare Gem Geode
+Raw Yaw Haunch
+Reaving Manticore Soul
+Red Banana
+Red Brightberry Seed
+Red Cabbage Seed
+Red Maple Tree Seed
+Red Oozing Core Soul
+Mirewort Fungus Capling
+Regular Tree Seed
+Returned Poisoner Soul
+Revenant Soul
+Rice Seed
+Rime Salt Geode
+Rogue Potion
+Rotten Banana
+Rotten Fried Egg
+Rotten Potato
+Rotting Archer Soul
+Royal Cross Bloom Easter Egg
+Royal Scarab Soul
+Royal Sentinel Soul
+Redwood Logs
+Redwood Tree Seed
+Rusty Key
+Salmon
+Salmon Egg
+Sand Worm
+Sandstone Geode
+Hemalite Geode
+Santa's Soul
+Saturation Potion
+Savage Power Potion
+Scarlet Mistcap Capling
+Scrounging Squirrel Soul
+Seer Potion
+Shadow Fang
+Duskfang's Soul
+Shadowweave Buffalo Egg
+Shadowweave Buffalo Soul
+Shark
+Shark Egg
+Sheep Soul
+Carapace Titan's Soul
+Shrieker Mushroom Soul
+Shrimp
+Shrimp Egg
+Silk Moth Egg
+Silk Moth Soul
+Silver Geode
+Sizzling Sunrise Easter Egg
+Skeletal Archer Soul
+Skeletal Hound Egg
+Skeletal Hound Soul
+Skeletal Mage Soul
+Skeleton Soul
+Skittering Hands Soul
+Small Banana
+Snow Yeti Soul
+Snowball
+Paleeye Seed
+Solar Moth Egg
+Solar Moth Soul
+Spectral Pufferfish Egg
+Spectral Wisp Soul
+Spellbinding Potion
+Spice Weasel Soul
+Emberbough Tree Seed
+Spitting Cobra Soul
+Stalking Fox Soul
+Duskbloom Seed
+Stingray
+Stingray Egg
+Stormhorn Yak Egg
+Stormhorn Yak Soul
+Strawberry Seed
+Striking Scorpion Soul
+Sun Carp
+Sun Carp Egg
+Sunbaked Clay Geode
+Sunburst Swirl Easter Egg
+Elderlog Tree Seed
+Solfang the Oasis Matriarch's Soul
+Sunfish
+Sunfish Egg
+Sunflower Seed
+Dayleaf Seed
+Daybloom Seed
+Emberite Geode
+Super Beastmaster's Potion
+Super Botanist Potion
+Super Firemaker's Potion
+Super Forge Potion
+Super Fortitude Potion
+Super Imbuer's Potion
+Super Sanctified Grace Potion
+Super Swiftness Potion
+Sweet Potato Seed
+Swiftness Potion
+Wyldite Geode
+Tangerine Easter Egg
+Teak Tree Seed
+Teal Brightberry Seed
+The Eye's Soul
+Barbroot Seed
+Tidecaller Potion
+Timber Potion
+Tin Geode
+Toad Soul
+Tomato Seed
+Tomb Guardian Soul
+Towering Treant Soul
+Toxic Bear Soul
+Toxic Fang
+Toxic Hound Soul
+Toxic Key
+Toxic Leather
+Toxic Wolf Soul
+Trout
+Trout Egg
+Tunneling Mole Soul
+Twilight Bloomcap Capling
+Twinfang The Blight Bringer's Soul
+Oskar the Buried Prince's Soul
+Uncommon Gem Geode
+Uncommon Swiftness Potion
+Undead Roamer Soul
+Undead Shuffler Soul
+Unraveling Crawler Soul
+Nyxthrax, the Ebon Maw's Soul
+Vaning Potion
+Vase
+Gorewatcher Soul
+Verdict's Soul
+Sangthrax the Bloodbound's Soul
+Vibrant Dragonfly Egg
+Vibrant Dragonfly Soul
+Vigor Potion
+Emerald Dragon Soul
+Virulent Wight Soul
+Void Bear Egg
+Void Bear Soul
+Void Spore Capling
+Walla Soul
+Warlord's Fury Potion
+Corrupt Wyvern Soul
+Water Elemental Soul
+Wheat Seed
+White Brightberry Seed
+Wild Boar Egg
+Willow Tree Seed
+Winter Oyster Capling
+Witch Moss Seed
+Withered Etherwood Core
+Wizard's Wisdom Potion
+Wolf Meat
+Wolf Soul
+Woodcutter's Charm Necklace
+Yak Haunch
+Yellow Brightberry Seed
+Yellow Comb Seed
+Yellow Oozing Core Soul
+Yew Tree Seed
+Young Crimson Dragon Soul
+Young Black Dragon Soul
+Zombie Giant Soul
+Zombie Soul

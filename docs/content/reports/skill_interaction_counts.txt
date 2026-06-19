@@ -1,0 +1,10 @@
+alchemy: produces~118
+cooking: produces~46
+crafting: produces~306
+fishing: produces~67
+fletching: produces~51
+foraging: produces~46
+mining: produces~35
+prayer: produces~26
+smithing: produces~228
+woodcutting: produces~19
