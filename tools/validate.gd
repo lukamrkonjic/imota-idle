@@ -1,6 +1,9 @@
 extends Node
 ## Headless validation. Run:
 const ValidateContent := preload("res://tools/validate_content.gd")
+# Worldgen determinism baseline — refactors of the generation pipeline must keep these.
+const WORLDGEN_TILES_HASH := 4275240238
+const WORLDGEN_ELEV_SUM := 22675
 const ContentId := preload("res://scripts/content/content_id.gd")
 const SaveMigration := preload("res://autoload/save_migration.gd")
 const SkillRemap := preload("res://scripts/content/skill_remap.gd")
@@ -838,6 +841,19 @@ func phase6_worldgen() -> void:
 	WorldGen.reset(4243)
 	var c: RefCounted = WorldGen.get_chunk(0, proc_chunk.x, proc_chunk.y)
 	check(c.tiles != a_tiles, "different seed yields different terrain")
+
+	# REFACTOR GUARD: the full generation pipeline (classify + hydrology + orography + tile_at)
+	# must stay bit-identical across biome_classifier refactors — a shift moves the world (and
+	# breaks baked saves). Hashes the seed-4242 chunk tiles + an elevation sweep.
+	var tiles_hash := hash(a_tiles)
+	var elev_sum := 0
+	var cl: RefCounted = WorldGen.generator.classifier
+	for ey: int in range(-48, 48):
+		for ex: int in range(-48, 48):
+			elev_sum += cl.elevation_steps(float(ex * 11), float(ey * 11))
+	print("  [worldgen baseline] tiles_hash=%d elev_sum=%d" % [tiles_hash, elev_sum])
+	check(WORLDGEN_TILES_HASH == 0 or tiles_hash == WORLDGEN_TILES_HASH, "worldgen tiles bit-identical to baseline")
+	check(WORLDGEN_ELEV_SUM == 0 or elev_sum == WORLDGEN_ELEV_SUM, "worldgen elevation bit-identical to baseline")
 
 	WorldGen.reset(WorldGen.DEFAULT_SEED)
 	# Home chunk guarantees: campsite with bank + respawn + safety.
