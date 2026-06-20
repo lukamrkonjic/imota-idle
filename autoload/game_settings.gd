@@ -247,14 +247,19 @@ func _apply_audio() -> void:
 		AudioServer.set_bus_volume_db(master_idx, linear_to_db(master_volume))
 
 
+var _display_applied_once := false
+
 func _apply_display() -> void:
 	# "Fullscreen" here means windowed-fullscreen (a MAXIMIZED window that keeps the OS
 	# title bar) — never borderless exclusive fullscreen. Off = a normal resizable window.
+	# The game ALWAYS launches maximized: the first apply (at startup) ignores a saved
+	# windowed preference so a stale save can never shrink it back to the small window;
+	# the toggle only takes effect for in-session changes after that.
 	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
-	if fullscreen:
-		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_MAXIMIZED)
-	else:
-		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+	var maximize := fullscreen or not _display_applied_once
+	_display_applied_once = true
+	DisplayServer.window_set_mode(
+		DisplayServer.WINDOW_MODE_MAXIMIZED if maximize else DisplayServer.WINDOW_MODE_WINDOWED)
 	DisplayServer.window_set_vsync_mode(
 		DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED)
 
