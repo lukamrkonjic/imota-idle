@@ -45,6 +45,7 @@ Conditional:
 |---|---|---|
 | `slot` | equipment + tools | `Weapon`/`Head`/`Body`/`Ring`/`Axe`/`Pickaxe`/`Rod`/`Lens`/… — **explicit**, never inferred from the name |
 | `combatStyle` | weapons | drives XP routing |
+| `attackSpeed` | weapons | attack interval in 0.6s ticks (4 = fast dagger/scimitar/bow, 5 = sword/staff, 6–7 = heavy). Absent/0 → the 4-tick default. |
 | `renderKind` | worn gear (optional) | 3D mesh kind: `sword`/`axe`/`mace`/`spear`/`dagger`/`bow`/`staff`/`wand`/`shield`/`helm`/`hood`/`wizard_hat`/`chest`/`jerkin`/`robe_top`/`robe_bottom`/`cape`. **Overrides** the name-inferred look (rename-proof). Absent → inferred. |
 | `renderMaterial` | worn gear (optional) | visual grade: `bronze`/`iron`/`steel`/`mithril`/`adamant`/`rune`/`gold`/`cloth`/`leather`/`wood`/`bone`. Absent → the `tier` ramp (metals) or family inference (cloth/wood/leather) decides. |
 | `renderTint` | cloth/gem gear (optional) | `[r,g,b]`/`[r,g,b,a]` (0..1) or `"#rrggbb"` colour override. |

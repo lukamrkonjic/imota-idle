@@ -415,6 +415,13 @@ func phase1_inventory_bank_equipment() -> void:
 	check(GameState.equip("Bronze Sword"), "equip succeeds at Attack 3")
 	check(GameState.equipment_damage() == 1.0, "Bronze Sword adds 1 equipment damage")
 
+	# Per-weapon attack speed is data-driven (ItemDef.attackSpeed, in ticks): swords are
+	# a balanced 5 ticks, daggers/scimitars a fast 4. attack_ticks() reads the equipped
+	# weapon's value and falls back to the 4-tick default when a weapon authors none.
+	check(GameState.attack_ticks() == 5, "equipped Bronze Sword -> attack_ticks() = 5 (from data)")
+	check(DataRegistry.item_def("Bronze Dagger").attack_speed == 4, "Bronze Dagger authors a faster 4-tick speed")
+	check(DataRegistry.item_def("Acadia Shortbow").attack_speed == 4, "ranged weapon authors a speed too")
+
 	# Visible-equipment look is DATA-driven (EquipLoadout): the item's `tier` field
 	# drives the metal grade, not name substrings — so renames never change appearance
 	# and the game's invented tier families render at their true grade.
