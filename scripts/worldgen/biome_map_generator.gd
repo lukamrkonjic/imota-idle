@@ -155,12 +155,18 @@ func _pick_parent_id(h: float, m: float, t: float, tx: float, ty: float) -> Stri
 	var best := "plains"
 	var best_s := -1.0
 	for bd: Dictionary in _clim_biomes:
-		var s: float = _suitability(bd, cl.x, cl.y, cl.z)
-		# A smooth, biome-ID-keyed wobble breaks ties so equal-suitability seams interlock
-		# organically; keyed by id (not list order), so adding/removing a biome can't shift
-		# the others' values.
+		# final = climateSuitability * regionalInfluence. Temperate "major" biomes have
+		# influence 1 everywhere (the connective tissue); EXTREME biomes (desert/volcanic/
+		# jungle/tundra/badlands) are confined to their anchored, domain-warped basin, so
+		# they form coherent territories instead of scattered fragments.
+		var infl: float = _regional_influence(bd, tx, ty)
+		if infl <= 0.0:
+			continue
+		var s: float = _suitability(bd, cl.x, cl.y, cl.z) * infl
+		# A smooth, biome-ID-keyed wobble frays seams organically. Scaled by influence so it
+		# can't speckle an extreme biome outside its basin. Keyed by id (not list order).
 		var off: float = bd["off"]
-		s += (classifier._domain_warp.get_noise_2d(tx * 0.012 + off, ty * 0.012 + off) * 0.5 + 0.5) * 0.15
+		s += (classifier._domain_warp.get_noise_2d(tx * 0.012 + off, ty * 0.012 + off) * 0.5 + 0.5) * 0.09 * infl
 		if s > best_s:
 			best_s = s
 			best = str(bd["id"])
@@ -169,8 +175,9 @@ func _pick_parent_id(h: float, m: float, t: float, tx: float, ty: float) -> Stri
 
 # --- climate-suitability biome model -----------------------------------------
 var _clim_ready := false
-var _clim_biomes: Array = []        # [{id, t0,t1,m0,m1,e0,e1, off}] parent biomes with a climate
+var _clim_biomes: Array = []        # [{id, t0,t1,m0,m1,e0,e1, off, extreme}] biomes with a climate
 var _region_anchors: Array = []     # [{c:Vector2, r:float, t:float, m:float}] authored climate pulls
+var _extreme_anchors: Dictionary = {}  # biome_id -> [{c:Vector2, r:float}] confinement basins
 
 func _ensure_climate_cache() -> void:
 	if _clim_ready:
@@ -188,19 +195,49 @@ func _ensure_climate_cache() -> void:
 			"t0": float(tr[0]), "t1": float(tr[1]),
 			"m0": float(mr[0]), "m1": float(mr[1]),
 			"e0": float(er[0]), "e1": float(er[1]),
-			"off": float(absi(str(b["id"]).hash()) % 977)})
+			"off": float(absi(str(b["id"]).hash()) % 977),
+			"extreme": str(b.get("climateScale", "major")) == "extreme"})
 	var ct := float(WG.CHUNK_TILES)
 	for r: Dictionary in reg.spec.regions:
-		var bc: Dictionary = reg.biome_by_id(str(r.get("biome", ""))).get("climate", {})
+		var biome := str(r.get("biome", ""))
+		var bdef: Dictionary = reg.biome_by_id(biome)
+		var bc: Dictionary = bdef.get("climate", {})
 		if bc.is_empty():
 			continue
+		var c2 := Vector2(float(r["cx"]) * ct + ct * 0.5, float(r["cy"]) * ct + ct * 0.5)
+		var rr := float(r["radius"]) * ct
 		var tr2: Array = bc.get("t", [0.5, 0.5])
 		var mr2: Array = bc.get("m", [0.5, 0.5])
-		_region_anchors.append({
-			"c": Vector2(float(r["cx"]) * ct + ct * 0.5, float(r["cy"]) * ct + ct * 0.5),
-			"r": float(r["radius"]) * ct,
+		_region_anchors.append({"c": c2, "r": rr,
 			"t": (float(tr2[0]) + float(tr2[1])) * 0.5,
 			"m": (float(mr2[0]) + float(mr2[1])) * 0.5})
+		# Extreme biomes also seed a confinement basin around their anchors.
+		if str(bdef.get("climateScale", "major")) == "extreme":
+			if not _extreme_anchors.has(biome):
+				_extreme_anchors[biome] = []
+			(_extreme_anchors[biome] as Array).append({"c": c2, "r": rr})
+
+
+## Regional influence 0..1: how strongly a biome is "allowed" here at the continental scale.
+## Major (temperate) biomes are 1 everywhere — the connective tissue. EXTREME biomes are 1 in
+## their anchored basin core and fade to 0 well outside (a wide transition belt), so deserts/
+## volcanoes/jungles/tundra stay coherent territories. The sample point is domain-warped so the
+## basins are irregular, not circular. (No anchors for an extreme biome => it can't appear.)
+func _regional_influence(bd: Dictionary, tx: float, ty: float) -> float:
+	if not bool(bd["extreme"]):
+		return 1.0
+	var anchors: Array = _extreme_anchors.get(str(bd["id"]), [])
+	if anchors.is_empty():
+		return 0.0
+	var wx: float = classifier._domain_warp.get_noise_2d(tx * 0.0024 + 13.0, ty * 0.0024 + 7.0) * 360.0
+	var wy: float = classifier._domain_warp.get_noise_2d(tx * 0.0024 + 61.0, ty * 0.0024 + 37.0) * 360.0
+	var p := Vector2(tx + wx, ty + wy)
+	var best := 0.0
+	for a: Dictionary in anchors:
+		var d: float = p.distance_to(a["c"])
+		# Solid core out to ~1.1r, fading to 0 by ~2.8r => a broad basin + wide transition belt.
+		best = maxf(best, 1.0 - smoothstep(float(a["r"]) * 1.1, float(a["r"]) * 2.8, d))
+	return best
 
 
 ## Continuous climate at a world tile: base temperature/moisture (warped multi-octave noise
@@ -216,10 +253,13 @@ func _climate_at(tx: float, ty: float) -> Vector3:
 	var g: Dictionary = classifier.geo(tx, ty)
 	var lat: float = float(g["n"])   # +1 far north .. -1 far south
 	# Temperature: warm baseline, colder toward the north, plus a gentle low-frequency drift.
-	var tnoise: float = classifier._climate.get_noise_2d(sx, sy) * 0.5 + 0.5
-	var temp: float = clampf(0.62 - lat * 0.40 + (tnoise - 0.5) * 0.34, 0.0, 1.0)
+	# Sample the climate noise at scaled-down coordinates => much lower effective frequency =>
+	# broad, continental temperature/moisture regions (the large-scale structure) instead of
+	# mid-frequency speckle competing with the major regions.
+	var tnoise: float = classifier._climate.get_noise_2d(sx * 0.5, sy * 0.5) * 0.5 + 0.5
+	var temp: float = clampf(0.62 - lat * 0.42 + (tnoise - 0.5) * 0.30, 0.0, 1.0)
 	# Moisture: one broad low-frequency field.
-	var moist: float = clampf(classifier._moist_macro.get_noise_2d(sx, sy) * 0.5 + 0.5, 0.0, 1.0)
+	var moist: float = clampf(classifier._moist_macro.get_noise_2d(sx * 0.55, sy * 0.55) * 0.5 + 0.5, 0.0, 1.0)
 	var elev: float = clampf(classifier._mtn.mountain_height_field(tx, ty), 0.0, 1.0)
 	# Authored regions pull the local climate toward their biome's centre (smooth, distance
 	# weighted) — hand-authored layout WITHOUT hard borders, since it only bends the field.

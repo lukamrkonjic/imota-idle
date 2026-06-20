@@ -462,7 +462,8 @@
           0.4,
           1.0
         ]
-      }
+      },
+      "climateScale": "extreme"
     },
     {
       "id": "rocky_hills",
@@ -543,7 +544,8 @@
           0.55,
           1.0
         ]
-      }
+      },
+      "climateScale": "major"
     },
     {
       "id": "tundra",
@@ -620,7 +622,8 @@
           0.1,
           0.72
         ]
-      }
+      },
+      "climateScale": "extreme"
     },
     {
       "id": "desert",
@@ -703,7 +706,8 @@
           0.0,
           0.46
         ]
-      }
+      },
+      "climateScale": "extreme"
     },
     {
       "id": "swamp",
@@ -792,7 +796,8 @@
           0.0,
           0.3
         ]
-      }
+      },
+      "climateScale": "major"
     },
     {
       "id": "alpine",
@@ -857,7 +862,8 @@
           0.8,
           1.0
         ]
-      }
+      },
+      "climateScale": "major"
     },
     {
       "id": "jungle",
@@ -950,7 +956,8 @@
           0.0,
           0.45
         ]
-      }
+      },
+      "climateScale": "extreme"
     },
     {
       "id": "boreal_forest",
@@ -1035,7 +1042,8 @@
           0.1,
           0.62
         ]
-      }
+      },
+      "climateScale": "major"
     },
     {
       "id": "savanna",
@@ -1127,7 +1135,8 @@
           0.0,
           0.46
         ]
-      }
+      },
+      "climateScale": "major"
     },
     {
       "id": "badlands",
@@ -1212,7 +1221,8 @@
           0.3,
           0.72
         ]
-      }
+      },
+      "climateScale": "extreme"
     },
     {
       "id": "dense_forest",
@@ -1298,7 +1308,8 @@
           0.0,
           0.52
         ]
-      }
+      },
+      "climateScale": "major"
     },
     {
       "id": "flower_meadow",
@@ -2225,7 +2236,8 @@
           0.0,
           0.52
         ]
-      }
+      },
+      "climateScale": "major"
     },
     {
       "id": "plains",
@@ -2310,7 +2322,8 @@
           0.0,
           0.45
         ]
-      }
+      },
+      "climateScale": "major"
     },
     {
       "_note": "Authored-only biome: not produced by the Whittaker classifier, so it appears solely where a WorldSpec region forces it (see world_spec.gd).",
@@ -2377,7 +2390,8 @@
           0.0,
           0.38
         ]
-      }
+      },
+      "climateScale": "major"
     }
   ],
   "subBiomes": [
