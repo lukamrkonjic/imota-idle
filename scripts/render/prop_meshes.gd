@@ -337,21 +337,30 @@ static func _snowy_conifer_parts() -> Array:
 	return _conifer_parts_with_material(snow)
 
 
-## Pine: tall, with a bare reddish lower trunk and a few broad, well-separated
-## tiers high up (distinct from the full-to-ground fir cone-stack).
+## Pine: the treeline's TALL one — a long bare trunk lifting a slender clustered crown.
+## Same soft "puffy" clumped foliage as the fir, but narrower and elongated and raised
+## on a bare stem, so it stays distinct (tall slim pine vs full broad fir).
 static func _pine_parts() -> Array:
-	# Towering pine: a long bare reddish trunk with a high, well-separated crown —
-	# the tallest silhouette in the treeline (≈1.35× the old height).
 	var needle := _mat("pine_dark", "forest_teal", "pine_mid")
 	var bark := _mat("trunk_a", "trunk_b", "bark_brown")
-	return [
-		_shadow_part(0.7),
-		_part(_cyl("pine_trunk", 0.13, 0.22, 3.3), bark, Vector3(0, 1.65, 0)),
-		_part(_cone("pine_filled_core", 0.43, 0.02, 2.65), needle, Vector3(0, 3.86, 0)),
-		_part(_fir_bough("pine_t0", 1.15, 0.76, 7, 0.16), needle, Vector3(0, 3.05, 0)),
-		_part(_fir_bough("pine_t1", 0.88, 0.76, 7, 0.14), needle, Vector3(0.05, 3.67, 0), Vector3.ONE, Vector3(0, 0.14, 0)),
-		_part(_fir_bough("pine_t2", 0.62, 0.76, 7, 0.12), needle, Vector3(-0.04, 4.27, 0.02), Vector3.ONE, Vector3(0, -0.12, 0)),
-		_part(_fir_bough("pine_t3", 0.36, 0.84, 7, 0.08), needle, Vector3(0.02, 4.88, 0))]
+	var p: Array = [
+		_shadow_part(0.66),
+		_part(_cyl("pine_trunk", 0.13, 0.22, 3.0), bark, Vector3(0, 1.5, 0))]
+	# Slender crown spine of overlapping clumps, high up, tapering to a point.
+	var spine: Array = [
+		[2.55, 0.96], [2.96, 0.92], [3.34, 0.84], [3.68, 0.74],
+		[3.99, 0.63], [4.27, 0.52], [4.53, 0.41], [4.77, 0.30],
+		[4.98, 0.20], [5.16, 0.12]]
+	for i: int in spine.size():
+		var s: Array = spine[i]
+		var jx: float = 0.07 if i % 2 == 0 else -0.07
+		var jz: float = -0.05 if i % 3 == 0 else 0.05
+		p.append(_part(_sphere("pine_clump%d" % i, float(s[1])), needle, Vector3(jx, float(s[0]), jz), Vector3(1.0, 0.96, 1.0)))
+	# A small collar of clumps where the crown meets the bare trunk.
+	var collar: Array = [Vector3(0.6, 2.5, 0.08), Vector3(-0.58, 2.58, -0.1), Vector3(0.1, 2.46, 0.6)]
+	for i: int in collar.size():
+		p.append(_part(_sphere("pine_collar%d" % i, 0.5), needle, collar[i], Vector3(1.05, 0.82, 1.05)))
+	return p
 
 
 ## Maple: a broad, slightly flattened dome on a stout trunk — warm autumnal
