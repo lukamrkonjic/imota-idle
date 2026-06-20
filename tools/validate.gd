@@ -293,7 +293,9 @@ func phase6_skill_loops() -> void:
 	# Background-while-busy: a gather runs at the same time as farming growth.
 	TickSim.rng.seed = 0x6A7E12
 	TickSim.start_gather("woodcutting", "Regular Tree")
-	var safety := 400  # 40s > the 20-tick (20s) Cotton grow time
+	# Derive the budget from the tuned interval (Cotton = 20 grow ticks) so this stays
+	# correct if GROW_INTERVAL is retuned, plus a margin for the gather to bank a log.
+	var safety := int(20.0 * FarmingSim.GROW_INTERVAL / 0.1) + 200
 	while GameState.count_item("Cotton") == 0 and safety > 0:
 		TickSim.advance(0.1)
 		FarmingSim.advance(0.1)

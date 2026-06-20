@@ -9,7 +9,9 @@ extends Node
 ##   { "seed", "crop", "xp": float, "yield": int, "grow": int, "age": int }
 
 const DATA_PATH := "res://data/farming.json"
-const GROW_INTERVAL := 1.0   # seconds of game time per growth tick (tunable)
+const GROW_INTERVAL := 30.0  # seconds of game time per growth tick (tunable). With the
+                             # data growTicks (20..100) this is ~10 min (Cotton) to ~50 min
+                             # (Sunleaf) to mature — passive farming on the session scale.
 const DEFAULT_PLOTS := 3
 
 var crops: Dictionary = {}    # seed name -> crop def
