@@ -45,6 +45,14 @@ Conditional:
 |---|---|---|
 | `slot` | equipment + tools | `Weapon`/`Head`/`Body`/`Ring`/`Axe`/`Pickaxe`/`Rod`/`Lens`/… — **explicit**, never inferred from the name |
 | `combatStyle` | weapons | drives XP routing |
+| `renderKind` | worn gear (optional) | 3D mesh kind: `sword`/`axe`/`mace`/`spear`/`dagger`/`bow`/`staff`/`wand`/`shield`/`helm`/`hood`/`wizard_hat`/`chest`/`jerkin`/`robe_top`/`robe_bottom`/`cape`. **Overrides** the name-inferred look (rename-proof). Absent → inferred. |
+| `renderMaterial` | worn gear (optional) | visual grade: `bronze`/`iron`/`steel`/`mithril`/`adamant`/`rune`/`gold`/`cloth`/`leather`/`wood`/`bone`. Absent → the `tier` ramp (metals) or family inference (cloth/wood/leather) decides. |
+| `renderTint` | cloth/gem gear (optional) | `[r,g,b]`/`[r,g,b,a]` (0..1) or `"#rrggbb"` colour override. |
+
+The visible-equipment look (`EquipLoadout`) resolves most-authoritative-first: explicit
+`renderMaterial` → cloth/wood/leather family by name → the data `tier` ramp for metals
+(`tier` 1→bronze … 5→adamant, 8→top) → raw name inference. So **`tier` alone makes a
+new metal family render at its true grade** with no per-item art authoring.
 
 ## Recipe (`data/recipes.json`) — keyed by `"skill/name"`
 

@@ -19,6 +19,36 @@ static func _tier(level: int) -> String:
 	return "rune"
 
 
+# Visual metal grade by the item's data `tier` (1..8). Matches the canonical named
+# metals exactly (bronze=1, iron=2, steel=3, mithril=4, adamant=5), so swapping name
+# inference for this is regression-free — and the game's invented tier families
+# (Zephite, Emberite, Glaciite, …) finally render at their real grade instead of all
+# defaulting to iron-grey.
+const TIER_METAL := ["bronze", "bronze", "iron", "steel", "mithril", "adamant", "rune", "rune", "gold"]
+
+
+## Material for a worn item, most-authoritative source first:
+##   1. explicit ItemDef.render_material  (per-item art override; rename-proof)
+##   2. cloth/wood/leather family by name  (robes/bows keep their look at every tier)
+##   3. the data `tier` ramp for metal gear (data-driven; replaces metal name-matching)
+##   4. raw name inference                 (last-resort fallback)
+static func _material(def: ItemDef, disp: String) -> String:
+	if not def.render_material.is_empty():
+		return def.render_material
+	var fam := material_for(disp)
+	if fam in ["cloth", "wood", "leather"]:
+		return fam
+	if def.tier > 0:
+		return TIER_METAL[clampi(def.tier, 0, TIER_METAL.size() - 1)]
+	return fam
+
+
+## Visual mesh kind for a worn item: explicit ItemDef.render_kind if authored, else
+## the supplied inferred fallback.
+static func _kind(def: ItemDef, fallback: String) -> String:
+	return def.render_kind if not def.render_kind.is_empty() else fallback
+
+
 ## Map an item display name to a material tier (metal/cloth/leather/wood).
 static func material_for(item_name: String) -> String:
 	var n := item_name.to_lower()
@@ -68,19 +98,23 @@ static func player_default() -> Dictionary:
 static func for_player(equipment: Dictionary) -> Dictionary:
 	var ld: Dictionary = player_default()
 	for slot: String in equipment:
-		var disp := DataRegistry.item_display_name(str(equipment[slot]))
-		var mat := material_for(disp)
+		var id := str(equipment[slot])
+		var def: ItemDef = DataRegistry.item_def(id)
+		var disp := DataRegistry.item_display_name(id)
+		var mat := _material(def, disp)
 		match slot:
 			"Weapon":
-				ld["mainhand"] = {"kind": weapon_kind(disp), "material": mat}
+				ld["mainhand"] = {"kind": _kind(def, weapon_kind(disp)), "material": mat}
 			"Shield":
-				ld["offhand"] = {"kind": "shield", "material": mat}
+				ld["offhand"] = {"kind": _kind(def, "shield"), "material": mat}
 			"Helm":
-				ld["head"] = {"kind": "hood" if _is_cloth(disp) else "helm", "material": mat}
+				ld["head"] = {"kind": _kind(def, "hood" if _is_cloth(disp) else "helm"), "material": mat}
 			"Body":
-				ld["body"] = {"kind": "robe_top" if _is_cloth(disp) else "chest", "material": mat}
+				ld["body"] = {"kind": _kind(def, "robe_top" if _is_cloth(disp) else "chest"), "material": mat}
 			"Cape":
-				ld["back"] = {"kind": "cape", "material": "cloth", "tint": Color(0.6, 0.2, 0.18)}
+				var tint: Color = def.render_tint if def.render_tint.a > 0.0 else Color(0.6, 0.2, 0.18)
+				var cape_mat: String = def.render_material if not def.render_material.is_empty() else "cloth"
+				ld["back"] = {"kind": _kind(def, "cape"), "material": cape_mat, "tint": tint}
 	return ld
 
 

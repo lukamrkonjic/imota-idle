@@ -413,6 +413,24 @@ func phase1_inventory_bank_equipment() -> void:
 	check(GameState.equip("Bronze Sword"), "equip succeeds at Attack 3")
 	check(GameState.equipment_damage() == 1.0, "Bronze Sword adds 1 equipment damage")
 
+	# Visible-equipment look is DATA-driven (EquipLoadout): the item's `tier` field
+	# drives the metal grade, not name substrings — so renames never change appearance
+	# and the game's invented tier families render at their true grade.
+	var EquipLoadout := preload("res://scripts/render/equip_loadout.gd")
+	var iron_ld := EquipLoadout.for_player({"Weapon": "Iron Scimitar"})
+	check(iron_ld["mainhand"]["material"] == "iron", "tier ramp: Iron Scimitar (tier 2) -> iron")
+	check(iron_ld["mainhand"]["kind"] == "sword", "scimitar maps to sword mesh kind")
+	var adam_ld := EquipLoadout.for_player({"Body": "Adamantite Body"})
+	check(adam_ld["body"]["material"] == "adamant", "tier ramp: Adamantite Body (tier 5) -> adamant")
+	# Emberite Sword (invented tier-8 family) used to default to iron; now grades by data.
+	var ember_ld := EquipLoadout.for_player({"Weapon": "Emberite Sword"})
+	check(ember_ld["mainhand"]["material"] == "gold", "tier ramp: Emberite Sword (tier 8) -> top grade, not iron")
+	# Explicit ItemDef.render_kind/render_material win over inference (per-item art override).
+	var ov := ItemDef.from_dict({"id": "item.test", "name": "Test Blade", "category": "equipment",
+		"slot": "Weapon", "tier": 8, "renderKind": "dagger", "renderMaterial": "bone"})
+	check(EquipLoadout._kind(ov, "sword") == "dagger", "explicit render_kind overrides inferred kind")
+	check(EquipLoadout._material(ov, "Test Blade") == "bone", "explicit render_material overrides tier ramp")
+
 
 func phase2_combat() -> void:
 	print("== Phase 2: combat vs Chickens ==")
