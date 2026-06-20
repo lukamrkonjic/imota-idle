@@ -41,20 +41,15 @@ var minimap: Control
 var hp_orb: Control
 var inv_grid: GridContainer
 var equip_list: VBoxContainer
-var skill_cells: Dictionary = {}  # skill -> Label
-var train_select: OptionButton
-var combat_info: Label
 var coins_label: Label
 var _side_tabs: TabContainer
 var _tab_icons: Array = []          # TabIcon widgets, index-aligned with the tabs
-var _prayer_tab: HudPrayerTab       # per-tab components (scripts/ui/tabs/) the HUD orchestrates
+var _combat_tab: HudCombatTab       # per-tab components (scripts/ui/tabs/) the HUD orchestrates
+var _skills_tab: HudSkillsTab
+var _prayer_tab: HudPrayerTab
 var _magic_tab: HudMagicTab
 var prayer_orb: Control
 var run_orb: Control
-var _skill_hover: PanelContainer       # hover card: skill name + XP-to-next-level bar
-var _skill_hover_name: Label
-var _skill_hover_bar: ProgressBar
-var _skill_hover_xp: Label
 var popup: PopupPanel
 var popup_list: VBoxContainer
 var popup_title: Label
@@ -100,12 +95,12 @@ func _ready() -> void:
 		_push_chat("[color=#1a6e1a]+%d %s[/color]" % [qty, DataRegistry.item_display_name(item)]))
 	eb.level_up.connect(func(skill: String, lvl: int) -> void:
 		_push_chat("[color=#a05400]Congratulations, your %s level is now %d![/color]" % [skill.capitalize(), lvl])
-		_refresh_skills())
-	eb.xp_gained.connect(func(skill: String, _a: float) -> void: _update_skill_cell(skill))
+		_skills_tab.refresh())
+	eb.xp_gained.connect(func(skill: String, _a: float) -> void: _skills_tab.update_cell(skill))
 	eb.inventory_changed.connect(_refresh_inventory)
 	eb.equipment_changed.connect(func() -> void:
 		_refresh_equipment()
-		_refresh_combat_info())
+		_combat_tab.refresh())
 	eb.coins_changed.connect(func(_g: int) -> void: _refresh_coins())
 	eb.hp_changed.connect(func(_c: int, _m: int) -> void: hp_orb.queue_redraw())
 	eb.activity_started.connect(func(_k: String, label: String) -> void: _push_chat("[color=#444]%s[/color]" % label))
@@ -407,8 +402,10 @@ func _build_side_panel() -> void:
 	col.add_child(tabs)
 	_side_tabs = tabs
 
-	tabs.add_child(_build_combat_tab())
-	tabs.add_child(_build_skills_tab())
+	_combat_tab = HudCombatTab.new(self)
+	tabs.add_child(_combat_tab.build())
+	_skills_tab = HudSkillsTab.new(self)
+	tabs.add_child(_skills_tab.build())
 	tabs.add_child(_build_inventory_tab())
 	tabs.add_child(_build_equipment_tab())
 	_prayer_tab = HudPrayerTab.new(self)
@@ -454,136 +451,6 @@ func _select_side_tab(idx: int) -> void:
 	_side_tabs.current_tab = idx
 	for i: int in _tab_icons.size():
 		_tab_icons[i].set_active(i == idx)
-
-
-func _build_combat_tab() -> Control:
-	var combat_box := VBoxContainer.new()
-	combat_box.name = "Combat"
-	var train_row := HBoxContainer.new()
-	var tl := Label.new()
-	tl.text = "Train:"
-	train_row.add_child(tl)
-	train_select = OptionButton.new()
-	for s: String in ["Attack", "Strength", "Defence", "Ranged", "Magic"]:
-		train_select.add_item(s)
-	train_select.item_selected.connect(func(idx: int) -> void:
-		GameState.set_combat_style(train_select.get_item_text(idx).to_lower())
-		_refresh_combat_info())
-	train_row.add_child(train_select)
-	combat_box.add_child(train_row)
-	combat_info = Label.new()
-	combat_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	combat_info.add_theme_font_size_override("font_size", UiScale.i(13))
-	combat_box.add_child(combat_info)
-	var slayer := Button.new()
-	slayer.text = "Slayer Master"
-	slayer.tooltip_text = "Talk to the Slayer Master: get a task, check progress, browse targets"
-	slayer.pressed.connect(func() -> void: open_npc_dialog("slayer_master"))
-	combat_box.add_child(slayer)
-	return combat_box
-
-
-## Skills tab: OSRS-style grid. Clicking a cell opens the skill guide with all
-## unlocks and auto-walk actions.
-func _build_skills_tab() -> Control:
-	var skills_grid := GridContainer.new()
-	skills_grid.name = "Skills"
-	skills_grid.columns = 3
-	for skill: String in GameState.SKILLS:
-		var cell := PanelContainer.new()
-		cell.add_theme_stylebox_override("panel", _style(STONE_DARK))
-		cell.custom_minimum_size = UiScale.v2(Vector2(84, 40))
-		cell.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		var skill_copy := skill
-		cell.gui_input.connect(func(event: InputEvent) -> void:
-			if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-				show_ui_click_marker(event.global_position)
-				open_skill_guide(skill_copy))
-		cell.mouse_entered.connect(func() -> void: _show_skill_hover(skill_copy, cell))
-		cell.mouse_exited.connect(func() -> void: _hide_skill_hover())
-		var hb := HBoxContainer.new()
-		hb.alignment = BoxContainer.ALIGNMENT_CENTER
-		hb.add_theme_constant_override("separation", UiScale.i(5))
-		hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		hb.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-		var icon := ItemIcon.new()
-		icon.kind = SkillRegistry.icon(skill)
-		icon.tint = SkillRegistry.color(skill)
-		icon.custom_minimum_size = UiScale.v2(Vector2(26, 26))
-		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		hb.add_child(icon)
-		var lbl := Label.new()
-		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		lbl.add_theme_font_size_override("font_size", UiScale.i(14))
-		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		hb.add_child(lbl)
-		cell.add_child(hb)
-		skills_grid.add_child(cell)
-		skill_cells[skill] = lbl
-	return skills_grid
-
-
-## Hover card over a skill cell: the skill's name + a bar of progress to the next level.
-func _show_skill_hover(skill: String, cell: Control) -> void:
-	if _skill_hover == null or not is_instance_valid(_skill_hover):
-		_skill_hover = PanelContainer.new()
-		_skill_hover.add_theme_stylebox_override("panel", _style(Color(0.12, 0.12, 0.14, 0.97), Color(0.55, 0.5, 0.35)))
-		_skill_hover.z_index = 200
-		_skill_hover.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var vb := VBoxContainer.new()
-		vb.add_theme_constant_override("separation", UiScale.i(3))
-		_skill_hover_name = Label.new()
-		_skill_hover_name.add_theme_font_size_override("font_size", UiScale.i(13))
-		_skill_hover_name.add_theme_color_override("font_color", Color(0.95, 0.92, 0.75))
-		vb.add_child(_skill_hover_name)
-		_skill_hover_bar = ProgressBar.new()
-		_skill_hover_bar.show_percentage = false
-		_skill_hover_bar.custom_minimum_size = UiScale.v2(Vector2(150, 10))
-		_skill_hover_bar.max_value = 1.0
-		vb.add_child(_skill_hover_bar)
-		_skill_hover_xp = Label.new()
-		_skill_hover_xp.add_theme_font_size_override("font_size", UiScale.i(10))
-		_skill_hover_xp.add_theme_color_override("font_color", Color(0.78, 0.82, 0.7))
-		vb.add_child(_skill_hover_xp)
-		_skill_hover.add_child(vb)
-		hud_root.add_child(_skill_hover)
-	var lvl := GameState.level(skill)
-	var cur := GameState.xp(skill)
-	_skill_hover_name.text = "%s — Level %d" % [skill.capitalize(), lvl]
-	if lvl >= DataRegistry.max_level:
-		_skill_hover_bar.value = 1.0
-		_skill_hover_xp.text = "%s XP · MAX level" % _fmt_int(int(cur))
-	else:
-		var xp_lvl := float(DataRegistry.xp_for_level(lvl))
-		var xp_next := float(DataRegistry.xp_for_level(lvl + 1))
-		var span := maxf(xp_next - xp_lvl, 1.0)
-		_skill_hover_bar.value = clampf((cur - xp_lvl) / span, 0.0, 1.0)
-		_skill_hover_xp.text = "%s / %s XP · %s to level %d" % [
-			_fmt_int(int(cur - xp_lvl)), _fmt_int(int(span)), _fmt_int(int(ceil(xp_next - cur))), lvl + 1]
-	_skill_hover.reset_size()
-	# Sit the card just left of the cell (the skills panel hugs the right edge).
-	var pos := cell.global_position + Vector2(-_skill_hover.size.x - UiScale.f(6.0), 0.0)
-	pos.x = maxf(pos.x, UiScale.f(4.0))
-	_skill_hover.global_position = pos
-	_skill_hover.visible = true
-
-
-func _hide_skill_hover() -> void:
-	if _skill_hover != null and is_instance_valid(_skill_hover):
-		_skill_hover.visible = false
-
-
-func _fmt_int(n: int) -> String:
-	var s := str(n)
-	var out := ""
-	var c := 0
-	for i: int in range(s.length() - 1, -1, -1):
-		out = s[i] + out
-		c += 1
-		if c % 3 == 0 and i > 0:
-			out = "," + out
-	return out
 
 
 ## Inventory tab: fixed 4x7 (28-slot) grid like OSRS.
@@ -1456,31 +1323,16 @@ func open_shop() -> void:
 # ---------------------------------------------------------------- refresh ----
 
 func _refresh_all() -> void:
-	_refresh_skills()
+	_skills_tab.refresh()
 	_refresh_inventory()
 	_refresh_equipment()
-	_refresh_combat_info()
+	_combat_tab.refresh()
 	_refresh_coins()
 	hp_orb.queue_redraw()
 
 
 func _refresh_coins() -> void:
 	coins_label.text = "%d coins" % GameState.coins
-
-
-func _refresh_skills() -> void:
-	for skill: String in skill_cells:
-		_update_skill_cell(skill)
-
-
-func _update_skill_cell(skill: String) -> void:
-	var lbl: Label = skill_cells[skill]
-	var lvl := GameState.level(skill)
-	lbl.text = str(lvl)
-	var cur := float(DataRegistry.xp_for_level(lvl))
-	var next := float(DataRegistry.xp_for_level(lvl + 1))
-	var frac := clampf((GameState.xp(skill) - cur) / maxf(next - cur, 1.0), 0.0, 1.0)
-	lbl.tooltip_text = "%s â€” level %d\n%.0f XP (%.0f%% to next)" % [skill.capitalize(), lvl, GameState.xp(skill), frac * 100.0]
 
 
 ## Compact stack count (OSRS-ish): raw under 100k, then K / M.
@@ -1651,21 +1503,6 @@ func _make_equip_slot(slot: String) -> Control:
 				GameState.unequip(slot_copy))
 	panel.add_child(icon)
 	return panel
-
-
-func _refresh_combat_info() -> void:
-	combat_info.text = "Combat level: %d\n\nMelee: +%.0f dmg, +%.0f%% acc\nRanged: +%.0f dmg, +%.0f%% acc\nMagic: +%.0f dmg, +%.0f%% acc\nDmg reduction: %.1f%%\n\nClick an enemy in the world to fight." % [
-		GameState.combat_level(),
-		GameState.equipment_damage(), GameState.equipment_accuracy() * 100.0,
-		GameState.equipment_range_damage(), GameState.equipment_range_accuracy() * 100.0,
-		GameState.equipment_magic_damage(), GameState.equipment_magic_accuracy() * 100.0,
-		GameState.equipment_damage_reduction()]
-	# Keep the style dropdown in sync with the persisted combat style.
-	if train_select != null:
-		for i: int in train_select.item_count:
-			if train_select.get_item_text(i).to_lower() == GameState.combat_style:
-				train_select.selected = i
-				break
 
 
 func _push_chat(line: String) -> void:
