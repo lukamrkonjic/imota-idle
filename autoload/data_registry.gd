@@ -230,6 +230,21 @@ func item_def(name_or_id: String) -> ItemDef:
 	return ItemDef.from_dict(get_item(name_or_id))
 
 
+## Typed view of an enemy (empty EnemyDef if unknown). Combat reads typed fields.
+func enemy_def(name_or_id: String) -> EnemyDef:
+	return EnemyDef.from_dict(get_enemy(name_or_id))
+
+
+## Typed view of a recipe.
+func recipe_def(skill: String, name_or_id: String) -> RecipeDef:
+	return RecipeDef.from_dict(get_recipe(skill, name_or_id))
+
+
+## Typed view of a gather node.
+func node_def(skill: String, name_or_id: String) -> GatherNodeDef:
+	return GatherNodeDef.from_dict(get_gather_node(skill, name_or_id))
+
+
 func item_display_name(name_or_id: String) -> String:
 	var item := get_item(name_or_id)
 	if item.is_empty():

@@ -26,7 +26,7 @@ func _draw() -> void:
 		return
 	var tgt: Node2D = world.combat_target_entity
 	if is_instance_valid(tgt) and not tgt.dimmed:
-		var maxh := maxf(float(CombatSim.enemy.get("maxHealth", 1)), 1.0)
+		var maxh := maxf(float(CombatSim.enemy.max_health), 1.0)
 		_bar(tgt.position, render_3d.mover_top(tgt), CombatSim.enemy_hp / maxh)
 	if world.player != null:
 		var pf := float(GameState.current_hp) / maxf(float(GameState.max_hp()), 1.0)

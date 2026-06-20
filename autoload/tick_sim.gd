@@ -15,7 +15,7 @@ const ActivityManager := preload("res://scripts/activity_manager.gd")
 
 var active := false
 var skill := ""
-var node: Dictionary = {}
+var node: GatherNodeDef = GatherNodeDef.new()
 var timer := 0.0
 
 var rng := RandomNumberGenerator.new()
@@ -42,11 +42,11 @@ func advance(delta: float) -> void:
 
 
 func start_gather(p_skill: String, node_name: String) -> bool:
-	var n := DataRegistry.get_gather_node(p_skill, node_name)
+	var n := DataRegistry.node_def(p_skill, node_name)
 	if n.is_empty():
 		return false
-	if GameState.level(p_skill) < int(n["level"]):
-		EventBus.combat_log.emit("%s level %d required for %s" % [p_skill.capitalize(), n["level"], str(n.get("displayName", node_name))])
+	if GameState.level(p_skill) < n.level:
+		EventBus.combat_log.emit("%s level %d required for %s" % [p_skill.capitalize(), n.level, n.display_name])
 		return false
 	if GameState.tool_progress(p_skill) <= 0:
 		EventBus.combat_log.emit("No suitable tool equipped for %s" % p_skill.capitalize())
@@ -57,7 +57,7 @@ func start_gather(p_skill: String, node_name: String) -> bool:
 	node = n
 	timer = 0.0
 	active = true
-	EventBus.activity_started.emit("gather", "%s — %s" % [skill.capitalize(), str(node.get("displayName", node["name"]))])
+	EventBus.activity_started.emit("gather", "%s — %s" % [skill.capitalize(), node.display_name])
 	return true
 
 
@@ -65,7 +65,7 @@ func stop(reason: String = "stopped") -> void:
 	if not active:
 		return
 	active = false
-	node = {}
+	node = GatherNodeDef.new()
 	EventBus.activity_stopped.emit(reason)
 
 
@@ -97,10 +97,10 @@ func _roll_action() -> void:
 
 
 func _award_resource() -> void:
-	for item_name: String in node["items"]:
+	for item_name: String in node.items:
 		if GameState.add_item(item_name, 1) == 0:
 			EventBus.combat_log.emit("Inventory full — %s stopped." % skill.capitalize())
 			stop("inventory_full")
 			return
 		EventBus.loot_gained.emit(item_name, 1)
-	GameState.add_xp(skill, float(node["xp"]))
+	GameState.add_xp(skill, node.xp)

@@ -27,7 +27,7 @@ const COMBAT_TRIANGLE_BONUS := 1.25   # melee>ranged>magic>melee damage multipli
 const MISS_STREAK_PITY := 3.0         # forced-hit pity after this many consecutive misses
 
 var active := false
-var enemy: Dictionary = {}
+var enemy: EnemyDef = EnemyDef.new()
 var enemy_hp := 0.0
 var train_skill := "attack"  # attack | strength | defence | ranged | magic
 
@@ -73,10 +73,10 @@ func start_combat(enemy_name: String, p_train_skill: String = "attack", player_i
 		return false
 	stop("switching")
 	ActivityManager.stop_others(self)
-	enemy = e
+	enemy = EnemyDef.from_dict(e)
 	train_skill = p_train_skill
 	GameState.combat_style = p_train_skill  # remember the style across sessions
-	enemy_hp = float(e["maxHealth"])
+	enemy_hp = float(enemy.max_health)
 	# Land the opening hit one tick after engaging (like clicking an NPC in OSRS),
 	# rather than waiting a full weapon cycle.
 	player_timer = maxf(0.0, GameState.attack_interval() - GameState.TICK)
@@ -85,7 +85,7 @@ func start_combat(enemy_name: String, p_train_skill: String = "attack", player_i
 	# swing to cooldown+1.2s ~= 3.6s, so anything that died in a few hits never got to
 	# attack back.) Now its first swing lands ~ENEMY_REACT_DELAY after engage, then it
 	# attacks every tick-snapped cooldown.
-	enemy_timer = GameState.snap_to_tick(float(e["cooldown"])) - ENEMY_REACT_DELAY
+	enemy_timer = GameState.snap_to_tick(float(enemy.cooldown)) - ENEMY_REACT_DELAY
 	# You always fight when you start it; if a mob aggro'd you, auto-retaliate decides
 	# whether you swing back automatically (the mob attacks either way).
 	player_retaliating = player_initiated or GameSettings.auto_retaliate
@@ -96,7 +96,7 @@ func start_combat(enemy_name: String, p_train_skill: String = "attack", player_i
 	kills = 0
 	active = true
 	EventBus.activity_started.emit("combat", "Fighting %s (training %s)" % [_enemy_name(), train_skill.capitalize()])
-	EventBus.enemy_hp_changed.emit(enemy_hp, float(enemy["maxHealth"]))
+	EventBus.enemy_hp_changed.emit(enemy_hp, float(enemy.max_health))
 	return true
 
 
@@ -104,7 +104,7 @@ func stop(reason: String = "stopped") -> void:
 	if not active:
 		return
 	active = false
-	enemy = {}
+	enemy = EnemyDef.new()
 	EventBus.activity_stopped.emit(reason)
 
 
@@ -115,11 +115,11 @@ func advance(delta: float) -> void:
 		respawn_timer -= delta
 		if respawn_timer <= 0.0:
 			respawning = false
-			enemy_hp = float(enemy["maxHealth"])
+			enemy_hp = float(enemy.max_health)
 			first_attack_done = false
 			player_timer = 0.0
 			enemy_timer = 0.0
-			EventBus.enemy_hp_changed.emit(enemy_hp, float(enemy["maxHealth"]))
+			EventBus.enemy_hp_changed.emit(enemy_hp, float(enemy.max_health))
 		return
 	player_timer += delta
 	enemy_timer += delta
@@ -132,7 +132,7 @@ func advance(delta: float) -> void:
 			_player_attack()
 			if not active or respawning:
 				return
-	var cooldown := GameState.snap_to_tick(float(enemy["cooldown"]))
+	var cooldown := GameState.snap_to_tick(float(enemy.cooldown))
 	if enemy_timer >= cooldown:
 		# The mob only LANDS a hit while it's in attack range. While it's chasing the
 		# player back into range (enemy_in_range = false) the cooldown stays full so it
@@ -202,7 +202,7 @@ func player_damage() -> float:
 ## Combat triangle (GetCombatTriangleDamageMultiplier): melee beats Range
 ## enemies, ranged beats Mage enemies, magic beats Melee enemies — 1.25x.
 func triangle_multiplier() -> float:
-	var enemy_style: String = str(enemy["style"]).to_lower()
+	var enemy_style: String = str(enemy.style).to_lower()
 	var s := _style()
 	if (s == "melee" and enemy_style.contains("range")) \
 			or (s == "ranged" and enemy_style.contains("mag")) \
@@ -274,7 +274,7 @@ func _apply_player_hit() -> void:
 			dmg = rng.randf_range(base * DAMAGE_MIN_MULT, base * DAMAGE_MAX_MULT)
 	dmg *= triangle_multiplier()
 	# Enemy damage reduction is a flat percent from the bestiary.
-	dmg *= 1.0 - float(enemy["damageReduction"]) / 100.0
+	dmg *= 1.0 - float(enemy.damage_reduction) / 100.0
 	dmg = maxf(roundf(dmg * 10.0) / 10.0, 0.0)
 	# Per-hit XP (OSRS-style, spec §5/§12): the trained combat skill scales with
 	# damage dealt, plus a Hitpoints share. Replaces the old lump-sum on-kill XP.
@@ -286,21 +286,21 @@ func _apply_player_hit() -> void:
 	enemy_hp = maxf(enemy_hp - dmg, 0.0)
 	EventBus.combat_log.emit("You hit %s for %.1f%s" % [_enemy_name(), dmg, " (CRIT!)" if is_crit else ""])
 	_emit_player_splat(int(roundf(dmg)), dmg <= 0.0)
-	EventBus.enemy_hp_changed.emit(enemy_hp, float(enemy["maxHealth"]))
+	EventBus.enemy_hp_changed.emit(enemy_hp, float(enemy.max_health))
 	if enemy_hp <= 0.0:
 		_on_enemy_killed()
 
 
 func _enemy_attack() -> void:
-	if rng.randf() >= float(enemy["accuracy"]):
+	if rng.randf() >= float(enemy.accuracy):
 		EventBus.combat_log.emit("%s misses you." % _enemy_name())
 		EventBus.combat_hit_splat.emit(0, true, true)
 		return
-	var dmg := float(enemy["damage"])
-	if rng.randf() < float(enemy["critChance"]):
-		dmg *= float(enemy["critMultiplier"])
+	var dmg := float(enemy.damage)
+	if rng.randf() < float(enemy.crit_chance):
+		dmg *= float(enemy.crit_multiplier)
 	# Protect-from-Melee prayer cuts incoming melee damage.
-	if str(enemy["style"]).to_lower().contains("melee"):
+	if str(enemy.style).to_lower().contains("melee"):
 		dmg *= GameState.prayer_melee_protect()
 	# Defence prayers add to damage reduction (still capped).
 	var dr := minf(GameState.equipment_damage_reduction() + GameState.prayer_dr_bonus(), PLAYER_DR_CAP)
@@ -318,17 +318,17 @@ func _on_enemy_killed() -> void:
 	EventBus.combat_log.emit("%s defeated!" % _enemy_name())
 	# Combat + Hitpoints XP are now awarded per hit (see _apply_player_hit).
 	# Slayer XP is still a per-kill reward (OSRS-style).
-	GameState.add_xp("slayer", float(enemy["beastMasteryXp"]))
+	GameState.add_xp("slayer", float(enemy.slayer_xp))
 	_roll_drops()
 	EventBus.enemy_killed.emit(_enemy_name())
 	respawning = true
-	respawn_timer = 60.0 if enemy["isBoss"] else 10.0
+	respawn_timer = 60.0 if enemy.is_boss else 10.0
 	EventBus.enemy_respawning.emit(respawn_timer)
 
 
 func _roll_drops() -> void:
-	var loot: Array = DropRoller.roll(enemy["drops"], rng)
-	loot.append_array(DropRoller.roll_tertiary(enemy, rng))
+	var loot: Array = DropRoller.roll(enemy.drops, rng)
+	loot.append_array(DropRoller.roll_tertiary(enemy.raw, rng))
 	for d: Dictionary in loot:
 		var qty := int(d["qty"])
 		if GameState.add_item(d["item"], qty) > 0:
@@ -355,4 +355,4 @@ func _on_player_died() -> void:
 
 ## Display name for the current enemy (Bloobs-renamed); never the raw legacy name.
 func _enemy_name() -> String:
-	return str(enemy.get("displayName", enemy.get("name", "?")))
+	return enemy.display_name if not enemy.is_empty() else "?"

@@ -54,19 +54,19 @@ func _activity_dict() -> Dictionary:
 		return {
 			"kind": "gather",
 			"skill": TickSim.skill,
-			"node_id": str(TickSim.node.get("id", DataRegistry.resolve_node_id(TickSim.skill, TickSim.node["name"]))),
+			"node_id": TickSim.node.id,
 		}
 	if CombatSim.active:
 		return {
 			"kind": "combat",
-			"enemy_id": str(CombatSim.enemy.get("id", DataRegistry.resolve_enemy_id(CombatSim.enemy["name"]))),
+			"enemy_id": CombatSim.enemy.id,
 			"train": CombatSim.train_skill,
 		}
 	if RecipeSim.active:
 		return {
 			"kind": "craft",
-			"skill": RecipeSim.recipe["skill"],
-			"recipe_id": str(RecipeSim.recipe.get("id", DataRegistry.resolve_recipe_id(RecipeSim.recipe["skill"], RecipeSim.recipe["name"]))),
+			"skill": RecipeSim.recipe.skill,
+			"recipe_id": RecipeSim.recipe.id,
 		}
 	return {}
 

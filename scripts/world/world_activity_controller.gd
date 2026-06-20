@@ -72,7 +72,7 @@ func _update_chase(delta: float) -> void:
 		# or the player it's chasing — is dragged farther than the leash from spawn,
 		# it gives up and returns home.
 		if tgt.position.distance_to(spawn) > _leash_radius() or world.player.position.distance_to(spawn) > _leash_radius():
-			var nm := str(CombatSim.enemy.get("displayName", CombatSim.enemy.get("name", "enemy")))
+			var nm: String = CombatSim.enemy.display_name
 			tgt.set_meta("ai_state", "returning")
 			CombatSim.stop("fled")  # clears target; the else-branch walks it home next tick
 			_aggro_grace = AGGRO_GRACE  # don't instantly re-aggro the mob you just escaped

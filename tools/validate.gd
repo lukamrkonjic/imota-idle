@@ -677,7 +677,7 @@ func phase_item_loss_guards() -> void:
 	# Recipe whose output can't fit must roll the inputs back, not consume them.
 	GameState.reset_state()
 	GameState.add_item("Logs", 5)
-	RecipeSim.recipe = {"inputs": [{"item": "Logs", "qty": 1}], "output": {"item": "Oak Logs", "qty": 1}, "skill": "woodcutting", "xp": 1.0}
+	RecipeSim.recipe = RecipeDef.from_dict({"inputs": [{"item": "Logs", "qty": 1}], "output": {"item": "Oak Logs", "qty": 1}, "skill": "woodcutting", "xp": 1.0, "id": "recipe.test"})
 	RecipeSim.active = true
 	_fill_bag(["Oak Logs"])   # full, and the output item is absent so it needs a new slot
 	var logs_before := GameState.count_item("Logs")
@@ -794,7 +794,7 @@ func phase5_world() -> void:
 	world.call("auto_gather", "woodcutting", "Regular Tree")
 	_drive_walk(world)
 	if TickSim.active:
-		check(TickSim.node["name"] == "Regular Tree", "auto-gather reached the nearest Regular Tree")
+		check(TickSim.node.name == "Regular Tree", "auto-gather reached the nearest Regular Tree")
 		var site_ref: Dictionary = world.get("gather_ref")
 		check(not site_ref.is_empty(), "gather site tracked for depletion")
 		# Burn the node dry: each xp tick consumes one resource.
