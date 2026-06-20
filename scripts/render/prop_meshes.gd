@@ -303,22 +303,30 @@ static func _conifer_parts() -> Array:
 
 static func _conifer_parts_with_material(needles: Material) -> Array:
 	var bark := _mat("trunk_a", "trunk_b", "wood_light")
-	# NO smooth foliage core (that tall cone was what read as a smooth gradient "cone"
-	# tree). Instead SEVEN drooping whorl tiers overlap tightly so each tier's brim
-	# covers the pinched neck of the one above — a stepped, layered silhouette with a
-	# jagged treeline edge and no wood/background showing through. A tiny tip caps the
-	# crown. Each tier is yawed so its splayed branch tips never line up with the next.
-	return [
-		_shadow_part(1.05),
-		_part(_cyl("fir_trunk", 0.13, 0.24, 1.35), bark, Vector3(0, 0.62, 0)),
-		_part(_fir_bough("fir_w0", 1.64, 1.22, 9, 0.30), needles, Vector3(0, 1.12, 0)),
-		_part(_fir_bough("fir_w1", 1.41, 1.18, 9, 0.27), needles, Vector3(0.03, 1.60, 0), Vector3.ONE, Vector3(0, 0.36, 0)),
-		_part(_fir_bough("fir_w2", 1.18, 1.13, 8, 0.24), needles, Vector3(-0.03, 2.10, 0), Vector3.ONE, Vector3(0, 0.72, 0)),
-		_part(_fir_bough("fir_w3", 0.95, 1.10, 8, 0.21), needles, Vector3(0.03, 2.62, 0), Vector3.ONE, Vector3(0, 0.18, 0)),
-		_part(_fir_bough("fir_w4", 0.72, 1.06, 7, 0.18), needles, Vector3(-0.02, 3.16, 0), Vector3.ONE, Vector3(0, 0.54, 0)),
-		_part(_fir_bough("fir_w5", 0.49, 1.03, 7, 0.15), needles, Vector3(0.01, 3.72, 0), Vector3.ONE, Vector3(0, 0.88, 0)),
-		_part(_fir_bough("fir_w6", 0.28, 1.02, 6, 0.12), needles, Vector3(0, 4.32, 0)),
-		_part(_cone("fir_tip", 0.15, 0.0, 0.5), needles, Vector3(0, 4.78, 0))]
+	# Soft "puffy" conifer — NO cone/tier geometry at all. A tall, pointed column of
+	# overlapping rounded foliage clumps (like the round broadleaf trees, but spruce
+	# shaped): a tapering central spine of spheres + a few low skirt lobes, each nudged
+	# off-axis so the silhouette is bumpy and organic, not a smooth cone.
+	var p: Array = [
+		_shadow_part(1.0),
+		_part(_cyl("fir_trunk", 0.13, 0.22, 1.1), bark, Vector3(0, 0.5, 0))]
+	# central spine: clumps shrinking from a broad base to a small crown tip
+	var spine: Array = [
+		[1.18, 1.26], [1.60, 1.18], [2.00, 1.07], [2.38, 0.96],
+		[2.74, 0.84], [3.08, 0.72], [3.40, 0.60], [3.70, 0.49],
+		[3.98, 0.38], [4.24, 0.28], [4.48, 0.18]]
+	for i: int in spine.size():
+		var s: Array = spine[i]
+		var jx: float = 0.08 if i % 2 == 0 else -0.08
+		var jz: float = -0.06 if i % 3 == 0 else 0.06
+		p.append(_part(_sphere("fir_clump%d" % i, float(s[1])), needles, Vector3(jx, float(s[0]), jz), Vector3(1.0, 0.95, 1.0)))
+	# a fuller, slightly flattened skirt of low side clumps around the base
+	var skirt: Array = [
+		Vector3(0.74, 1.16, 0.12), Vector3(-0.72, 1.24, -0.14),
+		Vector3(0.2, 1.1, 0.74), Vector3(-0.22, 1.18, -0.72)]
+	for i: int in skirt.size():
+		p.append(_part(_sphere("fir_skirt%d" % i, 0.62), needles, skirt[i], Vector3(1.06, 0.78, 1.06)))
+	return p
 
 
 ## Snow-region fir: off-white faceted branch tiers with a tight cool shadow
