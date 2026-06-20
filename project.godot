@@ -39,6 +39,8 @@ gdscript/warnings/untyped_declaration=0
 
 window/size/viewport_width=1280
 window/size/viewport_height=720
+window/size/mode=2
+window/size/borderless=false
 window/stretch/mode="disabled"
 
 [rendering]

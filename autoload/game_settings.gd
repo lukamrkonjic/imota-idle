@@ -34,7 +34,7 @@ var suppress := false  # headless tests set this so they never touch settings
 
 var ui_scale: float = DEFAULT_UI_SCALE
 var master_volume: float = DEFAULT_MASTER_VOLUME
-var fullscreen: bool = false
+var fullscreen: bool = true   # windowed-fullscreen (maximized + title bar) by default
 var vsync: bool = true
 var show_zone_banner: bool = true
 var show_chat: bool = true
@@ -76,7 +76,7 @@ func load_settings() -> void:
 	var data: Dictionary = parsed
 	ui_scale = clampf(float(data.get("ui_scale", DEFAULT_UI_SCALE)), UI_SCALE_MIN, UI_SCALE_MAX)
 	master_volume = clampf(float(data.get("master_volume", DEFAULT_MASTER_VOLUME)), 0.0, 1.0)
-	fullscreen = bool(data.get("fullscreen", false))
+	fullscreen = bool(data.get("fullscreen", true))
 	vsync = bool(data.get("vsync", true))
 	show_zone_banner = bool(data.get("show_zone_banner", true))
 	show_chat = bool(data.get("show_chat", true))
@@ -248,8 +248,11 @@ func _apply_audio() -> void:
 
 
 func _apply_display() -> void:
+	# "Fullscreen" here means windowed-fullscreen (a MAXIMIZED window that keeps the OS
+	# title bar) — never borderless exclusive fullscreen. Off = a normal resizable window.
+	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
 	if fullscreen:
-		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_MAXIMIZED)
 	else:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 	DisplayServer.window_set_vsync_mode(
