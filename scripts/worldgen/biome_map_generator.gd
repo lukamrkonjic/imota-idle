@@ -157,19 +157,23 @@ func _pick_parent_id(h: float, m: float, t: float, tx: float, ty: float) -> Stri
 	# Safe central hub — rolling plains and farmland.
 	if d < 0.20 + (rg - 0.5) * 0.06:
 		return "wheatfield" if (h < 0.52 and m >= 0.40 and m <= 0.58) else "plains"
-	# Far NE corner — the volcano.
-	if n > 0.22 and e > 0.40 and d > 0.55 and classifier.volcanic_region_ok(tx, ty, Vector3(h, m, t)):
+	# Far NE corner — the volcano. Geography guarantees the corner; the rift noise shapes
+	# its edge (volcanic_region_ok). NOT climate-gated: the old "hot AND north" rule was
+	# self-contradictory (the north is cold) and produced zero volcanic terrain.
+	if n > 0.16 and e > 0.32 and d > 0.46 and classifier.volcanic_region_ok(tx, ty, Vector3(h, m, t)):
 		return "volcanic"
 
-	# NORTH — woods give way to grey hills and then snow.
+	# NORTH — boreal conifer woods give way to grey hills and then snow. The near-north
+	# band is boreal_forest (cold conifer), distinct from the temperate forest of the west.
 	if n > 0.42:
 		if d > 0.70: return "tundra"
-		if d > 0.46 or t < 0.30: return "rocky_hills" if t >= 0.26 else "tundra"
-		return "boreal_forest" if t < 0.36 else "forest"
-	# EAST — plains warm into savanna, then a dry desert corner.
+		if d > 0.46: return "rocky_hills" if t >= 0.30 else "tundra"
+		return "boreal_forest"
+	# EAST — plains warm into savanna, then a thin dry badlands belt, then a deep desert corner.
 	if e > 0.42:
-		if d > 0.60: return "desert"
-		if d > 0.38: return "savanna"
+		if d > 0.64: return "desert"
+		if d > 0.56: return "badlands"
+		if d > 0.36: return "savanna"
 		return "plains"
 	# SOUTH — wet lowlands: swamp, then steamy jungle toward the SE.
 	if n < -0.42:
@@ -236,10 +240,11 @@ func _macro_stamp_active(rule: Dictionary, mx: int, my: int, spacing: int, salt:
 	if WG.r01(world_seed, mx, my, 500 + salt) > float(rule.get("chance", 0.1)):
 		return false
 	var center: Vector2i = _macro_stamp_center(mx, my, spacing, salt)
-	var allowed: Array = rule.get("allowedParents", [])
-	var parent_id: String = str(reg.biomes[_parent_idx(center.x, center.y)]["id"])
-	if not parent_id in allowed:
-		return false
+	# NOTE: we deliberately do NOT require the stamp's exact CENTRE tile to be the parent
+	# biome. _sub_idx_for already gates every painted tile by its own parent, so a stamp
+	# only ever deposits its sub-biome on valid parent tiles. Requiring the centre to land
+	# inside the parent made small/thin parents (volcanic, badlands) unreachable by the
+	# coarse macro grid — that's why geyser_field / thorn_waste never generated.
 	if bool(rule.get("requiresWater", false)):
 		if not classifier._touches_water_tile(float(center.x), float(center.y)):
 			return false

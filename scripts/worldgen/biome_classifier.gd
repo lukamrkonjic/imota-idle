@@ -336,12 +336,14 @@ func continent_kind(tx: float, ty: float) -> String:
 
 
 func volcanic_region_ok(tx: float, ty: float, f: Vector3) -> bool:
-	if f.x < 0.58 or f.z < 0.78:
-		return false
-	if climate_region(tx, ty) < 0.72:
+	# A volcanic massif is elevated RIFT terrain — not climate-gated. The old gate also
+	# required a hot temperature (f.z >= 0.78), which never co-occurs with the NE-corner
+	# (cold-north) placement, so volcanic terrain never generated. A volcano makes its own
+	# heat; geography + the rift noise decide where it sits.
+	if f.x < 0.40:
 		return false
 	var rift := _volcanic_rift.get_noise_2d(tx, ty) * 0.5 + 0.5
-	return rift >= 0.58
+	return rift >= 0.42
 
 
 

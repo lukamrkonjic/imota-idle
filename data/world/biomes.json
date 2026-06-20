@@ -1827,8 +1827,8 @@
       ],
       "minSize": 10,
       "maxSize": 32,
-      "chance": 0.06,
-      "macroSpacing": 5
+      "chance": 0.14,
+      "macroSpacing": 4
     },
     {
       "id": "grove",
@@ -1901,10 +1901,9 @@
         "swamp",
         "boreal_forest"
       ],
-      "requiresWater": true,
       "minSize": 16,
       "maxSize": 52,
-      "chance": 0.12,
+      "chance": 0.16,
       "macroSpacing": 3
     },
     {
@@ -1925,8 +1924,8 @@
       ],
       "minSize": 12,
       "maxSize": 36,
-      "chance": 0.08,
-      "macroSpacing": 5
+      "chance": 0.4,
+      "macroSpacing": 2
     },
     {
       "id": "savanna_scrub",
@@ -1945,8 +1944,8 @@
       ],
       "minSize": 18,
       "maxSize": 60,
-      "chance": 0.09,
-      "macroSpacing": 4
+      "chance": 0.22,
+      "macroSpacing": 3
     },
     {
       "id": "lichen_field",
