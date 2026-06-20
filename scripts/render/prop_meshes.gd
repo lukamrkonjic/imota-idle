@@ -303,21 +303,22 @@ static func _conifer_parts() -> Array:
 
 static func _conifer_parts_with_material(needles: Material) -> Array:
 	var bark := _mat("trunk_a", "trunk_b", "wood_light")
+	# NO smooth foliage core (that tall cone was what read as a smooth gradient "cone"
+	# tree). Instead SEVEN drooping whorl tiers overlap tightly so each tier's brim
+	# covers the pinched neck of the one above — a stepped, layered silhouette with a
+	# jagged treeline edge and no wood/background showing through. A tiny tip caps the
+	# crown. Each tier is yawed so its splayed branch tips never line up with the next.
 	return [
 		_shadow_part(1.05),
-		# Visible tapered trunk at the base, like the reference's bare lower stem.
-		_part(_cyl("fir_trunk", 0.13, 0.24, 1.5), bark, Vector3(0, 0.72, 0)),
-		# A slim tapered foliage core closes the centre behind the drooping whorls and
-		# pokes out the top as the sharp crown spire; no wood shows between tiers.
-		_part(_cone("fir_core", 0.5, 0.02, 4.35), needles, Vector3(0, 3.0, 0)),
-		# SIX overlapping drooping whorl tiers (wide skirt -> fine crown), each yawed a
-		# little so the splayed branch tips never line up — the layered low-poly conifer.
-		_part(_fir_bough("fir_w0", 1.58, 1.30, 10, 0.22), needles, Vector3(0, 1.28, 0)),
-		_part(_fir_bough("fir_w1", 1.34, 1.22, 10, 0.20), needles, Vector3(0.04, 1.90, -0.02), Vector3.ONE, Vector3(0, 0.30, 0)),
-		_part(_fir_bough("fir_w2", 1.10, 1.16, 9, 0.18), needles, Vector3(-0.03, 2.52, 0.03), Vector3.ONE, Vector3(0, 0.62, 0)),
-		_part(_fir_bough("fir_w3", 0.87, 1.12, 9, 0.16), needles, Vector3(0.03, 3.14, 0.0), Vector3.ONE, Vector3(0, 0.12, 0)),
-		_part(_fir_bough("fir_w4", 0.63, 1.08, 8, 0.14), needles, Vector3(-0.02, 3.76, 0.02), Vector3.ONE, Vector3(0, 0.40, 0)),
-		_part(_fir_bough("fir_w5", 0.39, 1.04, 8, 0.11), needles, Vector3(0.01, 4.38, 0), Vector3.ONE, Vector3(0, 0.72, 0))]
+		_part(_cyl("fir_trunk", 0.13, 0.24, 1.35), bark, Vector3(0, 0.62, 0)),
+		_part(_fir_bough("fir_w0", 1.64, 1.22, 9, 0.30), needles, Vector3(0, 1.12, 0)),
+		_part(_fir_bough("fir_w1", 1.41, 1.18, 9, 0.27), needles, Vector3(0.03, 1.60, 0), Vector3.ONE, Vector3(0, 0.36, 0)),
+		_part(_fir_bough("fir_w2", 1.18, 1.13, 8, 0.24), needles, Vector3(-0.03, 2.10, 0), Vector3.ONE, Vector3(0, 0.72, 0)),
+		_part(_fir_bough("fir_w3", 0.95, 1.10, 8, 0.21), needles, Vector3(0.03, 2.62, 0), Vector3.ONE, Vector3(0, 0.18, 0)),
+		_part(_fir_bough("fir_w4", 0.72, 1.06, 7, 0.18), needles, Vector3(-0.02, 3.16, 0), Vector3.ONE, Vector3(0, 0.54, 0)),
+		_part(_fir_bough("fir_w5", 0.49, 1.03, 7, 0.15), needles, Vector3(0.01, 3.72, 0), Vector3.ONE, Vector3(0, 0.88, 0)),
+		_part(_fir_bough("fir_w6", 0.28, 1.02, 6, 0.12), needles, Vector3(0, 4.32, 0)),
+		_part(_cone("fir_tip", 0.15, 0.0, 0.5), needles, Vector3(0, 4.78, 0))]
 
 
 ## Snow-region fir: off-white faceted branch tiers with a tight cool shadow
