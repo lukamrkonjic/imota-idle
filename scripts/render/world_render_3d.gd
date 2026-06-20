@@ -75,6 +75,7 @@ var _cam_yaw := PI / 4.0          # orbit angle around the player (Left/Right ar
 var _cam_pitch := 0.413           # elevation above horizon (Up/Down arrows); matches old iso
 const CAM_FOLLOW_SPEED := 12.0   # eased-follow rate, matches the 2D Camera2D position_smoothing_speed
 var _cam_follow := Vector2.INF    # smoothed follow target (iso); INF = uninitialised (snap on first use)
+var editor_cam_target = null      # world editor: Vector2 to pin the camera to (overrides player follow); null = off
 var _pixel_scale := 3             # INTEGER display px per internal px (nearest-neighbour, no fractional stretch)
 # How the low-res image is placed on the window: an exact integer scale + centred offset.
 # Kept here so screen<->internal-pixel picking math accounts for the integer presentation.
@@ -615,7 +616,9 @@ func _sync_camera() -> void:
 	# position_smoothing, but the 3D render camera is what's visible here, so replicate it.
 	# Smoothly chase the player's iso position instead of hard-locking to it, which absorbs
 	# any unevenness in the walk and reads as a calm, steady glide.
-	var follow: Vector2 = world.player.position
+	# The world editor pins the camera to a fixed authoring point so the live (and
+	# possibly wandering/fighting) player never drifts the view. null = follow the player.
+	var follow: Vector2 = editor_cam_target if editor_cam_target != null else world.player.position
 	if _cam_follow == Vector2.INF:
 		_cam_follow = follow   # first frame / teleport: snap, don't ease across the world
 	elif _cam_follow.distance_to(follow) > 600.0:
@@ -738,6 +741,26 @@ func _sync_terrain() -> void:
 			_chunk_nbr.erase(key)
 			_chunk_wait.erase(key)
 	_update_terrain_visibility()
+
+
+## Editor hook (world editor's live 3D view): discard the built terrain mesh for a chunk
+## and its 8 neighbours, so the per-frame _sync_terrain build loop re-meshes them from the
+## now-edited (shared) chunk data — borders re-stitch because the neighbours rebuild too.
+## No-op in headless. Terrain/biome/water tile edits show up within a few frames.
+func rebuild_chunk(cx: int, cy: int) -> void:
+	if not _active:
+		return
+	var layer: int = world.current_layer
+	for dy: int in range(-1, 2):
+		for dx: int in range(-1, 2):
+			var k := WG.key(layer, cx + dx, cy + dy)
+			if _chunk_meshes.has(k):
+				var n: Node = _chunk_meshes[k]
+				if is_instance_valid(n):
+					n.queue_free()
+				_chunk_meshes.erase(k)
+				_chunk_nbr.erase(k)
+				_chunk_wait.erase(k)
 
 
 # How many of a chunk's 8 neighbours currently have their DATA loaded (indexed in the

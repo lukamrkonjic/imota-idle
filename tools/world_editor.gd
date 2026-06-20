@@ -17,6 +17,12 @@ extends Node2D
 ## Controls: right-drag pan · wheel zoom (over map only) · [ ] brush size ·
 ## Ctrl+Z undo · Ctrl+Y / Ctrl+Shift+Z redo · Ctrl+S save · 1-6 tools.
 ##
+## Live 3D view: the "🧊 3D View" toolbar button docks the REAL game renderer
+## (world.tscn) in a panel. Because the editor edits the same WorldGen chunk objects
+## the renderer reads, painting terrain/biome/water and then re-meshing the touched
+## chunks shows the true in-game 3D look. Press F to aim the 3D camera at the cursor;
+## arrow keys orbit it. (Self-test: run with `-- --we-selftest`.)
+##
 ## Run:  godot --path . res://tools/world_editor.tscn
 
 const WG := preload("res://scripts/worldgen/wg.gd")
@@ -136,6 +142,19 @@ var _preview_panel: PanelContainer
 var _selected_choice_btn: Button
 var _reroll_btn: Button
 
+# Live 3D view — embeds the real game world (world.tscn) in a SubViewport so you can
+# see the actual 3D result (elevation, water, models) of what you paint on the 2D map.
+# Lazy: the heavy game scene is only instanced when you toggle the panel on.
+const _GAME_SCENE := preload("res://scenes/world.tscn")
+var _v3d_panel: PanelContainer
+var _v3d_container: SubViewportContainer
+var _v3d_vp: SubViewport
+var _v3d_world: Node2D            # the embedded world.tscn instance (its render_3d does the 3D)
+var _v3d_on := false
+var _v3d_btn: Button
+var _v3d_focus_tile := Vector2i(-2147483648, 0)   # last tile the 3D camera was sent to
+const _V3D_SIZE := Vector2i(540, 380)
+
 
 func _ready() -> void:
 	SaveManager.suppress = true
@@ -161,9 +180,43 @@ func _ready() -> void:
 	_load_world()
 	_build_view()
 	_build_ui()
+	_build_3d_view_panel()
 	_set_tool(Tool.PAN)
 	_refresh_palette()
 	_refresh_history_buttons()
+	if "--we-selftest" in OS.get_cmdline_user_args():
+		_run_selftest.call_deferred()
+
+
+## Dev verification: enable the 3D view, focus spawn, let it stream/mesh, paint a patch,
+## screenshot the whole editor, then quit. Run:
+##   godot --path . res://tools/world_editor.tscn -- --we-selftest
+func _run_selftest() -> void:
+	var patch := _spawn_tile + Vector2i(12, 12)   # open terrain, off the campsite hub
+	_toggle_3d_view()
+	_focus_3d(patch)
+	await get_tree().create_timer(7.0).timeout
+	if _v3d_vp != null:
+		_v3d_vp.get_texture().get_image().save_png("user://we3d_before.png")
+	# Paint a big snow biome + snow terrain square; biome drives the 3D ground.
+	var snow_biome := ""
+	for b: Dictionary in WorldGen.list_surface_biomes():
+		if str(b["id"]).contains("snow") or str(b["id"]).contains("tundra") or str(b["id"]).contains("alp"):
+			snow_biome = str(b["id"])
+	_sel_biome = snow_biome if not snow_biome.is_empty() else _sel_biome
+	_sel_terrain = "snow"
+	_begin_stroke()
+	for dy: int in range(-8, 9):
+		for dx: int in range(-8, 9):
+			_paint_biome_tile(patch.x + dx, patch.y + dy)
+			_paint_terrain_tile(patch.x + dx, patch.y + dy)
+	_commit_stroke()
+	print("[we-selftest] painted biome '%s' at patch %s" % [_sel_biome, str(patch)])
+	await get_tree().create_timer(3.0).timeout
+	if _v3d_vp != null:
+		_v3d_vp.get_texture().get_image().save_png("user://we3d_after.png")
+	print("[we-selftest] saved we3d_before.png + we3d_after.png")
+	get_tree().quit()
 
 
 # ─────────────────────────────── load / view ────────────────────────────────
@@ -257,6 +310,9 @@ func _handle_key(event: InputEventKey) -> void:
 			if _tool == Tool.STAMP:
 				_stamp_flip = not _stamp_flip
 				_status.text = "Stamp flip: %s" % ("on" if _stamp_flip else "off")
+			elif _v3d_on:
+				_focus_3d(_hover_tile)
+				_status.text = "3D camera → tile (%d, %d)" % [_hover_tile.x, _hover_tile.y]
 		KEY_1: _set_tool(Tool.PAN)
 		KEY_2: _set_tool(Tool.BIOME)
 		KEY_3: _set_tool(Tool.TERRAIN)
@@ -616,6 +672,7 @@ func _commit_stroke() -> void:
 	_redo.clear()
 	if _history.size() > 200:
 		_history.pop_front()
+	_resync_3d_tiles(_stroke["tiles"].keys())
 	_refresh_history_buttons()
 
 
@@ -632,6 +689,7 @@ func _do_undo() -> void:
 	if s["spawn"] != null:
 		_spawn_tile = s["spawn"][0]
 	_refresh_stroke_collision(s)
+	_resync_3d_tiles(s["tiles"].keys())
 	_redo.append(s)
 	_status.text = "Undid 1 action (%d left)" % _history.size()
 	_refresh_history_buttons()
@@ -650,6 +708,7 @@ func _do_redo() -> void:
 	if s["spawn"] != null:
 		_spawn_tile = s["spawn"][1]
 	_refresh_stroke_collision(s)
+	_resync_3d_tiles(s["tiles"].keys())
 	_history.append(s)
 	_status.text = "Redid 1 action"
 	_refresh_history_buttons()
@@ -807,6 +866,8 @@ func _build_ui() -> void:
 	_toolbar_button(tb, "✓ Validate", _validate)
 	_toolbar_button(tb, "🌿 Generate Natural", _confirm_generate_natural)
 	_toolbar_button(tb, "⟳ Generate Full", _confirm_generate)
+	_v3d_btn = _toolbar_button(tb, "🧊 3D View", _toggle_3d_view)
+	_v3d_btn.toggle_mode = true
 	_status = Label.new()
 	_status.text = "Loaded %d chunks" % _chunks.size()
 	_status.add_theme_color_override("font_color", Color(0.7, 0.85, 0.7))
@@ -907,6 +968,113 @@ func _build_preview_panel() -> void:
 	_reroll_btn.text = "🎲 Re-roll variant"
 	_reroll_btn.pressed.connect(func() -> void: _preview.reroll())
 	box.add_child(_reroll_btn)
+
+
+# ───────────────────────────── live 3D view ─────────────────────────────────
+# Embeds the real game (world.tscn) in a SubViewport. Because the editor edits the
+# SAME WorldGen chunk objects the embedded renderer reads, painting on the 2D map and
+# then re-meshing the touched chunks shows the true in-game 3D result.
+
+## Build the (initially hidden) docked 3D panel shell. The heavy game scene inside is
+## created lazily the first time the panel is shown (see _toggle_3d_view).
+func _build_3d_view_panel() -> void:
+	_v3d_panel = PanelContainer.new()
+	_v3d_panel.add_theme_stylebox_override("panel", _panel(Color(0.06, 0.07, 0.09)))
+	_v3d_panel.top_level = true
+	_v3d_panel.visible = false
+	_track_ui_hover(_v3d_panel)
+	_hud.add_child(_v3d_panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	_v3d_panel.add_child(box)
+	var bar := HBoxContainer.new()
+	box.add_child(bar)
+	_header(bar, "3D View")
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bar.add_child(spacer)
+	var hint := Label.new()
+	hint.text = "arrows orbit · F focus cursor"
+	hint.add_theme_font_size_override("font_size", 10)
+	hint.add_theme_color_override("font_color", Color(0.6, 0.62, 0.66))
+	bar.add_child(hint)
+	_v3d_container = SubViewportContainer.new()
+	_v3d_container.custom_minimum_size = _V3D_SIZE
+	_v3d_container.stretch = true
+	# View-only: mouse stays with the editor (the 2D map), so clicking the 3D panel
+	# never moves the embedded player. Arrow keys still reach it to orbit the camera.
+	_v3d_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(_v3d_container)
+	_v3d_panel.position = Vector2(get_viewport().get_visible_rect().size) - Vector2(_V3D_SIZE) - Vector2(24, 24)
+
+
+## Show/hide the 3D view; instantiates the embedded game world on first show.
+func _toggle_3d_view() -> void:
+	_v3d_on = not _v3d_on
+	_v3d_panel.visible = _v3d_on
+	if _v3d_btn != null:
+		_v3d_btn.button_pressed = _v3d_on
+	if _v3d_on and _v3d_world == null:
+		_spawn_embedded_world()
+	if _v3d_on:
+		_focus_3d(_hover_tile if _in_bounds_tile(_hover_tile) else _spawn_tile)
+
+
+func _spawn_embedded_world() -> void:
+	_status.text = "Booting 3D view…"
+	_v3d_vp = SubViewport.new()
+	_v3d_vp.size = _V3D_SIZE
+	_v3d_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_v3d_vp.handle_input_locally = false   # editor owns input; this is a viewer
+	_v3d_container.add_child(_v3d_vp)
+	_v3d_world = _GAME_SCENE.instantiate()
+	_v3d_vp.add_child(_v3d_world)
+	# Hide the embedded game's own HUD — we only want the 3D world image.
+	var ehud: Node = _v3d_world.get_node_or_null("HUD")
+	if ehud != null:
+		(ehud as CanvasLayer).visible = false
+
+
+## Aim the 3D camera at a world tile by teleporting the embedded player there (the
+## renderer's camera eases to follow it) and re-centring its chunk streaming.
+func _focus_3d(tile: Vector2i) -> void:
+	if not _v3d_on or _v3d_world == null:
+		return
+	_v3d_focus_tile = tile
+	var pos := WG.tile_to_world(tile.x, tile.y)
+	var pl: Node2D = _v3d_world.get("player")
+	if pl != null:
+		pl.position = pos
+	var cm: Node = _v3d_world.get("chunk_manager")
+	if cm != null:
+		cm.call("update_center", pos)
+	# Pin the 3D camera to this authoring point so the live player never drifts the view.
+	var rend: Node = _v3d_world.get("render_3d")
+	if rend != null:
+		rend.set("editor_cam_target", pos)
+
+
+## Re-mesh the chunks a stroke (or undo/redo) touched so terrain/biome/water edits show
+## up in the 3D view. Structure/creature entities are refreshed in a later milestone.
+func _resync_3d_tiles(tiles: Array) -> void:
+	if not _v3d_on or _v3d_world == null:
+		return
+	var rend: Node = _v3d_world.get("render_3d")
+	if rend == null or not rend.has_method("rebuild_chunk"):
+		return
+	var seen := {}
+	for t: Vector2i in tiles:
+		var cx := floori(float(t.x) / float(WG.CHUNK_TILES))
+		var cy := floori(float(t.y) / float(WG.CHUNK_TILES))
+		var k := Vector2i(cx, cy)
+		if seen.has(k):
+			continue
+		seen[k] = true
+		rend.call("rebuild_chunk", cx, cy)
+
+
+func _in_bounds_tile(t: Vector2i) -> bool:
+	return t.x >= _min_tx and t.x < _min_tx + _w and t.y >= _min_ty and t.y < _min_ty + _h
 
 
 func _toolbar_button(parent: Control, text: String, cb: Callable) -> Button:
