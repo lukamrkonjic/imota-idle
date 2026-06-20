@@ -145,50 +145,63 @@ func _pick_parent_id(h: float, m: float, t: float, tx: float, ty: float) -> Stri
 			return "ocean"
 		if h < 0.345:
 			return "beach"
-	var g: Dictionary = classifier.geo(tx, ty)
-	var n: float = g["n"]            # +north / -south
-	var e: float = g["e"]            # +east / -west
-	var d: float = g["d"]            # 0 centre .. 1 rim
-	var rg: float = g["region"]      # organic boundary jitter
-
-	# High ground reads as hills/mountains wherever it rises.
-	if h >= 0.80:
+	# Very high ground always reads as mountains, whatever the region underneath.
+	if h >= 0.84:
 		return "rocky_hills"
-	# Safe central hub — rolling plains and farmland.
-	if d < 0.20 + (rg - 0.5) * 0.06:
-		return "wheatfield" if (h < 0.52 and m >= 0.40 and m <= 0.58) else "plains"
-	# Far NE corner — the volcano. Geography guarantees the corner; the rift noise shapes
-	# its edge (volcanic_region_ok). NOT climate-gated: the old "hot AND north" rule was
-	# self-contradictory (the north is cold) and produced zero volcanic terrain.
-	if n > 0.16 and e > 0.32 and d > 0.46 and classifier.volcanic_region_ok(tx, ty, Vector3(h, m, t)):
-		return "volcanic"
+	# HAND-AUTHORED layout: the nearest worldspec region paints the biome here. So the
+	# whole macro map is designed (not noise bands) — edit data/world/worldspec to move
+	# a biome. Borders are warped + radius-weighted so neighbours blend gradually.
+	var rb := _region_biome_id(tx, ty)
+	return rb if not rb.is_empty() else "plains"
 
-	# NORTH — boreal conifer woods give way to grey hills and then snow. The near-north
-	# band is boreal_forest (cold conifer), distinct from the temperate forest of the west.
-	if n > 0.42:
-		if d > 0.70: return "tundra"
-		if d > 0.46: return "rocky_hills" if t >= 0.30 else "tundra"
-		return "boreal_forest"
-	# EAST — plains warm into savanna, then a thin dry badlands belt, then a deep desert corner.
-	if e > 0.42:
-		if d > 0.64: return "desert"
-		if d > 0.56: return "badlands"
-		if d > 0.36: return "savanna"
-		return "plains"
-	# SOUTH — wet lowlands: swamp, then steamy jungle toward the SE.
-	if n < -0.42:
-		if d > 0.58: return "jungle"
-		if d > 0.36: return "swamp"
-		return "plains"
-	# WEST — broadleaf forest country.
-	if e < -0.42:
-		return "forest"
 
-	# Diagonal seams / mid-ring filler by climate, kept mostly green.
-	if d > 0.5:
-		if m >= 0.58: return "forest"
-		if t >= 0.6 and m <= 0.36: return "savanna"
-	return "plains"
+## Additively-weighted Voronoi over the authored regions, with a warped sample point so
+## borders meander organically instead of forming clean circles. A region with a larger
+## radius claims proportionally more ground; gaps between regions go to the nearest one,
+## so adjacent zones transition gradually (no hard biome cliffs).
+func _region_biome_id(tx: float, ty: float) -> String:
+	var regs: Array = reg.spec.regions
+	if regs.is_empty():
+		return ""
+	var ct := float(WG.CHUNK_TILES)
+	# Two-octave warp: a big low-frequency swirl bends whole borders, a mid-frequency
+	# term frays them so neighbouring biomes interlock organically (no polygon edges).
+	var wx: float = classifier._domain_warp.get_noise_2d(tx * 0.0016, ty * 0.0016) * 440.0 \
+		+ classifier._domain_warp.get_noise_2d(tx * 0.0065 + 11.0, ty * 0.0065 + 5.0) * 95.0
+	var wy: float = classifier._domain_warp.get_noise_2d(tx * 0.0016 + 71.0, ty * 0.0016 + 29.0) * 440.0 \
+		+ classifier._domain_warp.get_noise_2d(tx * 0.0065 + 41.0, ty * 0.0065 + 23.0) * 95.0
+	var p := Vector2(tx + wx, ty + wy)
+	# Track the TWO nearest regions; near their shared border, a high-frequency noise
+	# threshold flips between them so the boundary frays into an interlocking, organic
+	# transition instead of a clean polygon edge.
+	var best := ""
+	var best_score := INF
+	var second := ""
+	var second_score := INF
+	for r: Dictionary in regs:
+		var biome := str(r.get("biome", ""))
+		if biome.is_empty():
+			continue
+		var c := Vector2(float(r["cx"]) * ct + ct * 0.5, float(r["cy"]) * ct + ct * 0.5)
+		var score := p.distance_to(c) - float(r["radius"]) * ct * 0.55
+		if score < best_score:
+			second = best
+			second_score = best_score
+			best = biome
+			best_score = score
+		elif score < second_score:
+			second = biome
+			second_score = score
+	if not second.is_empty() and second != best:
+		const BAND := 150.0   # tiles of frayed overlap along a border (wide => big organic lobes)
+		var gap: float = second_score - best_score
+		if gap < BAND:
+			# Chunky mid-frequency fray so the two biomes interlock in lobes/bays, not a
+			# thin ragged seam; the closer to the true border, the more 50/50 the mix.
+			var fr: float = classifier._domain_warp.get_noise_2d(tx * 0.013 + 7.0, ty * 0.013 + 19.0) * 0.5 + 0.5
+			if fr < 0.5 * (1.0 - gap / BAND):
+				return second
+	return best
 
 
 func _sub_idx_for(parent_idx: int, gtx: int, gty: int) -> int:

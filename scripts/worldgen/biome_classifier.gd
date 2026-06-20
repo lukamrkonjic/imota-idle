@@ -40,7 +40,8 @@ var _t_cobble: int
 # radiating outward (safe green core -> rough dangerous rim -> sea).
 var _finite := false
 var _center := Vector2.ZERO   # world centre in tiles
-var _radius := 512.0          # tiles from centre to the rim
+var _radius_x := 512.0        # tiles centre->rim along X (wider than Y => a WIDE continent)
+var _radius_y := 512.0        # tiles centre->rim along Y
 
 # --- continent landmass shape (RuneScape-style irregular coast) ---------------
 # The continent is deliberately NOT a radial blob. A low-frequency, heavily
@@ -50,12 +51,12 @@ var _radius := 512.0          # tiles from centre to the rim
 # inhabited core solid and fades land toward the rim, and authored regions get an
 # explicit land guarantee (plus connecting corridors) so content never drowns and
 # the mainland stays one walkable body. Tune these to reshape every world:
-const _SHORE_R := 0.80          # norm_dist at the nominal coastline
-const _FALL_SLOPE := 0.92       # gentle => low-freq noise carves deep gulfs/capes
-const _SEA_LEVEL := 0.46        # landmass threshold; higher => more/deeper bays
+const _SHORE_R := 0.82          # norm_dist at the nominal coastline
+const _FALL_SLOPE := 0.62       # gentle => low-freq noise carves deep gulfs/capes (lower = wilder coast)
+const _SEA_LEVEL := 0.47        # landmass threshold; higher => more/deeper bays
 const _COAST_BAND := 0.12       # landmass span of the beach/shallow transition
-const _ISLAND_REACH := 0.34     # how far offshore (landmass units) islands form
-const _ISLAND_LIFT := 0.50      # how strongly an island peak rises from the sea
+const _ISLAND_REACH := 0.50     # how far offshore (landmass units) islands form
+const _ISLAND_LIFT := 0.60      # how strongly an island peak rises from the sea
 const _GUARANTEE_LAND := 0.20   # solid-land value forced under authored content
 var _land_discs: Array = []     # [{c:Vector2, r:float}] forced-land discs (tiles)
 var _land_corridors: Array = [] # [{a,b:Vector2, r:float}] connecting land bridges
@@ -71,7 +72,9 @@ func setup(p_reg: RefCounted, p_seed: int) -> void:
 		_center = Vector2(
 			(float(b.position.x) + float(b.size.x) * 0.5) * WG.CHUNK_TILES,
 			(float(b.position.y) + float(b.size.y) * 0.5) * WG.CHUNK_TILES)
-		_radius = float(mini(b.size.x, b.size.y)) * WG.CHUNK_TILES * 0.5
+		# Anisotropic: each axis fills its own half-extent, so wide bounds -> wide continent.
+		_radius_x = float(b.size.x) * WG.CHUNK_TILES * 0.5
+		_radius_y = float(b.size.y) * WG.CHUNK_TILES * 0.5
 	_region = _noise(p_seed + 1407, 0.0030, 2)
 	_mtn = MountainField.new()
 	_mtn.setup(self, p_seed)
@@ -155,7 +158,11 @@ func norm_dist(tx: float, ty: float) -> float:
 		return 0.0
 	var wx := _domain_warp.get_noise_2d(tx * 0.004, ty * 0.004) * 90.0
 	var wy := _domain_warp.get_noise_2d(tx * 0.004 + 71.0, ty * 0.004 + 23.0) * 90.0
-	return clampf(Vector2(tx + wx, ty + wy).distance_to(_center) / maxf(_radius * 0.92, 1.0), 0.0, 1.6)
+	# Elliptical (anisotropic) distance: each axis normalised by its own radius, so a
+	# wide bounds yields a wide continent instead of a circle squeezed to the short side.
+	var dx := (tx + wx - _center.x) / maxf(_radius_x * 0.92, 1.0)
+	var dy := (ty + wy - _center.y) / maxf(_radius_y * 0.92, 1.0)
+	return clampf(sqrt(dx * dx + dy * dy), 0.0, 1.6)
 
 
 ## 0 at the safe green core, 1 at the dangerous rim — drives biome harshness,
@@ -196,13 +203,13 @@ func _landmass(tx: float, ty: float) -> float:
 		return 1.0
 	# Heavy, low-frequency domain warp twists the coast into peninsulas and gulfs
 	# rather than a clean disc.
-	var wx := _domain_warp.get_noise_2d(tx * 0.0016, ty * 0.0016) * 300.0
-	var wy := _domain_warp.get_noise_2d(tx * 0.0016 + 131.0, ty * 0.0016 + 57.0) * 300.0
+	var wx := _domain_warp.get_noise_2d(tx * 0.0016, ty * 0.0016) * 470.0
+	var wy := _domain_warp.get_noise_2d(tx * 0.0016 + 131.0, ty * 0.0016 + 57.0) * 470.0
 	var sx := tx + wx
 	var sy := ty + wy
 	var base := _continent.get_noise_2d(sx, sy) * 0.5 + 0.5          # 0..1 big blobs
 	var detail := 1.0 - absf(_coast_detail.get_noise_2d(sx, sy))     # 0..1 ridged fingers
-	var shape := base * 0.86 + detail * 0.14
+	var shape := base * 0.80 + detail * 0.20
 	# Radial term: strongly positive in the core, ~0 at the shore radius, negative
 	# past it (uses the warped norm_dist so the falloff is itself irregular).
 	var d := norm_dist(tx, ty)
@@ -212,7 +219,7 @@ func _landmass(tx: float, ty: float) -> float:
 	# peaks lift back above sea level into scattered islands of varying size.
 	if lm < 0.0 and lm > -_ISLAND_REACH:
 		var isl := _island.get_noise_2d(sx, sy) * 0.5 + 0.5
-		var peak := smoothstep(0.66, 0.95, isl)   # only strong peaks => fewer, larger isles
+		var peak := smoothstep(0.52, 0.92, isl)   # lower gate => more islands, large and small
 		lm += peak * _ISLAND_LIFT * (1.0 - (-lm) / _ISLAND_REACH)
 	# Authored-content land guarantee — only ever ADDS land, blended by a soft edge
 	# so the coast still wiggles naturally just outside the guaranteed zone.
