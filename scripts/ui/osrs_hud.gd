@@ -47,10 +47,10 @@ var combat_info: Label
 var coins_label: Label
 var _side_tabs: TabContainer
 var _tab_icons: Array = []          # TabIcon widgets, index-aligned with the tabs
+var _prayer_tab: HudPrayerTab       # per-tab components (scripts/ui/tabs/) the HUD orchestrates
+var _magic_tab: HudMagicTab
 var prayer_orb: Control
 var run_orb: Control
-var _prayer_rows: VBoxContainer       # data-driven prayer toggle list (rebuilt on change)
-var _prayer_devotion_lbl: Label
 var _skill_hover: PanelContainer       # hover card: skill name + XP-to-next-level bar
 var _skill_hover_name: Label
 var _skill_hover_bar: ProgressBar
@@ -218,8 +218,11 @@ func update_tile_debug(world_pos: Vector2) -> void:
 	)
 
 
+## The skill the player is training in combat. Reads GameState (the persisted source
+## of truth, set whenever the Combat tab's selector changes) so callers never depend
+## on the OptionButton widget existing.
 func train_style() -> String:
-	return train_select.get_item_text(train_select.selected).to_lower()
+	return GameState.combat_style
 
 
 func show_ui_click_marker(screen_pos: Vector2) -> void:
@@ -408,8 +411,10 @@ func _build_side_panel() -> void:
 	tabs.add_child(_build_skills_tab())
 	tabs.add_child(_build_inventory_tab())
 	tabs.add_child(_build_equipment_tab())
-	tabs.add_child(_build_prayer_tab())
-	tabs.add_child(_build_magic_tab())
+	_prayer_tab = HudPrayerTab.new(self)
+	tabs.add_child(_prayer_tab.build())
+	_magic_tab = HudMagicTab.new(self)
+	tabs.add_child(_magic_tab.build())
 
 	# Icon tab row (OSRS sits these under the panel). One per content tab.
 	var bar := GridContainer.new()
@@ -431,7 +436,16 @@ func _build_side_panel() -> void:
 			_select_side_tab(idx)
 		bar.add_child(ico)
 		_tab_icons.append(ico)
-	_select_side_tab(2)  # default to Inventory, like OSRS
+	_select_side_tab(_startup_side_tab())  # default Inventory (like OSRS); --hud-tab=N overrides for render checks
+
+
+## Which side tab to open on launch. Honors a `--hud-tab=N` dev flag (0=Combat … 5=Magic)
+## so a headless render can capture any tab; defaults to Inventory.
+func _startup_side_tab() -> int:
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("--hud-tab="):
+			return clampi(int(a.trim_prefix("--hud-tab=")), 0, 5)
+	return 2
 
 
 func _select_side_tab(idx: int) -> void:
@@ -597,108 +611,6 @@ func _build_equipment_tab() -> Control:
 	equip_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	eq_scroll.add_child(equip_list)
 	return eq_scroll
-
-
-## Prayer tab (placeholder until the Prayer sim lands, spec §6/§16): shows the
-## prayers that unlock per Prayer level so the panel is meaningful today.
-func _build_prayer_tab() -> Control:
-	var box := VBoxContainer.new()
-	box.name = "Prayer"
-	var head := Label.new()
-	head.text = "Prayers"
-	head.add_theme_font_size_override("font_size", UiScale.i(15))
-	head.add_theme_color_override("font_color", Color(0.6, 0.78, 0.95))
-	box.add_child(head)
-	_prayer_devotion_lbl = Label.new()
-	_prayer_devotion_lbl.add_theme_font_size_override("font_size", UiScale.i(12))
-	_prayer_devotion_lbl.add_theme_color_override("font_color", Color(0.7, 0.85, 1.0))
-	box.add_child(_prayer_devotion_lbl)
-	_prayer_rows = VBoxContainer.new()
-	box.add_child(_prayer_rows)
-	var bury := Button.new()
-	bury.text = "Bury all bones"
-	bury.tooltip_text = "Bury every bone in your inventory for Prayer XP"
-	bury.pressed.connect(func() -> void:
-		var n := GameState.bury_bones()
-		_push_chat("[color=#444]Buried %d bones.[/color]" % n if n > 0 else "[color=#444]No bones to bury.[/color]"))
-	box.add_child(bury)
-	if not EventBus.prayer_changed.is_connected(_refresh_prayer_tab):
-		EventBus.prayer_changed.connect(_refresh_prayer_tab)
-		EventBus.level_up.connect(func(s: String, _l: int) -> void:
-			if s == "prayer":
-				_refresh_prayer_tab())
-	_refresh_prayer_tab()
-	return box
-
-
-## Rebuild the toggle list from data/prayers.json with current unlock/active state.
-func _refresh_prayer_tab() -> void:
-	if _prayer_rows == null or not is_instance_valid(_prayer_rows):
-		return
-	_prayer_devotion_lbl.text = "Prayer: %d / %d" % [int(GameState.devotion_points()), GameState.devotion_max()]
-	for c: Node in _prayer_rows.get_children():
-		c.queue_free()
-	var defs: Dictionary = DataRegistry.prayers
-	var names: Array = defs.keys()
-	names.sort_custom(func(a: String, b: String) -> bool:
-		return int(defs[a].get("levelReq", 1)) < int(defs[b].get("levelReq", 1)))
-	for name: String in names:
-		var def: Dictionary = defs[name]
-		var req := int(def.get("levelReq", 1))
-		var unlocked := GameState.level("prayer") >= req
-		var active := GameState.is_prayer_active(name)
-		var btn := Button.new()
-		btn.toggle_mode = true
-		btn.button_pressed = active
-		btn.disabled = not unlocked
-		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		btn.text = "%s%s  (Lvl %d)" % ["● " if active else "○ ", name, req]
-		btn.add_theme_font_size_override("font_size", UiScale.i(12))
-		var fx := []
-		if def.has("accuracy"): fx.append("+%d%% accuracy" % int(round((float(def["accuracy"]) - 1.0) * 100.0)))
-		if def.has("damage"): fx.append("+%d%% damage" % int(round((float(def["damage"]) - 1.0) * 100.0)))
-		if def.has("dr"): fx.append("+%d%% damage reduction" % int(def["dr"]))
-		if def.has("meleeProtect"): fx.append("-%d%% melee damage taken" % int(round((1.0 - float(def["meleeProtect"])) * 100.0)))
-		if name == "Protect Item": fx.append("keep an item on death")
-		btn.tooltip_text = "%s\nStyle: %s · Drain: %.2f/s\n%s" % [
-			name, str(def.get("style", "any")).capitalize(), float(def.get("drain", 0.2)),
-			", ".join(fx) if not fx.is_empty() else "—"]
-		var nm := name
-		btn.pressed.connect(func() -> void: GameState.toggle_prayer(nm))
-		_prayer_rows.add_child(btn)
-
-
-## Magic tab (placeholder spellbook until Magic combat lands).
-func _build_magic_tab() -> Control:
-	var box := VBoxContainer.new()
-	box.name = "Magic"
-	var head := Label.new()
-	head.text = "Spellbook"
-	head.add_theme_font_size_override("font_size", UiScale.i(15))
-	head.add_theme_color_override("font_color", Color(0.7, 0.55, 0.95))
-	box.add_child(head)
-	for s: Array in [
-		["Wind Strike", 1], ["Confuse", 3], ["Water Strike", 5], ["Earth Strike", 9],
-		["Fire Strike", 13], ["Bind", 20], ["High Alchemy", 55],
-	]:
-		var row := Label.new()
-		row.mouse_filter = Control.MOUSE_FILTER_PASS
-		row.add_theme_font_size_override("font_size", UiScale.i(12))
-		var unlocked := GameState.level("magic") >= int(s[1])
-		row.text = "%s  (Lvl %d)" % [str(s[0]), int(s[1])]
-		row.add_theme_color_override("font_color",
-			Color(0.9, 0.9, 0.8) if unlocked else Color(0.45, 0.45, 0.45))
-		world_tooltip.attach(row, {
-			"title": str(s[0]), "subtitle": "Level %d" % int(s[1]),
-			"action": "Unlocked" if unlocked else "Locked — needs Magic %d" % int(s[1])})
-		box.add_child(row)
-	var note := Label.new()
-	note.text = "Select Magic in the Combat tab to cast while fighting (coming soon)."
-	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	note.add_theme_font_size_override("font_size", UiScale.i(10))
-	note.add_theme_color_override("font_color", Color(0.65, 0.65, 0.65))
-	box.add_child(note)
-	return box
 
 
 func _build_chatbox() -> void:
@@ -1126,8 +1038,8 @@ func _build_fps_overlay() -> void:
 func _process(_delta: float) -> void:
 	# Live Devotion readout: PrayerSim drains every frame but only emits prayer_changed on
 	# toggle/empty, so refresh the number here while the Prayer tab is open.
-	if _prayer_devotion_lbl != null and is_instance_valid(_prayer_devotion_lbl) and _prayer_devotion_lbl.is_visible_in_tree():
-		_prayer_devotion_lbl.text = "Prayer: %d / %d" % [int(GameState.devotion_points()), GameState.devotion_max()]
+	if _prayer_tab != null:
+		_prayer_tab.update_devotion()
 	if fps_label == null:
 		return
 	if not GameSettings.show_fps:
@@ -1402,10 +1314,7 @@ func open_slayer() -> void:
 		go.disabled = not unlocked
 		var ename: String = str(e["name"])
 		go.pressed.connect(func() -> void:
-			var train := "attack"
-			if train_select != null and train_select.selected >= 0:
-				train = train_select.get_item_text(train_select.selected).to_lower()
-			if CombatSim.start_combat(ename, train):
+			if CombatSim.start_combat(ename, GameState.combat_style):
 				popup.hide())
 		row.add_child(go)
 		popup_list.add_child(row)
