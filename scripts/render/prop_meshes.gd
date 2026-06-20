@@ -121,8 +121,8 @@ static func decor_parts(kind: String) -> Array:
 	match kind:
 		"alpine_pine":
 			# Small visual-only pines arrive in deterministic clusters from the
-			# elevated decor pass; reuse the established hiking silhouette.
-			return _hike_conifer_parts(2)
+			# elevated decor pass; snow-covered crowns belong on these cold shelves.
+			return _hike_conifer_parts(2, true)
 		"alpine_boulder":
 			return _hike_boulder_parts()
 		"flower":
@@ -155,6 +155,8 @@ static func decor_parts(kind: String) -> Array:
 		# Biome canopy species — full-size ambient forest trees, batched like any decor.
 		"canopy_fir", "canopy_spruce":
 			return _conifer_parts()
+		"canopy_snow_fir", "canopy_snow_spruce":
+			return _snowy_conifer_parts()
 		"canopy_pine":
 			return _pine_parts()
 		"canopy_maple":
@@ -294,28 +296,36 @@ static func _tree_parts(leaf: ShaderMaterial) -> Array:
 
 
 static func _conifer_parts() -> Array:
-	# Lush, towering boreal spruce: a tall stack of SIX overlapping deep teal-green cone
-	# tiers (wide drooping skirt -> fine crown), a flared bark trunk, snow dusted on the
-	# upper boughs, and a couple of low saplings hugging the base for ground-level mass.
-	var dark := _mat("fir_a", "forest_teal", "forest_green")   # deep teal-green needles
-	var bark := _mat("dark_bark", "pine_dark", "bark_brown")
-	var snow := _mat("snow_a", "stone_a", "snow_a")
+	# Four full bell-shaped bough tiers: pinched neck, curved flare, drooping rim.
+	# The brighter moss ramp keeps the tiers readable without leaving the shared palette.
+	return _conifer_parts_with_material(_mat("mid_foliage", "forest_teal", "moss_hi"))
+
+
+static func _conifer_parts_with_material(needles: Material) -> Array:
+	var bark := _mat("trunk_a", "trunk_b", "wood_light")
 	return [
-		_shadow_part(0.95),
-		_part(_cyl("sp_trunk", 0.17, 0.3, 1.6), bark, Vector3(0, 0.72, 0)),
-		_part(_cone("sp0", 1.62, 1.12, 1.45), dark, Vector3(0, 1.3, 0)),
-		_part(_cone("sp1", 1.34, 0.86, 1.34), dark, Vector3(0.05, 2.14, 0)),
-		_part(_cone("sp2", 1.08, 0.64, 1.24), dark, Vector3(-0.04, 2.98, 0.03)),
-		_part(_cone("sp3", 0.82, 0.46, 1.18), dark, Vector3(0.04, 3.78, 0)),
-		_part(_cone("sp4", 0.56, 0.27, 1.08), dark, Vector3(-0.03, 4.52, 0.02)),
-		_part(_cone("sp5", 0.32, 0.02, 1.02), dark, Vector3(0.02, 5.24, 0)),
-		# Snow piled on the upper boughs — flattened white clumps, slightly offset.
-		_part(_sphere("sp_snowa", 0.5), snow, Vector3(0.06, 3.9, 0.06), Vector3(1.0, 0.36, 1.0)),
-		_part(_sphere("sp_snowb", 0.36), snow, Vector3(-0.05, 4.62, 0.04), Vector3(1.0, 0.34, 1.0)),
-		_part(_sphere("sp_snowc", 0.2), snow, Vector3(0.02, 5.3, 0.0), Vector3(1.0, 0.4, 1.0)),
-		# Low saplings clustering the base so the stand has understorey, not bare trunks.
-		_part(_cone("sp_sap_a", 0.55, 0.1, 1.15), dark, Vector3(-0.92, 0.6, 0.46), Vector3(0.9, 0.9, 0.9)),
-		_part(_cone("sp_sap_b", 0.46, 0.08, 0.95), dark, Vector3(0.95, 0.5, -0.34), Vector3(0.85, 0.85, 0.85))]
+		_shadow_part(1.05),
+		# Visible tapered trunk at the base, like the reference's bare lower stem.
+		_part(_cyl("fir_trunk", 0.13, 0.24, 1.5), bark, Vector3(0, 0.72, 0)),
+		# A slim tapered foliage core closes the centre behind the drooping whorls and
+		# pokes out the top as the sharp crown spire; no wood shows between tiers.
+		_part(_cone("fir_core", 0.5, 0.02, 4.35), needles, Vector3(0, 3.0, 0)),
+		# SIX overlapping drooping whorl tiers (wide skirt -> fine crown), each yawed a
+		# little so the splayed branch tips never line up — the layered low-poly conifer.
+		_part(_fir_bough("fir_w0", 1.58, 1.30, 10, 0.22), needles, Vector3(0, 1.28, 0)),
+		_part(_fir_bough("fir_w1", 1.34, 1.22, 10, 0.20), needles, Vector3(0.04, 1.90, -0.02), Vector3.ONE, Vector3(0, 0.30, 0)),
+		_part(_fir_bough("fir_w2", 1.10, 1.16, 9, 0.18), needles, Vector3(-0.03, 2.52, 0.03), Vector3.ONE, Vector3(0, 0.62, 0)),
+		_part(_fir_bough("fir_w3", 0.87, 1.12, 9, 0.16), needles, Vector3(0.03, 3.14, 0.0), Vector3.ONE, Vector3(0, 0.12, 0)),
+		_part(_fir_bough("fir_w4", 0.63, 1.08, 8, 0.14), needles, Vector3(-0.02, 3.76, 0.02), Vector3.ONE, Vector3(0, 0.40, 0)),
+		_part(_fir_bough("fir_w5", 0.39, 1.04, 8, 0.11), needles, Vector3(0.01, 4.38, 0), Vector3.ONE, Vector3(0, 0.72, 0))]
+
+
+## Snow-region fir: off-white faceted branch tiers with a tight cool shadow
+## ramp, matching the fully snow-loaded silhouettes in the reference.
+static func _snowy_conifer_parts() -> Array:
+	var snow_base := PixelPalette.pal("snow_a")
+	var snow := _mat_from(snow_base, snow_base.darkened(0.12), snow_base.lightened(0.08))
+	return _conifer_parts_with_material(snow)
 
 
 ## Pine: tall, with a bare reddish lower trunk and a few broad, well-separated
@@ -328,11 +338,11 @@ static func _pine_parts() -> Array:
 	return [
 		_shadow_part(0.7),
 		_part(_cyl("pine_trunk", 0.13, 0.22, 3.3), bark, Vector3(0, 1.65, 0)),
-		_part(_cone("pine_t0", 1.15, 0.76, 0.8), needle, Vector3(0, 3.0, 0)),
-		_part(_cone("pine_t1", 0.9, 0.52, 0.72), needle, Vector3(0.05, 3.66, 0)),
-		_part(_cone("pine_t2", 0.62, 0.3, 0.66), needle, Vector3(-0.04, 4.28, 0.02)),
-		_part(_cone("pine_t3", 0.36, 0.04, 0.62), needle, Vector3(0.02, 4.86, 0)),
-		_part(_cone("pine_low", 0.52, 0.12, 0.66), needle, Vector3(-0.66, 2.1, 0.36), Vector3(0.8, 0.8, 0.8))]
+		_part(_cone("pine_filled_core", 0.43, 0.02, 2.65), needle, Vector3(0, 3.86, 0)),
+		_part(_fir_bough("pine_t0", 1.15, 0.76, 7, 0.16), needle, Vector3(0, 3.05, 0)),
+		_part(_fir_bough("pine_t1", 0.88, 0.76, 7, 0.14), needle, Vector3(0.05, 3.67, 0), Vector3.ONE, Vector3(0, 0.14, 0)),
+		_part(_fir_bough("pine_t2", 0.62, 0.76, 7, 0.12), needle, Vector3(-0.04, 4.27, 0.02), Vector3.ONE, Vector3(0, -0.12, 0)),
+		_part(_fir_bough("pine_t3", 0.36, 0.84, 7, 0.08), needle, Vector3(0.02, 4.88, 0))]
 
 
 ## Maple: a broad, slightly flattened dome on a stout trunk — warm autumnal
@@ -722,18 +732,22 @@ static func _hike_lodge_parts() -> Array:
 		_part(_box("hike_lodge_step1", Vector3(1.72, 0.15, 0.42)), wood, Vector3(-0.08, 0.08, 2.78))]
 
 
-static func _hike_conifer_parts(variant: int) -> Array:
+static func _hike_conifer_parts(variant: int, snowy: bool = false) -> Array:
 	var leaf := _mat("pine_mid", "pine_dark", "foliage_c")
 	if variant % 3 == 1:
 		leaf = _mat("fir_a", "pine_dark", "foliage_c")
 	elif variant % 3 == 2:
 		leaf = _mat("pine_dark", "shadow", "pine_mid")
+	if snowy:
+		var snow_base := PixelPalette.pal("snow_a")
+		leaf = _mat_from(snow_base, snow_base.darkened(0.12), snow_base.lightened(0.08))
 	return [
 		_part(_cyl("hike_pine_trunk", 0.15, 0.22, 1.35), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0, 0.68, 0)),
-		_part(_cone("hike_pine_skirt", 1.05, 0.38, 1.22), leaf, Vector3(0, 1.18, 0)),
-		_part(_cone("hike_pine_mid", 0.86, 0.22, 1.22), leaf, Vector3(0.05, 1.88, 0.02)),
-		_part(_cone("hike_pine_top", 0.58, 0.04, 1.28), leaf, Vector3(-0.03, 2.58, -0.02)),
-		_part(_cone("hike_pine_tip", 0.28, 0.0, 0.72), leaf, Vector3(0.02, 3.18, 0.01))]
+		_part(_cone("hike_pine_filled_core", 0.44, 0.02, 2.9), leaf, Vector3(0, 2.08, 0)),
+		_part(_fir_bough("hike_pine_skirt", 1.05, 1.02, 8, 0.16), leaf, Vector3(0, 1.18, 0)),
+		_part(_fir_bough("hike_pine_mid", 0.82, 1.02, 8, 0.13), leaf, Vector3(0.05, 1.88, 0.02)),
+		_part(_fir_bough("hike_pine_top", 0.56, 1.04, 7, 0.10), leaf, Vector3(-0.03, 2.58, -0.02)),
+		_part(_fir_bough("hike_pine_tip", 0.3, 0.78, 7, 0.06), leaf, Vector3(0.02, 3.18, 0.01))]
 
 
 static func _hike_deciduous_parts(variant: int) -> Array:
@@ -1869,6 +1883,75 @@ static func _cone(key: String, bot: float, top: float, h: float) -> Mesh:
 		m.height = h
 		m.radial_segments = 8
 		_mesh_cache[key] = m
+	return _mesh_cache[key]
+
+
+## A bell-shaped fir whorl. Several radial rings form a gently concave cone that
+## pinches at the neck, swells through the branch mass, then flares into a soft
+## drooping brim. Smooth-group normals keep the broad low-poly facets while
+## avoiding the old stack of flat diamond plates.
+static func _fir_bough(key: String, radius: float, height: float, tips: int, droop: float) -> Mesh:
+	if not _mesh_cache.has(key):
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		st.set_smooth_group(0)
+		var ring_specs := [
+			[0.035, 0.55],
+			[0.16, 0.28],
+			[0.50, 0.02],
+			[0.86, -0.20],
+			[1.00, -0.32],
+		]
+		var rings: Array = []
+		for ri: int in ring_specs.size():
+			var spec: Array = ring_specs[ri]
+			var ring: Array[Vector3] = []
+			for i: int in tips:
+				var a := float(i) / float(tips) * TAU
+				var tip_scale := 1.0
+				var y := height * float(spec[1])
+				if ri == ring_specs.size() - 1:
+					tip_scale = 1.0 if i % 2 == 0 else 0.9
+					y -= droop if i % 2 == 0 else droop * 0.45
+				var rr := radius * float(spec[0]) * tip_scale
+				ring.append(Vector3(cos(a) * rr, y, sin(a) * rr))
+			rings.append(ring)
+		for ri: int in range(rings.size() - 1):
+			var upper: Array = rings[ri]
+			var lower: Array = rings[ri + 1]
+			for i: int in tips:
+				var n := (i + 1) % tips
+				st.add_vertex(upper[i])
+				st.add_vertex(lower[n])
+				st.add_vertex(lower[i])
+				st.add_vertex(upper[i])
+				st.add_vertex(upper[n])
+				st.add_vertex(lower[n])
+		var rim: Array = rings.back()
+		var lower_rim: Array[Vector3] = []
+		for i: int in tips:
+			var a := float(i) / float(tips) * TAU
+			var tip_scale := 0.88 if i % 2 == 0 else 0.81
+			var y := -height * 0.43 - (droop * 0.72 if i % 2 == 0 else droop * 0.32)
+			lower_rim.append(Vector3(cos(a) * radius * tip_scale, y, sin(a) * radius * tip_scale))
+		# Fold the brim down and inward so the foliage tier has visible thickness
+		# at its silhouette instead of ending in a paper-thin polygon edge.
+		for i: int in tips:
+			var n := (i + 1) % tips
+			st.add_vertex(rim[i])
+			st.add_vertex(lower_rim[n])
+			st.add_vertex(lower_rim[i])
+			st.add_vertex(rim[i])
+			st.add_vertex(rim[n])
+			st.add_vertex(lower_rim[n])
+		var hub := Vector3(0, -height * 0.48, 0)
+		for i: int in tips:
+			var n := (i + 1) % tips
+			st.add_vertex(hub)
+			st.add_vertex(lower_rim[i])
+			st.add_vertex(lower_rim[n])
+		st.generate_normals()
+		_mesh_cache[key] = st.commit()
 	return _mesh_cache[key]
 
 

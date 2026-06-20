@@ -351,7 +351,7 @@ func _spawn_canopy_tile(chunk: RefCounted, container: Node2D, seed: int, tx: int
 func _pick_alpine_decor(elev: int, roll: float, variant: int) -> String:
 	# Pine groups hold lower/mid shelves, chunky outcrops mark cliff feet, and
 	# high shelves thin into lichen/stone so the summit silhouette stays clear.
-	if elev < 28 and roll < 0.18 and variant % 3 != 0:
+	if elev < 28 and roll < 0.10 and variant % 3 != 0:
 		return "alpine_pine"
 	if roll < 0.42:
 		return "alpine_boulder"
