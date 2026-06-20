@@ -1475,6 +1475,9 @@ func _sync_movers() -> void:
 func _prep_mover(node: Node3D, key: String) -> void:
 	props_root.add_child(node)
 	_disable_cast_shadows(node)
+	# Measure the rig's true head height ONCE here, in its built rest pose (before any gait
+	# animation), so floating HP bars sit a consistent distance above every body.
+	node.set_meta("rig_top_y", _rig_top_y(node))
 	var shadow := PropMeshes.blob_shadow()
 	props_root.add_child(shadow)
 	_shadow_nodes[key] = shadow
@@ -2108,18 +2111,51 @@ func mover_lift(entity: Node) -> float:
 	return 0.95
 
 
-## World-Y just ABOVE the model's head, scaled to its size and body type — for
-## floating UI (HP bars) that must clear the body, never sit inside it.
+## Constant world-unit gap the HP bar floats above EVERY head — so the bar reads the same
+## distance over a chicken, a wolf and the player, never "too high" on the animal rigs (whose
+## old hardcoded height over-estimated their back, floating the bar ~0.6 too high). 0.30 keeps
+## the previously-correct humanoid gap and brings every other body down to match it.
+const BAR_CLEARANCE := 0.30
+
+## World-Y just above the model's head for floating UI (HP bars). Uses the rig's MEASURED top
+## (cached at build from its mesh AABBs, held weapons excluded) scaled by its size, plus one
+## constant clearance — so the gap above the head is identical for every entity, instead of a
+## hardcoded per-body guess that floated too high on some rigs.
 func mover_top(entity: Node) -> float:
 	var n: Node3D = _player_node if entity == world.player else _mover_nodes.get(entity.get_instance_id())
 	if n == null:
 		return 2.4
 	var base := float(n.get_meta("base_scale", 1.0))
-	var h := 2.05   # humanoid rig top (head/hair ~2.0 local units)
-	match str(n.get_meta("body3d", "humanoid")):
-		"quadruped", "wolf": h = 1.4
-		"bird": h = 1.05
-	return base * h + 0.3
+	var top_local := float(n.get_meta("rig_top_y", 2.0))
+	return base * top_local + BAR_CLEARANCE
+
+
+## Highest point of a mover rig in its OWN local space (feet ≈ y 0), measured from the mesh
+## AABBs so floating UI clears the ACTUAL head — not a per-body guess. Held weapons/tools
+## (socket_mainhand/offhand subtrees) are skipped so a tall staff never lifts the bar.
+func _rig_top_y(root: Node3D) -> float:
+	var top := _accumulate_top_y(root, Transform3D.IDENTITY, -1.0e9)
+	return top if top > 0.01 else 2.0
+
+
+func _accumulate_top_y(node: Node, xform: Transform3D, best: float) -> float:
+	for child: Node in node.get_children():
+		if not (child is Node3D):
+			continue
+		var nm := String(child.name)
+		if nm.contains("socket_mainhand") or nm.contains("socket_offhand"):
+			continue   # held weapon/tool — tracks the body, not the staff tip
+		var cx: Transform3D = xform * (child as Node3D).transform
+		if child is MeshInstance3D and (child as MeshInstance3D).mesh != null:
+			var ab: AABB = (child as MeshInstance3D).mesh.get_aabb()
+			for i in 8:
+				var corner: Vector3 = cx * (ab.position + Vector3(
+					ab.size.x if (i & 1) != 0 else 0.0,
+					ab.size.y if (i & 2) != 0 else 0.0,
+					ab.size.z if (i & 4) != 0 else 0.0))
+				best = maxf(best, corner.y)
+		best = _accumulate_top_y(child, cx, best)
+	return best
 
 
 ## Window pixels per world unit (orthographic, vertical) — turns a world-space
