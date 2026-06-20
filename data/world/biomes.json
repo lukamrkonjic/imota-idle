@@ -296,6 +296,30 @@
 			],
 			"walkable": true,
 			"water": false
+		},
+		"dead_grass": {
+			"colors": [
+				"5b5a48",
+				"454431"
+			]
+		},
+		"scorched_earth": {
+			"colors": [
+				"39342d",
+				"2a2620"
+			]
+		},
+		"obsidian": {
+			"colors": [
+				"2d2b33",
+				"211f27"
+			]
+		},
+		"blight_pool": {
+			"colors": [
+				"4e5642",
+				"3a4230"
+			]
 		}
 	},
 	"transitions": {},
@@ -2392,6 +2416,194 @@
 				]
 			},
 			"climateScale": "major"
+		},
+		{
+			"id": "dead_forest",
+			"name": "Dead Forest",
+			"priority": 28,
+			"isSubBiome": true,
+			"parentBiome": "boreal_forest",
+			"when": {},
+			"tiles": {
+				"dead_grass": 0.6,
+				"mud": 0.26,
+				"dirt": 0.14
+			},
+			"tint": "4a4838",
+			"music": "volcanic",
+			"skillWeights": {
+				"mining": 2.0,
+				"woodcutting": 0.3,
+				"foraging": 0.3
+			},
+			"siteDensity": 0.8,
+			"monsterDensity": 0.95,
+			"groundDecor": {
+				"density": 0.03,
+				"kinds": [
+					{
+						"kind": "stick",
+						"weight": 0.45
+					},
+					{
+						"kind": "bramble",
+						"weight": 0.3
+					},
+					{
+						"kind": "pebble",
+						"weight": 0.25
+					}
+				]
+			},
+			"canopy": {
+				"density": 0.05,
+				"kinds": [
+					{
+						"kind": "canopy_deadtree",
+						"weight": 1.0
+					}
+				]
+			}
+		},
+		{
+			"id": "scorched",
+			"name": "Scorched Waste",
+			"priority": 30,
+			"isSubBiome": true,
+			"parentBiome": "volcanic",
+			"when": {},
+			"tiles": {
+				"scorched_earth": 0.58,
+				"ash": 0.28,
+				"lava_rock": 0.14
+			},
+			"tint": "33302a",
+			"music": "volcanic",
+			"skillWeights": {
+				"mining": 2.0,
+				"woodcutting": 0.3,
+				"foraging": 0.3
+			},
+			"siteDensity": 0.8,
+			"monsterDensity": 0.95,
+			"groundDecor": {
+				"density": 0.03,
+				"kinds": [
+					{
+						"kind": "rubble",
+						"weight": 0.45
+					},
+					{
+						"kind": "pebble",
+						"weight": 0.35
+					},
+					{
+						"kind": "bone",
+						"weight": 0.2
+					}
+				]
+			},
+			"canopy": {
+				"density": 0.006,
+				"kinds": [
+					{
+						"kind": "canopy_deadtree",
+						"weight": 1.0
+					}
+				]
+			}
+		},
+		{
+			"id": "obsidian_ridge",
+			"name": "Obsidian Ridge",
+			"priority": 32,
+			"isSubBiome": true,
+			"parentBiome": "volcanic",
+			"when": {},
+			"tiles": {
+				"obsidian": 0.56,
+				"lava_rock": 0.3,
+				"peak_rock": 0.14
+			},
+			"tint": "26242c",
+			"music": "volcanic",
+			"skillWeights": {
+				"mining": 2.0,
+				"woodcutting": 0.3,
+				"foraging": 0.3
+			},
+			"siteDensity": 0.8,
+			"monsterDensity": 0.95,
+			"groundDecor": {
+				"density": 0.025,
+				"kinds": [
+					{
+						"kind": "rubble",
+						"weight": 0.6
+					},
+					{
+						"kind": "pebble",
+						"weight": 0.4
+					}
+				]
+			},
+			"canopy": {
+				"density": 0.0,
+				"kinds": [
+					{
+						"kind": "canopy_deadtree",
+						"weight": 1.0
+					}
+				]
+			}
+		},
+		{
+			"id": "corrupted_bog",
+			"name": "Corrupted Bog",
+			"priority": 27,
+			"isSubBiome": true,
+			"parentBiome": "bog",
+			"when": {},
+			"tiles": {
+				"blight_pool": 0.52,
+				"marsh": 0.3,
+				"mud": 0.18
+			},
+			"tint": "3e4634",
+			"music": "volcanic",
+			"skillWeights": {
+				"mining": 2.0,
+				"woodcutting": 0.3,
+				"foraging": 0.3
+			},
+			"siteDensity": 0.8,
+			"monsterDensity": 0.95,
+			"groundDecor": {
+				"density": 0.03,
+				"kinds": [
+					{
+						"kind": "bramble",
+						"weight": 0.4
+					},
+					{
+						"kind": "stick",
+						"weight": 0.35
+					},
+					{
+						"kind": "pebble",
+						"weight": 0.25
+					}
+				]
+			},
+			"canopy": {
+				"density": 0.022,
+				"kinds": [
+					{
+						"kind": "canopy_deadtree",
+						"weight": 1.0
+					}
+				]
+			}
 		}
 	],
 	"subBiomes": [
@@ -2575,6 +2787,50 @@
 			"maxSize": 68,
 			"chance": 0.1,
 			"macroSpacing": 4
+		},
+		{
+			"id": "dead_forest",
+			"allowedParents": [
+				"boreal_forest",
+				"badlands"
+			],
+			"minSize": 22,
+			"maxSize": 80,
+			"chance": 0.13,
+			"macroSpacing": 4
+		},
+		{
+			"id": "scorched",
+			"allowedParents": [
+				"volcanic",
+				"badlands"
+			],
+			"minSize": 18,
+			"maxSize": 64,
+			"chance": 0.3,
+			"macroSpacing": 3
+		},
+		{
+			"id": "obsidian_ridge",
+			"allowedParents": [
+				"volcanic"
+			],
+			"minSize": 14,
+			"maxSize": 44,
+			"chance": 0.26,
+			"macroSpacing": 3
+		},
+		{
+			"id": "corrupted_bog",
+			"allowedParents": [
+				"bog",
+				"swamp",
+				"tundra"
+			],
+			"minSize": 18,
+			"maxSize": 60,
+			"chance": 0.2,
+			"macroSpacing": 3
 		}
 	]
 }

@@ -7,7 +7,7 @@ extends Node
 
 const WG := preload("res://scripts/worldgen/wg.gd")
 
-const STRIDE := 4   # tiles per pixel (smaller = sharper + slower)
+const STRIDE := 2   # tiles per pixel (smaller = sharper + slower)
 
 
 func _ready() -> void:

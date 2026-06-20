@@ -13,6 +13,9 @@ const ROCK_TILES := ["rock", "lava_rock", "ash", "peak_rock"]
 const SNOW_TILES := ["snow", "frozen_grass", "peak_snow"]
 const WATER_TILES := ["deep_water", "water", "shallow"]
 const SAND_TILES := ["sand", "sand_dune", "desert_sand", "desert_dune"]
+# Dead / corrupted / charred ground (hostile north). Kept OUT of the grass gradient so it stays
+# bleak — only broad light variation is applied, never a green/orange/rock tint.
+const HOSTILE_TILES := ["dead_grass", "scorched_earth", "obsidian", "blight_pool"]
 
 # Alpine colour ramp (A Short Hike-style): grass -> olive -> ochre dirt -> warm rock -> cool
 # high rock -> snow, as ONE continuous ramp so a mountain never reads as a flat single tone.
@@ -50,6 +53,8 @@ static func surface_family(tile: String) -> String:
 		return "rock"
 	if tile in SAND_TILES:
 		return "sand"
+	if tile in HOSTILE_TILES:
+		return "rock"   # bleak ground blends as solid earth, never grass
 	return "grass"
 
 
@@ -67,6 +72,12 @@ static func grade(col: Color, tile: String, gtx: int, gty: int, elev: int = 0, s
 	var hi := clampf(float(elev) / ALPINE_SUMMIT, 0.0, 1.0)   # 0 foot .. 1 summit
 	var steep := clampf(float(slope) / 5.0, 0.0, 1.0)         # 0 flat shelf .. 1 cliff face
 	var convex := clampf(float(curve) / 16.0, -1.0, 1.0)
+	if tile in HOSTILE_TILES:
+		# Dead/corrupted/charred ground: preserve the bleak raw colour; only broad low-frequency
+		# light variation + a faint ashen mottle so it isn't a flat slab. No green/orange/rock.
+		var bleak := c.darkened((1.0 - bright) * 0.16).lightened(band2 * 0.06)
+		var mottle := 0.5 + 0.5 * sin(fx * 0.09 - fz * 0.07 + 1.1)
+		return bleak.lerp(bleak.lightened(0.10), mottle * 0.12)
 	if is_snow(tile):
 		# Snow only holds on gentle, top-facing surfaces; steep faces shed it to bare rock.
 		if steep > 0.5:

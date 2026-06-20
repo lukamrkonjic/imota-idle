@@ -237,12 +237,16 @@ func _ensure_climate_cache() -> void:
 			(_extreme_anchors[biome] as Array).append({"c": c2, "r": rr})
 
 
-## First parent biome a sub-biome rule may stamp onto (so a sub-biome region inherits a real
-## climate envelope). "" if the id isn't a sub-biome or has no allowed parents.
+## First allowed parent of a sub-biome rule that itself HAS a climate envelope, so a sub-biome
+## region inherits a real climate (skips parents that are themselves climate-less sub-biomes,
+## e.g. corrupted_bog -> bog has none -> swamp does). "" if none qualifies.
 func _first_allowed_parent(sub_id: String) -> String:
 	for rule: Dictionary in reg.sub_biomes:
 		if str(rule.get("id", "")) == sub_id:
 			var ap: Array = rule.get("allowedParents", [])
+			for par: Variant in ap:
+				if not reg.biome_by_id(str(par)).get("climate", {}).is_empty():
+					return str(par)
 			return str(ap[0]) if not ap.is_empty() else ""
 	return ""
 

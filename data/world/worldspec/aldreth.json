@@ -1,617 +1,633 @@
 {
-  "_doc": [
-    "Aldreth \u00e2\u20ac\u201d a FINITE, fixed, hand-authored continent (the new primary world).",
-    "Unlike the old infinite spec, this declares world `bounds` (chunk space) with",
-    "open ocean beyond, deliberate `settlements`, `roads` (polylines) and `features`",
-    "(rivers/lakes/landmarks). The offline bake tool (tools/world_bake.gd) compiles",
-    "every in-bounds, fixed region into shipped chunk data; regions flagged",
-    "fixed:false (e.g. the Tanglewild) keep generating procedurally at runtime.",
-    "Coordinates: regions/anchors in CHUNK space (1 chunk = 16 tiles); settlements,",
-    "roads and features in TILE space. Chunk c -> center tile (c*16 + 8)."
-  ],
-  "id": "aldreth",
-  "version": 1,
-  "name": "The Realm of Aldreth",
-  "seed": 7,
-  "generatorVersion": 17,
-  "bounds": {
-    "min": [
-      -68,
-      -44
-    ],
-    "max": [
-      67,
-      43
-    ]
-  },
-  "oceanBeyondBounds": true,
-  "regions": [
-    {
-      "id": "greenhollow",
-      "name": "Greenhollow Vale",
-      "biome": "plains",
-      "req": 1,
-      "danger": "safe",
-      "shape": {
-        "center": [
-          0,
-          0
-        ],
-        "radius": 6
-      },
-      "fixed": true,
-      "motif": "The green heart of the realm; every road begins here."
-    },
-    {
-      "id": "aldspire",
-      "name": "Aldspire",
-      "biome": "plains",
-      "req": 2,
-      "danger": "safe",
-      "shape": {
-        "center": [
-          -8,
-          -4
-        ],
-        "radius": 4
-      },
-      "fixed": true,
-      "motif": "The white-walled capital on the river's bend."
-    },
-    {
-      "id": "brightfields",
-      "name": "Brightfields",
-      "biome": "wheatfield",
-      "req": 3,
-      "danger": "safe",
-      "shape": {
-        "center": [
-          9,
-          5
-        ],
-        "radius": 5
-      },
-      "fixed": true,
-      "motif": "Amber wheat and hedgerows, the realm's breadbasket."
-    },
-    {
-      "id": "larkmeadow",
-      "name": "Larkmeadow",
-      "biome": "flower_meadow",
-      "req": 4,
-      "danger": "safe",
-      "shape": {
-        "center": [
-          -3,
-          11
-        ],
-        "radius": 5
-      },
-      "fixed": true,
-      "motif": "Wildflower commons humming with bees."
-    },
-    {
-      "id": "mosswood",
-      "name": "Mosswood",
-      "biome": "forest",
-      "req": 6,
-      "danger": "safe",
-      "shape": {
-        "center": [
-          -16,
-          3
-        ],
-        "radius": 6
-      },
-      "fixed": true,
-      "motif": "Cool broadleaf woods where the first wolves prowl."
-    },
-    {
-      "id": "oakshade",
-      "name": "Oakshade Forest",
-      "biome": "forest",
-      "req": 9,
-      "danger": "low",
-      "shape": {
-        "center": [
-          -26,
-          -2
-        ],
-        "radius": 6
-      },
-      "fixed": true,
-      "motif": "Deep oak country; a dungeon mouth gapes among the roots."
-    },
-    {
-      "id": "deepwood",
-      "name": "The Deepwood",
-      "biome": "dense_forest",
-      "req": 13,
-      "danger": "low",
-      "shape": {
-        "center": [
-          -22,
-          13
-        ],
-        "radius": 6
-      },
-      "fixed": true,
-      "motif": "Old-growth so thick the canopy swallows the sun."
-    },
-    {
-      "id": "wolfden",
-      "name": "Wolfden",
-      "biome": "boreal_forest",
-      "req": 22,
-      "danger": "medium",
-      "shape": {
-        "center": [
-          -36,
-          7
-        ],
-        "radius": 6
-      },
-      "fixed": true,
-      "motif": "Dark spruce taiga howling on the western marches."
-    },
-    {
-      "id": "highmoor",
-      "name": "Highmoor",
-      "biome": "heather_moor",
-      "req": 19,
-      "danger": "medium",
-      "shape": {
-        "center": [
-          -40,
-          -9
-        ],
-        "radius": 6
-      },
-      "fixed": true,
-      "motif": "Windswept purple moor on the realm's far shoulder."
-    },
-    {
-      "id": "westcape",
-      "name": "Westcape",
-      "biome": "grove",
-      "req": 16,
-      "danger": "low",
-      "shape": {
-        "center": [
-          "-50",
-          -2
-        ],
-        "radius": 5
-      },
-      "fixed": true,
-      "motif": "A sunlit grove at the long western point, ringed by sea."
-    },
-    {
-      "id": "saltcove",
-      "name": "Saltcove",
-      "biome": "beach",
-      "req": 7,
-      "danger": "safe",
-      "shape": {
-        "center": [
-          12,
-          18
-        ],
-        "radius": 4
-      },
-      "fixed": true,
-      "motif": "A fishing town on the southern strand."
-    },
-    {
-      "id": "greywater",
-      "name": "Greywater Mire",
-      "biome": "swamp",
-      "req": 23,
-      "danger": "medium",
-      "shape": {
-        "center": [
-          4,
-          23
-        ],
-        "radius": 6
-      },
-      "fixed": true,
-      "motif": "Sunken fens of black water and biting flies."
-    },
-    {
-      "id": "bogmire",
-      "name": "Bogmire",
-      "biome": "bog",
-      "req": 27,
-      "danger": "medium",
-      "shape": {
-        "center": [
-          "-9",
-          28
-        ],
-        "radius": 5
-      },
-      "fixed": true,
-      "motif": "Peat hags and will-o'-wisps in the deep south."
-    },
-    {
-      "id": "tanglewild",
-      "name": "The Tanglewild",
-      "biome": "jungle",
-      "req": 46,
-      "danger": "high",
-      "shape": {
-        "center": [
-          17,
-          31
-        ],
-        "radius": 7
-      },
-      "fixed": true,
-      "motif": "A steaming green tangle jutting into the southern sea."
-    },
-    {
-      "id": "eastreach",
-      "name": "Eastreach",
-      "biome": "savanna",
-      "req": 15,
-      "danger": "low",
-      "shape": {
-        "center": [
-          21,
-          3
-        ],
-        "radius": 7
-      },
-      "fixed": true,
-      "motif": "Golden grass plains rolling toward the eastern dunes."
-    },
-    {
-      "id": "emberscrub",
-      "name": "Emberscrub",
-      "biome": "savanna_scrub",
-      "req": 34,
-      "danger": "high",
-      "shape": {
-        "center": [
-          "26",
-          16
-        ],
-        "radius": 5
-      },
-      "fixed": true,
-      "motif": "Thornscrub and dust on the desert's doorstep."
-    },
-    {
-      "id": "duskreach",
-      "name": "Duskreach",
-      "biome": "badlands",
-      "req": 31,
-      "danger": "medium",
-      "shape": {
-        "center": [
-          32,
-          8
-        ],
-        "radius": 6
-      },
-      "fixed": true,
-      "motif": "Cracked red hardpan where the grass gives out."
-    },
-    {
-      "id": "scorchplain",
-      "name": "Scorchplain",
-      "biome": "cactus_plain",
-      "req": 37,
-      "danger": "high",
-      "shape": {
-        "center": [
-          38,
-          14
-        ],
-        "radius": 6
-      },
-      "fixed": true,
-      "motif": "The first dunes, studded with saguaro and bone."
-    },
-    {
-      "id": "sunspear",
-      "name": "Sunspear Dunes",
-      "biome": "desert",
-      "req": 41,
-      "danger": "high",
-      "shape": {
-        "center": [
-          48,
-          22
-        ],
-        "radius": 9
-      },
-      "fixed": true,
-      "motif": "A vast sand sea on the south-east cape; tomb-kings sleep beneath."
-    },
-    {
-      "id": "mirage",
-      "name": "Mirage Oasis",
-      "biome": "oasis",
-      "req": 39,
-      "danger": "high",
-      "shape": {
-        "center": [
-          42,
-          27
-        ],
-        "radius": 4
-      },
-      "fixed": true,
-      "motif": "A jewel of palms and cool water amid the waste."
-    },
-    {
-      "id": "saltpan",
-      "name": "The Salt Pan",
-      "biome": "salt_pan",
-      "req": 43,
-      "danger": "high",
-      "shape": {
-        "center": [
-          56,
-          29
-        ],
-        "radius": 6
-      },
-      "fixed": true,
-      "motif": "Blinding white flats at the peninsula's burning tip."
-    },
-    {
-      "id": "ashfall",
-      "name": "Ashfall",
-      "biome": "badlands",
-      "req": 49,
-      "danger": "elite",
-      "shape": {
-        "center": [
-          8,
-          -30
-        ],
-        "radius": 5
-      },
-      "fixed": true,
-      "motif": "Scorched grey ash at the mountain's foot."
-    },
-    {
-      "id": "cinderpeak",
-      "name": "Cinderpeak",
-      "biome": "volcanic",
-      "req": 55,
-      "danger": "elite",
-      "shape": {
-        "center": [
-          2,
-          -38
-        ],
-        "radius": 6
-      },
-      "fixed": true,
-      "motif": "The smoking caldera crowning the north; rivers of fire."
-    },
-    {
-      "id": "thegeysers",
-      "name": "The Geysers",
-      "biome": "geyser_field",
-      "req": 52,
-      "danger": "elite",
-      "shape": {
-        "center": [
-          "-6",
-          -31
-        ],
-        "radius": 4
-      },
-      "fixed": true,
-      "motif": "Steam vents and bubbling pools on the cold flank."
-    },
-    {
-      "id": "stonereach",
-      "name": "Stonereach",
-      "biome": "rocky_hills",
-      "req": 16,
-      "danger": "low",
-      "shape": {
-        "center": [
-          -2,
-          -16
-        ],
-        "radius": 6
-      },
-      "fixed": true,
-      "motif": "A mining town built into grey crags."
-    },
-    {
-      "id": "frostwood",
-      "name": "Frostwood",
-      "biome": "boreal_forest",
-      "req": 28,
-      "danger": "medium",
-      "shape": {
-        "center": [
-          -22,
-          -23
-        ],
-        "radius": 7
-      },
-      "fixed": true,
-      "motif": "Spruce taiga under a low pale sun."
-    },
-    {
-      "id": "graymarch",
-      "name": "Graymarch",
-      "biome": "rocky_hills",
-      "req": 33,
-      "danger": "high",
-      "shape": {
-        "center": [
-          -15,
-          -27
-        ],
-        "radius": 5
-      },
-      "fixed": true,
-      "motif": "A fallen monument guarded by a beastmaster."
-    },
-    {
-      "id": "frostmere",
-      "name": "Frostmere",
-      "biome": "tundra",
-      "req": 30,
-      "danger": "medium",
-      "shape": {
-        "center": [
-          -14,
-          -34
-        ],
-        "radius": 7
-      },
-      "fixed": true,
-      "motif": "Frozen heath and lichen, silent and white."
-    },
-    {
-      "id": "frostspire",
-      "name": "The Frostspire",
-      "biome": "snowdrift",
-      "req": 60,
-      "danger": "wilderness",
-      "shape": {
-        "center": [
-          -34,
-          -31
-        ],
-        "radius": 7
-      },
-      "fixed": true,
-      "motif": "Glacier peaks at the world's frozen north-west corner."
-    },
-    {
-      "id": "northwatch",
-      "name": "Northwatch",
-      "biome": "rocky_hills",
-      "req": 35,
-      "danger": "high",
-      "shape": {
-        "center": [
-          15,
-          -24
-        ],
-        "radius": 6
-      },
-      "fixed": true,
-      "motif": "Bleak grey highlands watching the volcanic north."
-    },
-    {
-      "id": "riftlands",
-      "name": "The Riftlands",
-      "biome": "rocky_hills",
-      "req": 57,
-      "danger": "elite",
-      "shape": {
-        "center": [
-          34,
-          -18
-        ],
-        "radius": 7
-      },
-      "fixed": true,
-      "motif": "Shattered crag and chasm on the far north-east."
-    },
-    {
-      "id": "helcarn",
-      "name": "Helcarn",
-      "biome": "snowdrift",
-      "req": 62,
-      "danger": "wilderness",
-      "shape": {
-        "center": [
-          48,
-          -22
-        ],
-        "radius": 7
-      },
-      "fixed": true,
-      "motif": "The coldest reach; a white waste of drifts and ice."
-    }
-  ],
-  "anchors": [
-    {
-      "id": "aldspire",
-      "poi": "capital_city",
-      "label": "Aldspire",
-      "chunk": [
-        -5,
-        -2
-      ],
-      "region": "aldspire",
-      "teleport": true,
-      "locked": true
-    },
-    {
-      "id": "graymarch_keep",
-      "poi": "great_ruins",
-      "label": "Graymarch Ruins",
-      "chunk": [
-        -4,
-        -15
-      ],
-      "region": "graymarch",
-      "boss": "Amaruq",
-      "locked": true
-    },
-    {
-      "id": "molehollow",
-      "poi": "mole_dungeon",
-      "label": "The Molehollow",
-      "chunk": [
-        -9,
-        4
-      ],
-      "region": "oakshade",
-      "boss": "Giant Mole",
-      "locked": true
-    }
-  ],
-  "settlements": [],
-  "roads": [],
-  "features": [],
-  "routes": [
-    {
-      "from": "spawn",
-      "to": "aldspire"
-    },
-    {
-      "from": "spawn",
-      "to": "graymarch_keep"
-    },
-    {
-      "from": "spawn",
-      "to": "molehollow"
-    }
-  ],
-  "relationships": [
-    {
-      "kind": "service_present",
-      "region": "greenhollow",
-      "service": "bank",
-      "why": "The beginner home must have a bank."
-    },
-    {
-      "kind": "service_present",
-      "region": "aldspire",
-      "service": "anvil",
-      "why": "Smithing belongs in the capital forge."
-    },
-    {
-      "kind": "reachable",
-      "from": "spawn",
-      "to": "aldspire",
-      "why": "Players must be able to walk home to the capital across Kingsbridge."
-    }
-  ]
+	"_doc": [
+		"Aldreth \u00e2\u20ac\u201d a FINITE, fixed, hand-authored continent (the new primary world).",
+		"Unlike the old infinite spec, this declares world `bounds` (chunk space) with",
+		"open ocean beyond, deliberate `settlements`, `roads` (polylines) and `features`",
+		"(rivers/lakes/landmarks). The offline bake tool (tools/world_bake.gd) compiles",
+		"every in-bounds, fixed region into shipped chunk data; regions flagged",
+		"fixed:false (e.g. the Tanglewild) keep generating procedurally at runtime.",
+		"Coordinates: regions/anchors in CHUNK space (1 chunk = 16 tiles); settlements,",
+		"roads and features in TILE space. Chunk c -> center tile (c*16 + 8)."
+	],
+	"id": "aldreth",
+	"version": 1,
+	"name": "The Realm of Aldreth",
+	"seed": 7,
+	"generatorVersion": 17,
+	"bounds": {
+		"min": [
+			-68,
+			-44
+		],
+		"max": [
+			67,
+			43
+		]
+	},
+	"oceanBeyondBounds": true,
+	"regions": [
+		{
+			"id": "greenhollow",
+			"name": "Greenhollow Vale",
+			"biome": "plains",
+			"req": 1,
+			"danger": "safe",
+			"shape": {
+				"center": [
+					0,
+					0
+				],
+				"radius": 6
+			},
+			"fixed": true,
+			"motif": "The green heart of the realm; every road begins here."
+		},
+		{
+			"id": "aldspire",
+			"name": "Aldspire",
+			"biome": "plains",
+			"req": 2,
+			"danger": "safe",
+			"shape": {
+				"center": [
+					-8,
+					-4
+				],
+				"radius": 4
+			},
+			"fixed": true,
+			"motif": "The white-walled capital on the river's bend."
+		},
+		{
+			"id": "brightfields",
+			"name": "Brightfields",
+			"biome": "wheatfield",
+			"req": 3,
+			"danger": "safe",
+			"shape": {
+				"center": [
+					9,
+					5
+				],
+				"radius": 5
+			},
+			"fixed": true,
+			"motif": "Amber wheat and hedgerows, the realm's breadbasket."
+		},
+		{
+			"id": "larkmeadow",
+			"name": "Larkmeadow",
+			"biome": "flower_meadow",
+			"req": 4,
+			"danger": "safe",
+			"shape": {
+				"center": [
+					-3,
+					11
+				],
+				"radius": 5
+			},
+			"fixed": true,
+			"motif": "Wildflower commons humming with bees."
+		},
+		{
+			"id": "mosswood",
+			"name": "Mosswood",
+			"biome": "forest",
+			"req": 6,
+			"danger": "safe",
+			"shape": {
+				"center": [
+					-16,
+					3
+				],
+				"radius": 6
+			},
+			"fixed": true,
+			"motif": "Cool broadleaf woods where the first wolves prowl."
+		},
+		{
+			"id": "oakshade",
+			"name": "Oakshade Forest",
+			"biome": "forest",
+			"req": 9,
+			"danger": "low",
+			"shape": {
+				"center": [
+					-26,
+					-2
+				],
+				"radius": 6
+			},
+			"fixed": true,
+			"motif": "Deep oak country; a dungeon mouth gapes among the roots."
+		},
+		{
+			"id": "deepwood",
+			"name": "The Deepwood",
+			"biome": "dense_forest",
+			"req": 13,
+			"danger": "low",
+			"shape": {
+				"center": [
+					-22,
+					13
+				],
+				"radius": 6
+			},
+			"fixed": true,
+			"motif": "Old-growth so thick the canopy swallows the sun."
+		},
+		{
+			"id": "wolfden",
+			"name": "Wolfden",
+			"biome": "boreal_forest",
+			"req": 22,
+			"danger": "medium",
+			"shape": {
+				"center": [
+					-36,
+					7
+				],
+				"radius": 6
+			},
+			"fixed": true,
+			"motif": "Dark spruce taiga howling on the western marches."
+		},
+		{
+			"id": "highmoor",
+			"name": "Highmoor",
+			"biome": "heather_moor",
+			"req": 19,
+			"danger": "medium",
+			"shape": {
+				"center": [
+					-40,
+					-9
+				],
+				"radius": 6
+			},
+			"fixed": true,
+			"motif": "Windswept purple moor on the realm's far shoulder."
+		},
+		{
+			"id": "westcape",
+			"name": "Westcape",
+			"biome": "grove",
+			"req": 16,
+			"danger": "low",
+			"shape": {
+				"center": [
+					"-50",
+					-2
+				],
+				"radius": 5
+			},
+			"fixed": true,
+			"motif": "A sunlit grove at the long western point, ringed by sea."
+		},
+		{
+			"id": "saltcove",
+			"name": "Saltcove",
+			"biome": "beach",
+			"req": 7,
+			"danger": "safe",
+			"shape": {
+				"center": [
+					12,
+					18
+				],
+				"radius": 4
+			},
+			"fixed": true,
+			"motif": "A fishing town on the southern strand."
+		},
+		{
+			"id": "greywater",
+			"name": "Greywater Mire",
+			"biome": "swamp",
+			"req": 23,
+			"danger": "medium",
+			"shape": {
+				"center": [
+					4,
+					23
+				],
+				"radius": 6
+			},
+			"fixed": true,
+			"motif": "Sunken fens of black water and biting flies."
+		},
+		{
+			"id": "bogmire",
+			"name": "Bogmire",
+			"biome": "bog",
+			"req": 27,
+			"danger": "medium",
+			"shape": {
+				"center": [
+					"-9",
+					28
+				],
+				"radius": 5
+			},
+			"fixed": true,
+			"motif": "Peat hags and will-o'-wisps in the deep south."
+		},
+		{
+			"id": "tanglewild",
+			"name": "The Tanglewild",
+			"biome": "jungle",
+			"req": 46,
+			"danger": "high",
+			"shape": {
+				"center": [
+					17,
+					31
+				],
+				"radius": 7
+			},
+			"fixed": true,
+			"motif": "A steaming green tangle jutting into the southern sea."
+		},
+		{
+			"id": "eastreach",
+			"name": "Eastreach",
+			"biome": "savanna",
+			"req": 15,
+			"danger": "low",
+			"shape": {
+				"center": [
+					21,
+					3
+				],
+				"radius": 7
+			},
+			"fixed": true,
+			"motif": "Golden grass plains rolling toward the eastern dunes."
+		},
+		{
+			"id": "emberscrub",
+			"name": "Emberscrub",
+			"biome": "savanna_scrub",
+			"req": 34,
+			"danger": "high",
+			"shape": {
+				"center": [
+					"26",
+					16
+				],
+				"radius": 5
+			},
+			"fixed": true,
+			"motif": "Thornscrub and dust on the desert's doorstep."
+		},
+		{
+			"id": "duskreach",
+			"name": "Duskreach",
+			"biome": "badlands",
+			"req": 31,
+			"danger": "medium",
+			"shape": {
+				"center": [
+					32,
+					8
+				],
+				"radius": 6
+			},
+			"fixed": true,
+			"motif": "Cracked red hardpan where the grass gives out."
+		},
+		{
+			"id": "scorchplain",
+			"name": "Scorchplain",
+			"biome": "cactus_plain",
+			"req": 37,
+			"danger": "high",
+			"shape": {
+				"center": [
+					38,
+					14
+				],
+				"radius": 6
+			},
+			"fixed": true,
+			"motif": "The first dunes, studded with saguaro and bone."
+		},
+		{
+			"id": "sunspear",
+			"name": "Sunspear Dunes",
+			"biome": "desert",
+			"req": 41,
+			"danger": "high",
+			"shape": {
+				"center": [
+					48,
+					22
+				],
+				"radius": 9
+			},
+			"fixed": true,
+			"motif": "A vast sand sea on the south-east cape; tomb-kings sleep beneath."
+		},
+		{
+			"id": "mirage",
+			"name": "Mirage Oasis",
+			"biome": "oasis",
+			"req": 39,
+			"danger": "high",
+			"shape": {
+				"center": [
+					42,
+					27
+				],
+				"radius": 4
+			},
+			"fixed": true,
+			"motif": "A jewel of palms and cool water amid the waste."
+		},
+		{
+			"id": "saltpan",
+			"name": "The Salt Pan",
+			"biome": "salt_pan",
+			"req": 43,
+			"danger": "high",
+			"shape": {
+				"center": [
+					56,
+					29
+				],
+				"radius": 6
+			},
+			"fixed": true,
+			"motif": "Blinding white flats at the peninsula's burning tip."
+		},
+		{
+			"id": "ashfall",
+			"name": "Ashfall",
+			"biome": "badlands",
+			"req": 49,
+			"danger": "elite",
+			"shape": {
+				"center": [
+					8,
+					-30
+				],
+				"radius": 5
+			},
+			"fixed": true,
+			"motif": "Scorched grey ash at the mountain's foot."
+		},
+		{
+			"id": "cinderpeak",
+			"name": "Cinderpeak",
+			"biome": "volcanic",
+			"req": 55,
+			"danger": "elite",
+			"shape": {
+				"center": [
+					2,
+					-38
+				],
+				"radius": 6
+			},
+			"fixed": true,
+			"motif": "The smoking caldera crowning the north; rivers of fire."
+		},
+		{
+			"id": "thegeysers",
+			"name": "The Geysers",
+			"biome": "geyser_field",
+			"req": 52,
+			"danger": "elite",
+			"shape": {
+				"center": [
+					"-6",
+					-31
+				],
+				"radius": 4
+			},
+			"fixed": true,
+			"motif": "Steam vents and bubbling pools on the cold flank."
+		},
+		{
+			"id": "stonereach",
+			"name": "Stonereach",
+			"biome": "rocky_hills",
+			"req": 16,
+			"danger": "low",
+			"shape": {
+				"center": [
+					-2,
+					-16
+				],
+				"radius": 6
+			},
+			"fixed": true,
+			"motif": "A mining town built into grey crags."
+		},
+		{
+			"id": "frostwood",
+			"name": "Frostwood",
+			"biome": "boreal_forest",
+			"req": 28,
+			"danger": "medium",
+			"shape": {
+				"center": [
+					-22,
+					-23
+				],
+				"radius": 7
+			},
+			"fixed": true,
+			"motif": "Spruce taiga under a low pale sun."
+		},
+		{
+			"id": "graymarch",
+			"name": "Graymarch",
+			"biome": "rocky_hills",
+			"req": 33,
+			"danger": "high",
+			"shape": {
+				"center": [
+					-15,
+					-27
+				],
+				"radius": 5
+			},
+			"fixed": true,
+			"motif": "A fallen monument guarded by a beastmaster."
+		},
+		{
+			"id": "frostmere",
+			"name": "Frostmere",
+			"biome": "tundra",
+			"req": 30,
+			"danger": "medium",
+			"shape": {
+				"center": [
+					-14,
+					-34
+				],
+				"radius": 7
+			},
+			"fixed": true,
+			"motif": "Frozen heath and lichen, silent and white."
+		},
+		{
+			"id": "frostspire",
+			"name": "The Frostspire",
+			"biome": "snowdrift",
+			"req": 60,
+			"danger": "wilderness",
+			"shape": {
+				"center": [
+					-34,
+					-31
+				],
+				"radius": 7
+			},
+			"fixed": true,
+			"motif": "Glacier peaks at the world's frozen north-west corner."
+		},
+		{
+			"id": "northwatch",
+			"name": "Northwatch",
+			"biome": "rocky_hills",
+			"req": 35,
+			"danger": "high",
+			"shape": {
+				"center": [
+					15,
+					-24
+				],
+				"radius": 6
+			},
+			"fixed": true,
+			"motif": "Bleak grey highlands watching the volcanic north."
+		},
+		{
+			"id": "riftlands",
+			"name": "The Riftlands",
+			"biome": "rocky_hills",
+			"req": 57,
+			"danger": "elite",
+			"shape": {
+				"center": [
+					34,
+					-18
+				],
+				"radius": 7
+			},
+			"fixed": true,
+			"motif": "Shattered crag and chasm on the far north-east."
+		},
+		{
+			"id": "helcarn",
+			"name": "Helcarn",
+			"biome": "snowdrift",
+			"req": 62,
+			"danger": "wilderness",
+			"shape": {
+				"center": [
+					48,
+					-22
+				],
+				"radius": 7
+			},
+			"fixed": true,
+			"motif": "The coldest reach; a white waste of drifts and ice."
+		},
+		{
+			"id": "blightmoor",
+			"name": "Blightmoor",
+			"biome": "dead_forest",
+			"req": 53,
+			"danger": "elite",
+			"shape": {
+				"center": [
+					22,
+					-33
+				],
+				"radius": 6
+			},
+			"fixed": true,
+			"motif": "A silent forest of black dead trees; nothing sings here."
+		}
+	],
+	"anchors": [
+		{
+			"id": "aldspire",
+			"poi": "capital_city",
+			"label": "Aldspire",
+			"chunk": [
+				-5,
+				-2
+			],
+			"region": "aldspire",
+			"teleport": true,
+			"locked": true
+		},
+		{
+			"id": "graymarch_keep",
+			"poi": "great_ruins",
+			"label": "Graymarch Ruins",
+			"chunk": [
+				-4,
+				-15
+			],
+			"region": "graymarch",
+			"boss": "Amaruq",
+			"locked": true
+		},
+		{
+			"id": "molehollow",
+			"poi": "mole_dungeon",
+			"label": "The Molehollow",
+			"chunk": [
+				-9,
+				4
+			],
+			"region": "oakshade",
+			"boss": "Giant Mole",
+			"locked": true
+		}
+	],
+	"settlements": [],
+	"roads": [],
+	"features": [],
+	"routes": [
+		{
+			"from": "spawn",
+			"to": "aldspire"
+		},
+		{
+			"from": "spawn",
+			"to": "graymarch_keep"
+		},
+		{
+			"from": "spawn",
+			"to": "molehollow"
+		}
+	],
+	"relationships": [
+		{
+			"kind": "service_present",
+			"region": "greenhollow",
+			"service": "bank",
+			"why": "The beginner home must have a bank."
+		},
+		{
+			"kind": "service_present",
+			"region": "aldspire",
+			"service": "anvil",
+			"why": "Smithing belongs in the capital forge."
+		},
+		{
+			"kind": "reachable",
+			"from": "spawn",
+			"to": "aldspire",
+			"why": "Players must be able to walk home to the capital across Kingsbridge."
+		}
+	]
 }
