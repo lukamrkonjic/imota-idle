@@ -153,6 +153,13 @@ func ground_decor(biome_id: String) -> Dictionary:
 	return biome_by_id(biome_id).get("groundDecor", {})
 
 
+## Ambient forest/large-vegetation layer for a biome: {density, kinds:[{kind,weight}]}.
+## Empty = no canopy (open biome). Scattered at runtime like groundDecor; see
+## world_entity_spawner._spawn_canopy.
+func canopy(biome_id: String) -> Dictionary:
+	return biome_by_id(biome_id).get("canopy", {})
+
+
 func _parse_sub_biomes(raw: Array) -> void:
 	sub_biomes.clear()
 	var salt := 0

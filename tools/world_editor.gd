@@ -198,6 +198,57 @@ func _run_selftest() -> void:
 	for a: String in OS.get_cmdline_user_args():
 		if a.begins_with("--we-selftest="):
 			want = a.trim_prefix("--we-selftest=")
+	# biome:<id> — find a tile of that biome (away from the coast/spawn) and frame it.
+	if want.begins_with("biome:"):
+		var bid := want.trim_prefix("biome:")
+		var bidx := int(_reg.biome_index.get(bid, -1))
+		var spot := Vector2i(-2147483648, 0)
+		# Prefer an INTERIOR tile (a 5x5 patch all the same biome) so we frame a dense
+		# stand, not a sparse border. Fall back to any matching tile.
+		var fallback := Vector2i(-2147483648, 0)
+		for c: RefCounted in _chunks.values():
+			if Vector2(c.cx, c.cy).length() < 6.0:
+				continue  # skip the spawn hub
+			for ly: int in range(3, WG.CHUNK_TILES - 3):
+				for lx: int in range(3, WG.CHUNK_TILES - 3):
+					if c.biome_at(lx, ly) != bidx:
+						continue
+					if fallback.x == -2147483648:
+						fallback = Vector2i(c.cx * WG.CHUNK_TILES + lx, c.cy * WG.CHUNK_TILES + ly)
+					var interior := true
+					for oy: int in range(-2, 3):
+						for ox: int in range(-2, 3):
+							if c.biome_at(lx + ox, ly + oy) != bidx:
+								interior = false
+								break
+						if not interior: break
+					if interior:
+						spot = Vector2i(c.cx * WG.CHUNK_TILES + lx, c.cy * WG.CHUNK_TILES + ly)
+						break
+				if spot.x != -2147483648: break
+			if spot.x != -2147483648: break
+		if spot.x == -2147483648:
+			spot = fallback
+		print("[we-selftest] biome '%s' (idx %d) at %s" % [bid, bidx, str(spot)])
+		_toggle_3d_view()
+		if spot.x != -2147483648:
+			_focus_3d(spot)
+		await get_tree().create_timer(9.0).timeout
+		if _v3d_world != null:
+			var nodes: Array = _v3d_world.get("_decor_nodes")
+			var canopy := 0
+			var by_kind: Dictionary = {}
+			for nd in nodes:
+				var kk := str(nd.get("kind"))
+				if kk.begins_with("canopy_"):
+					canopy += 1
+					by_kind[kk] = int(by_kind.get(kk, 0)) + 1
+			print("[we-selftest] decor nodes=%d  canopy=%d  by_kind=%s" % [nodes.size(), canopy, str(by_kind)])
+		if _v3d_vp != null:
+			_v3d_vp.get_texture().get_image().save_png("user://we3d_biome.png")
+		print("[we-selftest] saved we3d_biome.png (%s)" % bid)
+		get_tree().quit()
+		return
 	var order: Array = [want, "haunted_ruins", "cursed_keep", "old_watchtower", "abandoned_farmstead", "wayfarers_wreck"]
 	var found := Vector2i(-2147483648, 0)
 	var found_type := ""

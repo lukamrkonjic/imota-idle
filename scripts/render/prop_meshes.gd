@@ -152,6 +152,25 @@ static func decor_parts(kind: String) -> Array:
 				_part(_sphere("d_mcap", 0.14), _mat("dirt_a", "trunk_b", "gold"), Vector3(0, 0.26, 0), Vector3(1.0, 0.6, 1.0))]
 		"cactus":
 			return [_part(_cone("d_cact", 0.16, 0.12, 0.6), _mat("fir_a", "fir_b", "foliage_c"), Vector3(0, 0.3, 0))]
+		# Biome canopy species — full-size ambient forest trees, batched like any decor.
+		"canopy_fir", "canopy_spruce":
+			return _conifer_parts()
+		"canopy_pine":
+			return _pine_parts()
+		"canopy_maple":
+			return _maple_parts(_maple_mat())
+		"canopy_broadleaf", "canopy_oak":
+			return _tree_parts(_foliage_mat(PixelPalette.pal("mid_foliage")))
+		"canopy_birch":
+			return _tree_parts(_mat("leaf_gold", "forest_green", "snow_a"))
+		"canopy_palm":
+			return _palm_parts()
+		"canopy_saguaro":
+			return _saguaro_parts()
+		"canopy_deadtree":
+			return _deadtree_parts()
+		"canopy_acacia":
+			return _acacia_parts()
 		"pebble", "rubble", "shell", "stone":
 			return [_part(_sphere("d_peb", 0.16), _mat("stone_a", "stone_b", "ore"), Vector3(0, 0.06, 0), Vector3(1.3, 0.55, 1.1))]
 		"stick", "driftwood", "bone":
@@ -323,6 +342,59 @@ static func _maple_parts(leaf: ShaderMaterial) -> Array:
 ## Warm russet/gold canopy for maples (the cozy warm pop in the dark forest).
 static func _maple_mat() -> ShaderMaterial:
 	return _mat("leaf_orange", "leaf_red", "leaf_gold")
+
+
+# ---- biome canopy species (ambient forest trees, placed as batched decor) ----
+
+## Desert/jungle palm: a slim trunk topped with a crown of radiating fronds + a coconut.
+static func _palm_parts() -> Array:
+	var trunk := _mat("trunk_a", "trunk_b", "bark_brown")
+	var frond := _mat("fir_a", "fir_b", "leaf_green")
+	var out: Array = [
+		_shadow_part(0.72),
+		_part(_cyl("palm_t0", 0.14, 0.2, 1.7), trunk, Vector3(0, 0.85, 0)),
+		_part(_cyl("palm_t1", 0.1, 0.14, 1.6), trunk, Vector3(0.16, 2.4, 0))]
+	for i: int in 6:
+		var a: float = float(i) / 6.0 * TAU
+		out.append(_part(_cone("palm_fr", 0.16, 0.01, 1.5), frond,
+			Vector3(0.16 + cos(a) * 0.42, 3.05, sin(a) * 0.42), Vector3.ONE, Vector3(1.15, -a, 0)))
+	out.append(_part(_sphere("palm_co", 0.12), trunk, Vector3(0.16, 3.1, 0)))
+	return out
+
+
+## Saguaro cactus: a tall ribbed green column with a pair of upturned arms.
+static func _saguaro_parts() -> Array:
+	var green := _mat("forest_green", "pine_dark", "leaf_green")
+	return [
+		_shadow_part(0.5),
+		_part(_cyl("sag_body", 0.24, 0.3, 2.6), green, Vector3(0, 1.3, 0)),
+		_part(_sphere("sag_top", 0.26), green, Vector3(0, 2.6, 0)),
+		_part(_cyl("sag_arm_l", 0.13, 0.16, 0.9), green, Vector3(-0.42, 1.5, 0), Vector3.ONE, Vector3(0, 0, 0.5)),
+		_part(_cyl("sag_arm_lv", 0.12, 0.14, 0.7), green, Vector3(-0.6, 2.0, 0)),
+		_part(_cyl("sag_arm_r", 0.13, 0.16, 0.8), green, Vector3(0.4, 1.7, 0), Vector3.ONE, Vector3(0, 0, -0.5)),
+		_part(_cyl("sag_arm_rv", 0.12, 0.14, 0.6), green, Vector3(0.56, 2.15, 0))]
+
+
+## Bare dead tree: a pale forked trunk and a few leafless branches (swamp/badlands/volcanic).
+static func _deadtree_parts() -> Array:
+	var wood := _mat("trunk_b", "dark_bark", "stone_a")
+	return [
+		_shadow_part(0.7),
+		_part(_cyl("dead_trunk", 0.12, 0.22, 2.2), wood, Vector3(0, 1.1, 0)),
+		_part(_cone("dead_b0", 0.06, 0.01, 1.1), wood, Vector3(-0.4, 2.0, 0.1), Vector3.ONE, Vector3(0, 0, 0.7)),
+		_part(_cone("dead_b1", 0.06, 0.01, 1.0), wood, Vector3(0.42, 2.1, -0.1), Vector3.ONE, Vector3(0, 0, -0.6)),
+		_part(_cone("dead_b2", 0.05, 0.01, 0.9), wood, Vector3(0.05, 2.5, 0.2), Vector3.ONE, Vector3(0.5, 0, 0.1))]
+
+
+## Savanna acacia: a bare trunk under a wide, flat umbrella canopy.
+static func _acacia_parts() -> Array:
+	var bark := _mat("bark_brown", "dark_bark", "trunk_a")
+	var leaf := _mat("fir_b", "pine_dark", "leaf_gold")
+	return [
+		_shadow_part(1.3),
+		_part(_cyl("aca_trunk", 0.16, 0.26, 1.9), bark, Vector3(0, 0.95, 0)),
+		_part(_sphere("aca_can", 1.7), leaf, Vector3(0, 2.3, 0), Vector3(1.5, 0.34, 1.5)),
+		_part(_sphere("aca_can2", 1.2), leaf, Vector3(0.5, 2.5, 0.2), Vector3(1.3, 0.3, 1.3))]
 
 
 static func _bush_parts() -> Array:

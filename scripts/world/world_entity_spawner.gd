@@ -49,6 +49,7 @@ func on_chunk_loaded(chunk: RefCounted, immediate: bool = false) -> void:
 
 func _spawn_chunk_contents(chunk: RefCounted, container: Node2D) -> void:
 	_spawn_ground_decor(chunk, container)
+	_spawn_canopy(chunk, container)
 	_spawn_water_decor(chunk, container)
 	for i: int in chunk.sites.size():
 		_spawn_site(chunk, i, container)
@@ -74,6 +75,16 @@ func _spawn_chunk_streamed(chunk: RefCounted, container: Node2D) -> void:
 		for ty: int in range(WG.CHUNK_TILES):
 			for tx: int in range(WG.CHUNK_TILES):
 				_spawn_ground_decor_tile(chunk, container, seed, tx, ty)
+			if _stream_budget_exhausted(started):
+				_finish_stream_slice(started)
+				await world.get_tree().process_frame
+				if not _still_loading(key, container):
+					return
+				started = _begin_stream_slice()
+
+		for ty: int in range(WG.CHUNK_TILES):
+			for tx: int in range(WG.CHUNK_TILES):
+				_spawn_canopy_tile(chunk, container, seed, tx, ty)
 			if _stream_budget_exhausted(started):
 				_finish_stream_slice(started)
 				await world.get_tree().process_frame
@@ -273,6 +284,64 @@ func _spawn_ground_decor_tile(chunk: RefCounted, container: Node2D, seed: int, t
 	var jitter := Vector2(
 		(WG.r01(seed, tx, ty, 203) - 0.5) * WG.TILE * 0.28,
 		(WG.r01(seed, tx, ty, 204) - 0.5) * WG.TILE * 0.14)
+	d.position = chunk.tile_world(tx, ty) + jitter
+	d.visible = false
+	container.add_child(d)
+	world._decor_nodes.append(d)
+
+
+## Ambient forest layer: scatter a biome's signature trees (firs in boreal, palms in
+## jungle, saguaros in desert, …) as batched canopy decor. Density + species come from
+## the biome's `canopy` block. Runtime + deterministic like ground decor, so tuning it
+## needs no rebake. Trees skip water/raised rock/path and self-space on a coarse grid so
+## a forest reads as clumps and clearings rather than one tree per tile.
+func _spawn_canopy(chunk: RefCounted, container: Node2D) -> void:
+	if chunk.layer != 0:
+		return
+	var seed: int = WorldGen.store.world_seed
+	for ty: int in range(WG.CHUNK_TILES):
+		for tx: int in range(WG.CHUNK_TILES):
+			_spawn_canopy_tile(chunk, container, seed, tx, ty)
+
+
+func _spawn_canopy_tile(chunk: RefCounted, container: Node2D, seed: int, tx: int, ty: int) -> void:
+	var elev := int(chunk.elev[ty * WG.CHUNK_TILES + tx]) if chunk.elev.size() > 0 else 0
+	if elev > 0:
+		return  # no ambient forest on raised/impassable rock (alpine has its own pass)
+	var tile: Dictionary = WorldGen.reg.tile_def(chunk.tile_id(tx, ty))
+	if bool(tile.get("water", false)) or not bool(tile.get("walkable", true)) or bool(tile.get("hazard", false)):
+		return
+	var tname: String = WorldGen.reg.tile_order[chunk.tile_id(tx, ty)]
+	if tname in ["dirt", "cobble", "plaza", "plank_floor", "building_wall"]:
+		return  # keep paths/settlement floors clear of trees
+	var biome_id := _tile_biome_id(chunk, tx, ty)
+	var cfg: Dictionary = WorldGen.reg.canopy(biome_id)
+	var density := float(cfg.get("density", 0.0))
+	if density <= 0.0:
+		return
+	var r := WG.r01(seed, chunk.cx * 271 + tx, chunk.cy * 283 + ty, 211)
+	if r > density:
+		return
+	var kinds: Array = cfg.get("kinds", [])
+	if kinds.is_empty():
+		return
+	var kroll := WG.r01(seed, chunk.cx * 131 + tx, chunk.cy * 137 + ty, 213)
+	var total := 0.0
+	for entry: Dictionary in kinds:
+		total += float(entry.get("weight", 1.0))
+	var target := kroll * total
+	var picked := str(kinds.back().get("kind", "canopy_broadleaf"))
+	for entry: Dictionary in kinds:
+		target -= float(entry.get("weight", 1.0))
+		if target <= 0.0:
+			picked = str(entry.get("kind", "canopy_broadleaf"))
+			break
+	var d: Node2D = WorldDecor.new()
+	d.kind = picked
+	d.variant = int(WG.hash_i(seed, chunk.cx * 149 + tx, chunk.cy * 151 + ty, 214) % 1000)
+	var jitter := Vector2(
+		(WG.r01(seed, tx, ty, 215) - 0.5) * WG.TILE * 0.5,
+		(WG.r01(seed, tx, ty, 216) - 0.5) * WG.TILE * 0.3)
 	d.position = chunk.tile_world(tx, ty) + jitter
 	d.visible = false
 	container.add_child(d)
