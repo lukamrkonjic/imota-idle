@@ -58,6 +58,13 @@ const _FALL_SLOPE := 0.62       # gentle => low-freq noise carves deep gulfs/cap
 const _SEA_LEVEL := 0.47        # landmass threshold; higher => more/deeper bays
 const _COAST_BAND := 0.12       # landmass span of the beach/shallow transition
 const _GUARANTEE_LAND := 0.20   # solid-land value forced under authored content
+# --- OSRS-style multi-continent landmass ---
+# A handful of AUTHORED continents (main + a desert peninsula + 2 large secondary landmasses)
+# instead of one radial blob. A tile is land if it sits inside ANY continent's ellipse; the
+# coastline noise wiggles each edge into bays/capes. Continents are in absolute world tiles so
+# the layout is fixed + expansion-safe (never normalised to the current bounds).
+const _COAST_AMP := 0.46        # coastline wiggle amplitude (bays/capes/peninsular fingers)
+var _continents: Array = []     # [{c:Vector2, rx:float, ry:float}] authored landmasses (tiles)
 var _land_discs: Array = []     # [{c:Vector2, r:float}] forced-land discs (tiles)
 var _land_corridors: Array = [] # [{a,b:Vector2, r:float}] connecting land bridges
 
@@ -102,12 +109,45 @@ func setup(p_reg: RefCounted, p_seed: int) -> void:
 	_t_sand = int(reg.tile_index["sand"])
 	_t_rock = int(reg.tile_index["rock"])
 	_t_cobble = int(reg.tile_index["cobble"])
+	_build_continents()
 	_build_land_guarantees()
 
 
 ## Precompute the forced-land discs (every authored region + the home core) and
 ## the land bridges that connect each region back to the core, so the irregular
 ## coastline can never sever authored content from the mainland.
+## Author the macro-geography: a big MAIN continent, a desert PENINSULA protruding from its
+## south-east, and two LARGE secondary continents (east + west) separated by real sea — an
+## OSRS-style world of a few meaningful landmasses, not one blob ringed by specks. Absolute
+## tile coords => the silhouette is fixed and survives world expansion.
+func _build_continents() -> void:
+	_continents.clear()
+	if not _finite:
+		return
+	# center, half-extents (tiles). Tuned against bounds ~x[-1088,1072] y[-704,688].
+	_continents = [
+		{"c": Vector2(-120.0, -40.0), "rx": 600.0, "ry": 560.0},   # MAIN — temperate heart, cold/hostile N, swamp S
+		{"c": Vector2(700.0, 340.0),  "rx": 340.0, "ry": 230.0},   # DESERT peninsula — protrudes SE off the main
+		{"c": Vector2(980.0, -280.0), "rx": 240.0, "ry": 300.0},   # EASTERN island (large secondary)
+		{"c": Vector2(-820.0, 210.0), "rx": 290.0, "ry": 340.0},   # WESTERN island (large secondary)
+	]
+
+
+## Continent "mass" 0..1 at a (warped) sample point: ~1 deep inside the nearest continent,
+## falling through a controlled edge band to 0 well outside, so each landmass has a TIGHT coast
+## (~0.85x its radius) instead of bleeding halfway to the next. MAX over continents => they join
+## where they overlap (peninsula) and stand apart where they don't (separate islands/seas).
+func _continent_mass(sx: float, sy: float) -> float:
+	var best := 0.0
+	for cont: Dictionary in _continents:
+		var c: Vector2 = cont["c"]
+		var dx: float = (sx - c.x) / float(cont["rx"])
+		var dy: float = (sy - c.y) / float(cont["ry"])
+		var ed := sqrt(dx * dx + dy * dy)
+		best = maxf(best, 1.0 - smoothstep(0.55, 1.15, ed))
+	return best
+
+
 func _build_land_guarantees() -> void:
 	_land_discs.clear()
 	_land_corridors.clear()
@@ -118,7 +158,26 @@ func _build_land_guarantees() -> void:
 	for r: Dictionary in reg.spec.regions:
 		var c := Vector2(float(r["cx"]) * ct + ct * 0.5, float(r["cy"]) * ct + ct * 0.5)
 		_land_discs.append({"c": c, "r": (float(r["radius"]) + 0.5) * ct})
-		_land_corridors.append({"a": _center, "b": c, "r": 1.4 * ct})
+		# Only bridge regions that sit on the MAIN BODY (main continent + its desert peninsula)
+		# back to spawn. Regions on the secondary ISLAND continents get a land disc but NO
+		# corridor, so the islands stay true islands across open sea (reached by boat, later).
+		if _on_main_body(c.x, c.y):
+			_land_corridors.append({"a": _center, "b": c, "r": 1.4 * ct})
+
+
+## True when a tile sits on the connected main landmass (continent 0 = main, continent 1 = the
+## desert peninsula, which overlaps it) — as opposed to a separate island continent.
+func _on_main_body(tx: float, ty: float) -> bool:
+	for i: int in [0, 1]:
+		if i >= _continents.size():
+			break
+		var cont: Dictionary = _continents[i]
+		var c: Vector2 = cont["c"]
+		var dx: float = (tx - c.x) / float(cont["rx"])
+		var dy: float = (ty - c.y) / float(cont["ry"])
+		if sqrt(dx * dx + dy * dy) < 1.15:
+			return true
+	return false
 
 
 static func _noise(p_seed: int, freq: float, octaves: int) -> FastNoiseLite:
@@ -211,30 +270,24 @@ func _landmass(tx: float, ty: float) -> float:
 	var sy := ty + wy
 	var base := _continent.get_noise_2d(sx, sy) * 0.5 + 0.5          # 0..1 big blobs
 	var detail := 1.0 - absf(_coast_detail.get_noise_2d(sx, sy))     # 0..1 ridged fingers
-	var shape := base * 0.80 + detail * 0.20
-	# Radial term: strongly positive in the core, ~0 at the shore radius, negative
-	# past it (uses the warped norm_dist so the falloff is itself irregular).
-	var d := norm_dist(tx, ty)
-	var fall := (d - _SHORE_R) * _FALL_SLOPE
-	var lm := shape - _SEA_LEVEL - fall
-	# Multi-scale offshore archipelago. Three island fields at different frequencies give a
-	# believable SIZE MIX instead of a uniform speckle: a few LARGE islands sitting well out to
-	# sea (big enough for beaches + a forested/rocky interior — multiple biomes), several MEDIUM
-	# islands, and small islets / scattered rock fragments hugging the coast. Each scale lifts
-	# land where its own noise peaks, tapering with distance from shore so the big landforms
-	# reach far offshore while the specks stay near the coastline.
+	var shape := base * 0.74 + detail * 0.26
+	# Multi-continent mass (gentle warp => recognisable but irregular coasts), combined with the
+	# coastline noise so each landmass grows bays/capes/peninsular fingers around its nominal edge.
+	var gx := tx + _domain_warp.get_noise_2d(tx * 0.004, ty * 0.004) * 130.0
+	var gy := ty + _domain_warp.get_noise_2d(tx * 0.004 + 71.0, ty * 0.004 + 23.0) * 130.0
+	var mass := _continent_mass(gx, gy)
+	var lm := (mass - 0.5) + (shape - 0.5) * _COAST_AMP
+	# Offshore islands — kept SPARSE and skewed to the larger sizes (the authored continents are
+	# the big landmasses now). A few medium islands + occasional small islets; almost no specks.
 	if lm < 0.0:
 		var off := -lm                                  # 0 at the coast .. deeper = further out
-		# LARGE: low-freq, rare (high gate) + strong lift + long reach => a few big islands.
+		# MEDIUM islands (low-freq, rare): the only sizeable offshore land beyond the continents.
 		var big := _island_big.get_noise_2d(sx, sy) * 0.5 + 0.5
-		var big_lift := smoothstep(0.60, 0.84, big) * 1.05 * (1.0 - smoothstep(0.0, 1.05, off))
-		# MEDIUM: native freq, moderate reach.
-		var med := _island.get_noise_2d(sx, sy) * 0.5 + 0.5
-		var med_lift := smoothstep(0.64, 0.90, med) * 0.60 * (1.0 - smoothstep(0.0, 0.48, off))
-		# SMALL: high-freq islets + scattered specks, only just past the shore.
-		var sml := _island_small.get_noise_2d(sx, sy) * 0.5 + 0.5
-		var sml_lift := smoothstep(0.80, 0.98, sml) * 0.40 * (1.0 - smoothstep(0.0, 0.20, off))
-		lm += maxf(big_lift, maxf(med_lift, sml_lift))
+		var big_lift := smoothstep(0.70, 0.90, big) * 0.80 * (1.0 - smoothstep(0.0, 0.70, off))
+		# SMALL islets, sparse, hugging the coast — flavour, not a speckle field.
+		var sml := _island.get_noise_2d(sx, sy) * 0.5 + 0.5
+		var sml_lift := smoothstep(0.84, 0.98, sml) * 0.42 * (1.0 - smoothstep(0.0, 0.24, off))
+		lm += maxf(big_lift, sml_lift)
 	# Authored-content land guarantee — only ever ADDS land, blended by a soft edge
 	# so the coast still wiggles naturally just outside the guaranteed zone.
 	var g := _land_guarantee01(tx, ty)

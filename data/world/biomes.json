@@ -809,8 +809,8 @@
 			},
 			"climate": {
 				"t": [
-					0.44,
-					0.7
+					0.55,
+					0.78
 				],
 				"m": [
 					0.74,
@@ -821,7 +821,7 @@
 					0.3
 				]
 			},
-			"climateScale": "major"
+			"climateScale": "extreme"
 		},
 		{
 			"id": "alpine",
@@ -1160,7 +1160,7 @@
 					0.46
 				]
 			},
-			"climateScale": "major"
+			"climateScale": "extreme"
 		},
 		{
 			"id": "badlands",
@@ -2407,8 +2407,8 @@
 					0.64
 				],
 				"m": [
-					0.4,
-					0.58
+					0.42,
+					0.56
 				],
 				"e": [
 					0.0,

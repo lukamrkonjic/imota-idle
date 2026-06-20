@@ -2,8 +2,8 @@ extends Node
 ## Headless validation. Run:
 const ValidateContent := preload("res://tools/validate_content.gd")
 # Worldgen determinism baseline — refactors of the generation pipeline must keep these.
-const WORLDGEN_TILES_HASH := 3200056693
-const WORLDGEN_ELEV_SUM := 29246
+const WORLDGEN_TILES_HASH := 141795875
+const WORLDGEN_ELEV_SUM := 25716
 const ContentId := preload("res://scripts/content/content_id.gd")
 const SaveMigration := preload("res://autoload/save_migration.gd")
 const SkillRemap := preload("res://scripts/content/skill_remap.gd")
@@ -939,6 +939,7 @@ func phase6_worldgen() -> void:
 			var inland_parent_idx: int = WorldGen.generator.classifier.parent_biome_idx(float(inland.x), float(inland.y))
 			var inland_parent: String = str(WorldGen.reg.biomes[inland_parent_idx]["id"])
 			check(inland_parent != "ocean", "low inland valley %s is not classified as ocean" % [inland])
+		_validate_worldspec()
 	var has_bank := false
 	for part: Dictionary in camp.get("parts", []):
 		if str(part.get("station", "")) == "bank":
@@ -1095,6 +1096,67 @@ func phase6_worldgen() -> void:
 	check(not near.is_empty(), "find_nearest_site locates a Regular Tree near spawn")
 
 	WorldGen.reset(WorldGen.DEFAULT_SEED)
+
+
+## Worldspec integrity (schema v2): references resolve, ids unique, anchors sit inside their
+## declared region, and no region clips the world bounds without saying so. Mirrors the
+## `validation` flags in the spec — never SILENTLY accept a mismatch (it would mis-place content).
+func _validate_worldspec() -> void:
+	var spec: RefCounted = WorldGen.reg.spec
+	if not spec.active:
+		return
+	var ids := {}
+	var dup: Array = []
+	for r: Dictionary in spec.regions:
+		var rid := str(r["id"])
+		if ids.has(rid): dup.append(rid)
+		ids[rid] = true
+	for a: Dictionary in spec.anchors:
+		var aid := str(a["id"])
+		if ids.has(aid): dup.append(aid)
+		ids[aid] = true
+	for st: Dictionary in spec.settlements:
+		var sid := str(st["id"])
+		if sid.is_empty(): continue
+		if ids.has(sid): dup.append(sid)
+		ids[sid] = true
+	ids["spawn"] = true
+	check(dup.is_empty(), "worldspec: ids are unique (dups: %s)" % [dup])
+
+	var bad_anchor: Array = []
+	for a: Dictionary in spec.anchors:
+		var rid := str(a["region"])
+		if rid.is_empty(): continue
+		var r: Dictionary = spec.region_by_id(rid)
+		if r.is_empty():
+			bad_anchor.append("%s -> missing region '%s'" % [a["id"], rid]); continue
+		var ch: Vector2i = a["chunk"]
+		if not spec.region_contains_chunk(r, ch.x, ch.y) and not bool(a.get("allow_outside", false)) and not bool(r.get("allow_outside", false)):
+			bad_anchor.append("%s @%s outside region '%s'" % [a["id"], ch, rid])
+	check(bad_anchor.is_empty(), "worldspec: anchors lie inside their region (offenders: %s)" % [bad_anchor])
+
+	var unresolved: Array = []
+	for rt: Dictionary in spec.routes:
+		for k: String in ["from", "to"]:
+			var ref := str(rt.get(k, ""))
+			if not ref.is_empty() and not ids.has(ref): unresolved.append(ref)
+	for rel: Dictionary in spec.relationships:
+		for k: String in ["from", "to", "region"]:
+			var ref := str(rel.get(k, ""))
+			if not ref.is_empty() and not ids.has(ref): unresolved.append(ref)
+	check(unresolved.is_empty(), "worldspec: route/relationship refs all resolve (unresolved: %s)" % [unresolved])
+
+	var clipped: Array = []
+	var b: Rect2i = spec.bounds
+	for r: Dictionary in spec.regions:
+		var reach := maxf(float(r.get("rx", 1.0)), float(r.get("ry", 1.0)))
+		var cx := float(r["cx"])
+		var cy := float(r["cy"])
+		var outb := cx - reach < float(b.position.x) or cx + reach > float(b.position.x + b.size.x - 1) \
+			or cy - reach < float(b.position.y) or cy + reach > float(b.position.y + b.size.y - 1)
+		if outb and not bool(r.get("allow_clip", false)):
+			clipped.append(str(r["id"]))
+	check(clipped.is_empty(), "worldspec: no region clips bounds without allowBoundsClipping (%s)" % [clipped])
 
 
 func phase6_chunk_snapshots() -> void:

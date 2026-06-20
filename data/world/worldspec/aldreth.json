@@ -1,13 +1,13 @@
 {
 	"_doc": [
-		"Aldreth \u00e2\u20ac\u201d a FINITE, fixed, hand-authored continent (the new primary world).",
-		"Unlike the old infinite spec, this declares world `bounds` (chunk space) with",
-		"open ocean beyond, deliberate `settlements`, `roads` (polylines) and `features`",
-		"(rivers/lakes/landmarks). The offline bake tool (tools/world_bake.gd) compiles",
-		"every in-bounds, fixed region into shipped chunk data; regions flagged",
-		"fixed:false (e.g. the Tanglewild) keep generating procedurally at runtime.",
-		"Coordinates: regions/anchors in CHUNK space (1 chunk = 16 tiles); settlements,",
-		"roads and features in TILE space. Chunk c -> center tile (c*16 + 8)."
+		"Aldreth \u2014 a FINITE, fixed, hand-authored continent (schema v2).",
+		"Macro-geography: MAIN continent (central heartlands + cold/hostile north + southern fens),",
+		"the SUNSPEAR desert PENINSULA on the SE cape, and two large secondary island-continents",
+		"(Helcarn Isle NE, Greywood Isle W). See `coordinateSystem` for axes (x=east, y=south; chunk units).",
+		"Regions are ELLIPSE masks (center+radius[rx,ry]+rotation+warp), resolved by `priority` then",
+		"specificity, grouped under `macroRegions`. `generation` declares placement(fixed)+terrain",
+		"(baked|procedural)+persistence; only fixed:false regions (Tanglewild) regenerate at runtime.",
+		"`validation` flags are enforced by tools/validate.gd at bake time."
 	],
 	"id": "aldreth",
 	"version": 1,
@@ -33,14 +33,31 @@
 			"req": 1,
 			"danger": "safe",
 			"shape": {
+				"type": "ellipse",
 				"center": [
 					0,
 					0
 				],
-				"radius": 6
+				"radius": [
+					7.7,
+					4.9
+				],
+				"rotation": -79,
+				"warp": {
+					"seed": 191,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "The green heart of the realm; every road begins here."
+			"motif": "The green heart of the realm; every road begins here.",
+			"priority": 50,
+			"blendWidth": 3,
+			"macroRegion": "central_heartlands",
+			"role": "hub",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "aldspire",
@@ -49,14 +66,31 @@
 			"req": 2,
 			"danger": "safe",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					-8,
+					-9,
 					-4
 				],
-				"radius": 4
+				"radius": [
+					5.1,
+					3.3
+				],
+				"rotation": -75,
+				"warp": {
+					"seed": 535,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "The white-walled capital on the river's bend."
+			"motif": "The white-walled capital on the river's bend.",
+			"priority": 60,
+			"blendWidth": 3,
+			"macroRegion": "central_heartlands",
+			"role": "micro",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "brightfields",
@@ -65,14 +99,31 @@
 			"req": 3,
 			"danger": "safe",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					9,
+					10,
 					5
 				],
-				"radius": 5
+				"radius": [
+					6.4,
+					4.1
+				],
+				"rotation": -82,
+				"warp": {
+					"seed": 628,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "Amber wheat and hedgerows, the realm's breadbasket."
+			"motif": "Amber wheat and hedgerows, the realm's breadbasket.",
+			"priority": 40,
+			"blendWidth": 3,
+			"macroRegion": "central_heartlands",
+			"role": "major",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "larkmeadow",
@@ -81,14 +132,31 @@
 			"req": 4,
 			"danger": "safe",
 			"shape": {
+				"type": "ellipse",
 				"center": [
 					-3,
 					11
 				],
-				"radius": 5
+				"radius": [
+					6.4,
+					4.1
+				],
+				"rotation": -50,
+				"warp": {
+					"seed": 600,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "Wildflower commons humming with bees."
+			"motif": "Wildflower commons humming with bees.",
+			"priority": 60,
+			"blendWidth": 3,
+			"macroRegion": "central_heartlands",
+			"role": "micro",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "mosswood",
@@ -97,14 +165,31 @@
 			"req": 6,
 			"danger": "safe",
 			"shape": {
+				"type": "ellipse",
 				"center": [
 					-16,
 					3
 				],
-				"radius": 6
+				"radius": [
+					7.7,
+					4.9
+				],
+				"rotation": -68,
+				"warp": {
+					"seed": 602,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "Cool broadleaf woods where the first wolves prowl."
+			"motif": "Cool broadleaf woods where the first wolves prowl.",
+			"priority": 40,
+			"blendWidth": 3,
+			"macroRegion": "central_heartlands",
+			"role": "major",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "oakshade",
@@ -113,14 +198,31 @@
 			"req": 9,
 			"danger": "low",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					-26,
-					-2
+					-27,
+					-3
 				],
-				"radius": 6
+				"radius": [
+					7.7,
+					4.9
+				],
+				"rotation": 33,
+				"warp": {
+					"seed": 843,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "Deep oak country; a dungeon mouth gapes among the roots."
+			"motif": "Deep oak country; a dungeon mouth gapes among the roots.",
+			"priority": 40,
+			"blendWidth": 3,
+			"macroRegion": "central_heartlands",
+			"role": "major",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "deepwood",
@@ -129,14 +231,31 @@
 			"req": 13,
 			"danger": "low",
 			"shape": {
+				"type": "ellipse",
 				"center": [
 					-22,
 					13
 				],
-				"radius": 6
+				"radius": [
+					7.7,
+					4.9
+				],
+				"rotation": 72,
+				"warp": {
+					"seed": 702,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "Old-growth so thick the canopy swallows the sun."
+			"motif": "Old-growth so thick the canopy swallows the sun.",
+			"priority": 40,
+			"blendWidth": 3,
+			"macroRegion": "central_heartlands",
+			"role": "major",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "wolfden",
@@ -145,14 +264,31 @@
 			"req": 22,
 			"danger": "medium",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					-36,
-					7
+					-55,
+					16
 				],
-				"radius": 6
+				"radius": [
+					7.7,
+					4.9
+				],
+				"rotation": 6,
+				"warp": {
+					"seed": 96,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "Dark spruce taiga howling on the western marches."
+			"motif": "Dark spruce taiga howling on the western marches.",
+			"priority": 40,
+			"blendWidth": 3,
+			"macroRegion": "western_isle",
+			"role": "major",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "highmoor",
@@ -161,14 +297,31 @@
 			"req": 19,
 			"danger": "medium",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					-40,
-					-9
+					-57,
+					4
 				],
-				"radius": 6
+				"radius": [
+					7.7,
+					4.9
+				],
+				"rotation": -46,
+				"warp": {
+					"seed": 924,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "Windswept purple moor on the realm's far shoulder."
+			"motif": "Windswept purple moor on the realm's far shoulder.",
+			"priority": 40,
+			"blendWidth": 3,
+			"macroRegion": "western_isle",
+			"role": "major",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "westcape",
@@ -177,14 +330,31 @@
 			"req": 16,
 			"danger": "low",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					"-50",
-					-2
+					-51,
+					8
 				],
-				"radius": 5
+				"radius": [
+					6.4,
+					4.1
+				],
+				"rotation": -9,
+				"warp": {
+					"seed": 161,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "A sunlit grove at the long western point, ringed by sea."
+			"motif": "A sunlit grove at the long western point, ringed by sea.",
+			"priority": 60,
+			"blendWidth": 3,
+			"macroRegion": "western_isle",
+			"role": "micro",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "saltcove",
@@ -193,14 +363,31 @@
 			"req": 7,
 			"danger": "safe",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					12,
-					18
+					17,
+					12
 				],
-				"radius": 4
+				"radius": [
+					5.1,
+					3.3
+				],
+				"rotation": -88,
+				"warp": {
+					"seed": 982,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "A fishing town on the southern strand."
+			"motif": "A fishing town on the southern strand.",
+			"priority": 60,
+			"blendWidth": 3,
+			"macroRegion": "central_heartlands",
+			"role": "micro",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "greywater",
@@ -209,14 +396,31 @@
 			"req": 23,
 			"danger": "medium",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					4,
+					-7,
 					23
 				],
-				"radius": 6
+				"radius": [
+					17,
+					9
+				],
+				"rotation": -10,
+				"warp": {
+					"seed": 145,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "Sunken fens of black water and biting flies."
+			"motif": "Sunken fens of black water and biting flies.",
+			"priority": 40,
+			"blendWidth": 3,
+			"macroRegion": "southern_fens",
+			"role": "major",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "bogmire",
@@ -225,14 +429,31 @@
 			"req": 27,
 			"danger": "medium",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					"-9",
-					28
+					10,
+					24
 				],
-				"radius": 5
+				"radius": [
+					9,
+					6
+				],
+				"rotation": 25,
+				"warp": {
+					"seed": 476,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "Peat hags and will-o'-wisps in the deep south."
+			"motif": "Peat hags and will-o'-wisps in the deep south.",
+			"priority": 60,
+			"blendWidth": 3,
+			"macroRegion": "southern_fens",
+			"role": "micro",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "tanglewild",
@@ -241,14 +462,32 @@
 			"req": 46,
 			"danger": "high",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					17,
-					31
+					22,
+					17
 				],
-				"radius": 7
+				"radius": [
+					7.7,
+					4.9
+				],
+				"rotation": 80,
+				"warp": {
+					"seed": 810,
+					"strength": 0.32
+				}
 			},
-			"fixed": true,
-			"motif": "A steaming green tangle jutting into the southern sea."
+			"fixed": false,
+			"motif": "A steaming green tangle jutting into the southern sea.",
+			"priority": 40,
+			"blendWidth": 3,
+			"macroRegion": "southern_fens",
+			"role": "major",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "procedural",
+				"persistGeneratedChunks": true
+			}
 		},
 		{
 			"id": "eastreach",
@@ -257,14 +496,31 @@
 			"req": 15,
 			"danger": "low",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					21,
-					3
+					30,
+					12
 				],
-				"radius": 7
+				"radius": [
+					7.7,
+					4.9
+				],
+				"rotation": 65,
+				"warp": {
+					"seed": 455,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "Golden grass plains rolling toward the eastern dunes."
+			"motif": "Golden grass plains rolling toward the eastern dunes.",
+			"priority": 40,
+			"blendWidth": 3,
+			"macroRegion": "sunspear_peninsula",
+			"role": "major",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "emberscrub",
@@ -273,14 +529,31 @@
 			"req": 34,
 			"danger": "high",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					"26",
-					16
+					39,
+					19
 				],
-				"radius": 5
+				"radius": [
+					6.4,
+					4.1
+				],
+				"rotation": 13,
+				"warp": {
+					"seed": 183,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "Thornscrub and dust on the desert's doorstep."
+			"motif": "Thornscrub and dust on the desert's doorstep.",
+			"priority": 60,
+			"blendWidth": 3,
+			"macroRegion": "sunspear_peninsula",
+			"role": "micro",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "duskreach",
@@ -289,14 +562,31 @@
 			"req": 31,
 			"danger": "medium",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					32,
-					8
+					35,
+					16
 				],
-				"radius": 6
+				"radius": [
+					7.7,
+					4.9
+				],
+				"rotation": -11,
+				"warp": {
+					"seed": 859,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "Cracked red hardpan where the grass gives out."
+			"motif": "Cracked red hardpan where the grass gives out.",
+			"priority": 40,
+			"blendWidth": 3,
+			"macroRegion": "sunspear_peninsula",
+			"role": "major",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "scorchplain",
@@ -305,14 +595,31 @@
 			"req": 37,
 			"danger": "high",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					38,
-					14
+					44,
+					22
 				],
-				"radius": 6
+				"radius": [
+					6.4,
+					4.1
+				],
+				"rotation": -47,
+				"warp": {
+					"seed": 403,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "The first dunes, studded with saguaro and bone."
+			"motif": "The first dunes, studded with saguaro and bone.",
+			"priority": 40,
+			"blendWidth": 3,
+			"macroRegion": "sunspear_peninsula",
+			"role": "major",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "sunspear",
@@ -321,14 +628,31 @@
 			"req": 41,
 			"danger": "high",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					48,
-					22
+					50,
+					25
 				],
-				"radius": 9
+				"radius": [
+					10.2,
+					6.6
+				],
+				"rotation": -16,
+				"warp": {
+					"seed": 874,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "A vast sand sea on the south-east cape; tomb-kings sleep beneath."
+			"motif": "A vast sand sea on the south-east cape; tomb-kings sleep beneath.",
+			"priority": 40,
+			"blendWidth": 3,
+			"macroRegion": "sunspear_peninsula",
+			"role": "major",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "mirage",
@@ -337,14 +661,31 @@
 			"req": 39,
 			"danger": "high",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					42,
-					27
+					47,
+					24
 				],
-				"radius": 4
+				"radius": [
+					5.1,
+					3.3
+				],
+				"rotation": 80,
+				"warp": {
+					"seed": 130,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "A jewel of palms and cool water amid the waste."
+			"motif": "A jewel of palms and cool water amid the waste.",
+			"priority": 60,
+			"blendWidth": 3,
+			"macroRegion": "sunspear_peninsula",
+			"role": "micro",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "saltpan",
@@ -353,14 +694,31 @@
 			"req": 43,
 			"danger": "high",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					56,
+					57,
 					29
 				],
-				"radius": 6
+				"radius": [
+					7.7,
+					4.9
+				],
+				"rotation": -78,
+				"warp": {
+					"seed": 232,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "Blinding white flats at the peninsula's burning tip."
+			"motif": "Blinding white flats at the peninsula's burning tip.",
+			"priority": 60,
+			"blendWidth": 3,
+			"macroRegion": "sunspear_peninsula",
+			"role": "micro",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "ashfall",
@@ -369,14 +727,31 @@
 			"req": 49,
 			"danger": "elite",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					8,
-					-30
+					12,
+					-29
 				],
-				"radius": 5
+				"radius": [
+					6.4,
+					4.1
+				],
+				"rotation": -48,
+				"warp": {
+					"seed": 942,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "Scorched grey ash at the mountain's foot."
+			"motif": "Scorched grey ash at the mountain's foot.",
+			"priority": 60,
+			"blendWidth": 3,
+			"macroRegion": "northern_calamity",
+			"role": "micro",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "cinderpeak",
@@ -385,14 +760,31 @@
 			"req": 55,
 			"danger": "elite",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					2,
-					-38
+					4,
+					-35
 				],
-				"radius": 6
+				"radius": [
+					7.7,
+					4.9
+				],
+				"rotation": -75,
+				"warp": {
+					"seed": 355,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "The smoking caldera crowning the north; rivers of fire."
+			"motif": "The smoking caldera crowning the north; rivers of fire.",
+			"priority": 40,
+			"blendWidth": 3,
+			"macroRegion": "northern_calamity",
+			"role": "major",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "thegeysers",
@@ -401,14 +793,31 @@
 			"req": 52,
 			"danger": "elite",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					"-6",
-					-31
+					-3,
+					-30
 				],
-				"radius": 4
+				"radius": [
+					5.1,
+					3.3
+				],
+				"rotation": 82,
+				"warp": {
+					"seed": 872,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "Steam vents and bubbling pools on the cold flank."
+			"motif": "Steam vents and bubbling pools on the cold flank.",
+			"priority": 60,
+			"blendWidth": 3,
+			"macroRegion": "northern_calamity",
+			"role": "micro",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "stonereach",
@@ -417,14 +826,31 @@
 			"req": 16,
 			"danger": "low",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					-2,
-					-16
+					3,
+					-13
 				],
-				"radius": 6
+				"radius": [
+					6.4,
+					4.1
+				],
+				"rotation": -41,
+				"warp": {
+					"seed": 689,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "A mining town built into grey crags."
+			"motif": "A mining town built into grey crags.",
+			"priority": 40,
+			"blendWidth": 3,
+			"macroRegion": "central_heartlands",
+			"role": "major",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "frostwood",
@@ -433,14 +859,31 @@
 			"req": 28,
 			"danger": "medium",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					-22,
+					-19,
 					-23
 				],
-				"radius": 7
+				"radius": [
+					9.0,
+					5.7
+				],
+				"rotation": 26,
+				"warp": {
+					"seed": 696,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "Spruce taiga under a low pale sun."
+			"motif": "Spruce taiga under a low pale sun.",
+			"priority": 40,
+			"blendWidth": 3,
+			"macroRegion": "frostlands",
+			"role": "major",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "graymarch",
@@ -449,14 +892,31 @@
 			"req": 33,
 			"danger": "high",
 			"shape": {
+				"type": "ellipse",
 				"center": [
 					-15,
-					-27
+					-26
 				],
-				"radius": 5
+				"radius": [
+					6.4,
+					4.1
+				],
+				"rotation": 47,
+				"warp": {
+					"seed": 57,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "A fallen monument guarded by a beastmaster."
+			"motif": "A fallen monument guarded by a beastmaster.",
+			"priority": 60,
+			"blendWidth": 3,
+			"macroRegion": "frostlands",
+			"role": "micro",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "frostmere",
@@ -465,14 +925,31 @@
 			"req": 30,
 			"danger": "medium",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					-14,
-					-34
+					-11,
+					-31
 				],
-				"radius": 7
+				"radius": [
+					7.7,
+					4.9
+				],
+				"rotation": -32,
+				"warp": {
+					"seed": 318,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "Frozen heath and lichen, silent and white."
+			"motif": "Frozen heath and lichen, silent and white.",
+			"priority": 40,
+			"blendWidth": 3,
+			"macroRegion": "frostlands",
+			"role": "major",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "frostspire",
@@ -481,14 +958,32 @@
 			"req": 60,
 			"danger": "wilderness",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					-34,
-					-31
+					60,
+					-21
 				],
-				"radius": 7
+				"radius": [
+					7.7,
+					4.9
+				],
+				"rotation": 78,
+				"warp": {
+					"seed": 48,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "Glacier peaks at the world's frozen north-west corner."
+			"motif": "Glacier peaks at the world's frozen north-west corner.",
+			"priority": 40,
+			"blendWidth": 3,
+			"macroRegion": "eastern_isle",
+			"role": "major",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			},
+			"allowBoundsClipping": true
 		},
 		{
 			"id": "northwatch",
@@ -497,14 +992,31 @@
 			"req": 35,
 			"danger": "high",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					15,
-					-24
+					26,
+					-20
 				],
-				"radius": 6
+				"radius": [
+					6.4,
+					4.1
+				],
+				"rotation": 29,
+				"warp": {
+					"seed": 759,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "Bleak grey highlands watching the volcanic north."
+			"motif": "Bleak grey highlands watching the volcanic north.",
+			"priority": 40,
+			"blendWidth": 3,
+			"macroRegion": "northern_calamity",
+			"role": "major",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "riftlands",
@@ -513,14 +1025,31 @@
 			"req": 57,
 			"danger": "elite",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					34,
-					-18
+					57,
+					-15
 				],
-				"radius": 7
+				"radius": [
+					6.4,
+					4.1
+				],
+				"rotation": -66,
+				"warp": {
+					"seed": 884,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "Shattered crag and chasm on the far north-east."
+			"motif": "Shattered crag and chasm on the far north-east.",
+			"priority": 60,
+			"blendWidth": 3,
+			"macroRegion": "eastern_isle",
+			"role": "micro",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		},
 		{
 			"id": "helcarn",
@@ -529,14 +1058,32 @@
 			"req": 62,
 			"danger": "wilderness",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					48,
-					-22
+					64,
+					-15
 				],
-				"radius": 7
+				"radius": [
+					7.7,
+					4.9
+				],
+				"rotation": 88,
+				"warp": {
+					"seed": 298,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "The coldest reach; a white waste of drifts and ice."
+			"motif": "The coldest reach; a white waste of drifts and ice.",
+			"priority": 40,
+			"blendWidth": 3,
+			"macroRegion": "eastern_isle",
+			"role": "major",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			},
+			"allowBoundsClipping": true
 		},
 		{
 			"id": "blightmoor",
@@ -545,24 +1092,152 @@
 			"req": 53,
 			"danger": "elite",
 			"shape": {
+				"type": "ellipse",
 				"center": [
-					22,
-					-33
+					20,
+					-25
 				],
-				"radius": 6
+				"radius": [
+					7.7,
+					4.9
+				],
+				"rotation": 8,
+				"warp": {
+					"seed": 658,
+					"strength": 0.32
+				}
 			},
 			"fixed": true,
-			"motif": "A silent forest of black dead trees; nothing sings here."
+			"motif": "A silent forest of black dead trees; nothing sings here.",
+			"priority": 40,
+			"blendWidth": 3,
+			"macroRegion": "northern_calamity",
+			"role": "major",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
+		},
+		{
+			"id": "mirewood",
+			"name": "Mirewood",
+			"biome": "swamp",
+			"req": 24,
+			"danger": "medium",
+			"shape": {
+				"type": "ellipse",
+				"center": [
+					-19,
+					20
+				],
+				"radius": [
+					13,
+					8
+				],
+				"rotation": 15,
+				"warp": {
+					"seed": 859,
+					"strength": 0.32
+				}
+			},
+			"fixed": true,
+			"motif": "Drowned willows and black water; the swamp's western reach.",
+			"priority": 40,
+			"blendWidth": 3,
+			"macroRegion": "southern_fens",
+			"role": "major",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
+		},
+		{
+			"id": "blackfen",
+			"name": "Blackfen",
+			"biome": "bog",
+			"req": 29,
+			"danger": "medium",
+			"shape": {
+				"type": "ellipse",
+				"center": [
+					16,
+					22
+				],
+				"radius": [
+					8,
+					6
+				],
+				"rotation": -15,
+				"warp": {
+					"seed": 917,
+					"strength": 0.32
+				}
+			},
+			"fixed": true,
+			"motif": "Peat hollows and will-o'-wisps on the south fen.",
+			"priority": 60,
+			"blendWidth": 3,
+			"macroRegion": "southern_fens",
+			"role": "micro",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
+		},
+		{
+			"id": "witchmere",
+			"name": "Witchmere",
+			"biome": "swamp",
+			"req": 33,
+			"danger": "high",
+			"shape": {
+				"type": "ellipse",
+				"center": [
+					3,
+					28
+				],
+				"radius": [
+					13,
+					7
+				],
+				"rotation": -20,
+				"warp": {
+					"seed": 859,
+					"strength": 0.32
+				}
+			},
+			"fixed": true,
+			"motif": "The deep swamp where the coven keeps its city of stilts.",
+			"priority": 40,
+			"blendWidth": 3,
+			"macroRegion": "southern_fens",
+			"role": "major",
+			"generation": {
+				"placement": "fixed",
+				"terrain": "baked"
+			}
 		}
 	],
 	"anchors": [
 		{
-			"id": "aldspire",
-			"poi": "capital_city",
-			"label": "Aldspire",
+			"id": "spawn",
+			"poi": "player_spawn",
+			"label": "Greenhollow",
 			"chunk": [
-				-5,
-				-2
+				0,
+				0
+			],
+			"region": "greenhollow",
+			"teleport": false,
+			"locked": false
+		},
+		{
+			"id": "aldspire_keep",
+			"poi": "capital_city",
+			"label": "Aldspire Keep",
+			"chunk": [
+				-9,
+				-4
 			],
 			"region": "aldspire",
 			"teleport": true,
@@ -573,8 +1248,8 @@
 			"poi": "great_ruins",
 			"label": "Graymarch Ruins",
 			"chunk": [
-				-4,
-				-15
+				-15,
+				-26
 			],
 			"region": "graymarch",
 			"boss": "Amaruq",
@@ -585,8 +1260,8 @@
 			"poi": "mole_dungeon",
 			"label": "The Molehollow",
 			"chunk": [
-				-9,
-				4
+				-27,
+				-3
 			],
 			"region": "oakshade",
 			"boss": "Giant Mole",
@@ -628,6 +1303,93 @@
 			"from": "spawn",
 			"to": "aldspire",
 			"why": "Players must be able to walk home to the capital across Kingsbridge."
+		}
+	],
+	"coordinateSystem": {
+		"unit": "chunk",
+		"chunkSizeTiles": 16,
+		"xDirection": "east",
+		"yDirection": "south",
+		"note": "Chunk c -> centre tile (c*16+8). Settlements/roads/features in TILE space."
+	},
+	"defaults": {
+		"regionBlendWidth": 3,
+		"oceanBiome": "ocean",
+		"coastalBiome": "beach"
+	},
+	"validation": {
+		"anchorsMustBeInsideRegion": true,
+		"rejectUnresolvedReferences": true,
+		"rejectDuplicateIds": true,
+		"warnOnBoundsClipping": true,
+		"warnOnUnreachableSettlements": true
+	},
+	"macroRegions": [
+		{
+			"id": "central_heartlands",
+			"name": "The Central Heartlands",
+			"role": "hub",
+			"theme": "lush temperate: forests, grasslands, wheatfarms"
+		},
+		{
+			"id": "southern_fens",
+			"name": "The Southern Fens",
+			"role": "major",
+			"theme": "swamp, bog, witch country"
+		},
+		{
+			"id": "sunspear_peninsula",
+			"name": "Sunspear Peninsula",
+			"role": "major",
+			"theme": "desert + arid transition, on the south-east cape"
+		},
+		{
+			"id": "frostlands",
+			"name": "The Frostlands",
+			"role": "major",
+			"theme": "tundra, boreal, snow"
+		},
+		{
+			"id": "northern_calamity",
+			"name": "The Northern Calamity",
+			"role": "major",
+			"theme": "volcanic, ash, dead/corrupted hostile land"
+		},
+		{
+			"id": "eastern_isle",
+			"name": "Helcarn Isle",
+			"role": "island",
+			"theme": "cold rocky island continent (NE)"
+		},
+		{
+			"id": "western_isle",
+			"name": "Greywood Isle",
+			"role": "island",
+			"theme": "temperate forest/moor island continent (W)"
+		}
+	],
+	"islandGroups": [
+		{
+			"id": "helcarn_isle",
+			"name": "Helcarn Isle",
+			"kind": "continent_island",
+			"macroRegion": "eastern_isle",
+			"regions": [
+				"frostspire",
+				"helcarn",
+				"riftlands"
+			]
+		},
+		{
+			"id": "greywood_isle",
+			"name": "Greywood Isle",
+			"kind": "continent_island",
+			"macroRegion": "western_isle",
+			"regions": [
+				"westcape",
+				"wolfden",
+				"highmoor"
+			]
 		}
 	]
 }

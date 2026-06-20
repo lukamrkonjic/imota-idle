@@ -91,6 +91,11 @@ func _ingest(doc: Dictionary) -> void:
 	for r: Dictionary in doc.get("regions", []):
 		var shape: Dictionary = r.get("shape", {})
 		var center: Array = shape.get("center", [0, 0])
+		# radius is a scalar (circle) OR [rx, ry] (ellipse). rotation in degrees; optional warp.
+		var rad: Variant = shape.get("radius", 1)
+		var rx: float = float(rad[0]) if rad is Array else float(rad)
+		var ry: float = float(rad[1]) if (rad is Array and (rad as Array).size() > 1) else rx
+		var warp: Dictionary = shape.get("warp", {})
 		var region := {
 			"id": str(r.get("id", "")),
 			"name": str(r.get("name", r.get("id", "Region"))),
@@ -104,7 +109,19 @@ func _ingest(doc: Dictionary) -> void:
 			"locked": bool(r.get("locked", false)),
 			"regen": r.get("regen", []),
 			"cx": int(center[0]), "cy": int(center[1]),
-			"radius": float(shape.get("radius", 1)),
+			# Ellipse mask: half-extents rx/ry (chunks), rotation, organic-edge warp. `radius` is
+			# kept as the larger half-extent so the land-guarantee/POI code still has one number.
+			"rx": rx, "ry": ry, "rot": deg_to_rad(float(shape.get("rotation", 0.0))),
+			"warp_seed": int(warp.get("seed", 0)), "warp_strength": float(warp.get("strength", 0.0)),
+			"radius": maxf(rx, ry),
+			"shape_type": str(shape.get("type", "circle")),
+			# Overlap resolution: higher priority wins, then the more specific (smaller) region.
+			"priority": int(r.get("priority", 40)),
+			"blend": float(r.get("blendWidth", 3.0)),
+			"macro": str(r.get("macroRegion", "")),
+			"role": str(r.get("role", "major")),
+			"allow_outside": bool(r.get("allowOutsideRegion", false)),
+			"allow_clip": bool(r.get("allowBoundsClipping", false)),
 			"fixed": bool(r.get("fixed", true)),   # false => stays procedural at runtime
 		}
 		regions.append(region)
@@ -119,6 +136,7 @@ func _ingest(doc: Dictionary) -> void:
 			"boss": str(a.get("boss", "")),
 			"teleport": bool(a.get("teleport", false)),
 			"locked": bool(a.get("locked", true)),
+			"allow_outside": bool(a.get("allowOutsideRegion", false)),
 		})
 	routes = doc.get("routes", [])
 	relationships = doc.get("relationships", [])
@@ -174,8 +192,27 @@ func _ingest_world(doc: Dictionary) -> void:
 
 # ----------------------------------------------------------------- regions ----
 
-## Region whose disc (chunk space) contains chunk (cx, cy); when several overlap,
-## the nearest center wins, then the smaller radius (the more specific region).
+## Nominal elliptical distance of chunk (cx,cy) from a region's centre: 0 at the centre, 1 on
+## the (un-warped) coastline ellipse. Rotation-aware. Used for membership + overlap + validation;
+## the organic edge WARP is applied only in the climate generator (visual), not for zoning.
+static func region_ed(r: Dictionary, cx: float, cy: float) -> float:
+	var dx := cx - float(r["cx"])
+	var dy := cy - float(r["cy"])
+	var rot := float(r.get("rot", 0.0))
+	var ca := cos(-rot)
+	var sa := sin(-rot)
+	var lx := (dx * ca - dy * sa) / maxf(float(r.get("rx", r.get("radius", 1.0))), 0.001)
+	var ly := (dx * sa + dy * ca) / maxf(float(r.get("ry", r.get("radius", 1.0))), 0.001)
+	return sqrt(lx * lx + ly * ly)
+
+
+## True when chunk (cx,cy) is inside the region's nominal ellipse (with a small tolerance).
+func region_contains_chunk(r: Dictionary, cx: int, cy: int) -> bool:
+	return region_ed(r, float(cx), float(cy)) <= 1.0 + 0.0001
+
+
+## Region whose ellipse (chunk space) covers chunk (cx, cy); when several overlap, the highest
+## `priority` wins, then the more specific (smaller-area) region — array order never decides.
 func region_for_chunk(cx: int, cy: int) -> Dictionary:
 	if not active:
 		return {}
@@ -183,18 +220,17 @@ func region_for_chunk(cx: int, cy: int) -> Dictionary:
 	if _region_for_chunk.has(key):
 		return _region_for_chunk[key]
 	var best: Dictionary = {}
-	var best_d := INF
-	var best_r := INF
+	var best_pri := -INF
+	var best_area := INF
 	for r: Dictionary in regions:
-		var dx := float(cx - int(r["cx"]))
-		var dy := float(cy - int(r["cy"]))
-		var d := sqrt(dx * dx + dy * dy)
-		if d > float(r["radius"]) + 0.0001:
+		if region_ed(r, float(cx), float(cy)) > 1.0 + 0.0001:
 			continue
-		if d < best_d - 0.0001 or (absf(d - best_d) <= 0.0001 and float(r["radius"]) < best_r):
+		var pri := float(r.get("priority", 40))
+		var area: float = float(r.get("rx", 1.0)) * float(r.get("ry", 1.0))
+		if pri > best_pri + 0.0001 or (absf(pri - best_pri) <= 0.0001 and area < best_area):
 			best = r
-			best_d = d
-			best_r = float(r["radius"])
+			best_pri = pri
+			best_area = area
 	_region_for_chunk[key] = best
 	return best
 

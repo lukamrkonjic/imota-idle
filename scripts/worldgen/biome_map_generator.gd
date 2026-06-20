@@ -215,7 +215,6 @@ func _ensure_climate_cache() -> void:
 			if bc.is_empty():
 				continue
 		var c2 := Vector2(float(r["cx"]) * ct + ct * 0.5, float(r["cy"]) * ct + ct * 0.5)
-		var rr := float(r["radius"]) * ct
 		var tr2: Array = bc.get("t", [0.5, 0.5])
 		var mr2: Array = bc.get("m", [0.5, 0.5])
 		var er2: Array = bc.get("e", [0.3, 0.3])
@@ -224,17 +223,25 @@ func _ensure_climate_cache() -> void:
 		# authored layout, not raw terrain noise, decides what grows at a region core. EXTREME
 		# regions steer harder (strength 1.8): a volcano/desert is a strong local anomaly that
 		# overrides latitude + neighbouring climates, so its core reliably reads as its biome.
+		# Geometry is the authored ELLIPSE (rx/ry/rotation in tiles + organic edge warp), so the
+		# biome territory is shaped + rotated, never a circle. Higher `priority` => steers harder.
 		var is_extreme := str(bdef.get("climateScale", "major")) == "extreme"
-		_region_anchors.append({"c": c2, "r": rr,
+		var anc := {"c": c2,
+			"rx": maxf(float(r.get("rx", r.get("radius", 1.0))) * ct, 1.0),
+			"ry": maxf(float(r.get("ry", r.get("radius", 1.0))) * ct, 1.0),
+			"rot": float(r.get("rot", 0.0)),
+			"wseed": float(r.get("warp_seed", 0)), "wstr": float(r.get("warp_strength", 0.0)),
+			"pri": maxf(float(r.get("priority", 40)) / 40.0, 0.25),
 			"t": (float(tr2[0]) + float(tr2[1])) * 0.5,
 			"m": (float(mr2[0]) + float(mr2[1])) * 0.5,
 			"e": (float(er2[0]) + float(er2[1])) * 0.5,
-			"s": 1.8 if is_extreme else 1.0})
-		# Extreme biomes also seed a confinement basin around their anchors.
+			"s": 1.8 if is_extreme else 1.0}
+		_region_anchors.append(anc)
+		# Extreme biomes also seed a confinement basin around their (elliptical) anchor.
 		if is_extreme:
 			if not _extreme_anchors.has(biome):
 				_extreme_anchors[biome] = []
-			(_extreme_anchors[biome] as Array).append({"c": c2, "r": rr})
+			(_extreme_anchors[biome] as Array).append(anc)
 
 
 ## First allowed parent of a sub-biome rule that itself HAS a climate envelope, so a sub-biome
@@ -251,27 +258,41 @@ func _first_allowed_parent(sub_id: String) -> String:
 	return ""
 
 
+## Warped elliptical normalised distance from an anchor: 0 at the centre, ~1 on the authored
+## ellipse (rotation-aware), with an organic edge warp keyed by the region's warp seed/strength
+## so territory borders are irregular, never clean ellipses. `scale` widens the ellipse (used to
+## turn the core ellipse into a broad confinement basin for extreme biomes).
+func _anchor_ed(a: Dictionary, tx: float, ty: float, scale: float) -> float:
+	var dx := tx - (a["c"] as Vector2).x
+	var dy := ty - (a["c"] as Vector2).y
+	var rot: float = a["rot"]
+	var ca := cos(-rot)
+	var sa := sin(-rot)
+	var lx := (dx * ca - dy * sa) / (float(a["rx"]) * scale)
+	var ly := (dx * sa + dy * ca) / (float(a["ry"]) * scale)
+	var ed := sqrt(lx * lx + ly * ly)
+	# Organic edge warp — region-scale lobes, kept modest so it frays the border without ever
+	# tearing the sample off a region core.
+	var seed: float = a["wseed"]
+	var w: float = classifier._domain_warp.get_noise_2d(tx * 0.006 + seed * 0.13, ty * 0.006 + seed * 0.07) * float(a["wstr"])
+	return ed + w
+
+
 ## Regional influence 0..1: how strongly a biome is "allowed" here at the continental scale.
 ## Major (temperate) biomes are 1 everywhere — the connective tissue. EXTREME biomes are 1 in
 ## their anchored basin core and fade to 0 well outside (a wide transition belt), so deserts/
-## volcanoes/jungles/tundra stay coherent territories. The sample point is domain-warped so the
-## basins are irregular, not circular. (No anchors for an extreme biome => it can't appear.)
+## volcanoes/jungles/tundra stay coherent territories — shaped by the authored ellipse, not a
+## circle. (No anchors for an extreme biome => it can't appear.)
 func _regional_influence(bd: Dictionary, tx: float, ty: float) -> float:
 	if not bool(bd["extreme"]):
 		return 1.0
 	var anchors: Array = _extreme_anchors.get(str(bd["id"]), [])
 	if anchors.is_empty():
 		return 0.0
-	# Warp is kept WELL below typical basin radii (~80-160 tiles) so it frays the basin EDGE
-	# without ever throwing the sample clear of a region core (which would erase the biome there).
-	var wx: float = classifier._domain_warp.get_noise_2d(tx * 0.0028 + 13.0, ty * 0.0028 + 7.0) * 90.0
-	var wy: float = classifier._domain_warp.get_noise_2d(tx * 0.0028 + 61.0, ty * 0.0028 + 37.0) * 90.0
-	var p := Vector2(tx + wx, ty + wy)
 	var best := 0.0
 	for a: Dictionary in anchors:
-		var d: float = p.distance_to(a["c"])
-		# Solid core out to ~1.2r, fading to 0 by ~2.6r => a broad basin + wide transition belt.
-		best = maxf(best, 1.0 - smoothstep(float(a["r"]) * 1.2, float(a["r"]) * 2.6, d))
+		# Solid core within the ellipse, fading to 0 by ~2.2x it => a broad basin + transition belt.
+		best = maxf(best, 1.0 - smoothstep(1.0, 2.2, _anchor_ed(a, tx, ty, 1.0)))
 	return best
 
 
@@ -294,9 +315,15 @@ func _climate_at(tx: float, ty: float) -> Vector3:
 	# Baseline TEMPERATE: midpoint ~0.50 (mid-plains) so the connective tissue reads as lush
 	# forest/plains, not hot savanna. Latitude cools the far north; broad noise drifts it.
 	var tnoise: float = classifier._climate.get_noise_2d(sx * 0.5, sy * 0.5) * 0.5 + 0.5
-	var temp: float = clampf(0.50 - lat * 0.40 + (tnoise - 0.5) * 0.30, 0.0, 1.0)
-	# Moisture: one broad low-frequency field, biased a touch wet so temperate => forest/plains.
-	var moist: float = clampf(classifier._moist_macro.get_noise_2d(sx * 0.55, sy * 0.55) * 0.5 + 0.55, 0.0, 1.0)
+	# Gentle latitude swing: cold far-north, LUSH-temperate middle (player start), warm-but-not-
+	# scorching south — so the south reads swampy-wet, not desert. (Desert is confined to its
+	# peninsula by regional influence, NOT a hot latitude band.)
+	var temp: float = clampf(0.47 - lat * 0.21 + (tnoise - 0.5) * 0.26, 0.0, 1.0)
+	# Moisture: broad low-frequency field, biased WET so the temperate middle is dominated by
+	# forest/dense_forest (with wheat/plains as drier patches, not a monoculture). The southern
+	# swamp comes from large authored swamp REGIONS, not a blanket wetness — so the desert
+	# peninsula stays arid.
+	var moist: float = clampf(classifier._moist_macro.get_noise_2d(sx * 0.55, sy * 0.55) * 0.5 + 0.62, 0.0, 1.0)
 	var elev: float = clampf(classifier._mtn.mountain_height_field(tx, ty), 0.0, 1.0)
 	# Authored regions steer the local climate toward their biome's centre on ALL THREE axes.
 	# Tight, strong falloff (core r*0.35 -> rim r*1.6) so a region core is authoritative — its
@@ -305,15 +332,13 @@ func _climate_at(tx: float, ty: float) -> Vector3:
 	var tt := 0.0
 	var mt := 0.0
 	var et := 0.0
-	# Domain-warp the position used to measure distance to anchors, so a region's climate
-	# influence is an ORGANIC BLOB rather than a perfect disc (no more circular biome patches
-	# at each anchor). Low frequency + big amplitude => wavy lobes on the scale of a region.
-	var awx: float = classifier._domain_warp.get_noise_2d(tx * 0.006 + 91.0, ty * 0.006 + 19.0) * 150.0
-	var awy: float = classifier._domain_warp.get_noise_2d(tx * 0.006 + 47.0, ty * 0.006 + 83.0) * 150.0
-	var ap := Vector2(tx + awx, ty + awy)
+	# Each authored region steers the local climate over its (warped, rotation-aware) ELLIPSE —
+	# solid in the core, fading out past the edge — so territories are shaped + organic, not discs.
+	# Weight scales by extreme-strength AND priority, so a specific micro-region overrides the
+	# broad territory it sits inside.
 	for a: Dictionary in _region_anchors:
-		var d: float = ap.distance_to(a["c"])
-		var w: float = (1.0 - smoothstep(float(a["r"]) * 0.35, float(a["r"]) * 1.6, d)) * float(a["s"])
+		var ed := _anchor_ed(a, tx, ty, 1.0)
+		var w: float = (1.0 - smoothstep(0.35, 1.55, ed)) * float(a["s"]) * float(a["pri"])
 		if w > 0.001:
 			wsum += w
 			tt += float(a["t"]) * w
