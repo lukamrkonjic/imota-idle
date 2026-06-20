@@ -27,7 +27,9 @@ var _region: FastNoiseLite       # blends geographic biome-region boundaries
 var _mtn: MountainField          # orography (mountains/elevation/snow), see mountain_field.gd
 var _continent: FastNoiseLite    # big landmass blobs (low freq) — peninsulas/gulfs
 var _coast_detail: FastNoiseLite # ridged coast fingers (fjords, capes, coves)
-var _island: FastNoiseLite       # offshore archipelago field (scattered islands)
+var _island: FastNoiseLite       # MEDIUM offshore islands
+var _island_big: FastNoiseLite   # LARGE offshore islands (low freq, multi-biome capable)
+var _island_small: FastNoiseLite # small islets + scattered rock fragments (high freq)
 
 var _t_deep: int
 var _t_water: int
@@ -55,8 +57,6 @@ const _SHORE_R := 0.82          # norm_dist at the nominal coastline
 const _FALL_SLOPE := 0.62       # gentle => low-freq noise carves deep gulfs/capes (lower = wilder coast)
 const _SEA_LEVEL := 0.47        # landmass threshold; higher => more/deeper bays
 const _COAST_BAND := 0.12       # landmass span of the beach/shallow transition
-const _ISLAND_REACH := 0.50     # how far offshore (landmass units) islands form
-const _ISLAND_LIFT := 0.60      # how strongly an island peak rises from the sea
 const _GUARANTEE_LAND := 0.20   # solid-land value forced under authored content
 var _land_discs: Array = []     # [{c:Vector2, r:float}] forced-land discs (tiles)
 var _land_corridors: Array = [] # [{a,b:Vector2, r:float}] connecting land bridges
@@ -81,6 +81,8 @@ func setup(p_reg: RefCounted, p_seed: int) -> void:
 	_continent = _noise(p_seed + 1700, 0.0013, 4)
 	_coast_detail = _noise(p_seed + 1701, 0.0045, 3)
 	_island = _noise(p_seed + 1702, 0.0060, 2)
+	_island_big = _noise(p_seed + 1722, 0.0020, 3)    # large landforms a long way offshore
+	_island_small = _noise(p_seed + 1742, 0.0150, 2)  # islets / rock fragments hugging the coast
 	_height = _noise(p_seed, 0.011, 4)
 	_height_macro = _noise(p_seed + 11, 0.0026, 3)
 	_moist = _noise(p_seed + 101, 0.016, 3)
@@ -215,12 +217,24 @@ func _landmass(tx: float, ty: float) -> float:
 	var d := norm_dist(tx, ty)
 	var fall := (d - _SHORE_R) * _FALL_SLOPE
 	var lm := shape - _SEA_LEVEL - fall
-	# Offshore archipelago: in the shallow band just past the coast, strong noise
-	# peaks lift back above sea level into scattered islands of varying size.
-	if lm < 0.0 and lm > -_ISLAND_REACH:
-		var isl := _island.get_noise_2d(sx, sy) * 0.5 + 0.5
-		var peak := smoothstep(0.52, 0.92, isl)   # lower gate => more islands, large and small
-		lm += peak * _ISLAND_LIFT * (1.0 - (-lm) / _ISLAND_REACH)
+	# Multi-scale offshore archipelago. Three island fields at different frequencies give a
+	# believable SIZE MIX instead of a uniform speckle: a few LARGE islands sitting well out to
+	# sea (big enough for beaches + a forested/rocky interior — multiple biomes), several MEDIUM
+	# islands, and small islets / scattered rock fragments hugging the coast. Each scale lifts
+	# land where its own noise peaks, tapering with distance from shore so the big landforms
+	# reach far offshore while the specks stay near the coastline.
+	if lm < 0.0:
+		var off := -lm                                  # 0 at the coast .. deeper = further out
+		# LARGE: low-freq, rare (high gate) + strong lift + long reach => a few big islands.
+		var big := _island_big.get_noise_2d(sx, sy) * 0.5 + 0.5
+		var big_lift := smoothstep(0.60, 0.84, big) * 1.05 * (1.0 - smoothstep(0.0, 1.05, off))
+		# MEDIUM: native freq, moderate reach.
+		var med := _island.get_noise_2d(sx, sy) * 0.5 + 0.5
+		var med_lift := smoothstep(0.64, 0.90, med) * 0.60 * (1.0 - smoothstep(0.0, 0.48, off))
+		# SMALL: high-freq islets + scattered specks, only just past the shore.
+		var sml := _island_small.get_noise_2d(sx, sy) * 0.5 + 0.5
+		var sml_lift := smoothstep(0.80, 0.98, sml) * 0.40 * (1.0 - smoothstep(0.0, 0.20, off))
+		lm += maxf(big_lift, maxf(med_lift, sml_lift))
 	# Authored-content land guarantee — only ever ADDS land, blended by a soft edge
 	# so the coast still wiggles naturally just outside the guaranteed zone.
 	var g := _land_guarantee01(tx, ty)

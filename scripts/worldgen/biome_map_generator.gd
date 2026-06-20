@@ -301,8 +301,14 @@ func _climate_at(tx: float, ty: float) -> Vector3:
 	var tt := 0.0
 	var mt := 0.0
 	var et := 0.0
+	# Domain-warp the position used to measure distance to anchors, so a region's climate
+	# influence is an ORGANIC BLOB rather than a perfect disc (no more circular biome patches
+	# at each anchor). Low frequency + big amplitude => wavy lobes on the scale of a region.
+	var awx: float = classifier._domain_warp.get_noise_2d(tx * 0.006 + 91.0, ty * 0.006 + 19.0) * 150.0
+	var awy: float = classifier._domain_warp.get_noise_2d(tx * 0.006 + 47.0, ty * 0.006 + 83.0) * 150.0
+	var ap := Vector2(tx + awx, ty + awy)
 	for a: Dictionary in _region_anchors:
-		var d: float = Vector2(tx, ty).distance_to(a["c"])
+		var d: float = ap.distance_to(a["c"])
 		var w: float = (1.0 - smoothstep(float(a["r"]) * 0.35, float(a["r"]) * 1.6, d)) * float(a["s"])
 		if w > 0.001:
 			wsum += w
@@ -370,11 +376,21 @@ func _sub_stamp_covers(rule: Dictionary, gtx: int, gty: int) -> bool:
 				continue
 			var center: Vector2i = _macro_stamp_center(cmx, cmy, spacing, salt)
 			var size: float = _macro_stamp_size(rule, cmx, cmy, salt)
-			var dx: float = float(gtx - center.x)
-			var dy: float = float(gty - center.y)
-			var dist: float = sqrt(dx * dx + dy * dy)
 			var wobble: float = WG.r01(world_seed, cmx * 17 + salt, cmy * 19 + salt, 901) * 0.32 + 0.78
-			if dist <= size * wobble * 0.55:
+			# Displace the SAMPLE POINT so the boundary frays into an ORGANIC blob, not a disc.
+			# Uses HIGH-frequency noise: _moist (~60-tile lobes) deforms the overall shape and
+			# _surface_detail (~9-tile fray) roughens the edge. (The big domain_warp field is far
+			# too low-frequency here — it would just translate the whole disc.) Amplitude scales
+			# with the stamp so small islets and large basins both read as natural patches.
+			var fs: float = float(salt) * 4.0
+			var amp: float = size * 0.5
+			var hx: float = classifier._moist.get_noise_2d(float(gtx) + fs, float(gty) - fs) * amp \
+				+ classifier._surface_detail.get_noise_2d(float(gtx) + fs, float(gty)) * amp * 0.45
+			var hy: float = classifier._moist.get_noise_2d(float(gtx) + 311.0 + fs, float(gty) + 173.0) * amp \
+				+ classifier._surface_detail.get_noise_2d(float(gtx), float(gty) + 211.0 + fs) * amp * 0.45
+			var dx: float = float(gtx - center.x) + hx
+			var dy: float = float(gty - center.y) + hy
+			if sqrt(dx * dx + dy * dy) <= size * wobble * 0.55:
 				return true
 	return false
 
