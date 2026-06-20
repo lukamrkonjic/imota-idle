@@ -1,4 +1,4 @@
-extends Node
+extends ActivitySim
 ## Continuous combat simulation, ported from CombatManager + BasicEnemy.
 ##
 ## Player attack loop fires every ATTACK_INTERVAL (CombatManager's combat
@@ -9,7 +9,6 @@ extends Node
 
 const CombatStyles := preload("res://scripts/combat/combat_styles.gd")
 const DropRoller := preload("res://scripts/combat/drop_roller.gd")
-const ActivityManager := preload("res://scripts/activity_manager.gd")
 
 const ATTACK_INTERVAL := 3.0  # default; per-weapon speed comes from GameState.attack_interval()
 const PLAYER_BASE_CRIT := 0.01
@@ -26,7 +25,7 @@ const DAMAGE_MAX_MULT := 1.2
 const COMBAT_TRIANGLE_BONUS := 1.25   # melee>ranged>magic>melee damage multiplier
 const MISS_STREAK_PITY := 3.0         # forced-hit pity after this many consecutive misses
 
-var active := false
+# `active` + register + _process come from ActivitySim.
 var enemy: EnemyDef = EnemyDef.new()
 var enemy_hp := 0.0
 var train_skill := "attack"  # attack | strength | defence | ranged | magic
@@ -50,15 +49,6 @@ var kills := 0
 var rng := RandomNumberGenerator.new()
 
 
-func _ready() -> void:
-	ActivityManager.register(self)
-
-
-func _process(delta: float) -> void:
-	if active:
-		advance(delta)
-
-
 func start_combat(enemy_name: String, p_train_skill: String = "attack", player_initiated := true) -> bool:
 	var e := DataRegistry.get_enemy(enemy_name)
 	if e.is_empty():
@@ -72,7 +62,7 @@ func start_combat(enemy_name: String, p_train_skill: String = "attack", player_i
 		EventBus.combat_log.emit("Slayer level %d required for %s" % [slayer_req, str(e.get("displayName", enemy_name))])
 		return false
 	stop("switching")
-	ActivityManager.stop_others(self)
+	_stop_others()
 	enemy = EnemyDef.from_dict(e)
 	train_skill = p_train_skill
 	GameState.combat_style = p_train_skill  # remember the style across sessions
@@ -356,3 +346,16 @@ func _on_player_died() -> void:
 ## Display name for the current enemy (Bloobs-renamed); never the raw legacy name.
 func _enemy_name() -> String:
 	return enemy.display_name if not enemy.is_empty() else "?"
+
+
+func save_activity() -> Dictionary:
+	return {"kind": "combat", "enemy_id": enemy.id, "train": train_skill} if active else {}
+
+
+func restore_activity(data: Dictionary) -> void:
+	if str(data.get("kind", "")) != "combat":
+		return
+	var enemy_ref: String = str(data.get("enemy_id", data.get("enemy", "")))
+	var e := DataRegistry.get_enemy(enemy_ref)
+	if not e.is_empty():
+		start_combat(str(e["name"]), str(data.get("train", "attack")))

@@ -1,22 +1,11 @@
-extends Node
+extends ActivitySim
 ## Production-skill crafting loop (Recipe.cs subclasses): consume inputs,
 ## wait the recipe timer, grant output + XP, auto-repeat while inputs last.
 
-const ActivityManager := preload("res://scripts/activity_manager.gd")
-
-var active := false
+# `active` + register + _process come from ActivitySim.
 var recipe: RecipeDef = RecipeDef.new()
 var timer := 0.0
 var crafted := 0
-
-
-func _ready() -> void:
-	ActivityManager.register(self)
-
-
-func _process(delta: float) -> void:
-	if active:
-		advance(delta)
 
 
 func advance(delta: float) -> void:
@@ -41,7 +30,7 @@ func start_craft(skill: String, recipe_name: String) -> bool:
 		EventBus.combat_log.emit("Missing ingredients for %s" % recipe_name)
 		return false
 	stop("switching")
-	ActivityManager.stop_others(self)
+	_stop_others()
 	recipe = r
 	timer = 0.0
 	crafted = 0
@@ -87,3 +76,16 @@ func _complete_craft() -> void:
 	if active and not _has_inputs(recipe.inputs):
 		EventBus.combat_log.emit("Out of ingredients — crafting stopped.")
 		stop("out_of_inputs")
+
+
+func save_activity() -> Dictionary:
+	return {"kind": "craft", "skill": recipe.skill, "recipe_id": recipe.id} if active else {}
+
+
+func restore_activity(data: Dictionary) -> void:
+	if str(data.get("kind", "")) != "craft":
+		return
+	var recipe_ref: String = str(data.get("recipe_id", data.get("recipe", "")))
+	var rd := DataRegistry.get_recipe(str(data.get("skill", "")), recipe_ref)
+	if not rd.is_empty():
+		start_craft(str(data.get("skill", "")), str(rd["name"]))

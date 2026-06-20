@@ -1,4 +1,4 @@
-extends Node
+extends ActivitySim
 ## Gathering simulation, OSRS-faithful: gathering skills (Woodcutting, Mining,
 ## Fishing, Foraging) roll a binary success check every GATHER_TICKS game ticks.
 ## On success you get the resource + its XP; on a failed roll nothing happens and
@@ -11,23 +11,13 @@ extends Node
 ## delivery is now a per-roll OSRS-style success instead of a filling bar.
 
 const GATHER_TICKS := 4  # one success roll every 4 ticks (2.4s), like OSRS WC
-const ActivityManager := preload("res://scripts/activity_manager.gd")
 
-var active := false
+# `active` + register + _process come from ActivitySim.
 var skill := ""
 var node: GatherNodeDef = GatherNodeDef.new()
 var timer := 0.0
 
 var rng := RandomNumberGenerator.new()
-
-
-func _ready() -> void:
-	ActivityManager.register(self)
-
-
-func _process(delta: float) -> void:
-	if active:
-		advance(delta)
 
 
 ## Separated from _process so headless tests can drive simulated time.
@@ -52,7 +42,7 @@ func start_gather(p_skill: String, node_name: String) -> bool:
 		EventBus.combat_log.emit("No suitable tool equipped for %s" % p_skill.capitalize())
 		return false
 	stop("switching")
-	ActivityManager.stop_others(self)
+	_stop_others()
 	skill = p_skill
 	node = n
 	timer = 0.0
@@ -104,3 +94,16 @@ func _award_resource() -> void:
 			return
 		EventBus.loot_gained.emit(item_name, 1)
 	GameState.add_xp(skill, node.xp)
+
+
+func save_activity() -> Dictionary:
+	return {"kind": "gather", "skill": skill, "node_id": node.id} if active else {}
+
+
+func restore_activity(data: Dictionary) -> void:
+	if str(data.get("kind", "")) != "gather":
+		return
+	var node_ref: String = str(data.get("node_id", data.get("node", "")))
+	var nd := DataRegistry.get_gather_node(str(data.get("skill", "")), node_ref)
+	if not nd.is_empty():
+		start_gather(str(data.get("skill", "")), str(nd["name"]))

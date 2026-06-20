@@ -20,3 +20,20 @@ static func stop_others(active_sim: Object, reason: String = "switching") -> voi
 	for s: Object in _sims:
 		if s != active_sim and is_instance_valid(s) and bool(s.active):
 			s.stop(reason)
+
+
+## The currently-active sim's save dict (or {} if everything's idle). One active at a time.
+static func save_active() -> Dictionary:
+	for s: Object in _sims:
+		if is_instance_valid(s) and bool(s.active):
+			return s.save_activity()
+	return {}
+
+
+## Offer a saved activity dict to every sim; the one whose "kind" matches re-starts it.
+static func restore_active(data: Dictionary) -> void:
+	if data.is_empty():
+		return
+	for s: Object in _sims:
+		if is_instance_valid(s):
+			s.restore_activity(data)

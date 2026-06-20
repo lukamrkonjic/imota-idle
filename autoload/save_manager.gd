@@ -2,6 +2,7 @@ extends Node
 ## Persists the full game state to user://save.json. Autosaves every 30s and
 
 const SaveMigration := preload("res://autoload/save_migration.gd")
+const ActivityManager := preload("res://scripts/activity_manager.gd")
 ## on quit. Also restores the active activity so the grind continues on load.
 
 const SAVE_PATH := "user://save.json"
@@ -50,25 +51,8 @@ func save_game() -> void:
 
 
 func _activity_dict() -> Dictionary:
-	if TickSim.active:
-		return {
-			"kind": "gather",
-			"skill": TickSim.skill,
-			"node_id": TickSim.node.id,
-		}
-	if CombatSim.active:
-		return {
-			"kind": "combat",
-			"enemy_id": CombatSim.enemy.id,
-			"train": CombatSim.train_skill,
-		}
-	if RecipeSim.active:
-		return {
-			"kind": "craft",
-			"skill": RecipeSim.recipe.skill,
-			"recipe_id": RecipeSim.recipe.id,
-		}
-	return {}
+	# Each activity sim owns its own (de)serialization now; the manager returns the active one.
+	return ActivityManager.save_active()
 
 
 func load_game() -> void:
@@ -83,23 +67,8 @@ func load_game() -> void:
 	GameState.from_save_dict(parsed)
 	parsed = SaveMigration.migrate_game_save(parsed)
 	FarmingSim.from_save(parsed.get("farming", {}))
-	var activity: Dictionary = parsed.get("activity", {})
-	match activity.get("kind", ""):
-		"gather":
-			var node_ref: String = str(activity.get("node_id", activity.get("node", "")))
-			var node := DataRegistry.get_gather_node(str(activity["skill"]), node_ref)
-			if not node.is_empty():
-				TickSim.start_gather(str(activity["skill"]), str(node["name"]))
-		"combat":
-			var enemy_ref: String = str(activity.get("enemy_id", activity.get("enemy", "")))
-			var enemy := DataRegistry.get_enemy(enemy_ref)
-			if not enemy.is_empty():
-				CombatSim.start_combat(str(enemy["name"]), activity.get("train", "attack"))
-		"craft":
-			var recipe_ref: String = str(activity.get("recipe_id", activity.get("recipe", "")))
-			var recipe := DataRegistry.get_recipe(str(activity["skill"]), recipe_ref)
-			if not recipe.is_empty():
-				RecipeSim.start_craft(str(activity["skill"]), str(recipe["name"]))
+	# Each sim re-starts its own activity if the saved "kind" matches (owned by the sim now).
+	ActivityManager.restore_active(parsed.get("activity", {}))
 	# No offline progress: the sims never fast-forward time the player was away.
 	# `savedAt` is still written for the AFK / Rested-XP system (spec §8).
 	EventBus.game_loaded.emit()
