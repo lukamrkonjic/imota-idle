@@ -280,6 +280,22 @@
       ],
       "walkable": false,
       "water": false
+    },
+    "desert_sand": {
+      "colors": [
+        "e7e0cc",
+        "d6cfb6"
+      ],
+      "walkable": true,
+      "water": false
+    },
+    "desert_dune": {
+      "colors": [
+        "ddd5bd",
+        "cabfa0"
+      ],
+      "walkable": true,
+      "water": false
     }
   },
   "transitions": {},
@@ -582,8 +598,8 @@
         "moistureMax": 0.38
       },
       "tiles": {
-        "sand": 0.82,
-        "sand_dune": 0.18
+        "desert_sand": 0.82,
+        "desert_dune": 0.18
       },
       "tint": "d9c277",
       "music": "desert",
@@ -1297,7 +1313,7 @@
       "tiles": {
         "shallow": 0.35,
         "grass": 0.3,
-        "sand": 0.35
+        "desert_sand": 0.35
       },
       "tint": "9ba15f",
       "music": "desert",
@@ -1506,8 +1522,8 @@
       "parentBiome": "desert",
       "when": {},
       "tiles": {
-        "sand": 0.7,
-        "sand_dune": 0.3
+        "desert_sand": 0.7,
+        "desert_dune": 0.3
       },
       "tint": "d4b868",
       "music": "desert",
@@ -1556,8 +1572,8 @@
       "parentBiome": "desert",
       "when": {},
       "tiles": {
-        "sand_dune": 0.85,
-        "sand": 0.15
+        "desert_dune": 0.85,
+        "desert_sand": 0.15
       },
       "tint": "e0d8c8",
       "music": "desert",

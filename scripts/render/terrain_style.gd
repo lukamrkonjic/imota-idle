@@ -12,7 +12,7 @@ const PATH_TILES := ["dirt", "cobble", "mud", "gravel", "badland_clay"]
 const ROCK_TILES := ["rock", "lava_rock", "ash", "peak_rock"]
 const SNOW_TILES := ["snow", "frozen_grass", "peak_snow"]
 const WATER_TILES := ["deep_water", "water", "shallow"]
-const SAND_TILES := ["sand", "sand_dune"]
+const SAND_TILES := ["sand", "sand_dune", "desert_sand", "desert_dune"]
 
 # Alpine colour ramp (A Short Hike-style): grass -> olive -> ochre dirt -> warm rock -> cool
 # high rock -> snow, as ONE continuous ramp so a mountain never reads as a flat single tone.
