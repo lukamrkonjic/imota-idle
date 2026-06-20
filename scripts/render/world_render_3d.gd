@@ -307,6 +307,7 @@ func _setup_materials() -> void:
 	_water_mat.set_shader_parameter("foam_tex", _make_water_noise(0.7, 3, 6))
 	_water_mat.set_shader_parameter("noise_tex", _make_water_noise(0.9, 2, 1))
 	_water_mat.set_shader_parameter("warp_tex", _make_water_noise(0.35, 2, 2))
+	_apply_view_distance()   # now that _water_mat exists, push the detail-fade range for the view slider
 
 
 func _setup_present() -> void:
@@ -809,6 +810,11 @@ func _apply_view_distance() -> void:
 	if _env != null:
 		_env.fog_depth_end = vt + 14.0     # camera-depth ≈ CAM_DIST + tiles; full haze past the edge
 		_env.fog_depth_begin = vt - 10.0
+	if _water_mat != null:
+		# Collapse the water's near-field detail to its calm tone JUST inside the fog ramp, so
+		# distant rivers/seas are already a soft band by the time the haze blends them away.
+		_water_mat.set_shader_parameter("detail_fade_begin", vt - 20.0)
+		_water_mat.set_shader_parameter("detail_fade_end", vt - 2.0)
 	if _sun != null:
 		_sun.directional_shadow_max_distance = clampf(vt * 0.85, 30.0, 52.0)
 

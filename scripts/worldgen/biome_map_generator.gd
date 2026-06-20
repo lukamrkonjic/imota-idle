@@ -203,19 +203,48 @@ func _ensure_climate_cache() -> void:
 		var bdef: Dictionary = reg.biome_by_id(biome)
 		var bc: Dictionary = bdef.get("climate", {})
 		if bc.is_empty():
-			continue
+			# Region biome is a SUB-biome (geyser_field, snowdrift, oasis...) with no climate of
+			# its own. Inherit its parent biome's climate so the region still anchors a coherent
+			# territory and the sub-biome can stamp on the right parent (geyser_field -> volcanic).
+			var par := _first_allowed_parent(biome)
+			if par.is_empty():
+				continue
+			biome = par
+			bdef = reg.biome_by_id(par)
+			bc = bdef.get("climate", {})
+			if bc.is_empty():
+				continue
 		var c2 := Vector2(float(r["cx"]) * ct + ct * 0.5, float(r["cy"]) * ct + ct * 0.5)
 		var rr := float(r["radius"]) * ct
 		var tr2: Array = bc.get("t", [0.5, 0.5])
 		var mr2: Array = bc.get("m", [0.5, 0.5])
+		var er2: Array = bc.get("e", [0.3, 0.3])
+		# Anchor carries the region biome's climate CENTRE on all three axes (incl. elevation),
+		# so a volcanic/tundra/alpine region forces the high/low ground its biome needs — the
+		# authored layout, not raw terrain noise, decides what grows at a region core. EXTREME
+		# regions steer harder (strength 1.8): a volcano/desert is a strong local anomaly that
+		# overrides latitude + neighbouring climates, so its core reliably reads as its biome.
+		var is_extreme := str(bdef.get("climateScale", "major")) == "extreme"
 		_region_anchors.append({"c": c2, "r": rr,
 			"t": (float(tr2[0]) + float(tr2[1])) * 0.5,
-			"m": (float(mr2[0]) + float(mr2[1])) * 0.5})
+			"m": (float(mr2[0]) + float(mr2[1])) * 0.5,
+			"e": (float(er2[0]) + float(er2[1])) * 0.5,
+			"s": 1.8 if is_extreme else 1.0})
 		# Extreme biomes also seed a confinement basin around their anchors.
-		if str(bdef.get("climateScale", "major")) == "extreme":
+		if is_extreme:
 			if not _extreme_anchors.has(biome):
 				_extreme_anchors[biome] = []
 			(_extreme_anchors[biome] as Array).append({"c": c2, "r": rr})
+
+
+## First parent biome a sub-biome rule may stamp onto (so a sub-biome region inherits a real
+## climate envelope). "" if the id isn't a sub-biome or has no allowed parents.
+func _first_allowed_parent(sub_id: String) -> String:
+	for rule: Dictionary in reg.sub_biomes:
+		if str(rule.get("id", "")) == sub_id:
+			var ap: Array = rule.get("allowedParents", [])
+			return str(ap[0]) if not ap.is_empty() else ""
+	return ""
 
 
 ## Regional influence 0..1: how strongly a biome is "allowed" here at the continental scale.
@@ -229,14 +258,16 @@ func _regional_influence(bd: Dictionary, tx: float, ty: float) -> float:
 	var anchors: Array = _extreme_anchors.get(str(bd["id"]), [])
 	if anchors.is_empty():
 		return 0.0
-	var wx: float = classifier._domain_warp.get_noise_2d(tx * 0.0024 + 13.0, ty * 0.0024 + 7.0) * 360.0
-	var wy: float = classifier._domain_warp.get_noise_2d(tx * 0.0024 + 61.0, ty * 0.0024 + 37.0) * 360.0
+	# Warp is kept WELL below typical basin radii (~80-160 tiles) so it frays the basin EDGE
+	# without ever throwing the sample clear of a region core (which would erase the biome there).
+	var wx: float = classifier._domain_warp.get_noise_2d(tx * 0.0028 + 13.0, ty * 0.0028 + 7.0) * 90.0
+	var wy: float = classifier._domain_warp.get_noise_2d(tx * 0.0028 + 61.0, ty * 0.0028 + 37.0) * 90.0
 	var p := Vector2(tx + wx, ty + wy)
 	var best := 0.0
 	for a: Dictionary in anchors:
 		var d: float = p.distance_to(a["c"])
-		# Solid core out to ~1.1r, fading to 0 by ~2.8r => a broad basin + wide transition belt.
-		best = maxf(best, 1.0 - smoothstep(float(a["r"]) * 1.1, float(a["r"]) * 2.8, d))
+		# Solid core out to ~1.2r, fading to 0 by ~2.6r => a broad basin + wide transition belt.
+		best = maxf(best, 1.0 - smoothstep(float(a["r"]) * 1.2, float(a["r"]) * 2.6, d))
 	return best
 
 
@@ -256,28 +287,37 @@ func _climate_at(tx: float, ty: float) -> Vector3:
 	# Sample the climate noise at scaled-down coordinates => much lower effective frequency =>
 	# broad, continental temperature/moisture regions (the large-scale structure) instead of
 	# mid-frequency speckle competing with the major regions.
+	# Baseline TEMPERATE: midpoint ~0.50 (mid-plains) so the connective tissue reads as lush
+	# forest/plains, not hot savanna. Latitude cools the far north; broad noise drifts it.
 	var tnoise: float = classifier._climate.get_noise_2d(sx * 0.5, sy * 0.5) * 0.5 + 0.5
-	var temp: float = clampf(0.62 - lat * 0.42 + (tnoise - 0.5) * 0.30, 0.0, 1.0)
-	# Moisture: one broad low-frequency field.
-	var moist: float = clampf(classifier._moist_macro.get_noise_2d(sx * 0.55, sy * 0.55) * 0.5 + 0.5, 0.0, 1.0)
+	var temp: float = clampf(0.50 - lat * 0.40 + (tnoise - 0.5) * 0.30, 0.0, 1.0)
+	# Moisture: one broad low-frequency field, biased a touch wet so temperate => forest/plains.
+	var moist: float = clampf(classifier._moist_macro.get_noise_2d(sx * 0.55, sy * 0.55) * 0.5 + 0.55, 0.0, 1.0)
 	var elev: float = clampf(classifier._mtn.mountain_height_field(tx, ty), 0.0, 1.0)
-	# Authored regions pull the local climate toward their biome's centre (smooth, distance
-	# weighted) — hand-authored layout WITHOUT hard borders, since it only bends the field.
+	# Authored regions steer the local climate toward their biome's centre on ALL THREE axes.
+	# Tight, strong falloff (core r*0.35 -> rim r*1.6) so a region core is authoritative — its
+	# intended biome actually grows there — while still blending smoothly into its neighbours.
 	var wsum := 0.0
 	var tt := 0.0
 	var mt := 0.0
+	var et := 0.0
 	for a: Dictionary in _region_anchors:
 		var d: float = Vector2(tx, ty).distance_to(a["c"])
-		var w: float = 1.0 - smoothstep(float(a["r"]) * 0.5, float(a["r"]) * 1.8, d)
+		var w: float = (1.0 - smoothstep(float(a["r"]) * 0.35, float(a["r"]) * 1.6, d)) * float(a["s"])
 		if w > 0.001:
 			wsum += w
 			tt += float(a["t"]) * w
 			mt += float(a["m"]) * w
+			et += float(a["e"]) * w
 	if wsum > 0.0:
-		var blend: float = clampf(wsum, 0.0, 1.0) * 0.72   # how strongly regions steer climate
+		var blend: float = clampf(wsum, 0.0, 1.0) * 0.90   # how strongly regions steer climate
 		temp = lerpf(temp, tt / wsum, blend)
 		moist = lerpf(moist, mt / wsum, blend)
-	temp = clampf(temp - elev * 0.22, 0.0, 1.0)   # higher ground is colder
+		# Elevation steers toward the region's biome CLASS (not max), so a mountainous region
+		# (volcanic/alpine/tundra) gets high ground AND a lowland one (jungle/swamp) gets low
+		# ground — the authored layout sets the landform, not whatever terrain noise happens here.
+		elev = lerpf(elev, et / wsum, blend)
+	temp = clampf(temp - elev * 0.12, 0.0, 1.0)   # higher ground is a little colder
 	return Vector3(temp, moist, elev)
 
 

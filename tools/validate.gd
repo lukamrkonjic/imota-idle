@@ -2,7 +2,7 @@ extends Node
 ## Headless validation. Run:
 const ValidateContent := preload("res://tools/validate_content.gd")
 # Worldgen determinism baseline — refactors of the generation pipeline must keep these.
-const WORLDGEN_TILES_HASH := 2155871874
+const WORLDGEN_TILES_HASH := 1562573358
 const WORLDGEN_ELEV_SUM := 28898
 const ContentId := preload("res://scripts/content/content_id.gd")
 const SaveMigration := preload("res://autoload/save_migration.gd")

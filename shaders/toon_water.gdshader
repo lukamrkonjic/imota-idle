@@ -10,7 +10,10 @@ shader_type spatial;
 // an animated lacy foam line on the waterline, and keeps the illustrated contour loops in
 // the open water. Transparent (blend_mix) only for a 1px anti-aliased waterline.
 
-render_mode unshaded, cull_back, fog_disabled, blend_mix;
+// NOTE: NO fog_disabled — the water must fade into the SAME depth fog as the terrain, or the
+// distant river/sea pops as a vivid cyan streak against the hazed-out land. Godot applies the
+// environment depth fog to this (unshaded, transparent) material automatically.
+render_mode unshaded, cull_back, blend_mix;
 
 // --- palette ------------------------------------------------------------------
 uniform vec4 deep_color : source_color = vec4(0.067, 0.380, 0.498, 1.0);     // #11617F deep ocean
@@ -43,6 +46,15 @@ uniform float foam_cells = 0.55;       // cells: how far the foam can wash off t
 uniform float foam_scale = 0.17;
 uniform float foam_speed = 0.05;
 uniform sampler2D foam_tex : repeat_enable, filter_linear;
+
+// --- distance detail LOD ------------------------------------------------------
+// Foam, the contour loops and the bright shallow rim are NEAR-FIELD detail. Past the mid
+// distance the water collapses to one calm muted tone so the depth fog can blend it to the
+// horizon cleanly — without that, the light-blue shallows pop as a streak against fogged land.
+// detail_fade_* are view-space depths, driven from world_render_3d to track the view slider.
+uniform vec4 distant_color : source_color = vec4(0.231, 0.408, 0.475, 1.0);
+uniform float detail_fade_begin = 16.0;
+uniform float detail_fade_end = 34.0;
 
 uniform float aa_strength = 1.1;
 uniform float min_aa = 0.0015;
@@ -103,6 +115,12 @@ void fragment() {
 	foam = max(foam, rim * 0.5);
 	foam *= smoothstep(-shore_aa, shore_aa * 0.5, sd);       // never onto dry sand
 	col = mix(col, foam_color.rgb, clamp(foam, 0.0, 1.0));
+
+	// Distance LOD: fade the illustrated near-field detail to a calm muted tone before the
+	// depth fog takes over, so distant water hazes out smoothly instead of streaking cyan.
+	float view_depth = -VERTEX.z;
+	float detail = 1.0 - smoothstep(detail_fade_begin, detail_fade_end, view_depth);
+	col = mix(distant_color.rgb, col, detail);
 
 	ALBEDO = col;
 	ALPHA = water_a;
