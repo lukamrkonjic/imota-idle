@@ -184,38 +184,56 @@ func _ready() -> void:
 	_set_tool(Tool.PAN)
 	_refresh_palette()
 	_refresh_history_buttons()
-	if "--we-selftest" in OS.get_cmdline_user_args():
-		_run_selftest.call_deferred()
+	for _a: String in OS.get_cmdline_user_args():
+		if _a.begins_with("--we-selftest"):
+			_run_selftest.call_deferred()
+			break
 
 
-## Dev verification: enable the 3D view, focus spawn, let it stream/mesh, paint a patch,
-## screenshot the whole editor, then quit. Run:
-##   godot --path . res://tools/world_editor.tscn -- --we-selftest
+## Dev verification: find a scattered set-piece POI in the baked world, aim the 3D
+## camera at it, and screenshot. Pass a POI type to target a specific one. Run:
+##   godot --path . res://tools/world_editor.tscn -- --we-selftest=haunted_ruins
 func _run_selftest() -> void:
-	var patch := _spawn_tile + Vector2i(12, 12)   # open terrain, off the campsite hub
+	var want := "haunted_ruins"
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("--we-selftest="):
+			want = a.trim_prefix("--we-selftest=")
+	var order: Array = [want, "haunted_ruins", "cursed_keep", "old_watchtower", "abandoned_farmstead", "wayfarers_wreck"]
+	var found := Vector2i(-2147483648, 0)
+	var found_type := ""
+	for poi_type: String in order:
+		for c: RefCounted in _chunks.values():
+			for poi: Dictionary in c.pois:
+				if str(poi.get("type", "")) == poi_type:
+					var anc: Vector2i = poi["anchor"]
+					found = Vector2i(c.cx * WG.CHUNK_TILES + anc.x, c.cy * WG.CHUNK_TILES + anc.y)
+					found_type = poi_type
+					break
+			if found_type != "": break
+		if found_type != "": break
+	print("[we-selftest] target '%s' found=%s at %s" % [want, found_type, str(found)])
+	var dumped := false
+	for c: RefCounted in _chunks.values():
+		if dumped:
+			break
+		for poi: Dictionary in c.pois:
+			if str(poi.get("type", "")) == found_type:
+				var summ: Array = []
+				for pt: Dictionary in poi["parts"]:
+					var tag := str(pt.get("kind"))
+					if pt.has("enemy_name"): tag += "=" + str(pt["enemy_name"])
+					elif pt.has("prop"): tag += "=" + str(pt["prop"])
+					summ.append(tag)
+				print("[we-selftest] parts: ", summ)
+				dumped = true
+				break
 	_toggle_3d_view()
-	_focus_3d(patch)
-	await get_tree().create_timer(7.0).timeout
+	if found_type != "":
+		_focus_3d(found)
+	await get_tree().create_timer(9.0).timeout
 	if _v3d_vp != null:
-		_v3d_vp.get_texture().get_image().save_png("user://we3d_before.png")
-	# Paint a big snow biome + snow terrain square; biome drives the 3D ground.
-	var snow_biome := ""
-	for b: Dictionary in WorldGen.list_surface_biomes():
-		if str(b["id"]).contains("snow") or str(b["id"]).contains("tundra") or str(b["id"]).contains("alp"):
-			snow_biome = str(b["id"])
-	_sel_biome = snow_biome if not snow_biome.is_empty() else _sel_biome
-	_sel_terrain = "snow"
-	_begin_stroke()
-	for dy: int in range(-8, 9):
-		for dx: int in range(-8, 9):
-			_paint_biome_tile(patch.x + dx, patch.y + dy)
-			_paint_terrain_tile(patch.x + dx, patch.y + dy)
-	_commit_stroke()
-	print("[we-selftest] painted biome '%s' at patch %s" % [_sel_biome, str(patch)])
-	await get_tree().create_timer(3.0).timeout
-	if _v3d_vp != null:
-		_v3d_vp.get_texture().get_image().save_png("user://we3d_after.png")
-	print("[we-selftest] saved we3d_before.png + we3d_after.png")
+		_v3d_vp.get_texture().get_image().save_png("user://we3d_poi.png")
+	print("[we-selftest] saved we3d_poi.png (%s)" % found_type)
 	get_tree().quit()
 
 

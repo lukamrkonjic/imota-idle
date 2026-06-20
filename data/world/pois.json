@@ -15,6 +15,9 @@
     "  hook     placeholder feature: click prints the hook message (used for",
     "           skills with no sim yet, e.g. thieving/tracking);",
     "  boss     part is the zone-tier boss enemy anchor.",
+    "  enemy    a specific named GUARDIAN from enemies.json (e.g. 'Skeletons') that",
+    "           holds this set-piece; aggressive by default. Its own level/drops apply,",
+    "           so 'minTier' just gates the POI into a zone where that level fits.",
     "safe: no monsters spawn in this chunk; respawn: player respawns here on",
     "death. clusterSites: N same-node gather sites ring the anchor (depots).",
     "To add a POI type: append an entry here and reuse existing part kinds (or",
@@ -347,6 +350,99 @@
             "tundra"
           ]
         }
+      ]
+    },
+    "wayfarers_wreck": {
+      "_note": "Lvl 1+ scatter: an ambushed merchant cart on the road, picked over by goblin scavengers. Spilled crates/barrels are flavour; the fight is two low goblins.",
+      "placement": { "mode": "chance", "chance": 0.05 },
+      "label": "Roadside Wreck",
+      "biomes": ["plains", "wheatfield", "forest", "beach"],
+      "minTier": 1,
+      "safe": false,
+      "minimapColor": "9a7a4a",
+      "parts": [
+        { "kind": "city_prop", "prop": "cart", "label": "Broken Carriage", "dx": 0, "dy": 0 },
+        { "kind": "rubble_pile", "label": "Scattered Cargo", "dx": 1, "dy": 1 },
+        { "kind": "city_prop", "prop": "crate", "label": "Spilled Crate", "dx": -1, "dy": 1 },
+        { "kind": "city_prop", "prop": "barrel", "label": "Cracked Barrel", "dx": -1, "dy": -1 },
+        { "kind": "enemy", "enemy": "Goblins", "dx": 2, "dy": 0 },
+        { "kind": "enemy", "enemy": "Goblins", "dx": -2, "dy": 0 }
+      ]
+    },
+    "abandoned_farmstead": {
+      "_note": "Lvl 3+ scatter: a derelict farm overrun by boars and goblins, with a few forage sites among the fields and a looted market stall (thieving hook).",
+      "placement": { "mode": "chance", "chance": 0.04 },
+      "label": "Abandoned Farmstead",
+      "biomes": ["plains", "wheatfield"],
+      "minTier": 3,
+      "safe": false,
+      "clusterSites": 3,
+      "clusterSkill": "foraging",
+      "minimapColor": "b58a52",
+      "parts": [
+        { "kind": "house", "label": "Derelict Farmhouse", "dx": 0, "dy": 0, "color": "7a5a3a" },
+        { "kind": "city_prop", "prop": "hay", "label": "Hay Bale", "dx": 2, "dy": 1 },
+        { "kind": "city_prop", "prop": "crate", "label": "Crate", "dx": -2, "dy": 1 },
+        { "kind": "stall", "hook": "thieving", "label": "Looted Stall", "hookMessage": "Thieving from stalls is coming soon.", "dx": 2, "dy": -1 },
+        { "kind": "enemy", "enemy": "Boars", "dx": -2, "dy": -2 },
+        { "kind": "enemy", "enemy": "Goblins", "dx": 3, "dy": 0 }
+      ]
+    },
+    "old_watchtower": {
+      "_note": "Lvl 6+ cell scatter: a fallen border watchtower held by a goblin fighter and a wolf pack. (Uses the hall art as a stand-in until dedicated tower art lands.)",
+      "placement": { "mode": "cell", "cellChunks": 6, "chance": 0.5 },
+      "label": "Ruined Watchtower",
+      "biomes": ["plains", "forest", "rocky_hills"],
+      "minTier": 6,
+      "safe": false,
+      "minimapColor": "8a8a8a",
+      "parts": [
+        { "kind": "building", "foot": 3, "label": "Ruined Watchtower", "dx": 0, "dy": 0, "color": "6a6a72" },
+        { "kind": "lantern", "label": "Signal Brazier", "dx": -2, "dy": -1, "color": "c08040" },
+        { "kind": "sign", "label": "Old Watchtower", "dx": 0, "dy": 2 },
+        { "kind": "enemy", "enemy": "Goblin Fighter", "dx": 2, "dy": 1 },
+        { "kind": "enemy", "enemy": "Black Wolves", "dx": -2, "dy": 1 }
+      ]
+    },
+    "haunted_ruins": {
+      "_note": "Lvl 14+ cell scatter (the ghost set-piece): a crumbling shrine-ruin haunted by skeletons + zombies, with a desecrated altar you can pray at between fights.",
+      "placement": { "mode": "cell", "cellChunks": 7, "chance": 0.55 },
+      "label": "Haunted Ruins",
+      "biomes": ["forest", "dense_forest", "swamp", "rocky_hills", "plains"],
+      "minTier": 14,
+      "safe": false,
+      "minimapColor": "7a8c80",
+      "parts": [
+        { "kind": "ruin_arch", "label": "Crumbling Arch", "dx": 0, "dy": 0 },
+        { "kind": "ruin_pillar", "label": "Toppled Pillar", "dx": -2, "dy": 1 },
+        { "kind": "ruin_pillar", "label": "Toppled Pillar", "dx": 2, "dy": 1 },
+        { "kind": "broken_statue", "label": "Weathered Statue", "dx": 0, "dy": -2 },
+        { "kind": "rubble_pile", "label": "Rubble", "dx": -2, "dy": -1 },
+        { "kind": "altar", "station": "altar", "label": "Desecrated Altar", "dx": 2, "dy": -1, "color": "7a8276" },
+        { "kind": "enemy", "enemy": "Skeletons", "dx": -3, "dy": 0 },
+        { "kind": "enemy", "enemy": "Skeletons", "dx": 3, "dy": 0 },
+        { "kind": "enemy", "enemy": "Zombies", "dx": 0, "dy": 3 }
+      ]
+    },
+    "cursed_keep": {
+      "_note": "Lvl 32+ cell scatter: a shattered keep guarded by revenants, bone golems and skeletal archers, lit by witchfire braziers. A high-tier roaming-loot run.",
+      "placement": { "mode": "cell", "cellChunks": 9, "chance": 0.5 },
+      "label": "Cursed Keep",
+      "biomes": ["rocky_hills", "volcanic", "swamp", "dense_forest"],
+      "minTier": 32,
+      "safe": false,
+      "minimapColor": "6a5a6a",
+      "parts": [
+        { "kind": "broken_wall", "label": "Shattered Rampart", "dx": -2, "dy": -1 },
+        { "kind": "broken_wall", "label": "Shattered Rampart", "dx": 2, "dy": -1 },
+        { "kind": "ruin_arch", "label": "Keep Gate", "dx": 0, "dy": 0 },
+        { "kind": "broken_statue", "label": "Fallen Knight", "dx": 0, "dy": -2 },
+        { "kind": "lantern", "label": "Witchfire Brazier", "dx": -3, "dy": 1, "color": "60c0a0" },
+        { "kind": "lantern", "label": "Witchfire Brazier", "dx": 3, "dy": 1, "color": "60c0a0" },
+        { "kind": "sign", "label": "The Cursed Keep", "dx": 0, "dy": 3 },
+        { "kind": "enemy", "enemy": "Revenants", "dx": -3, "dy": 0 },
+        { "kind": "enemy", "enemy": "Bone Golems", "dx": 3, "dy": 0 },
+        { "kind": "enemy", "enemy": "Skeletal Archers", "dx": 0, "dy": -3 }
       ]
     },
     "capital_city": {

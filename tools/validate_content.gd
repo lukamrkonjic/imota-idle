@@ -24,6 +24,7 @@ static func run() -> Dictionary:
 	_check_drop_probabilities(errors)
 	_check_economy_summary(warnings)
 	_check_world_biomes(errors)
+	_check_pois(errors)
 	return {"errors": errors, "warnings": warnings}
 
 
@@ -181,3 +182,28 @@ static func _check_world_biomes(errors: Array) -> void:
 	for biome: Dictionary in reg.biomes:
 		if not biome.has("id"):
 			errors.append("Biome missing id")
+
+
+## POI authoring integrity: every part's guardian/boss enemy, npc and biome whitelist
+## must resolve, so a typo in pois.json fails the gate instead of silently vanishing
+## from the world. (Bosses can be pinned by name or auto-picked, so a bare boss part
+## with no name is fine.)
+static func _check_pois(errors: Array) -> void:
+	const WorldRegistry := preload("res://scripts/worldgen/world_registry.gd")
+	var reg: RefCounted = WorldRegistry.new()
+	reg.load_all()
+	var biome_ids: Dictionary = {}
+	for b: Dictionary in reg.biomes:
+		biome_ids[str(b.get("id", ""))] = true
+	for type: String in reg.pois:
+		var def: Dictionary = reg.pois[type]
+		for bid: String in def.get("biomes", []):
+			if not biome_ids.has(bid):
+				errors.append("POI '%s' lists unknown biome '%s'" % [type, bid])
+		for part: Dictionary in def.get("parts", []):
+			var en := str(part.get("enemy", ""))
+			if not en.is_empty() and DataRegistry.get_enemy(en).is_empty():
+				errors.append("POI '%s' guardian enemy not found: '%s'" % [type, en])
+			var npc := str(part.get("npc", ""))
+			if not npc.is_empty() and not DataRegistry.npcs.has(npc):
+				errors.append("POI '%s' npc not found: '%s'" % [type, npc])

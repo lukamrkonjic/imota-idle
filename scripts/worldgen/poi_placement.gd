@@ -166,6 +166,13 @@ func _try_place(chunk: RefCounted, type: String, def: Dictionary, occupied: Dict
 				continue
 			part["boss_name"] = str(boss["name"])
 			part["label"] = str(boss["name"])
+		elif raw.has("enemy"):
+			# A specific named GUARDIAN (not a boss) — themed mobs that hold a set-piece
+			# (e.g. ghosts in a ruin). The bestiary name carries its own level/drops, so
+			# the POI's minTier just gates it into a zone where that level fits.
+			part["enemy_name"] = str(raw["enemy"])
+			part["label"] = str(raw["enemy"])
+			part["aggressive"] = bool(raw.get("aggressive", true))
 		occupied[Chunk.idx(tx, ty)] = true
 		poi["parts"].append(part)
 

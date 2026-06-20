@@ -461,18 +461,28 @@ func _spawn_poi_part(chunk: RefCounted, poi: Dictionary, part: Dictionary, conta
 		e.glow_color = e.tent_color
 	match kind:
 		"enemy":
-			var boss_name := str(part.get("boss_name", ""))
-			var enemy: Dictionary = DataRegistry.get_enemy(boss_name)
+			# A boss (boss_name, pinned/zone-fit) or a named GUARDIAN (enemy_name) that
+			# holds a set-piece. Both pull their level/shape from the bestiary.
+			var is_boss := not str(part.get("boss_name", "")).is_empty()
+			var enemy_name := str(part.get("boss_name", "")) if is_boss else str(part.get("enemy_name", ""))
+			var enemy: Dictionary = DataRegistry.get_enemy(enemy_name)
 			if enemy.is_empty():
 				e.queue_free()
 				return
-			e.enemy_shape = IsoSprites.enemy_shape(boss_name)
-			e.is_boss = true
-			e.display_size = 50.0
+			e.enemy_shape = IsoSprites.enemy_shape(enemy_name)
 			e.tier_color = tier_color(int(enemy["level"]))
-			e.label = boss_name
-			e.sub_label = "Lvl %d BOSS" % int(enemy["level"])
-			e.action = {"type": "enemy", "name": boss_name, "aggressive": false, "level": int(enemy["level"])}
+			e.label = enemy_name
+			if is_boss:
+				e.is_boss = true
+				e.display_size = 50.0
+				e.sub_label = "Lvl %d BOSS" % int(enemy["level"])
+				e.action = {"type": "enemy", "name": enemy_name, "aggressive": false, "level": int(enemy["level"])}
+			else:
+				e.display_size = 34.0
+				e.click_radius = 26.0
+				e.sub_label = "Lvl %d" % int(enemy["level"])
+				e.variant = absi(hash(enemy_name + chunk.key() + str(part["tx"]) + ":" + str(part["ty"]))) % 1000
+				e.action = {"type": "enemy", "name": enemy_name, "aggressive": bool(part.get("aggressive", true)), "level": int(enemy["level"])}
 		"cave":
 			e.action = {"type": "descend", "target_layer": world.current_layer - 1 if world.current_layer < 0 else -1}
 		"ladder_down":
