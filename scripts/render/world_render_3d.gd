@@ -32,6 +32,7 @@ const SPAWN_LAYER := 0              # overworld layer the home-campsite dressing
 const DRESSING_SPREAD := 1.7        # fan the camp pieces apart so nothing is squished
 const FOREST_PREVIEW_ARG := "--forest-preview"
 const WATER_PREVIEW_ARG := "--water-preview"   # verification: teleport to a deterministic ocean coast
+const FX_PREVIEW_ARG := "--fx-preview"         # verification: light the fire + emit prayer bursts at spawn
 
 var world: Node2D
 var sub: SubViewport
@@ -54,14 +55,7 @@ var _outlines_root: Node3D           # inverted-hull silhouette outlines for hig
 var _outline_mat: ShaderMaterial     # shared white outline material (grown hull, cull_front)
 var _outline_nodes: Dictionary = {}  # static entity id -> outline Node3D
 var _outlined_movers: Dictionary = {} # mover id -> true (material_overlay applied)
-var _fire: Node3D                    # the single firemaking fire (one per burning session)
-var _fire_flames: Node3D             # the flame meshes (flickered/flared separately)
-var _fire_phase := ""                 # "" | "burn" | "decay"
-var _fire_t := 0.0                    # flicker clock
-var _fire_decay := 0.0                # seconds since the player stopped feeding it
-var _fire_flare := 0.0                # brief flame boost when a log is fed
-var _kneel_t := 0.0                   # seconds left of the player's kneel-to-feed crouch
-var _fx_bursts: Array = []            # transient effects {node, t, dur, kind, mat?, from?, to?}
+var _fx: WorldFx3D                    # firemaking fire + prayer bursts (world_fx_3d.gd)
 var _mover_nodes: Dictionary = {}    # moving entity id -> Node3D (player/enemies)
 var _mover_prev: Dictionary = {}     # key -> last 3D pos (for walk detection)
 var _mover_yaw: Dictionary = {}      # key -> facing yaw (turned with spring inertia)
@@ -357,11 +351,9 @@ func _setup_present() -> void:
 	# Drive attack lunges off the combat ticks: each hit splat is one swing landing.
 	EventBus.combat_hit_splat.connect(_on_combat_swing)
 	EventBus.combat_ranged_shot.connect(func(_a: int, _m: bool) -> void: _mark_attack("player"))
-	# Firemaking fire + prayer-activation bursts (world FX).
-	EventBus.activity_started.connect(_on_activity_started)
-	EventBus.activity_stopped.connect(_on_activity_stopped)
-	EventBus.prayer_activated.connect(_on_prayer_activated)
-	EventBus.firemaking_log_burned.connect(_on_firemaking_burned)
+	# Firemaking fire + prayer-activation bursts: WorldFx3D listens to EventBus itself.
+	_fx = WorldFx3D.new()
+	_fx.setup(self)
 
 
 ## React to the Settings-menu pixelation slider (0 = native, 1 = really crunchy),
@@ -430,6 +422,7 @@ func _process(delta: float) -> void:
 		return
 	_maybe_teleport_to_forest_preview()
 	_maybe_teleport_to_water_preview()
+	_maybe_fx_preview()
 	# Per-frame memo for tile-info/corner-colour sampling (terrain build + every mover
 	# height sample hit the same tiles thousands of times in a frame).
 	_ti_cache.clear()
@@ -445,7 +438,7 @@ func _process(delta: float) -> void:
 	_sync_movers()
 	_sync_static_batches()
 	_sync_outlines()
-	_update_fx(delta)
+	_fx.update(delta)
 	# Compose the cozy A Short Hike camp ONCE around the spawn tile (the home
 	# campsite). Anchored to spawn, NOT the camera — so it's a finished place you
 	# arrive at, not canned props that follow you everywhere (the old failure mode).
@@ -556,6 +549,23 @@ func _maybe_teleport_to_water_preview() -> void:
 
 func _water_preview_enabled() -> bool:
 	return WATER_PREVIEW_ARG in OS.get_cmdline_args() or WATER_PREVIEW_ARG in OS.get_cmdline_user_args()
+
+
+# Verification only: drive WorldFx3D from the spawn so a capture shows the campfire + a fresh
+# prayer burst (the FX never trigger at idle spawn otherwise). Lights the fire once, then
+# re-emits a prayer activation every ~0.4s so a burst is always live when the shot is taken.
+var _fx_preview_lit := false
+func _maybe_fx_preview() -> void:
+	if not (FX_PREVIEW_ARG in OS.get_cmdline_args() or FX_PREVIEW_ARG in OS.get_cmdline_user_args()):
+		return
+	if world.player == null:
+		return
+	if not _fx_preview_lit:
+		_fx_preview_lit = true
+		EventBus.activity_started.emit("craft", "Firemaking Oak Logs")
+		EventBus.firemaking_log_burned.emit()
+	if _frames % 24 == 0:
+		EventBus.prayer_activated.emit("Steel Skin")
 
 
 # The nearest ocean BEACH (the finite world's edge coast). A beach tile is dry,
@@ -1395,217 +1405,6 @@ func _set_rig_outline(rig: Node3D, on: bool) -> void:
 			(n as MeshInstance3D).material_overlay = _outline_mat if on else null
 		for c: Node in n.get_children():
 			stack.append(c)
-
-
-# ---- world FX: firemaking fire + prayer-activation bursts -------------------
-func _on_activity_started(kind: String, detail: String) -> void:
-	if kind == "craft" and detail.begins_with("Firemaking"):
-		_light_fire()
-
-
-func _on_activity_stopped(_reason: String) -> void:
-	# Player stopped feeding logs — let the fire burn down to embers and vanish.
-	if _fire != null and _fire_phase == "burn":
-		_fire_phase = "decay"
-		_fire_decay = 0.0
-
-
-func _light_fire() -> void:
-	if _fire == null or not is_instance_valid(_fire):
-		_fire = _build_campfire()
-		_fire.position = _fire_spot()
-		props_root.add_child(_fire)
-		_fire_flames = _fire.get_node_or_null("flames")
-	_fire_phase = "burn"   # resumes if it was decaying
-
-
-## Ground spot a short step IN FRONT of the player (toward the camera, so it reads as set
-## down before them rather than under their feet).
-func _fire_spot() -> Vector3:
-	var ppos := iso_to_3d(world.player.position, height_at(world.player.position))
-	var fwd := cam.global_position - ppos
-	fwd.y = 0.0
-	if fwd.length() > 0.01:
-		ppos += fwd.normalized() * 1.1
-	return ppos
-
-
-## A small campfire: a ring of stones, charred logs, and emissive flames (self-lit — no
-## dynamic light, which washed out the toon-shaded world). The "flames" child is animated.
-func _build_campfire() -> Node3D:
-	var node := Node3D.new()
-	var stone_mat := StandardMaterial3D.new()
-	stone_mat.albedo_color = Color(0.46, 0.46, 0.50)
-	for i: int in 7:
-		var a := TAU * float(i) / 7.0
-		var s := MeshInstance3D.new()
-		var sm := SphereMesh.new()
-		sm.radius = 0.13
-		sm.height = 0.22
-		s.mesh = sm
-		s.material_override = stone_mat
-		s.position = Vector3(cos(a) * 0.36, 0.06, sin(a) * 0.36)
-		s.scale = Vector3(1.0, 0.7, 1.0)
-		s.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		node.add_child(s)
-	var log_mat := StandardMaterial3D.new()
-	log_mat.albedo_color = Color(0.22, 0.14, 0.09)
-	for j: int in 2:
-		var lg := MeshInstance3D.new()
-		var lm := CylinderMesh.new()
-		lm.top_radius = 0.05
-		lm.bottom_radius = 0.05
-		lm.height = 0.5
-		lg.mesh = lm
-		lg.material_override = log_mat
-		lg.position = Vector3(0.0, 0.06, 0.0)
-		lg.rotation = Vector3(PI / 2.0, float(j) * 1.4, 0.0)
-		lg.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		node.add_child(lg)
-	var flames := Node3D.new()
-	flames.name = "flames"
-	for f: Array in [[0.0, 0.55, Color(1.0, 0.5, 0.14)], [0.07, 0.4, Color(1.0, 0.82, 0.3)]]:
-		var fm := CylinderMesh.new()
-		fm.top_radius = 0.005
-		fm.bottom_radius = 0.16 - float(f[0])
-		fm.height = float(f[1])
-		var fmat := StandardMaterial3D.new()
-		fmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		fmat.albedo_color = f[2]
-		fmat.emission_enabled = true
-		fmat.emission = f[2]
-		fmat.emission_energy_multiplier = 2.6
-		var fi := MeshInstance3D.new()
-		fi.mesh = fm
-		fi.material_override = fmat
-		fi.position = Vector3(float(f[0]), 0.12 + float(f[1]) * 0.5, 0.0)
-		fi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		flames.add_child(fi)
-	node.add_child(flames)
-	return node
-
-
-## Player feeds a log: kneel-crouch + a log tossed into the fire + a flame flare.
-func _on_firemaking_burned() -> void:
-	if _fire == null or not is_instance_valid(_fire):
-		return
-	_fire_flare = 0.5
-	_kneel_t = 0.5
-	var log_mat := StandardMaterial3D.new()
-	log_mat.albedo_color = Color(0.34, 0.22, 0.12)
-	var lm := CylinderMesh.new()
-	lm.top_radius = 0.05
-	lm.bottom_radius = 0.05
-	lm.height = 0.4
-	var mi := MeshInstance3D.new()
-	mi.mesh = lm
-	mi.material_override = log_mat
-	mi.rotation = Vector3(PI / 2.0, 0.0, 0.0)
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	var node := Node3D.new()
-	node.add_child(mi)
-	var from := iso_to_3d(world.player.position, height_at(world.player.position) + 0.7)
-	props_root.add_child(node)
-	node.position = from
-	_fx_bursts.append({"node": node, "t": 0.0, "dur": 0.4, "kind": "log",
-		"from": from, "to": _fire.position + Vector3(0.0, 0.2, 0.0)})
-
-
-func _on_prayer_activated(prayer_name: String) -> void:
-	if world.player == null:
-		return
-	var col := _prayer_color(prayer_name)
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_color = Color(col.r, col.g, col.b, 0.85)
-	mat.emission_enabled = true
-	mat.emission = col
-	mat.emission_energy_multiplier = 2.2
-	var mesh := SphereMesh.new()
-	mesh.radius = 0.4
-	mesh.height = 0.8
-	var mi := MeshInstance3D.new()
-	mi.mesh = mesh
-	mi.material_override = mat
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	var node := Node3D.new()
-	node.add_child(mi)
-	node.position = iso_to_3d(world.player.position, height_at(world.player.position) + 1.2)
-	props_root.add_child(node)
-	_fx_bursts.append({"node": node, "mat": mat, "t": 0.0, "dur": 0.8, "kind": "burst"})
-
-
-func _update_fx(delta: float) -> void:
-	_fire_flare = maxf(_fire_flare - delta, 0.0)
-	if _fire != null and is_instance_valid(_fire):
-		_fire_t += delta
-		var flare := 1.0 + _fire_flare * 1.2
-		if _fire_phase == "burn" and _fire_flames != null:
-			var f := (1.0 + 0.12 * sin(_fire_t * 11.0) + 0.06 * sin(_fire_t * 23.0)) * flare
-			_fire_flames.scale = Vector3(1.0, f, 1.0)
-		elif _fire_phase == "decay":
-			_fire_decay += delta
-			var k := clampf(1.0 - _fire_decay / 5.0, 0.0, 1.0)   # embers over ~5s
-			if _fire_flames != null:
-				_fire_flames.scale = Vector3(k, k, k)
-			if _fire_decay >= 5.0:
-				_fire.queue_free()
-				_fire = null
-				_fire_flames = null
-				_fire_phase = ""
-	# Kneel-to-feed: briefly lower the player rig (re-applied each frame after _sync_movers).
-	if _kneel_t > 0.0 and _player_node != null:
-		_kneel_t = maxf(_kneel_t - delta, 0.0)
-		_player_node.position.y -= 0.22
-	for i: int in range(_fx_bursts.size() - 1, -1, -1):
-		var b: Dictionary = _fx_bursts[i]
-		var node: Node3D = b["node"]
-		if not is_instance_valid(node):
-			_fx_bursts.remove_at(i)
-			continue
-		b["t"] += delta
-		var p: float = clampf(b["t"] / float(b["dur"]), 0.0, 1.0)
-		if str(b.get("kind", "burst")) == "log":
-			# Arc the log from the player into the fire.
-			var from: Vector3 = b["from"]
-			var to: Vector3 = b["to"]
-			node.position = from.lerp(to, p) + Vector3(0.0, sin(p * PI) * 0.6, 0.0)
-			node.rotate_x(delta * 8.0)
-		else:
-			node.scale = Vector3.ONE * (0.4 + p * 1.4)
-			node.position.y += delta * 1.1
-			(b["mat"] as StandardMaterial3D).albedo_color.a = (1.0 - p) * 0.85
-		if p >= 1.0:
-			node.queue_free()
-			_fx_bursts.remove_at(i)
-
-
-func _build_parts_node(parts: Array) -> Node3D:
-	var node := Node3D.new()
-	for pt: Dictionary in parts:
-		var mi := MeshInstance3D.new()
-		mi.mesh = pt["mesh"]
-		mi.material_override = pt["mat"]
-		mi.transform = Transform3D(Basis.from_euler(pt.get("rot", Vector3.ZERO)).scaled(pt.get("scl", Vector3.ONE)), pt.get("off", Vector3.ZERO))
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		node.add_child(mi)
-	return node
-
-
-## Distinct colour per prayer: a base hue by its group, nudged by the prayer name so each
-## reads a little differently (a unique-ish activation flash without bespoke art per prayer).
-func _prayer_color(prayer_name: String) -> Color:
-	var group := str(DataRegistry.prayers.get(prayer_name, {}).get("group", ""))
-	var base: Color
-	match group:
-		"defence": base = Color(0.40, 0.62, 1.0)
-		"damage": base = Color(1.0, 0.42, 0.20)
-		"accuracy": base = Color(1.0, 0.88, 0.30)
-		"protect": base = Color(0.72, 0.42, 1.0)
-		_: base = Color(0.75, 1.0, 0.78)
-	var h := float(absi(hash(prayer_name)) % 1000) / 1000.0
-	return base.lerp(Color.from_hsv(h, 0.5, 1.0), 0.18)
 
 
 ## Movers (player + enemies) stay individual nodes — few of them, and they move.
