@@ -203,8 +203,8 @@
     },
     "boreal_moss": {
       "colors": [
-        "4a5a48",
-        "3e4a38"
+        "30544a",
+        "223a32"
       ],
       "walkable": true,
       "water": false
@@ -860,7 +860,7 @@
         "grass_dark": 0.22,
         "dirt": 0.1
       },
-      "tint": "6a7a62",
+      "tint": "5e7064",
       "music": "forest",
       "skillWeights": {
         "woodcutting": 2.6,
@@ -892,15 +892,15 @@
         ]
       },
       "canopy": {
-        "density": 0.13,
+        "density": 0.2,
         "kinds": [
           {
-            "kind": "canopy_pine",
-            "weight": 0.45
+            "kind": "canopy_fir",
+            "weight": 0.5
           },
           {
-            "kind": "canopy_fir",
-            "weight": 0.45
+            "kind": "canopy_pine",
+            "weight": 0.4
           },
           {
             "kind": "canopy_broadleaf",

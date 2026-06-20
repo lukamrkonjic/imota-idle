@@ -294,18 +294,28 @@ static func _tree_parts(leaf: ShaderMaterial) -> Array:
 
 
 static func _conifer_parts() -> Array:
-	# Tall stately fir: a full cone-stack climbing well above eye line so the
-	# forest reads with real vertical presence (≈1.4× the old height).
-	var dark := _mat("forest_green", "forest_teal", "leaf_green")
+	# Lush, towering boreal spruce: a tall stack of SIX overlapping deep teal-green cone
+	# tiers (wide drooping skirt -> fine crown), a flared bark trunk, snow dusted on the
+	# upper boughs, and a couple of low saplings hugging the base for ground-level mass.
+	var dark := _mat("fir_a", "forest_teal", "forest_green")   # deep teal-green needles
+	var bark := _mat("dark_bark", "pine_dark", "bark_brown")
+	var snow := _mat("snow_a", "stone_a", "snow_a")
 	return [
-		_shadow_part(0.78),
-		_part(_cyl("contrunk", 0.15, 0.22, 1.4), _mat("bark_brown", "dark_bark", "olive_wood"), Vector3(0, 0.68, 0)),
-		_part(_cone("fir0", 1.2, 0.82, 1.55), dark, Vector3(0, 1.42, 0)),
-		_part(_cone("fir1", 0.95, 0.58, 1.4), dark, Vector3(0.05, 2.4, 0)),
-		_part(_cone("fir2", 0.66, 0.32, 1.25), dark, Vector3(-0.04, 3.32, 0.02)),
-		_part(_cone("fir3", 0.4, 0.05, 1.1), dark, Vector3(0.02, 4.18, 0)),
-		_part(_cone("fir_sap_a", 0.42, 0.08, 0.86), dark, Vector3(-0.78, 0.5, 0.4), Vector3(0.85, 0.85, 0.85)),
-		_part(_cone("fir_sap_b", 0.36, 0.06, 0.72), dark, Vector3(0.82, 0.4, -0.28), Vector3(0.82, 0.82, 0.82))]
+		_shadow_part(0.95),
+		_part(_cyl("sp_trunk", 0.17, 0.3, 1.6), bark, Vector3(0, 0.72, 0)),
+		_part(_cone("sp0", 1.62, 1.12, 1.45), dark, Vector3(0, 1.3, 0)),
+		_part(_cone("sp1", 1.34, 0.86, 1.34), dark, Vector3(0.05, 2.14, 0)),
+		_part(_cone("sp2", 1.08, 0.64, 1.24), dark, Vector3(-0.04, 2.98, 0.03)),
+		_part(_cone("sp3", 0.82, 0.46, 1.18), dark, Vector3(0.04, 3.78, 0)),
+		_part(_cone("sp4", 0.56, 0.27, 1.08), dark, Vector3(-0.03, 4.52, 0.02)),
+		_part(_cone("sp5", 0.32, 0.02, 1.02), dark, Vector3(0.02, 5.24, 0)),
+		# Snow piled on the upper boughs — flattened white clumps, slightly offset.
+		_part(_sphere("sp_snowa", 0.5), snow, Vector3(0.06, 3.9, 0.06), Vector3(1.0, 0.36, 1.0)),
+		_part(_sphere("sp_snowb", 0.36), snow, Vector3(-0.05, 4.62, 0.04), Vector3(1.0, 0.34, 1.0)),
+		_part(_sphere("sp_snowc", 0.2), snow, Vector3(0.02, 5.3, 0.0), Vector3(1.0, 0.4, 1.0)),
+		# Low saplings clustering the base so the stand has understorey, not bare trunks.
+		_part(_cone("sp_sap_a", 0.55, 0.1, 1.15), dark, Vector3(-0.92, 0.6, 0.46), Vector3(0.9, 0.9, 0.9)),
+		_part(_cone("sp_sap_b", 0.46, 0.08, 0.95), dark, Vector3(0.95, 0.5, -0.34), Vector3(0.85, 0.85, 0.85))]
 
 
 ## Pine: tall, with a bare reddish lower trunk and a few broad, well-separated
