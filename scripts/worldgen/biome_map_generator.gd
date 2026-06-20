@@ -145,63 +145,113 @@ func _pick_parent_id(h: float, m: float, t: float, tx: float, ty: float) -> Stri
 			return "ocean"
 		if h < 0.345:
 			return "beach"
-	# Very high ground always reads as mountains, whatever the region underneath.
-	if h >= 0.84:
-		return "rocky_hills"
-	# HAND-AUTHORED layout: the nearest worldspec region paints the biome here. So the
-	# whole macro map is designed (not noise bands) — edit data/world/worldspec to move
-	# a biome. Borders are warped + radius-weighted so neighbours blend gradually.
-	var rb := _region_biome_id(tx, ty)
-	return rb if not rb.is_empty() else "plains"
-
-
-## Additively-weighted Voronoi over the authored regions, with a warped sample point so
-## borders meander organically instead of forming clean circles. A region with a larger
-## radius claims proportionally more ground; gaps between regions go to the nearest one,
-## so adjacent zones transition gradually (no hard biome cliffs).
-func _region_biome_id(tx: float, ty: float) -> String:
-	var regs: Array = reg.spec.regions
-	if regs.is_empty():
-		return ""
-	var ct := float(WG.CHUNK_TILES)
-	# Two-octave warp: a big low-frequency swirl bends whole borders, a mid-frequency
-	# term frays them so neighbouring biomes interlock organically (no polygon edges).
-	var wx: float = classifier._domain_warp.get_noise_2d(tx * 0.0016, ty * 0.0016) * 440.0 \
-		+ classifier._domain_warp.get_noise_2d(tx * 0.0065 + 11.0, ty * 0.0065 + 5.0) * 95.0
-	var wy: float = classifier._domain_warp.get_noise_2d(tx * 0.0016 + 71.0, ty * 0.0016 + 29.0) * 440.0 \
-		+ classifier._domain_warp.get_noise_2d(tx * 0.0065 + 41.0, ty * 0.0065 + 23.0) * 95.0
-	var p := Vector2(tx + wx, ty + wy)
-	# Track the TWO nearest regions; near their shared border, a high-frequency noise
-	# threshold flips between them so the boundary frays into an interlocking, organic
-	# transition instead of a clean polygon edge.
-	var best := ""
-	var best_score := INF
-	var second := ""
-	var second_score := INF
-	for r: Dictionary in regs:
-		var biome := str(r.get("biome", ""))
-		if biome.is_empty():
-			continue
-		var c := Vector2(float(r["cx"]) * ct + ct * 0.5, float(r["cy"]) * ct + ct * 0.5)
-		var score := p.distance_to(c) - float(r["radius"]) * ct * 0.55
-		if score < best_score:
-			second = best
-			second_score = best_score
-			best = biome
-			best_score = score
-		elif score < second_score:
-			second = biome
-			second_score = score
-	if not second.is_empty() and second != best:
-		const BAND := 150.0   # tiles of frayed overlap along a border (wide => big organic lobes)
-		var gap: float = second_score - best_score
-		if gap < BAND:
-			# Chunky mid-frequency fray so the two biomes interlock in lobes/bays, not a
-			# thin ragged seam; the closer to the true border, the more 50/50 the mix.
-			var fr: float = classifier._domain_warp.get_noise_2d(tx * 0.013 + 7.0, ty * 0.013 + 19.0) * 0.5 + 0.5
-			if fr < 0.5 * (1.0 - gap / BAND):
-				return second
+	# CLIMATE-SUITABILITY MODEL (no region polygons). Every tile has continuous, region-
+	# biased temperature/moisture/elevation fields; we pick the biome whose authored climate
+	# envelope (data/world/biomes.json `climate`) fits best. Transitions are gradual and
+	# geographically sensible — the climate gradient between two zones passes through
+	# whatever biome's range sits between them (desert->savanna->plains, snow->tundra->boreal).
+	_ensure_climate_cache()
+	var cl := _climate_at(tx, ty)   # Vector3(temperature, moisture, elevation), all 0..1
+	var best := "plains"
+	var best_s := -1.0
+	for bd: Dictionary in _clim_biomes:
+		var s: float = _suitability(bd, cl.x, cl.y, cl.z)
+		# A smooth, biome-ID-keyed wobble breaks ties so equal-suitability seams interlock
+		# organically; keyed by id (not list order), so adding/removing a biome can't shift
+		# the others' values.
+		var off: float = bd["off"]
+		s += (classifier._domain_warp.get_noise_2d(tx * 0.012 + off, ty * 0.012 + off) * 0.5 + 0.5) * 0.15
+		if s > best_s:
+			best_s = s
+			best = str(bd["id"])
 	return best
+
+
+# --- climate-suitability biome model -----------------------------------------
+var _clim_ready := false
+var _clim_biomes: Array = []        # [{id, t0,t1,m0,m1,e0,e1, off}] parent biomes with a climate
+var _region_anchors: Array = []     # [{c:Vector2, r:float, t:float, m:float}] authored climate pulls
+
+func _ensure_climate_cache() -> void:
+	if _clim_ready:
+		return
+	_clim_ready = true
+	for b: Dictionary in reg.biomes:
+		var c: Dictionary = b.get("climate", {})
+		if c.is_empty():
+			continue
+		var tr: Array = c.get("t", [0.0, 1.0])
+		var mr: Array = c.get("m", [0.0, 1.0])
+		var er: Array = c.get("e", [0.0, 1.0])
+		_clim_biomes.append({
+			"id": str(b["id"]),
+			"t0": float(tr[0]), "t1": float(tr[1]),
+			"m0": float(mr[0]), "m1": float(mr[1]),
+			"e0": float(er[0]), "e1": float(er[1]),
+			"off": float(absi(str(b["id"]).hash()) % 977)})
+	var ct := float(WG.CHUNK_TILES)
+	for r: Dictionary in reg.spec.regions:
+		var bc: Dictionary = reg.biome_by_id(str(r.get("biome", ""))).get("climate", {})
+		if bc.is_empty():
+			continue
+		var tr2: Array = bc.get("t", [0.5, 0.5])
+		var mr2: Array = bc.get("m", [0.5, 0.5])
+		_region_anchors.append({
+			"c": Vector2(float(r["cx"]) * ct + ct * 0.5, float(r["cy"]) * ct + ct * 0.5),
+			"r": float(r["radius"]) * ct,
+			"t": (float(tr2[0]) + float(tr2[1])) * 0.5,
+			"m": (float(mr2[0]) + float(mr2[1])) * 0.5})
+
+
+## Continuous climate at a world tile: base temperature/moisture (warped multi-octave noise
+## + latitude, from the classifier) gently steered toward nearby authored region anchors, plus
+## terrain elevation. Smooth everywhere — the source of organic, gradual biome transitions.
+func _climate_at(tx: float, ty: float) -> Vector3:
+	# BROAD, low-frequency climate so biomes form large readable regions (continental scale),
+	# not high-frequency speckle. Warp the sample point so the bands aren't axis-aligned.
+	var wx: float = classifier._domain_warp.get_noise_2d(tx * 0.0022, ty * 0.0022) * 220.0
+	var wy: float = classifier._domain_warp.get_noise_2d(tx * 0.0022 + 53.0, ty * 0.0022 + 17.0) * 220.0
+	var sx := tx + wx
+	var sy := ty + wy
+	var g: Dictionary = classifier.geo(tx, ty)
+	var lat: float = float(g["n"])   # +1 far north .. -1 far south
+	# Temperature: warm baseline, colder toward the north, plus a gentle low-frequency drift.
+	var tnoise: float = classifier._climate.get_noise_2d(sx, sy) * 0.5 + 0.5
+	var temp: float = clampf(0.62 - lat * 0.40 + (tnoise - 0.5) * 0.34, 0.0, 1.0)
+	# Moisture: one broad low-frequency field.
+	var moist: float = clampf(classifier._moist_macro.get_noise_2d(sx, sy) * 0.5 + 0.5, 0.0, 1.0)
+	var elev: float = clampf(classifier._mtn.mountain_height_field(tx, ty), 0.0, 1.0)
+	# Authored regions pull the local climate toward their biome's centre (smooth, distance
+	# weighted) — hand-authored layout WITHOUT hard borders, since it only bends the field.
+	var wsum := 0.0
+	var tt := 0.0
+	var mt := 0.0
+	for a: Dictionary in _region_anchors:
+		var d: float = Vector2(tx, ty).distance_to(a["c"])
+		var w: float = 1.0 - smoothstep(float(a["r"]) * 0.5, float(a["r"]) * 1.8, d)
+		if w > 0.001:
+			wsum += w
+			tt += float(a["t"]) * w
+			mt += float(a["m"]) * w
+	if wsum > 0.0:
+		var blend: float = clampf(wsum, 0.0, 1.0) * 0.72   # how strongly regions steer climate
+		temp = lerpf(temp, tt / wsum, blend)
+		moist = lerpf(moist, mt / wsum, blend)
+	temp = clampf(temp - elev * 0.22, 0.0, 1.0)   # higher ground is colder
+	return Vector3(temp, moist, elev)
+
+
+## Biome climate fit: 1.0 inside the envelope on every axis, falling smoothly to 0 over a
+## tolerance outside it. Product of the three axes so a biome must fit temperature AND
+## moisture AND elevation to score.
+func _suitability(bd: Dictionary, temp: float, moist: float, elev: float) -> float:
+	return _fit(temp, bd["t0"], bd["t1"], 0.22) * _fit(moist, bd["m0"], bd["m1"], 0.22) * _fit(elev, bd["e0"], bd["e1"], 0.30)
+
+static func _fit(v: float, lo: float, hi: float, tol: float) -> float:
+	if v >= lo and v <= hi:
+		return 1.0
+	var dd: float = (lo - v) if v < lo else (v - hi)
+	return clampf(1.0 - dd / tol, 0.0, 1.0)
 
 
 func _sub_idx_for(parent_idx: int, gtx: int, gty: int) -> int:
