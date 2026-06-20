@@ -21,14 +21,6 @@ const IconButton := preload("res://scripts/ui/widgets/icon_button.gd")
 const MinimapPanel := preload("res://scripts/ui/widgets/minimap.gd")
 const ItemIcon := preload("res://scripts/ui/item_icon.gd")  # preload, not class_name, so a fresh launch never fails to resolve it
 
-# Equipment-slot -> ItemIcon shape. (Per-skill icon / colour / abbrev now live in
-# data/skills.json behind SkillRegistry.)
-const SLOT_ICON := {
-	"Helm": "helm", "Body": "body", "Boots": "boots", "Weapon": "sword",
-	"Shield": "shield", "Ring": "ring", "Gloves": "gloves", "Cape": "cape",
-	"Amulet": "ring", "Ammunition": "arrow", "Axe": "axe", "Pickaxe": "pickaxe",
-	"Rod": "staff", "Lens": "gem",
-}
 
 var world: Node2D = null
 
@@ -39,13 +31,13 @@ var chat: RichTextLabel
 var chat_lines: PackedStringArray = []
 var minimap: Control
 var hp_orb: Control
-var inv_grid: GridContainer
-var equip_list: VBoxContainer
 var coins_label: Label
 var _side_tabs: TabContainer
 var _tab_icons: Array = []          # TabIcon widgets, index-aligned with the tabs
 var _combat_tab: HudCombatTab       # per-tab components (scripts/ui/tabs/) the HUD orchestrates
 var _skills_tab: HudSkillsTab
+var _inventory_tab: HudInventoryTab
+var _equipment_tab: HudEquipmentTab
 var _prayer_tab: HudPrayerTab
 var _magic_tab: HudMagicTab
 var prayer_orb: Control
@@ -97,9 +89,9 @@ func _ready() -> void:
 		_push_chat("[color=#a05400]Congratulations, your %s level is now %d![/color]" % [skill.capitalize(), lvl])
 		_skills_tab.refresh())
 	eb.xp_gained.connect(func(skill: String, _a: float) -> void: _skills_tab.update_cell(skill))
-	eb.inventory_changed.connect(_refresh_inventory)
+	eb.inventory_changed.connect(func() -> void: _inventory_tab.refresh())
 	eb.equipment_changed.connect(func() -> void:
-		_refresh_equipment()
+		_equipment_tab.refresh()
 		_combat_tab.refresh())
 	eb.coins_changed.connect(func(_g: int) -> void: _refresh_coins())
 	eb.hp_changed.connect(func(_c: int, _m: int) -> void: hp_orb.queue_redraw())
@@ -406,8 +398,10 @@ func _build_side_panel() -> void:
 	tabs.add_child(_combat_tab.build())
 	_skills_tab = HudSkillsTab.new(self)
 	tabs.add_child(_skills_tab.build())
-	tabs.add_child(_build_inventory_tab())
-	tabs.add_child(_build_equipment_tab())
+	_inventory_tab = HudInventoryTab.new(self)
+	tabs.add_child(_inventory_tab.build())
+	_equipment_tab = HudEquipmentTab.new(self)
+	tabs.add_child(_equipment_tab.build())
 	_prayer_tab = HudPrayerTab.new(self)
 	tabs.add_child(_prayer_tab.build())
 	_magic_tab = HudMagicTab.new(self)
@@ -451,33 +445,6 @@ func _select_side_tab(idx: int) -> void:
 	_side_tabs.current_tab = idx
 	for i: int in _tab_icons.size():
 		_tab_icons[i].set_active(i == idx)
-
-
-## Inventory tab: fixed 4x7 (28-slot) grid like OSRS.
-func _build_inventory_tab() -> Control:
-	var inv_wrap := VBoxContainer.new()
-	inv_wrap.name = "Inventory"
-	inv_grid = GridContainer.new()
-	inv_grid.columns = 4
-	inv_grid.add_theme_constant_override("h_separation", UiScale.i(2))
-	inv_grid.add_theme_constant_override("v_separation", UiScale.i(2))
-	inv_wrap.add_child(inv_grid)
-	var hint := Label.new()
-	hint.text = "Left-click: equip/eat.  Right-click: more."
-	hint.add_theme_font_size_override("font_size", UiScale.i(10))
-	hint.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
-	inv_wrap.add_child(hint)
-	return inv_wrap
-
-
-func _build_equipment_tab() -> Control:
-	var eq_scroll := ScrollContainer.new()
-	eq_scroll.name = "Equipment"
-	eq_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	equip_list = VBoxContainer.new()
-	equip_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	eq_scroll.add_child(equip_list)
-	return eq_scroll
 
 
 func _build_chatbox() -> void:
@@ -1324,8 +1291,8 @@ func open_shop() -> void:
 
 func _refresh_all() -> void:
 	_skills_tab.refresh()
-	_refresh_inventory()
-	_refresh_equipment()
+	_inventory_tab.refresh()
+	_equipment_tab.refresh()
 	_combat_tab.refresh()
 	_refresh_coins()
 	hp_orb.queue_redraw()
@@ -1333,176 +1300,6 @@ func _refresh_all() -> void:
 
 func _refresh_coins() -> void:
 	coins_label.text = "%d coins" % GameState.coins
-
-
-## Compact stack count (OSRS-ish): raw under 100k, then K / M.
-static func _fmt_qty(q: int) -> String:
-	if q >= 1000000:
-		return "%.1fM" % (q / 1000000.0)
-	if q >= 100000:
-		return "%dK" % (q / 1000)
-	return str(q)
-
-
-static func _abbrev(item_name: String) -> String:
-	var words := item_name.split(" ", false)
-	var out := ""
-	for w: String in words:
-		out += w[0]
-		if out.length() >= 3:
-			break
-	return out
-
-
-func _refresh_inventory() -> void:
-	for c: Node in inv_grid.get_children():
-		c.queue_free()
-	for i: int in GameState.max_inventory_slots():
-		var btn := Button.new()
-		btn.custom_minimum_size = UiScale.v2(Vector2(60, 48))
-		if i < GameState.inventory.size():
-			var stack: Dictionary = GameState.inventory[i]
-			var item_id: String = stack["id"]
-			var item_name := DataRegistry.item_display_name(item_id)
-			world_tooltip.attach(btn, {"title": item_name})
-			# Procedural type icon, recolored by material tier (name on hover).
-			var icon := ItemIcon.new()
-			icon.kind = ItemIcon.classify(item_name, DataRegistry.get_item(item_id))
-			icon.tint = ItemIcon.material_color(item_name)
-			icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-			icon.offset_top = UiScale.i(2)
-			icon.offset_bottom = UiScale.i(-11)
-			btn.add_child(icon)
-			var qty := int(stack["qty"])
-			if qty > 1:
-				var ql := Label.new()
-				ql.text = _fmt_qty(qty)
-				ql.add_theme_font_size_override("font_size", UiScale.i(11))
-				ql.add_theme_color_override("font_color", Color(1.0, 0.95, 0.55))
-				ql.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-				ql.add_theme_constant_override("outline_size", UiScale.i(3))
-				ql.mouse_filter = Control.MOUSE_FILTER_IGNORE
-				ql.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-				ql.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-				ql.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-				btn.add_child(ql)
-			btn.gui_input.connect(_on_inv_slot_input.bind(item_id))
-			btn.pressed.connect(_inv_default_action.bind(item_id))
-		else:
-			btn.disabled = true
-		inv_grid.add_child(btn)
-
-
-static func _hash_color(s: String) -> Color:
-	var h := float(hash(s) % 360) / 360.0
-	return Color.from_hsv(h, 0.45, 0.95)
-
-
-func _inv_default_action(item_id: String) -> void:
-	var item_name := DataRegistry.item_display_name(item_id)
-	if DataRegistry.food_hp.has(item_id):
-		if GameState.eat(item_id):
-			_push_chat("[color=#1a6e1a]You eat the %s. (+%d HP)[/color]" % [item_name, int(DataRegistry.food_hp[item_id])])
-		else:
-			_push_chat("[color=#444]You're already at full health.[/color]")
-		return
-	if DataRegistry.item_def(item_id).is_equippable():
-		if GameState.equip(item_id):
-			_push_chat("[color=#444]Equipped %s.[/color]" % item_name)
-		else:
-			_push_chat("[color=#a01010]You can't equip that yet (level requirement).[/color]")
-
-
-func _on_inv_slot_input(event: InputEvent, item_id: String) -> void:
-	var item_name := DataRegistry.item_display_name(item_id)
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
-		var menu := PopupMenu.new()
-		menu.add_item("Deposit all", 0)
-		menu.add_item("Sell all (%d each)" % DataRegistry.item_value(item_name), 1)
-		menu.add_item("High Alch (%d coins)" % int(floor(float(DataRegistry.item_value(item_id)) * GameState.HIGH_ALCH_RATE)), 2)
-		menu.id_pressed.connect(func(id: int) -> void:
-			var qty := GameState.count_item(item_name)
-			if id == 0:
-				_push_chat("[color=#444]No bank chest here â€” use the one in town.[/color]")
-				GameState.deposit(item_name, qty)
-			elif id == 1:
-				GameState.sell_item(item_name, qty)
-				_push_chat("[color=#1a6e1a]Sold %d %s.[/color]" % [qty, item_name])
-			else:
-				if GameState.high_alch(item_id):
-					_push_chat("[color=#5a3a8a]High Alched %s.[/color]" % item_name)
-				else:
-					_push_chat("[color=#a01010]Need Magic %d to High Alch.[/color]" % GameState.HIGH_ALCH_LEVEL)
-			menu.queue_free())
-		add_child(menu)
-		menu.popup(Rect2i(Vector2i(get_viewport().get_mouse_position()), Vector2i.ZERO))
-
-
-## OSRS-style paper-doll: worn items show their icon in-slot, empty slots show a
-## dim silhouette. Tool slots (axe/pick/rod/lens) sit in a row below.
-const _EQUIP_LAYOUT := [
-	["", "Helm", ""],
-	["Cape", "Amulet", "Ammunition"],
-	["Weapon", "Body", "Shield"],
-	["Gloves", "Boots", "Ring"],
-]
-
-func _refresh_equipment() -> void:
-	for c: Node in equip_list.get_children():
-		c.queue_free()
-	var grid := GridContainer.new()
-	grid.columns = 3
-	grid.add_theme_constant_override("h_separation", UiScale.i(6))
-	grid.add_theme_constant_override("v_separation", UiScale.i(6))
-	for row: Array in _EQUIP_LAYOUT:
-		for slot: String in row:
-			grid.add_child(_make_equip_slot(slot))
-	var center := CenterContainer.new()
-	center.add_child(grid)
-	equip_list.add_child(center)
-	var tools_lbl := Label.new()
-	tools_lbl.text = "Tools"
-	tools_lbl.add_theme_font_size_override("font_size", UiScale.i(11))
-	tools_lbl.add_theme_color_override("font_color", Color(0.7, 0.66, 0.55))
-	equip_list.add_child(tools_lbl)
-	var tgrid := GridContainer.new()
-	tgrid.columns = 4
-	tgrid.add_theme_constant_override("h_separation", UiScale.i(6))
-	for slot: String in ["Axe", "Pickaxe", "Rod", "Lens"]:
-		tgrid.add_child(_make_equip_slot(slot))
-	var tcenter := CenterContainer.new()
-	tcenter.add_child(tgrid)
-	equip_list.add_child(tcenter)
-
-
-func _make_equip_slot(slot: String) -> Control:
-	if slot.is_empty():
-		var spacer := Control.new()
-		spacer.custom_minimum_size = UiScale.v2(Vector2(50, 50))
-		return spacer
-	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", _style(STONE_DARK))
-	panel.custom_minimum_size = UiScale.v2(Vector2(50, 50))
-	var worn_id: String = str(GameState.equipment.get(slot, ""))
-	var icon := ItemIcon.new()
-	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if worn_id.is_empty():
-		icon.kind = SLOT_ICON.get(slot, "misc")
-		icon.tint = Color(0.36, 0.34, 0.31)  # dim silhouette
-		world_tooltip.attach(panel, {"title": slot, "subtitle": "Empty"})
-	else:
-		var worn := DataRegistry.item_display_name(worn_id)
-		icon.kind = ItemIcon.classify(worn, DataRegistry.get_item(worn_id))
-		icon.tint = ItemIcon.material_color(worn)
-		world_tooltip.attach(panel, {"title": worn, "subtitle": slot, "action": "Click to unequip"})
-		panel.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		var slot_copy := slot
-		panel.gui_input.connect(func(event: InputEvent) -> void:
-			if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-				GameState.unequip(slot_copy))
-	panel.add_child(icon)
-	return panel
 
 
 func _push_chat(line: String) -> void:
