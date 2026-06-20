@@ -251,6 +251,29 @@ func phase5_combat_depth() -> void:
 		{"item": "Nothing", "chance": 0.0, "min": 1, "max": 1}], rng)
 	check(rolled.size() == 1 and str(rolled[0]["item"]) == "Bones", "DropRoller rolls guaranteed, skips impossible")
 
+	# Shared rare-drop table: it's populated (not the empty placeholder), every pooled
+	# item name resolves to a real id, and forcing the ~1/64 gate over many rolls yields
+	# valid loot via roll_tertiary.
+	var rare: Dictionary = DropRoller._rare_table()
+	check(float(rare.get("chance", 0.0)) > 0.0 and not (rare.get("drops", []) as Array).is_empty(), "rare-drop table is populated")
+	var currency := ["Gold", "Coins"]  # special tokens (paid as coins), not items.json entries
+	var bad_ref := ""
+	for entry: Dictionary in rare.get("drops", []):
+		var nm := str(entry["item"])
+		if nm not in currency and DataRegistry.get_item(nm).is_empty():
+			bad_ref = nm
+	check(bad_ref == "", "every rare-table item resolves (offender: '%s')" % bad_ref)
+	rng.seed = 12345
+	var got_rare := false
+	for _i: int in 5000:
+		var tert: Array = DropRoller.roll_tertiary({}, rng)
+		if not tert.is_empty():
+			got_rare = true
+			var nm := str(tert[0]["item"])
+			check(nm in currency or not DataRegistry.get_item(nm).is_empty(), "rolled rare drop resolves")
+			break
+	check(got_rare, "rare-drop gate fires within 5000 kills (~1/64)")
+
 
 func phase6_skill_loops() -> void:
 	print("== Phase 6: skill loops ==")
