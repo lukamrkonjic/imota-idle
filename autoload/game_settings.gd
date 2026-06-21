@@ -43,9 +43,6 @@ var show_fps: bool = false
 # Minimap: when true the minimap is always north-up (compass fixed). When false it
 # rotates with the camera so "up" on the minimap matches the on-screen view direction.
 var minimap_lock_north: bool = true
-# Decorative "cozy campsite" diorama the 3D renderer composes around the spawn tile.
-# Off by default so a hand-authored world starts with a bare spawn.
-var spawn_decor_enabled: bool = false
 var fps_limit: int = DEFAULT_FPS_LIMIT
 var pixelation: float = DEFAULT_PIXELATION   # 3D render crunch; read by the renderer
 var view_distance: float = DEFAULT_VIEW_DISTANCE  # 0 = near, 1 = far; read by the renderer
@@ -89,7 +86,6 @@ func load_settings() -> void:
 	show_hover_tooltip = bool(data.get("show_hover_tooltip", true))
 	show_fps = bool(data.get("show_fps", false))
 	minimap_lock_north = bool(data.get("minimap_lock_north", true))
-	spawn_decor_enabled = bool(data.get("spawn_decor_enabled", false))
 	fps_limit = int(data.get("fps_limit", DEFAULT_FPS_LIMIT))
 	if not _is_valid_fps_limit(fps_limit):
 		fps_limit = DEFAULT_FPS_LIMIT
@@ -118,7 +114,6 @@ func save_settings() -> void:
 		"show_hover_tooltip": show_hover_tooltip,
 		"show_fps": show_fps,
 		"minimap_lock_north": minimap_lock_north,
-		"spawn_decor_enabled": spawn_decor_enabled,
 		"fps_limit": fps_limit,
 		"auto_eat_enabled": auto_eat_enabled,
 		"auto_eat_threshold": auto_eat_threshold,
@@ -164,12 +159,6 @@ func set_minimap_lock_north(on: bool) -> void:
 	minimap_lock_north = on
 	save_settings()
 	changed.emit(&"minimap_lock_north")
-
-
-func set_spawn_decor_enabled(on: bool) -> void:
-	spawn_decor_enabled = on
-	save_settings()
-	changed.emit(&"spawn_decor_enabled")
 
 
 func set_master_volume(value: float) -> void:

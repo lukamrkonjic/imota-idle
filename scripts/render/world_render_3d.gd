@@ -16,7 +16,6 @@ const PALETTE_SNAP := preload("res://shaders/palette_snap.gdshader")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 const PropMeshes := preload("res://scripts/render/prop_meshes.gd")
 const EquipLoadout := preload("res://scripts/render/equip_loadout.gd")
-const SpawnDressingSpecs := preload("res://scripts/render/spawn_dressing_specs.gd")
 
 const INTERNAL := Vector2i(640, 360)   # internal render res (higher = finer/less chunky pixels)
 const TILE_S := 1.0                 # 3D units per tile
@@ -27,9 +26,6 @@ const ELEV_H := WG.ELEV_H           # height per elevation step (8px / 32px tile
 const TURN_STIFFNESS := 62.0
 const TURN_DAMPING := 14.0
 const HURT_DUR := 0.2               # how long the take-a-hit red flash + shake lasts
-const DRESSING_ANCHOR := 4          # visual set dressing snaps to this tile grid
-const SPAWN_LAYER := 0              # overworld layer the home-campsite dressing lives on
-const DRESSING_SPREAD := 1.7        # fan the camp pieces apart so nothing is squished
 const FOREST_PREVIEW_ARG := "--forest-preview"
 const WATER_PREVIEW_ARG := "--water-preview"   # verification: teleport to a deterministic ocean coast
 const FX_PREVIEW_ARG := "--fx-preview"         # verification: light the fire + emit prayer bursts at spawn
@@ -50,7 +46,6 @@ var _chunk_nbr: Dictionary = {}      # chunk key -> neighbour-data count at last
 var _chunk_wait: Dictionary = {}     # chunk key -> frames waited for neighbour data (defer fallback)
 var _chunk_by_key: Dictionary = {}   # chunk key -> chunk RefCounted (O(1) height lookup)
 var batches_root: Node3D             # holds the per-(mesh,material) MultiMeshInstance3D
-var dressing_root: Node3D            # visual-only hiking-diorama silhouettes near camera
 var _outlines_root: Node3D           # inverted-hull silhouette outlines for highlighted entities
 var _outline_mat: ShaderMaterial     # shared white outline material (grown hull, cull_front)
 var _outline_nodes: Dictionary = {}  # static entity id -> outline Node3D
@@ -112,10 +107,6 @@ var _rb_staging: Node3D = null
 var _rb_g: Dictionary = {}           # group currently being emitted (filled incrementally)
 var _rb_gbuf := PackedFloat32Array() # its instance buffer, filled across frames
 var _rb_gi := 0                      # instance index within the current group
-var _dressing_sig := ""
-var _spawn_placed := -1               # how many camp-dressing pieces have ground so far
-var _spawn_stable := 0                # frames the placed count has held steady
-var _spawn_dressing_built := false    # latched true once the whole camp scene is placed
 var _forest_preview_done := false
 var _water_preview_done := false
 var _frames := 0
@@ -246,8 +237,6 @@ func _setup_scene_roots() -> void:
 	world3d.add_child(props_root)
 	batches_root = Node3D.new()
 	world3d.add_child(batches_root)
-	dressing_root = Node3D.new()
-	world3d.add_child(dressing_root)
 	_outlines_root = Node3D.new()
 	world3d.add_child(_outlines_root)
 	_outline_mat = ShaderMaterial.new()
@@ -441,10 +430,6 @@ func _process(delta: float) -> void:
 	_sync_static_batches()
 	_sync_outlines()
 	_fx.update(delta)
-	# Compose the cozy A Short Hike camp ONCE around the spawn tile (the home
-	# campsite). Anchored to spawn, NOT the camera — so it's a finished place you
-	# arrive at, not canned props that follow you everywhere (the old failure mode).
-	_sync_spawn_dressing()
 	_frames += 1
 	var capture_frame := 150 if (_forest_preview_enabled() or _water_preview_enabled()) else 90
 	if _frames == capture_frame and not _captured:
@@ -463,7 +448,6 @@ func _maybe_teleport_to_forest_preview() -> void:
 		return
 	world.teleport_to(pos)
 	_static_sig = ""
-	_dressing_sig = ""
 	print("[world3d] forest preview teleport to tile %s" % [WG.world_to_tile(pos)])
 
 
@@ -545,7 +529,6 @@ func _maybe_teleport_to_water_preview() -> void:
 	if world._camera != null:
 		world._camera.zoom = Vector2(1.05, 1.05)   # frame a good stretch of coast
 	_static_sig = ""
-	_dressing_sig = ""
 	print("[world3d] water preview teleport to tile %s" % [WG.world_to_tile(pos)])
 
 
@@ -1881,129 +1864,6 @@ func _finish_group_mmi(g: Dictionary, buf: PackedFloat32Array, root: Node3D) -> 
 	var mmi := MultiMeshInstance3D.new()
 	mmi.multimesh = mm
 	mmi.material_override = g["mat"]
-	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	root.add_child(mmi)
-
-
-func _sync_style_dressing() -> void:
-	var g := _world_to_grid(world.player.position)
-	var anchor := Vector2i(roundi(g.x / float(DRESSING_ANCHOR)) * DRESSING_ANCHOR, roundi(g.y / float(DRESSING_ANCHOR)) * DRESSING_ANCHOR)
-	var sig := "%s:%d,%d" % [str(world.current_layer), anchor.x, anchor.y]
-	if sig == _dressing_sig:
-		return
-	_dressing_sig = sig
-	for c: Node in dressing_root.get_children():
-		c.queue_free()
-	var groups := {}
-	for spec: Dictionary in SpawnDressingSpecs.specs():
-		var off: Vector2i = spec["off"]
-		var gtx := anchor.x + off.x
-		var gty := anchor.y + off.y
-		var info := _tile_info(gtx, gty)
-		if info.is_empty():
-			continue
-		if bool(info["water"]) and str(spec["kind"]) != "hike_pool":
-			continue
-		var angle := float(spec.get("angle", 0.0))
-		var scale := float(spec.get("scale", 1.0))
-		var lift := float(spec.get("lift", 0.0))
-		var pos := _tile_center_pos(gtx, gty, lift)
-		var basis := Basis(Vector3.UP, angle).scaled(Vector3.ONE * scale)
-		var parts := PropMeshes.dressing_parts(str(spec["kind"]), int(spec.get("variant", 0)))
-		_collect(parts, Transform3D(basis, pos), groups)
-	_emit_groups(groups, dressing_root)
-
-
-## Build the composed hiking-camp diorama anchored to the spawn tile, ONE time.
-## Rebuilt only while chunks stream in (more pieces find ground each pass), then
-## latched. Hidden when the player is on another layer (caves), shown on the
-## overworld where the home campsite lives.
-func _sync_spawn_dressing() -> void:
-	# Gated off by default so a hand-authored world has a bare spawn (Settings →
-	# "Spawn campsite decor"). When off, never compose the cozy-camp diorama.
-	if not GameSettings.spawn_decor_enabled:
-		dressing_root.visible = false
-		return
-	dressing_root.visible = (world.current_layer == SPAWN_LAYER)
-	if _spawn_dressing_built or world.current_layer != SPAWN_LAYER:
-		return
-	var specs := SpawnDressingSpecs.specs()
-	var sg := _world_to_grid(WorldGen.spawn_position())
-	var anchor := Vector2(roundi(sg.x), roundi(sg.y))
-	# Cheap pre-pass: which pieces currently have loaded ground under them. Pieces
-	# are fanned out from the anchor by DRESSING_SPREAD so nothing overlaps. This
-	# count grows as the spawn chunks finish streaming, then settles.
-	var placeable := []
-	for spec: Dictionary in specs:
-		var off: Vector2i = spec["off"]
-		var cgx := anchor.x + float(off.x) * DRESSING_SPREAD + 0.5
-		var cgy := anchor.y + float(off.y) * DRESSING_SPREAD + 0.5
-		var info := _tile_info(floori(cgx), floori(cgy))
-		if info.is_empty():
-			continue
-		if bool(info["water"]) and str(spec["kind"]) != "hike_pool":
-			continue
-		placeable.append(spec)
-	# Latch once the placed set holds steady (all reachable ground has loaded), so
-	# we stop re-evaluating every frame even if a far backdrop tile never streams.
-	if placeable.size() == _spawn_placed:
-		_spawn_stable += 1
-		if _spawn_stable > 90 or placeable.size() >= specs.size():
-			_spawn_dressing_built = true
-		return
-	_spawn_placed = placeable.size()
-	_spawn_stable = 0
-	var groups := {}
-	for spec: Dictionary in placeable:
-		var off: Vector2i = spec["off"]
-		var cgx := anchor.x + float(off.x) * DRESSING_SPREAD + 0.5
-		var cgy := anchor.y + float(off.y) * DRESSING_SPREAD + 0.5
-		var angle := float(spec.get("angle", 0.0))
-		var scale := float(spec.get("scale", 1.0))
-		var lift := float(spec.get("lift", 0.0))
-		var pos := Vector3(cgx * TILE_S, _grid_height(cgx, cgy) + lift, cgy * TILE_S)
-		var basis := Basis(Vector3.UP, angle).scaled(Vector3.ONE * scale)
-		var parts := PropMeshes.dressing_parts(str(spec["kind"]), int(spec.get("variant", 0)))
-		_collect(parts, Transform3D(basis, pos), groups)
-	for c: Node in dressing_root.get_children():
-		c.queue_free()
-	_emit_groups(groups, dressing_root)
-
-
-func _emit_groups(groups: Dictionary, root: Node3D) -> void:
-	for key: String in groups:
-		_emit_one_group(groups[key], root)
-
-
-## Emit one (mesh,material) group as a MultiMeshInstance3D under `root`.
-func _emit_one_group(g: Dictionary, root: Node3D) -> void:
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.mesh = g["mesh"]
-	var xf: Array = g["xf"]
-	var n := xf.size()
-	mm.instance_count = n
-	# Bulk-upload all instance transforms via the buffer in one call. The per-instance
-	# set_instance_transform() loop was far slower; filling a flat PackedFloat32Array
-	# (12 floats = the 3x4 affine, row-major) and assigning it once is cheaper. Layout
-	# per Godot MultiMesh TRANSFORM_3D.
-	var buf := PackedFloat32Array()
-	buf.resize(n * 12)
-	for i: int in n:
-		var t: Transform3D = xf[i]
-		var b := t.basis
-		var o := t.origin
-		var j := i * 12
-		buf[j] = b.x.x;   buf[j + 1] = b.y.x;   buf[j + 2] = b.z.x;   buf[j + 3] = o.x
-		buf[j + 4] = b.x.y; buf[j + 5] = b.y.y;  buf[j + 6] = b.z.y;   buf[j + 7] = o.y
-		buf[j + 8] = b.x.z; buf[j + 9] = b.y.z;  buf[j + 10] = b.z.z;  buf[j + 11] = o.z
-	if n > 0:
-		mm.buffer = buf
-	var mmi := MultiMeshInstance3D.new()
-	mmi.multimesh = mm
-	mmi.material_override = g["mat"]
-	# A Short Hike-style soft drop shadows: props/trees/buildings cast onto the
-	# ground (the toon shaders fold the cast region into their shadow band).
 	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	root.add_child(mmi)
 
