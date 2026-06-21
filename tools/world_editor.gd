@@ -195,13 +195,19 @@ func _ready() -> void:
 	_set_tool(Tool.PAN)
 	_refresh_palette()
 	_refresh_history_buttons()
+	var _selftest := false
 	for _a: String in OS.get_cmdline_user_args():
 		if _a.begins_with("--we-selftest"):
 			_run_selftest.call_deferred()
+			_selftest = true
 			break
 		if _a.begins_with("--we-sat"):
 			_run_sat_shot.call_deferred()
+			_selftest = true
 			break
+	# Open straight into the aerial 3D world-builder (the rendered map IS the canvas).
+	if not _selftest:
+		_toggle_3d_maximize.call_deferred()
 
 
 ## Dev verification: enter the aerial satellite view over the heartland and screenshot.
@@ -1188,6 +1194,10 @@ func _spawn_embedded_world() -> void:
 	var ehud: Node = _v3d_world.get_node_or_null("HUD")
 	if ehud != null:
 		(ehud as CanvasLayer).visible = false
+	# World-building canvas: no player avatar, just the rendered world.
+	var rend: Node = _v3d_world.get("render_3d")
+	if rend != null:
+		rend.set("editor_hide_player", true)
 
 
 ## Aim the 3D camera at a world tile by teleporting the embedded player there (the

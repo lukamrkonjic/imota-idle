@@ -71,6 +71,7 @@ var _cam_pitch := 0.413           # elevation above horizon (Up/Down arrows); ma
 const CAM_FOLLOW_SPEED := 12.0   # eased-follow rate, matches the 2D Camera2D position_smoothing_speed
 var _cam_follow := Vector2.INF    # smoothed follow target (iso); INF = uninitialised (snap on first use)
 var editor_cam_target = null      # world editor: Vector2 to pin the camera to (overrides player follow); null = off
+var editor_hide_player := false   # world editor: don't render the player rig (clean world-building canvas)
 var _pixel_scale := 3             # INTEGER display px per internal px (nearest-neighbour, no fractional stretch)
 # How the low-res image is placed on the window: an exact integer scale + centred offset.
 # Kept here so screen<->internal-pixel picking math accounts for the integer presentation.
@@ -1423,12 +1424,19 @@ func _set_rig_outline(rig: Node3D, on: bool) -> void:
 func _sync_movers() -> void:
 	var dt := get_process_delta_time()
 	var t := Time.get_ticks_msec() / 1000.0
-	if _player_node == null:
-		_player_node = PropMeshes.player_rig(PixelPalette.pal("skin_a"))
-		_prep_mover(_player_node, "player")
-		_apply_player_equipment()
-		EventBus.equipment_changed.connect(_apply_player_equipment)
-	_animate_mover(_player_node, "player", world.player.position, t, dt)
+	if editor_hide_player:
+		if _player_node != null:
+			_player_node.visible = false
+			var psh: Node3D = _shadow_nodes.get("player")
+			if psh != null:
+				psh.visible = false
+	else:
+		if _player_node == null:
+			_player_node = PropMeshes.player_rig(PixelPalette.pal("skin_a"))
+			_prep_mover(_player_node, "player")
+			_apply_player_equipment()
+			EventBus.equipment_changed.connect(_apply_player_equipment)
+		_animate_mover(_player_node, "player", world.player.position, t, dt)
 	var live := {}
 	for e: Node in world.entities:
 		if not is_instance_valid(e) or not PropMeshes.is_moving(e):
