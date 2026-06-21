@@ -102,12 +102,36 @@ class MinimapControl extends Control:
 		var k := _map_scale()
 		if k <= 0.0:
 			return
-		var world_pos: Vector2 = hud.world.player.position + rel / k
+		# Undo the display rotation so the picked screen point maps back to world space.
+		var off := rel / k
+		var ang := _map_angle()
+		if ang != 0.0:
+			off = off.rotated(-ang)
+		var world_pos: Vector2 = hud.world.player.position + off
 		EventBus.navigate_requested.emit(world_pos)   # decoupled: no world.call("...")
 		accept_event()
 
+	# Rotation applied to all drawn world offsets. North-up (0) when the minimap is
+	# locked; otherwise it tracks the 3D camera orbit so the minimap's "up" matches the
+	# on-screen view direction (θ = camera yaw — PI/4 at the default iso framing).
+	func _map_angle() -> float:
+		if GameSettings.minimap_lock_north:
+			return 0.0
+		var w: Node = hud.world if hud != null else null
+		if w == null:
+			return 0.0
+		var r3d: Node = w.render_3d
+		if r3d == null or not r3d.is_active():
+			return 0.0
+		return r3d.cam_yaw()
+
 	func _process(delta: float) -> void:
 		_t += delta
+		# A rotating minimap needs per-frame redraws to glide; a locked one only
+		# needs the periodic dot/terrain refresh.
+		if not GameSettings.minimap_lock_north:
+			queue_redraw()
+			return
 		if _t >= 0.25:
 			_t = 0.0
 			queue_redraw()
@@ -116,37 +140,37 @@ class MinimapControl extends Control:
 		var r := size.x / 2.0
 		var c := size / 2.0
 		draw_circle(c, r, Color(0.08, 0.09, 0.08, 0.95))
+		var ang := _map_angle()
 		if hud != null and hud.world != null:
-			_draw_terrain(c, r)
-			_draw_route(c, r)
-			_draw_dots(c, r)
+			_draw_terrain(c, r, ang)
+			_draw_route(c, r, ang)
+			_draw_dots(c, r, ang)
 		draw_arc(c, r - 1.0, 0.0, TAU, 48, Color(0.55, 0.5, 0.35), 2.5)
-		_draw_compass(c, r)
+		_draw_compass(c, r, ang)
 		draw_circle(c, 3.0, Color.WHITE)
 
-	# Fixed compass. The minimap never rotates (world coords are drawn directly,
-	# player at centre), so it is always north-up — N/E/S/W sit at the rim.
-	func _draw_compass(c: Vector2, r: float) -> void:
+	# Compass. North-up when locked; when the minimap rotates with the camera the
+	# four labels orbit with it so N/E/S/W keep pointing at the true bearings.
+	func _draw_compass(c: Vector2, r: float, ang: float) -> void:
 		var font := get_theme_default_font()
 		if font == null:
 			font = ThemeDB.fallback_font
 		if font == null:
 			return
 		var fs := clampi(int(r * 0.17), 9, 18)
-		var inset := r * 0.11
-		_compass_label(font, fs, c + Vector2(0.0, -(r - inset)), "N")
-		_compass_label(font, fs, c + Vector2(r - inset, 0.0), "E")
-		_compass_label(font, fs, c + Vector2(0.0, r - inset), "S")
-		_compass_label(font, fs, c + Vector2(-(r - inset), 0.0), "W")
+		var d := r - r * 0.11
+		_compass_label(font, fs, c + Vector2(0.0, -d).rotated(ang), "N")
+		_compass_label(font, fs, c + Vector2(d, 0.0).rotated(ang), "E")
+		_compass_label(font, fs, c + Vector2(0.0, d).rotated(ang), "S")
+		_compass_label(font, fs, c + Vector2(-d, 0.0).rotated(ang), "W")
 
 	func _compass_label(font: Font, fs: int, at: Vector2, s: String) -> void:
 		var sz := font.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
 		var pos := at - Vector2(sz.x * 0.5, -sz.y * 0.30)   # centre the glyph on `at`
 		draw_string(font, pos + Vector2(1, 1), s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.65))
-		var col := Color(0.95, 0.30, 0.25, 0.95) if s == "N" else Color(0.93, 0.88, 0.70, 0.95)
-		draw_string(font, pos, s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+		draw_string(font, pos, s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.93, 0.88, 0.70, 0.95))
 
-	func _draw_terrain(c: Vector2, r: float) -> void:
+	func _draw_terrain(c: Vector2, r: float, ang: float) -> void:
 		var player: Node2D = hud.world.player
 		var reg: RefCounted = WorldGen.reg
 		var scale := _view_scale()
@@ -161,10 +185,12 @@ class MinimapControl extends Control:
 					var rel := (world_pos - player.position) * scale * (TILE_PX / 2.5)
 					if rel.length_squared() > limit_sq:
 						continue
+					if ang != 0.0:
+						rel = rel.rotated(ang)
 					var cols: Array = reg.tile_def(chunk.tile_id(tx, ty))["colors"]
 					draw_rect(Rect2(c + rel - Vector2(px, px) * 0.5, Vector2(px, px)), cols[0])
 
-	func _draw_dots(c: Vector2, r: float) -> void:
+	func _draw_dots(c: Vector2, r: float, ang: float) -> void:
 		var player: Node2D = hud.world.player
 		var scale := _view_scale()
 		for e: Node2D in hud.world.entities:
@@ -177,6 +203,8 @@ class MinimapControl extends Control:
 			var rel := (e.position - player.position) * scale * (TILE_PX / 2.5)
 			if rel.length() > r - 5.0:
 				continue
+			if ang != 0.0:
+				rel = rel.rotated(ang)
 			var col := Color(0.9, 0.2, 0.2)
 			match atype:
 				"gather":
@@ -198,7 +226,7 @@ class MinimapControl extends Control:
 
 	# Active walk route: a line from the player (centre) through the remaining waypoints to
 	# the destination flag. Drawn only while a route is being walked (see active_route()).
-	func _draw_route(c: Vector2, r: float) -> void:
+	func _draw_route(c: Vector2, r: float, ang: float) -> void:
 		var route: Dictionary = hud.world.active_route()   # typed read, not call("...")
 		if route.is_empty():
 			return
@@ -208,10 +236,15 @@ class MinimapControl extends Control:
 		var pts: PackedVector2Array = route["points"]
 		var prev := c   # player sits at the map centre
 		for wp: Vector2 in pts:
-			var p := c + _clamp_to_circle((wp - player.position) * k, lim)
+			var rel := (wp - player.position) * k
+			if ang != 0.0:
+				rel = rel.rotated(ang)
+			var p := c + _clamp_to_circle(rel, lim)
 			draw_line(prev, p, Color(0.98, 0.95, 0.85, 0.85), 1.5)
 			prev = p
 		var drel: Vector2 = (Vector2(route["dest"]) - player.position) * k
+		if ang != 0.0:
+			drel = drel.rotated(ang)
 		if drel.length() <= lim:
 			_draw_flag(c + drel)
 

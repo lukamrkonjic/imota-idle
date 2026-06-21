@@ -40,6 +40,9 @@ var show_zone_banner: bool = true
 var show_chat: bool = true
 var show_hover_tooltip: bool = true
 var show_fps: bool = false
+# Minimap: when true the minimap is always north-up (compass fixed). When false it
+# rotates with the camera so "up" on the minimap matches the on-screen view direction.
+var minimap_lock_north: bool = true
 var fps_limit: int = DEFAULT_FPS_LIMIT
 var pixelation: float = DEFAULT_PIXELATION   # 3D render crunch; read by the renderer
 var view_distance: float = DEFAULT_VIEW_DISTANCE  # 0 = near, 1 = far; read by the renderer
@@ -82,6 +85,7 @@ func load_settings() -> void:
 	show_chat = bool(data.get("show_chat", true))
 	show_hover_tooltip = bool(data.get("show_hover_tooltip", true))
 	show_fps = bool(data.get("show_fps", false))
+	minimap_lock_north = bool(data.get("minimap_lock_north", true))
 	fps_limit = int(data.get("fps_limit", DEFAULT_FPS_LIMIT))
 	if not _is_valid_fps_limit(fps_limit):
 		fps_limit = DEFAULT_FPS_LIMIT
@@ -109,6 +113,7 @@ func save_settings() -> void:
 		"show_chat": show_chat,
 		"show_hover_tooltip": show_hover_tooltip,
 		"show_fps": show_fps,
+		"minimap_lock_north": minimap_lock_north,
 		"fps_limit": fps_limit,
 		"auto_eat_enabled": auto_eat_enabled,
 		"auto_eat_threshold": auto_eat_threshold,
@@ -148,6 +153,12 @@ func set_cam_rotate_speed(value: float) -> void:
 	cam_rotate_speed = clampf(value, CAM_ROTATE_SPEED_MIN, CAM_ROTATE_SPEED_MAX)
 	save_settings()
 	changed.emit(&"cam_rotate_speed")
+
+
+func set_minimap_lock_north(on: bool) -> void:
+	minimap_lock_north = on
+	save_settings()
+	changed.emit(&"minimap_lock_north")
 
 
 func set_master_volume(value: float) -> void:

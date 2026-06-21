@@ -2071,6 +2071,12 @@ func is_active() -> bool:
 	return _active and cam != null
 
 
+## Current camera orbit angle (radians). PI/4 is the default iso framing; the
+## minimap reads this to rotate with the view when north-lock is off.
+func cam_yaw() -> float:
+	return _cam_yaw
+
+
 func screen_to_iso(screen: Vector2) -> Vector2:
 	var win: Vector2 = world.get_viewport().get_visible_rect().size
 	if win.x <= 0.0 or win.y <= 0.0:
