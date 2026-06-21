@@ -296,6 +296,27 @@ func equipment_magic_damage() -> float: return _sum_equipment("magicDamage")
 func equipment_crit_chance() -> float: return _sum_equipment("critChance")
 
 
+## OSRS-style structured equipment totals — the ONE place attack/defence/strength
+## bonuses are summed across every worn slot. Combat reads these; nothing else
+## re-implements the aggregation. Returns
+## {attack:{stab,slash,crush,ranged,magic}, defence:{...}, strength:{melee,ranged,magic}}.
+func calculate_equipment_bonuses() -> Dictionary:
+	var atk := {"stab": 0, "slash": 0, "crush": 0, "ranged": 0, "magic": 0}
+	var def := {"stab": 0, "slash": 0, "crush": 0, "ranged": 0, "magic": 0}
+	var str_b := {"melee": 0, "ranged": 0, "magic": 0}
+	for slot: String in equipment:
+		var it: ItemDef = DataRegistry.item_def(equipment[slot])
+		var a := it.attack_bonuses()
+		var d := it.defence_bonuses()
+		var s := it.strength_bonuses()
+		for k: String in atk:
+			atk[k] += int(a[k])
+			def[k] += int(d[k])
+		for k: String in str_b:
+			str_b[k] += int(s[k])
+	return {"attack": atk, "defence": def, "strength": str_b}
+
+
 ## Combat style dictated by the EQUIPPED WEAPON: "ranged" for a bow/crossbow,
 ## "magic" for a staff/wand, else "melee". This overrides which stat the player is
 ## set to train — a bow always shoots at range, it can't be swung as a melee weapon.
@@ -427,8 +448,8 @@ static func snap_to_tick(seconds: float) -> float:
 ## Player attack speed in ticks — the equipped weapon's `attackSpeed` (ticks) if
 ## the data defines one, else the 4-tick default.
 func attack_ticks() -> int:
-	var spd := DataRegistry.item_def(str(equipment.get("Weapon", ""))).attack_speed
-	return spd if spd > 0 else DEFAULT_ATTACK_TICKS
+	var w: ItemDef = DataRegistry.item_def(str(equipment.get("Weapon", "")))
+	return DEFAULT_ATTACK_TICKS if w.is_empty() else w.attack_ticks()
 
 
 ## Seconds between player attacks (attack speed in ticks × the tick length).

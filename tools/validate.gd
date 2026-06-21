@@ -8,6 +8,7 @@ const WORLDGEN_ELEV_SUM := 13677
 const ContentId := preload("res://scripts/content/content_id.gd")
 const SaveMigration := preload("res://autoload/save_migration.gd")
 const SkillRemap := preload("res://scripts/content/skill_remap.gd")
+const CombatCalc := preload("res://scripts/combat/combat_calc.gd")
 const ContentRename := preload("res://scripts/content/content_rename.gd")
 const CombatStyles := preload("res://scripts/combat/combat_styles.gd")
 const DropRoller := preload("res://scripts/combat/drop_roller.gd")
@@ -43,6 +44,7 @@ func _ready() -> void:
 	phase4_food_shop_offline()
 	phase4_auto_eat()
 	phase5_combat_depth()
+	phase_combat_formulas()
 	phase6_skill_loops()
 	phase3_gather_smoke()
 	phase_item_loss_guards()
@@ -56,6 +58,33 @@ func _ready() -> void:
 	else:
 		print("%d TEST(S) FAILED" % failures)
 		get_tree().quit(1)
+
+
+## OSRS-inspired combat formula unit tests (the spec's worked examples).
+func phase_combat_formulas() -> void:
+	print("== Phase: combat formulas ==")
+	# Bronze dagger max hit (melee strength bonus 3, no style/prayer bonus).
+	var mh1 := CombatCalc.max_hit(CombatCalc.effective_level(1), 3)
+	check(mh1 == 1, "bronze dagger max hit @ Str 1 == 1 (got %d)" % mh1)
+	var mh99 := CombatCalc.max_hit(CombatCalc.effective_level(99), 3)
+	check(mh99 == 11, "bronze dagger max hit @ Str 99 == 11 (got %d)" % mh99)
+	# Accuracy vs the example enemy (Def 135, stab def 20); Accurate style +3, stab acc +4.
+	var def_roll := CombatCalc.enemy_defence_roll(135, 20)
+	var hc1 := CombatCalc.hit_chance(CombatCalc.max_attack_roll(CombatCalc.effective_level(1, 1.0, 0, 3), 4), def_roll)
+	check(absf(hc1 - 0.03373) < 0.0005, "bronze dagger accuracy @ Atk 1 ~= 3.37%% (got %.4f)" % hc1)
+	var hc99 := CombatCalc.hit_chance(CombatCalc.max_attack_roll(CombatCalc.effective_level(99, 1.0, 0, 3), 4), def_roll)
+	check(absf(hc99 - 0.30917) < 0.0005, "bronze dagger accuracy @ Atk 99 ~= 30.92%% (got %.4f)" % hc99)
+	# Attack-type weakness: same attack roll, crush (def 20) lands more than slash (def 100).
+	var atk_roll := CombatCalc.max_attack_roll(CombatCalc.effective_level(60), 10)
+	var hc_crush := CombatCalc.hit_chance(atk_roll, CombatCalc.enemy_defence_roll(60, 20))
+	var hc_slash := CombatCalc.hit_chance(atk_roll, CombatCalc.enemy_defence_roll(60, 100))
+	check(hc_crush > hc_slash, "crush beats slash vs slash-armoured enemy (%.3f > %.3f)" % [hc_crush, hc_slash])
+	# Weapon speed: equal hit chance + max hit, faster weapon out-DPSes the slower one.
+	var dps4 := CombatCalc.expected_dps(0.5, 11, 4)
+	var dps6 := CombatCalc.expected_dps(0.5, 11, 6)
+	check(dps4 > dps6, "4-tick out-DPSes 6-tick at equal hc/maxhit (%.3f > %.3f)" % [dps4, dps6])
+	# Crit expectation: 10% @ 1.5x -> average multiplier 1.05.
+	check(absf(CombatCalc.average_crit_multiplier(0.10, 1.5) - 1.05) < 1e-6, "10%% @ 1.5x crit -> avg mult 1.05")
 
 
 func check(cond: bool, label: String) -> void:

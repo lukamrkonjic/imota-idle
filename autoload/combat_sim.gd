@@ -9,6 +9,8 @@ extends ActivitySim
 
 const CombatStyles := preload("res://scripts/combat/combat_styles.gd")
 const DropRoller := preload("res://scripts/combat/drop_roller.gd")
+const CombatCalc := preload("res://scripts/combat/combat_calc.gd")
+const AttackStyles := preload("res://scripts/combat/attack_styles.gd")
 
 const ATTACK_INTERVAL := 3.0  # default; per-weapon speed comes from GameState.attack_interval()
 const PLAYER_BASE_CRIT := 0.01
@@ -159,34 +161,106 @@ func _style() -> String:
 	return train_skill  # "ranged" or "magic"
 
 
-## AttackSkill: accuracy = BASE_ACCURACY + ACCURACY_PER_LEVEL * level (capped) + gear.
-func player_accuracy() -> float:
-	var a: float
+## --- OSRS-inspired player combat rolls (see scripts/combat/combat_calc.gd) ----
+
+func _weapon() -> ItemDef:
+	return DataRegistry.item_def(str(GameState.equipment.get("Weapon", "")))
+
+
+## The attack TYPE this weapon swings with: stab/slash/crush/ranged/magic.
+func attack_type() -> String:
+	return AttackStyles.attack_type(_weapon())
+
+
+func _attack_skill() -> String:
 	match _style():
-		"ranged":
-			a = _accuracy_for("ranged") + GameState.equipment_range_accuracy()
-		"magic":
-			a = _accuracy_for("magic") + GameState.equipment_magic_accuracy()
-		_:
-			a = _accuracy_for("attack") + GameState.equipment_accuracy()
-	return a * GameState.prayer_accuracy_mult(_style())   # active prayers layer in here
+		"ranged": return "ranged"
+		"magic": return "magic"
+		_: return "attack"
 
 
-func _accuracy_for(skill: String) -> float:
-	return BASE_ACCURACY + ACCURACY_PER_LEVEL * mini(GameState.level(skill), ACCURACY_LEVEL_CAP)
-
-
-## StrengthSkill: damage = 1 + 1 * level + equipment damage (per style).
-func player_damage() -> float:
-	var d: float
+## strengthBonuses key for the current style (melee/ranged/magic).
+func _strength_key() -> String:
 	match _style():
-		"ranged":
-			d = 1.0 + float(GameState.level("ranged")) + GameState.equipment_range_damage()
-		"magic":
-			d = 1.0 + float(GameState.level("magic")) + GameState.equipment_magic_damage()
-		_:
-			d = 1.0 + float(GameState.level("strength")) + GameState.equipment_damage()
-	return d * GameState.prayer_damage_mult(_style())   # active prayers layer in here
+		"ranged": return "ranged"
+		"magic": return "magic"
+		_: return "melee"
+
+
+## Effective Attack = floor(level × prayer) + style level bonus + 8.
+func player_effective_attack() -> int:
+	return CombatCalc.effective_level(GameState.level(_attack_skill()),
+		GameState.prayer_accuracy_mult(_style()), 0, AttackStyles.attack_level_bonus(train_skill))
+
+
+## Effective Strength = floor(level × prayer) + style level bonus + 8.
+func player_effective_strength() -> int:
+	var skill := "strength" if _strength_key() == "melee" else _strength_key()
+	return CombatCalc.effective_level(GameState.level(skill),
+		GameState.prayer_damage_mult(_style()), 0, AttackStyles.strength_level_bonus(train_skill))
+
+
+## Maximum attack roll = effectiveAttack × (relevant attack bonus + 64).
+func player_attack_roll() -> int:
+	var totals := GameState.calculate_equipment_bonuses()
+	return CombatCalc.max_attack_roll(player_effective_attack(), int(totals["attack"][attack_type()]))
+
+
+## Maximum hit = floor(0.5 + effStr × (strBonus + 64) / 640).
+func player_max_hit() -> int:
+	var totals := GameState.calculate_equipment_bonuses()
+	return CombatCalc.max_hit(player_effective_strength(), int(totals["strength"][_strength_key()]))
+
+
+## Hit chance vs the CURRENT enemy's defence for this attack type (0..1).
+func player_hit_chance() -> float:
+	var atype := attack_type()
+	var def_roll := CombatCalc.enemy_defence_roll(enemy.defence_level, enemy.defence_bonus(atype))
+	return CombatCalc.hit_chance(player_attack_roll(), def_roll)
+
+
+func player_crit_chance() -> float:
+	return clampf(_weapon().weapon_crit_chance() + GameState.equipment_crit_chance(), 0.0, 1.0)
+
+
+func player_crit_multiplier() -> float:
+	return _weapon().weapon_crit_multiplier()
+
+
+## Dev/debug combat breakdown — every input + output of the calc so a result is
+## explainable. Includes vs-enemy rolls + expected DPS when a fight is active.
+func combat_breakdown() -> Dictionary:
+	var totals := GameState.calculate_equipment_bonuses()
+	var atype := attack_type()
+	var ticks := _weapon().attack_ticks()
+	var mh := player_max_hit()
+	var crit_c := player_crit_chance()
+	var crit_m := player_crit_multiplier()
+	var acm := CombatCalc.average_crit_multiplier(crit_c, crit_m)
+	var out := {
+		"weapon": _weapon().display_name if not _weapon().is_empty() else "Unarmed",
+		"weapon_category": _weapon().weapon_category(),
+		"style": AttackStyles.style_name(train_skill), "attack_type": atype,
+		"attack_level": GameState.level(_attack_skill()),
+		"effective_attack": player_effective_attack(),
+		"attack_bonus": int(totals["attack"][atype]),
+		"max_attack_roll": player_attack_roll(),
+		"strength_level": GameState.level("strength" if _strength_key() == "melee" else _strength_key()),
+		"effective_strength": player_effective_strength(),
+		"strength_bonus": int(totals["strength"][_strength_key()]),
+		"max_hit": mh, "avg_successful_damage": float(mh) / 2.0,
+		"attack_ticks": ticks, "attack_interval_s": CombatCalc.ticks_to_seconds(ticks),
+		"crit_chance": crit_c, "crit_multiplier": crit_m, "avg_crit_mult": acm,
+	}
+	if not enemy.is_empty():
+		var hc := player_hit_chance()
+		out["enemy"] = enemy.display_name
+		out["enemy_defence_level"] = enemy.defence_level
+		out["enemy_defence_bonus"] = enemy.defence_bonus(atype)
+		out["max_defence_roll"] = CombatCalc.enemy_defence_roll(enemy.defence_level, enemy.defence_bonus(atype))
+		out["hit_chance"] = hc
+		out["expected_dps"] = CombatCalc.expected_dps(hc, mh, ticks, acm)
+	return out
 
 
 ## Combat triangle (GetCombatTriangleDamageMultiplier): melee beats Range
@@ -201,16 +275,6 @@ func triangle_multiplier() -> float:
 	return 1.0
 
 
-## Accuracy overflow past 100% becomes a double-hit chance, capped at 25%
-## (CombatManager: clamp01((accuracy-1) * 0.125), max 0.25).
-func double_hit_chance() -> float:
-	return minf(clampf((player_accuracy() - 1.0) * 0.125, 0.0, 1.0), 0.25)
-
-
-func crit_chance() -> float:
-	return clampf(PLAYER_BASE_CRIT + GameState.equipment_crit_chance(), 0.0, 1.0)
-
-
 # --------------------------------------------------------------- attacks ----
 
 ## Player damage feedback: melee/magic pop the splat immediately; ranged flies an
@@ -223,59 +287,45 @@ func _emit_player_splat(amount: int, miss: bool) -> void:
 		EventBus.combat_hit_splat.emit(amount, miss, false)
 
 
+## Stage 1-7: pick attack type, roll accuracy vs the enemy's defence for that type.
 func _player_attack() -> void:
 	if _style() == "ranged":
 		GameState.remove_item("Arrows", 1)  # spend one arrow per shot (no-op if none)
-	var acc := player_accuracy()
-	# Miss-streak pity (CombatManager.meleeAccuracyBias): +10% after 3 misses,
-	# +20% after 6.
+	var acc := player_hit_chance()
+	# Miss-streak pity (CombatManager.meleeAccuracyBias): +10% after 3 misses, +20% after 6.
 	if miss_streak >= MISS_STREAK_PITY:
 		acc += 0.1
 	if miss_streak >= 6.0:
 		acc += 0.2
-	var hit := rng.randf() < acc
-	if hit:
-		miss_streak = 0.0
-	else:
+	if rng.randf() >= clampf(acc, 0.0, 1.0):
 		miss_streak += 1.0
 		EventBus.combat_log.emit("You miss.")
 		_emit_player_splat(0, true)
 		return
+	miss_streak = 0.0
 	_apply_player_hit()
-	if active and not respawning and rng.randf() < double_hit_chance():
-		EventBus.combat_log.emit("Double hit!")
-		_apply_player_hit()
 
 
+## Stage 8-16: roll damage 0..maxHit, crit, modifier pipeline, apply + XP.
 func _apply_player_hit() -> void:
-	var dmg: float
-	var is_crit := false
-	if not first_attack_done:
-		# Quirk ported from CombatManager.HandleAttack: the opening hit of a
-		# fight always deals 1.
-		dmg = 1.0
-		first_attack_done = true
-	else:
-		var base := player_damage()
-		is_crit = rng.randf() < crit_chance()
-		if is_crit:
-			dmg = base * PLAYER_CRIT_MULTIPLIER
-		else:
-			dmg = rng.randf_range(base * DAMAGE_MIN_MULT, base * DAMAGE_MAX_MULT)
-	dmg *= triangle_multiplier()
-	# Enemy damage reduction is a flat percent from the bestiary.
-	dmg *= 1.0 - float(enemy.damage_reduction) / 100.0
-	dmg = maxf(roundf(dmg * 10.0) / 10.0, 0.0)
-	# Per-hit XP (OSRS-style, spec §5/§12): the trained combat skill scales with
-	# damage dealt, plus a Hitpoints share. Replaces the old lump-sum on-kill XP.
-	var landed := minf(dmg, enemy_hp)  # damage past the enemy's remaining HP earns no XP
-	if landed > 0.0:
+	var base := CombatCalc.roll_base_damage(player_max_hit(), rng)
+	var crit: Array = CombatCalc.roll_crit(player_crit_chance(), player_crit_multiplier(), rng)
+	var is_crit: bool = crit[0]
+	# Modifier pipeline: base × crit × combat-triangle (player mult) × enemy taken-mult,
+	# floor, then subtract enemy flat reduction, clamp [0, global cap]. Enemy resistance
+	# is the NEW damageTakenMultiplier (default 1.0) + flatDamageReduction — NOT the legacy
+	# sub-1% damageReduction, which would floor every max-hit-1 hit down to zero.
+	var dmg := CombatCalc.finalize_damage(base, float(crit[1]), 1.0, triangle_multiplier(),
+		enemy.damage_taken_multiplier, enemy.flat_damage_reduction)
+	# Per-hit XP: damage past the enemy's remaining HP earns no XP.
+	var landed := mini(dmg, int(ceil(enemy_hp)))
+	if landed > 0:
 		for t: Array in CombatStyles.xp_targets(train_skill):
-			GameState.add_xp(str(t[0]), landed * CombatStyles.XP_PER_DAMAGE * float(t[1]))
-		GameState.add_xp("hitpoints", landed * CombatStyles.HP_XP_PER_DAMAGE)
-	enemy_hp = maxf(enemy_hp - dmg, 0.0)
-	EventBus.combat_log.emit("You hit %s for %.1f%s" % [_enemy_name(), dmg, " (CRIT!)" if is_crit else ""])
-	_emit_player_splat(int(roundf(dmg)), dmg <= 0.0)
+			GameState.add_xp(str(t[0]), float(landed) * CombatStyles.XP_PER_DAMAGE * float(t[1]))
+		GameState.add_xp("hitpoints", float(landed) * CombatStyles.HP_XP_PER_DAMAGE)
+	enemy_hp = maxf(enemy_hp - float(dmg), 0.0)
+	EventBus.combat_log.emit("You hit %s for %d%s" % [_enemy_name(), dmg, " (CRIT!)" if is_crit else ""])
+	_emit_player_splat(dmg, dmg <= 0)
 	EventBus.enemy_hp_changed.emit(enemy_hp, float(enemy.max_health))
 	if enemy_hp <= 0.0:
 		_on_enemy_killed()
