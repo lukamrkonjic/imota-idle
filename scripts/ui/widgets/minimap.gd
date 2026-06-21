@@ -121,7 +121,30 @@ class MinimapControl extends Control:
 			_draw_route(c, r)
 			_draw_dots(c, r)
 		draw_arc(c, r - 1.0, 0.0, TAU, 48, Color(0.55, 0.5, 0.35), 2.5)
+		_draw_compass(c, r)
 		draw_circle(c, 3.0, Color.WHITE)
+
+	# Fixed compass. The minimap never rotates (world coords are drawn directly,
+	# player at centre), so it is always north-up — N/E/S/W sit at the rim.
+	func _draw_compass(c: Vector2, r: float) -> void:
+		var font := get_theme_default_font()
+		if font == null:
+			font = ThemeDB.fallback_font
+		if font == null:
+			return
+		var fs := clampi(int(r * 0.17), 9, 18)
+		var inset := r * 0.11
+		_compass_label(font, fs, c + Vector2(0.0, -(r - inset)), "N")
+		_compass_label(font, fs, c + Vector2(r - inset, 0.0), "E")
+		_compass_label(font, fs, c + Vector2(0.0, r - inset), "S")
+		_compass_label(font, fs, c + Vector2(-(r - inset), 0.0), "W")
+
+	func _compass_label(font: Font, fs: int, at: Vector2, s: String) -> void:
+		var sz := font.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
+		var pos := at - Vector2(sz.x * 0.5, -sz.y * 0.30)   # centre the glyph on `at`
+		draw_string(font, pos + Vector2(1, 1), s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.65))
+		var col := Color(0.95, 0.30, 0.25, 0.95) if s == "N" else Color(0.93, 0.88, 0.70, 0.95)
+		draw_string(font, pos, s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
 
 	func _draw_terrain(c: Vector2, r: float) -> void:
 		var player: Node2D = hud.world.player
