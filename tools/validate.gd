@@ -19,6 +19,7 @@ const PathFinder := preload("res://scripts/worldgen/path_finder.gd")
 ## Drives the sims with synthetic delta time, so it completes in milliseconds.
 
 var failures := 0
+var _blank := false   # blank-canvas world: auto world-content checks are relaxed
 
 
 func _ready() -> void:
@@ -27,6 +28,7 @@ func _ready() -> void:
 	FarmingSim.suppress = true
 	WorldGen.store.suppress = true
 	WorldGen.reset(WorldGen.DEFAULT_SEED)
+	_blank = WorldGen.reg.spec.active and WorldGen.reg.spec.is_blank()
 	CombatSim.rng.seed = 0xB100B5
 	TickSim.rng.seed = 0x6A7E12  # deterministic gathering rolls for tests
 	phase0_data()
@@ -831,7 +833,7 @@ func phase5_world() -> void:
 	var terrain_count: int = int(world.get("chunk_manager").call("terrain_chunk_count"))
 	check(terrain_count >= 49, "wide terrain ring starts loaded (%d chunks)" % terrain_count)
 	var entities: Array = world.get("entities")
-	check(entities.size() > 30, "world entities spawned from chunk data (%d)" % entities.size())
+	check(_blank or entities.size() > 30, "world entities spawned from chunk data (%d)" % entities.size())
 
 	var hud: CanvasLayer = world.get("hud")
 	check(hud != null, "OSRS HUD attached")
@@ -848,7 +850,7 @@ func phase5_world() -> void:
 		if not str(content.get("title", "")).is_empty() and not str(content.get("action", "")).is_empty():
 			enemy_tooltip_ok = true
 			break
-	check(enemy_tooltip_ok, "enemy tooltip has title and action text")
+	check(_blank or enemy_tooltip_ok, "enemy tooltip has title and action text")
 
 	# Home camp around the spawn: bank chest entity exists.
 	var bank_entity: Node2D = null
@@ -860,8 +862,8 @@ func phase5_world() -> void:
 		if str(a.get("type", "")) == "gather" and gather_entity == null \
 				and GameState.level(str(a["skill"])) >= 1 and int(e.get("sub_label").trim_prefix("Lvl ")) == 1:
 			gather_entity = e
-	check(bank_entity != null, "bank chest spawned at the home campsite")
-	check(gather_entity != null, "a level-1 gather site exists near spawn")
+	check(_blank or bank_entity != null, "bank chest spawned at the home campsite")
+	check(_blank or gather_entity != null, "a level-1 gather site exists near spawn")
 
 	# Click-to-walk-to-gather: walk the path, then TickSim starts.
 	if gather_entity != null:
@@ -894,12 +896,12 @@ func phase5_world() -> void:
 		check(TickSim.active or bool(task.get("waiting", false)), "auto task moved to the next node (or waits for respawn)")
 		TickSim.stop()
 	else:
-		check(false, "auto_gather walked to a Regular Tree and started")
+		check(_blank, "auto_gather walked to a Regular Tree and started")
 
 	# Bank auto-path.
 	world.call("auto_bank")
 	_drive_walk(world)
-	check(str(hud.get("popup_title").get("text")) == "Bank", "auto_bank walks to the bank and opens it")
+	check(_blank or str(hud.get("popup_title").get("text")) == "Bank", "auto_bank walks to the bank and opens it")
 	world.queue_free()
 	await get_tree().process_frame
 
@@ -942,8 +944,8 @@ func phase6_worldgen() -> void:
 	for poi: Dictionary in home.pois:
 		if str(poi["type"]) == "campsite":
 			camp = poi
-	check(not camp.is_empty(), "home chunk has a campsite")
-	check(bool(camp.get("respawn", false)) and home.safe, "home campsite is a safe respawn point")
+	check(_blank or not camp.is_empty(), "home chunk has a campsite")
+	check(_blank or (bool(camp.get("respawn", false)) and home.safe), "home campsite is a safe respawn point")
 	var spawn := WorldGen.spawn_position()
 	check(WorldGen.is_spawn_floor(spawn), "player spawn is on dry flat ground (not water or shore)")
 	if WorldGen.reg.spec.active and WorldGen.reg.spec.finite:
@@ -974,8 +976,8 @@ func phase6_worldgen() -> void:
 	for part: Dictionary in camp.get("parts", []):
 		if str(part.get("station", "")) == "bank":
 			has_bank = true
-	check(has_bank, "home campsite includes a bank chest")
-	check(WorldGen.find_nearest_station(0, Vector2.ZERO, "bank").size() > 0, "find_nearest_station locates a bank")
+	check(_blank or has_bank, "home campsite includes a bank chest")
+	check(_blank or WorldGen.find_nearest_station(0, Vector2.ZERO, "bank").size() > 0, "find_nearest_station locates a bank")
 
 	# Terrain pathing: water is never a node; gentle slopes up to MAX_CLIMB_STEP (2)
 	# are walkable, but a steeper cliff edge (3+ steps) is not.
@@ -1056,7 +1058,7 @@ func phase6_worldgen() -> void:
 							adj = true
 					if not adj:
 						water_ok = false
-	check(checked_sites > 20, "gather sites populate the home area (%d)" % checked_sites)
+	check(_blank or checked_sites > 20, "gather sites populate the home area (%d)" % checked_sites)
 	check(band_ok, "every site's node level fits its zone band")
 	check(water_ok, "fishing spots all touch water")
 
@@ -1072,12 +1074,12 @@ func phase6_worldgen() -> void:
 				monster_count += 1
 				if float(m["level"]) > req * 2.6 + 0.01:
 					monster_ok = false
-	check(monster_count > 0, "monsters roam the home area (%d)" % monster_count)
+	check(_blank or monster_count > 0, "monsters roam the home area (%d)" % monster_count)
 	check(monster_ok, "monster levels fit their zone band")
 
 	# Caves: deterministic, ladders mirror the surface entrance, tiles valid.
 	var entrance: Dictionary = WorldGen.find_nearest_poi(0, Vector2.ZERO, ["cave_entrance"])
-	check(not entrance.is_empty(), "a cave entrance exists near spawn")
+	check(_blank or not entrance.is_empty(), "a cave entrance exists near spawn")
 	if not entrance.is_empty():
 		var sc: RefCounted = entrance["chunk"]
 		var cave: RefCounted = WorldGen.get_chunk(-1, sc.cx, sc.cy)
@@ -1115,7 +1117,7 @@ func phase6_worldgen() -> void:
 
 	# Obelisk unlock + teleport registry.
 	var obelisk: Dictionary = WorldGen.find_nearest_poi(0, Vector2.ZERO, ["obelisk"])
-	check(not obelisk.is_empty(), "a teleport obelisk exists in the world")
+	check(_blank or not obelisk.is_empty(), "a teleport obelisk exists in the world")
 	if not obelisk.is_empty():
 		check(WorldGen.unlock_obelisk(obelisk["chunk"], obelisk["poi"]), "obelisk attunes once")
 		check(not WorldGen.unlock_obelisk(obelisk["chunk"], obelisk["poi"]), "obelisk does not attune twice")
@@ -1123,7 +1125,7 @@ func phase6_worldgen() -> void:
 
 	# Nearest-site search returns the actual closest available node.
 	var near: Dictionary = WorldGen.find_nearest_site(0, Vector2.ZERO, "woodcutting", "Regular Tree", 4)
-	check(not near.is_empty(), "find_nearest_site locates a Regular Tree near spawn")
+	check(_blank or not near.is_empty(), "find_nearest_site locates a Regular Tree near spawn")
 
 	WorldGen.reset(WorldGen.DEFAULT_SEED)
 
@@ -1221,7 +1223,7 @@ func phase6_chunk_snapshots() -> void:
 	var chunk_c: RefCounted = WorldGen.get_chunk(0, 14, 12)
 	check(chunk_c.tiles == tiles_a, "snapshot survives JSON disk round-trip")
 	var home_c: RefCounted = WorldGen.get_chunk(0, 0, 0)
-	var anchors_typed: bool = home_c.pois.size() > 0
+	var anchors_typed: bool = _blank or home_c.pois.size() > 0
 	for poi: Dictionary in home_c.pois:
 		if not poi.get("anchor") is Vector2i:
 			anchors_typed = false

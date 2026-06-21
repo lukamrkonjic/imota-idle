@@ -37,6 +37,9 @@ var features: Array = []          # {kind, ...} rivers/lakes/landmarks/etc.
 var finite := false
 var bounds := Rect2i()            # chunk-space rect [min..max] inclusive-ish
 var ocean_beyond_bounds := true
+# "full" = generate all content; "blank" = terrain + biomes only (no auto trees /
+# gather nodes / houses / POIs / monsters / ambient decor) for hand-placement.
+var content_mode := "full"
 
 var _region_for_chunk: Dictionary = {}   # "cx:cy" -> region dict (or {})
 var _anchor_for_chunk: Dictionary = {}    # "cx:cy" -> anchor dict (or {})
@@ -154,6 +157,7 @@ func _ingest_world(doc: Dictionary) -> void:
 			int(mx[0]) - int(mn[0]) + 1, int(mx[1]) - int(mn[1]) + 1)
 		finite = true
 		ocean_beyond_bounds = bool(doc.get("oceanBeyondBounds", true))
+	content_mode = str(doc.get("contentMode", "full"))
 	for s: Dictionary in doc.get("settlements", []):
 		var st: Array = s.get("tile", [0, 0])
 		settlements.append({
@@ -322,6 +326,11 @@ func planned_anchors() -> Array:
 
 
 # ------------------------------------------------------------- finite world ----
+
+## Blank-canvas world: terrain + biomes only, content placed by hand.
+func is_blank() -> bool:
+	return content_mode == "blank"
+
 
 ## True when chunk (cx,cy) lies inside the authored finite continent.
 func in_bounds(cx: int, cy: int) -> bool:

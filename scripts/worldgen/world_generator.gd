@@ -60,6 +60,10 @@ func generate(layer: int, cx: int, cy: int, above_chunk: RefCounted = null) -> R
 			var i := Chunk.idx(tx, ty)
 			chunk.tiles[i] = classifier.tile_at(gx, gy, f, chunk.biomes_t[i], chunk, tx, ty)
 	_place_mountains(chunk)
+	# Blank-canvas worlds get terrain + biomes only — no auto trees / gather nodes /
+	# houses / POIs / monsters. Content is placed by hand in the editor afterwards.
+	if reg.spec.active and reg.spec.is_blank():
+		return chunk
 	var occupied: Dictionary = {}
 	poi_placer.place(chunk, occupied, placement_grid)
 	structure_planner.stamp(chunk, occupied)

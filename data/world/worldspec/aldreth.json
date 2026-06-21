@@ -201,6 +201,7 @@
 	],
 	"name": "The Realm of Aldreth",
 	"oceanBeyondBounds": true,
+	"contentMode": "blank",
 	"regions": [
 		{
 			"id": "greenhollow",

@@ -9,6 +9,15 @@ const SMOOTH_PAD := 16
 const SMOOTH_PASSES := 2
 const MACRO_TILES := 12
 
+# Biome placement mode:
+#   "authored" — each region PAINTS its biome directly onto its (warped) ellipse;
+#                everywhere else is AUTHORED_BASE. Hand-made worlds: what you place
+#                is what you get (no climate spreading). Default.
+#   "climate"  — the original climate-suitability model (kept for procedural worlds /
+#                future use; flip this back to restore it).
+const BIOME_MODE := "authored"
+const AUTHORED_BASE := "forest"   # base biome where no region covers a land tile
+
 
 var reg: RefCounted
 var world_seed: int = 0
@@ -145,6 +154,13 @@ func _pick_parent_id(h: float, m: float, t: float, tx: float, ty: float) -> Stri
 			return "ocean"
 		if h < 0.345:
 			return "beach"
+	# AUTHORED MODE: the covering region paints its biome directly (warped ellipse,
+	# highest priority then most specific); land with no region is the base biome.
+	# Sub-biome regions resolve to their parent here; the sub stamps on top later.
+	if BIOME_MODE == "authored":
+		_ensure_climate_cache()
+		var rb := _region_parent_at(tx, ty)
+		return rb if not rb.is_empty() else AUTHORED_BASE
 	# CLIMATE-SUITABILITY MODEL (no region polygons). Every tile has continuous, region-
 	# biased temperature/moisture/elevation fields; we pick the biome whose authored climate
 	# envelope (data/world/biomes.json `climate`) fits best. Transitions are gradual and
@@ -187,6 +203,24 @@ func reset_region_cache() -> void:
 	_clim_biomes.clear()
 	_region_anchors.clear()
 	_extreme_anchors.clear()
+
+
+## Authored mode: biome of the highest-priority region whose WARPED ellipse covers
+## this tile (ties -> most specific / smallest). "" when no region covers it.
+func _region_parent_at(tx: float, ty: float) -> String:
+	var best := ""
+	var best_pri := -1.0
+	var best_area := INF
+	for a: Dictionary in _region_anchors:
+		if _anchor_ed(a, tx, ty, 1.0) > 1.0:
+			continue
+		var pri: float = a["pri"]
+		var area: float = float(a["rx"]) * float(a["ry"])
+		if pri > best_pri + 0.0001 or (absf(pri - best_pri) <= 0.0001 and area < best_area):
+			best_pri = pri
+			best_area = area
+			best = str(a["biome"])
+	return best
 
 
 func _ensure_climate_cache() -> void:
@@ -245,7 +279,7 @@ func _ensure_climate_cache() -> void:
 			"t": (float(tr2[0]) + float(tr2[1])) * 0.5,
 			"m": (float(mr2[0]) + float(mr2[1])) * 0.5,
 			"e": (float(er2[0]) + float(er2[1])) * 0.5,
-			"s": 1.8 if is_extreme else 1.0}
+			"s": 1.8 if is_extreme else 1.0, "biome": biome}
 		_region_anchors.append(anc)
 		# Extreme biomes also seed a confinement basin around their (elliptical) anchor.
 		if is_extreme:
