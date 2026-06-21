@@ -159,6 +159,8 @@ var _v3d_btn: Button
 var _v3d_max_btn: Button
 var _v3d_focus_tile := Vector2i(-2147483648, 0)   # last tile the 3D camera was sent to
 const _V3D_SIZE := Vector2i(540, 380)
+const _V3D_LEFT := 192      # 3D canvas starts right of the tool column
+const _V3D_TOP := 44        # …and below the top bar
 # Maximized = aerial "satellite" camera: steep top-down-ish pitch, zoomed out, free
 # pan (right-drag) + wheel zoom across the map; left-click places with a paint tool.
 const _V3D_SAT_PITCH := 1.16      # near top-down aerial (CAM_PITCH_MAX is 1.40)
@@ -210,14 +212,16 @@ func _ready() -> void:
 		_toggle_3d_maximize.call_deferred()
 
 
-## Dev verification: enter the aerial satellite view over the heartland and screenshot.
+## Dev verification: enter the aerial view over the heartland, zoom out wide, screenshot.
 func _run_sat_shot() -> void:
-	_toggle_3d_maximize()
+	_toggle_3d_view()
 	_focus_3d(Vector2i(0, 0))
-	await get_tree().create_timer(9.0).timeout
+	for _i: int in 8:
+		_v3d_zoom_by(1.0 / 1.12)   # zoom out toward the wide limit (stress the streaming)
+	await get_tree().create_timer(15.0).timeout
 	if _v3d_vp != null:
 		_v3d_vp.get_texture().get_image().save_png("user://we_sat.png")
-		print("[we-sat] saved we_sat.png")
+		print("[we-sat] saved we_sat.png zoom=%.3f" % _v3d_zoom)
 	get_tree().quit()
 
 
@@ -1095,10 +1099,9 @@ func _build_3d_view_panel() -> void:
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bar.add_child(spacer)
 	_v3d_max_btn = Button.new()
-	_v3d_max_btn.text = "🛰 Satellite"
-	_v3d_max_btn.toggle_mode = true
-	_v3d_max_btn.tooltip_text = "Full-screen aerial satellite view of the world (M). Right-drag pans across the map, wheel zooms, arrows orbit/tilt. With a Structure/Stamp tool, left-click places at the cursor."
-	_v3d_max_btn.pressed.connect(_toggle_3d_maximize)
+	_v3d_max_btn.text = "✕ 2D Map"
+	_v3d_max_btn.tooltip_text = "Back to the flat 2D map editor (M toggles)."
+	_v3d_max_btn.pressed.connect(_toggle_3d_view)
 	bar.add_child(_v3d_max_btn)
 	var hint := Label.new()
 	hint.text = "L-click place · R-drag pan · wheel zoom"
@@ -1116,69 +1119,48 @@ func _build_3d_view_panel() -> void:
 	_v3d_panel.position = Vector2(get_viewport().get_visible_rect().size) - Vector2(_V3D_SIZE) - Vector2(24, 24)
 
 
-## Show/hide the 3D view; instantiates the embedded game world on first show.
+## Toggle between the 2D map editor and the full-screen 3D world canvas. When ON, the
+## rendered world REPLACES the 2D map (the 2D sprite + overlay hide) and the 3D view
+## fills the editor area behind the tool panels — an aerial world-builder you pan
+## (right-drag), zoom (wheel) and place on (left-click with a Structure/Stamp tool).
 func _toggle_3d_view() -> void:
 	_v3d_on = not _v3d_on
 	_v3d_panel.visible = _v3d_on
 	if _v3d_btn != null:
 		_v3d_btn.button_pressed = _v3d_on
-	if _v3d_on and _v3d_world == null:
-		_spawn_embedded_world()
+	# The 3D canvas REPLACES the 2D map — hide the flat map + its overlay while on.
+	if _sprite != null:
+		_sprite.visible = not _v3d_on
+	if _overlay != null:
+		_overlay.visible = not _v3d_on
 	if _v3d_on:
-		_focus_3d(_hover_tile if _in_bounds_tile(_hover_tile) else _spawn_tile)
-	else:
-		_v3d_max = false   # always reopen in the small docked corner
+		if _v3d_world == null:
+			_spawn_embedded_world()
+		_hud.move_child(_v3d_panel, 0)   # behind the tool panels so they stay on top
+		_apply_v3d_layout()
 
 
-## Toggle the 3D panel between the small docked corner and a large authoring view that
-## fills most of the screen. In large mode the editor receives clicks in the 3D view:
-## a placement tool drops its object at the cursor; otherwise the click re-aims the camera.
+## M / the panel button — same 2D<->3D toggle.
 func _toggle_3d_maximize() -> void:
-	if not _v3d_on:
-		# Turning maximize on also turns the 3D view on (convenience).
-		_toggle_3d_view()
-	_v3d_max = not _v3d_max
-	_apply_v3d_layout()
+	_toggle_3d_view()
 
 
-## Apply the current docked/maximized layout to the 3D panel: size the SubViewport,
-## reposition the panel, and switch input between view-only (docked) and interactive
-## (maximized, so clicks walk the embedded player).
+## Full-screen layout for the 3D canvas: fill the editor area right of the tool column
+## and below the top bar, hand the editor the clicks, and frame the aerial camera.
 func _apply_v3d_layout() -> void:
-	if _v3d_panel == null:
+	if _v3d_panel == null or not _v3d_on:
 		return
 	var vp := get_viewport().get_visible_rect().size
-	if _v3d_max:
-		# Fill the screen to the right of the left tool panel, with small margins.
-		var sz := Vector2i(maxi(360, int(vp.x) - 226), maxi(280, int(vp.y) - 70))
-		_v3d_container.custom_minimum_size = Vector2(sz)
-		if _v3d_vp != null:
-			_v3d_vp.size = sz
-			_v3d_vp.handle_input_locally = false       # the EDITOR owns clicks (place / re-aim)
-		_v3d_container.mouse_filter = Control.MOUSE_FILTER_STOP
-		_v3d_panel.position = Vector2(210, 52)
-		# Pin the camera to the authoring focus (no wandering player); right-drag pans it.
-		_focus_3d(_v3d_focus_tile if _in_bounds_tile(_v3d_focus_tile) else _spawn_tile)
-		_apply_v3d_satellite_camera()
-	else:
-		_v3d_container.custom_minimum_size = _V3D_SIZE
-		if _v3d_vp != null:
-			_v3d_vp.size = _V3D_SIZE
-			_v3d_vp.handle_input_locally = false       # view-only: editor keeps the mouse
-		_v3d_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_v3d_panel.position = Vector2(vp) - Vector2(_V3D_SIZE) - Vector2(24, 24)
-		# Back to the small docked corner preview at the default iso framing.
-		var rend: Node = _v3d_world.get("render_3d") if _v3d_world != null else null
-		if rend != null:
-			rend.set("_cam_pitch", 0.413)
-		var cam2d: Node = _v3d_world.get("_camera") if _v3d_world != null else null
-		if cam2d != null:
-			cam2d.set("zoom", Vector2(1.65, 1.65))
-		_focus_3d(_v3d_focus_tile if _in_bounds_tile(_v3d_focus_tile) else _spawn_tile)
+	var sz := Vector2i(maxi(360, int(vp.x) - _V3D_LEFT), maxi(280, int(vp.y) - _V3D_TOP))
+	_v3d_container.custom_minimum_size = Vector2(sz)
+	if _v3d_vp != null:
+		_v3d_vp.size = sz
+		_v3d_vp.handle_input_locally = false       # the EDITOR owns clicks (place / pan)
+	_v3d_container.mouse_filter = Control.MOUSE_FILTER_STOP
+	_v3d_panel.position = Vector2(_V3D_LEFT, _V3D_TOP)
+	_focus_3d(_v3d_focus_tile if _in_bounds_tile(_v3d_focus_tile) else _spawn_tile)
+	_apply_v3d_satellite_camera()
 	_v3d_panel.reset_size.call_deferred()
-	if _v3d_max_btn != null:
-		_v3d_max_btn.button_pressed = _v3d_max
-		_v3d_max_btn.text = "🗗 Restore" if _v3d_max else "🛰 Satellite"
 
 
 func _spawn_embedded_world() -> void:
@@ -1293,7 +1275,8 @@ func _v3d_place_at_cursor() -> void:
 
 
 func _v3d_zoom_by(factor: float) -> void:
-	_v3d_zoom = clampf(_v3d_zoom * factor, 0.32, 1.6)
+	# Wide range: ~0.16 surveys a large stretch of the world, 1.8 is close-in placement.
+	_v3d_zoom = clampf(_v3d_zoom * factor, 0.16, 1.8)
 	var cam2d: Node = _v3d_world.get("_camera") if _v3d_world != null else null
 	if cam2d != null:
 		cam2d.set("zoom", Vector2(_v3d_zoom, _v3d_zoom))
