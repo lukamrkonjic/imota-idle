@@ -21,7 +21,10 @@ extends Node2D
 ## (world.tscn) in a panel. Because the editor edits the same WorldGen chunk objects
 ## the renderer reads, painting terrain/biome/water and then re-meshing the touched
 ## chunks shows the true in-game 3D look. Press F to aim the 3D camera at the cursor;
-## arrow keys orbit it. (Self-test: run with `-- --we-selftest`.)
+## arrow keys orbit it. The panel's "⛶ Maximize" button (or M) blows it up to a large,
+## navigable view: click inside it to walk the camera through the world (so you can
+## scout where to place trees/roads/houses/POIs) while arrows keep orbiting.
+## (Self-test: run with `-- --we-selftest`.)
 ##
 ## Run:  godot --path . res://tools/world_editor.tscn
 
@@ -151,7 +154,9 @@ var _v3d_container: SubViewportContainer
 var _v3d_vp: SubViewport
 var _v3d_world: Node2D            # the embedded world.tscn instance (its render_3d does the 3D)
 var _v3d_on := false
+var _v3d_max := false             # large/navigable mode vs the small docked corner panel
 var _v3d_btn: Button
+var _v3d_max_btn: Button
 var _v3d_focus_tile := Vector2i(-2147483648, 0)   # last tile the 3D camera was sent to
 const _V3D_SIZE := Vector2i(540, 380)
 
@@ -382,6 +387,7 @@ func _handle_key(event: InputEventKey) -> void:
 			elif _v3d_on:
 				_focus_3d(_hover_tile)
 				_status.text = "3D camera → tile (%d, %d)" % [_hover_tile.x, _hover_tile.y]
+		KEY_M: _toggle_3d_maximize()
 		KEY_1: _set_tool(Tool.PAN)
 		KEY_2: _set_tool(Tool.BIOME)
 		KEY_3: _set_tool(Tool.TERRAIN)
@@ -1062,6 +1068,12 @@ func _build_3d_view_panel() -> void:
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bar.add_child(spacer)
+	_v3d_max_btn = Button.new()
+	_v3d_max_btn.text = "⛶ Maximize"
+	_v3d_max_btn.toggle_mode = true
+	_v3d_max_btn.tooltip_text = "Fill the screen with a navigable 3D view (M). Click in it to walk; arrows orbit."
+	_v3d_max_btn.pressed.connect(_toggle_3d_maximize)
+	bar.add_child(_v3d_max_btn)
 	var hint := Label.new()
 	hint.text = "arrows orbit · F focus cursor"
 	hint.add_theme_font_size_override("font_size", 10)
@@ -1087,6 +1099,55 @@ func _toggle_3d_view() -> void:
 		_spawn_embedded_world()
 	if _v3d_on:
 		_focus_3d(_hover_tile if _in_bounds_tile(_hover_tile) else _spawn_tile)
+	else:
+		_v3d_max = false   # always reopen in the small docked corner
+
+
+## Toggle the 3D panel between the small docked corner and a large, navigable view
+## that fills most of the screen. In large mode you can click inside the view to
+## walk the camera around (so you can scout where to place trees/roads/houses), and
+## the camera follows the player instead of staying pinned to the 2D cursor.
+func _toggle_3d_maximize() -> void:
+	if not _v3d_on:
+		# Turning maximize on also turns the 3D view on (convenience).
+		_toggle_3d_view()
+	_v3d_max = not _v3d_max
+	_apply_v3d_layout()
+
+
+## Apply the current docked/maximized layout to the 3D panel: size the SubViewport,
+## reposition the panel, and switch input between view-only (docked) and interactive
+## (maximized, so clicks walk the embedded player).
+func _apply_v3d_layout() -> void:
+	if _v3d_panel == null:
+		return
+	var vp := get_viewport().get_visible_rect().size
+	if _v3d_max:
+		# Fill the screen to the right of the left tool panel, with small margins.
+		var sz := Vector2i(maxi(360, int(vp.x) - 226), maxi(280, int(vp.y) - 70))
+		_v3d_container.custom_minimum_size = Vector2(sz)
+		if _v3d_vp != null:
+			_v3d_vp.size = sz
+			_v3d_vp.handle_input_locally = true        # route clicks into the world → walk
+		_v3d_container.mouse_filter = Control.MOUSE_FILTER_STOP
+		_v3d_panel.position = Vector2(210, 52)
+		# Follow the live (walking) player so the user can explore the world freely.
+		var rend: Node = _v3d_world.get("render_3d") if _v3d_world != null else null
+		if rend != null:
+			rend.set("editor_cam_target", null)
+	else:
+		_v3d_container.custom_minimum_size = _V3D_SIZE
+		if _v3d_vp != null:
+			_v3d_vp.size = _V3D_SIZE
+			_v3d_vp.handle_input_locally = false       # view-only: editor keeps the mouse
+		_v3d_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_v3d_panel.position = Vector2(vp) - Vector2(_V3D_SIZE) - Vector2(24, 24)
+		# Re-pin the camera to the last authoring focus so the 2D map drives the view again.
+		_focus_3d(_v3d_focus_tile if _in_bounds_tile(_v3d_focus_tile) else _spawn_tile)
+	_v3d_panel.reset_size.call_deferred()
+	if _v3d_max_btn != null:
+		_v3d_max_btn.button_pressed = _v3d_max
+		_v3d_max_btn.text = "🗗 Restore" if _v3d_max else "⛶ Maximize"
 
 
 func _spawn_embedded_world() -> void:
