@@ -21,8 +21,6 @@ const HitSplat := preload("res://scripts/world/hit_splat.gd")
 const ArrowProj := preload("res://scripts/world/arrow_proj.gd")
 const PerfLogger := preload("res://scripts/world/perf_logger.gd")
 const BakeQueue := preload("res://scripts/world/bake_queue.gd")
-const EntitySpriteCache := preload("res://scripts/world/entity_sprite_cache.gd")
-const WorldEntity := preload("res://scripts/world/world_entity.gd")
 const WorldRender3D := preload("res://scripts/render/world_render_3d.gd")
 
 # --- public state (tests, HUD) ---
@@ -120,11 +118,6 @@ func _build_scene() -> void:
 	var bake_queue := BakeQueue.new()
 	bake_queue.name = "BakeQueue"
 	add_child(bake_queue)
-
-	var sprite_cache := EntitySpriteCache.new()
-	sprite_cache.name = "EntitySpriteCache"
-	add_child(sprite_cache)
-	WorldEntity.sprite_cache = sprite_cache
 
 	_perf_logger = PerfLogger.new()
 	_perf_logger.name = "PerfLogger"
@@ -248,9 +241,6 @@ func _update_stream_radius() -> void:
 	# the now-visible far chunks actually exist to be drawn (and fogged).
 	var view_bump: int = floori(clampf(GameSettings.view_distance, 0.0, 1.0) * 2.5)
 	chunk_manager.set_radii(r + 2 + view_bump, active_r)
-	# Freeze entity animations when zoomed far out — the per-frame live redraw of
-	# hundreds of visible enemies/fish is the dominant cost there and invisible.
-	WorldEntity.animations_enabled = zoom >= 0.7
 	var bake_queue := get_node_or_null("BakeQueue")
 	if bake_queue != null:
 		var moving := _last_bake_gate_pos != Vector2.INF and player.position.distance_squared_to(_last_bake_gate_pos) > 1.0
