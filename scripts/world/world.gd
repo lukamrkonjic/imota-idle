@@ -46,6 +46,7 @@ var _roofed_entities: Array = []  # houses/buildings only — for per-frame roof
 var _click_fx_layer: Node2D
 var _camera: Camera2D
 var render_3d: Node                 # 3D pixel-art renderer (null/headless = 2D path)
+var editor_stream_cap := 0          # world editor: max terrain chunk radius (0 = uncapped)
 var _ambient: CanvasModulate
 var _ambience: Node2D
 var _biome_debug: Node2D
@@ -233,6 +234,10 @@ func _update_stream_radius() -> void:
 	var span_x: float = float(WG.CHUNK_TILES) * WG.ISO_HW
 	var span_y: float = float(WG.CHUNK_TILES) * WG.ISO_HH
 	var r: int = ceili((wx / span_x + wy / span_y) * 0.5)
+	# World editor (aerial view) caps the terrain radius so zooming way out can't try
+	# to mesh thousands of chunks at once (OOM/freeze); beyond the cap the far map fogs.
+	if editor_stream_cap > 0:
+		r = mini(r, editor_stream_cap)
 	# Terrain must fill the whole zoomed-out view, but interactive/entity chunks
 	# only need a modest buffer around the player. Expanding both was flooding the
 	# moving camera with hundreds of extra CanvasItems.

@@ -167,6 +167,7 @@ const _V3D_SAT_PITCH := 1.16      # near top-down aerial (CAM_PITCH_MAX is 1.40)
 var _v3d_zoom := 0.45             # lower = wider aerial view (cam ortho size grows)
 var _v3d_panning := false
 var _v3d_pan_prev := Vector2.ZERO
+var _v3d_focus_pos := Vector2.ZERO   # float world-space camera focus (WASD/pan move it)
 
 
 func _ready() -> void:
@@ -436,6 +437,9 @@ func _zoom_at(factor: float) -> void:
 
 
 func _process(_delta: float) -> void:
+	# 3D world canvas: WASD flies the aerial camera over the map.
+	if _v3d_on:
+		_v3d_wasd(_delta)
 	# Pointer is "over UI" whenever any editor Control is under the cursor — used
 	# to keep the mouse wheel scrolling lists instead of zooming the map.
 	_ui_hover = get_viewport().gui_get_hovered_control() != null
@@ -1104,7 +1108,7 @@ func _build_3d_view_panel() -> void:
 	_v3d_max_btn.pressed.connect(_toggle_3d_view)
 	bar.add_child(_v3d_max_btn)
 	var hint := Label.new()
-	hint.text = "L-click place · R-drag pan · wheel zoom"
+	hint.text = "WASD / R-drag move · wheel / pinch zoom · L-click place"
 	hint.add_theme_font_size_override("font_size", 10)
 	hint.add_theme_color_override("font_color", Color(0.6, 0.62, 0.66))
 	bar.add_child(hint)
@@ -1158,7 +1162,9 @@ func _apply_v3d_layout() -> void:
 		_v3d_vp.handle_input_locally = false       # the EDITOR owns clicks (place / pan)
 	_v3d_container.mouse_filter = Control.MOUSE_FILTER_STOP
 	_v3d_panel.position = Vector2(_V3D_LEFT, _V3D_TOP)
-	_focus_3d(_v3d_focus_tile if _in_bounds_tile(_v3d_focus_tile) else _spawn_tile)
+	var ft := _v3d_focus_tile if _in_bounds_tile(_v3d_focus_tile) else _spawn_tile
+	_focus_3d(ft)
+	_v3d_focus_pos = WG.tile_to_world(ft.x, ft.y)
 	_apply_v3d_satellite_camera()
 	_v3d_panel.reset_size.call_deferred()
 
@@ -1180,6 +1186,8 @@ func _spawn_embedded_world() -> void:
 	var rend: Node = _v3d_world.get("render_3d")
 	if rend != null:
 		rend.set("editor_hide_player", true)
+	# Cap terrain streaming so zooming way out can't try to mesh the whole continent.
+	_v3d_world.set("editor_stream_cap", 14)
 
 
 ## Aim the 3D camera at a world tile by teleporting the embedded player there (the
@@ -1252,6 +1260,9 @@ func _on_v3d_gui_input(event: InputEvent) -> void:
 		elif event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 			_v3d_place_at_cursor()
 		_v3d_container.accept_event()
+	elif event is InputEventMagnifyGesture:
+		_v3d_zoom_by(event.factor)            # trackpad pinch
+		_v3d_container.accept_event()
 	elif event is InputEventMouseMotion and _v3d_panning:
 		_v3d_pan_drag()
 		_v3d_container.accept_event()
@@ -1275,8 +1286,9 @@ func _v3d_place_at_cursor() -> void:
 
 
 func _v3d_zoom_by(factor: float) -> void:
-	# Wide range: ~0.16 surveys a large stretch of the world, 1.8 is close-in placement.
-	_v3d_zoom = clampf(_v3d_zoom * factor, 0.16, 1.8)
+	# Wide range: ~0.06 surveys a big stretch of the world (terrain cap fogs the far
+	# edge), 1.8 is close-in placement. Pinch + wheel both route here.
+	_v3d_zoom = clampf(_v3d_zoom * factor, 0.06, 1.8)
 	var cam2d: Node = _v3d_world.get("_camera") if _v3d_world != null else null
 	if cam2d != null:
 		cam2d.set("zoom", Vector2(_v3d_zoom, _v3d_zoom))
@@ -1290,8 +1302,34 @@ func _v3d_pan_drag() -> void:
 	_v3d_pan_prev = cur
 	if prev_iso == Vector2.INF or cur_iso == Vector2.INF:
 		return
-	var center := WG.tile_to_world(_v3d_focus_tile.x, _v3d_focus_tile.y) + (prev_iso - cur_iso)
-	_focus_3d(WG.world_to_tile(center))
+	_v3d_set_focus_world(_v3d_focus_pos + (prev_iso - cur_iso))
+
+
+## Move the aerial camera to a float world position (keeps sub-tile precision for
+## smooth WASD / drag panning; the embedded world re-centres on the rounded tile).
+func _v3d_set_focus_world(pos: Vector2) -> void:
+	_v3d_focus_pos = pos
+	_focus_3d(WG.world_to_tile(pos))
+
+
+## WASD fly-over: pan the aerial camera in screen-relative directions (W = toward the
+## top of the view), at a constant screen speed regardless of zoom. Called each frame.
+func _v3d_wasd(delta: float) -> void:
+	var mv := Vector2.ZERO
+	if Input.is_physical_key_pressed(KEY_W): mv.y -= 1.0
+	if Input.is_physical_key_pressed(KEY_S): mv.y += 1.0
+	if Input.is_physical_key_pressed(KEY_A): mv.x -= 1.0
+	if Input.is_physical_key_pressed(KEY_D): mv.x += 1.0
+	if mv == Vector2.ZERO:
+		return
+	var c := _v3d_container.size * 0.5
+	var o := _v3d_screen_iso(c)
+	var rx := _v3d_screen_iso(c + Vector2(60.0, 0.0))
+	var ry := _v3d_screen_iso(c + Vector2(0.0, 60.0))
+	if o == Vector2.INF or rx == Vector2.INF or ry == Vector2.INF:
+		return
+	var world_delta := ((rx - o) * mv.x + (ry - o) * mv.y) / 60.0 * 900.0 * delta
+	_v3d_set_focus_world(_v3d_focus_pos + world_delta)
 
 
 ## Container-local mouse -> world iso position via the embedded camera ground raycast.
