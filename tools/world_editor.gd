@@ -21,10 +21,10 @@ extends Node2D
 ## (world.tscn) in a panel. Because the editor edits the same WorldGen chunk objects
 ## the renderer reads, painting terrain/biome/water and then re-meshing the touched
 ## chunks shows the true in-game 3D look. Press F to aim the 3D camera at the cursor;
-## arrow keys orbit it. The panel's "⛶ Maximize" button (or M) blows it up to a large,
-## navigable view: click inside it to walk the camera through the world (so you can
-## scout where to place trees/roads/houses/POIs) while arrows keep orbiting.
-## (Self-test: run with `-- --we-selftest`.)
+## arrow keys orbit it. The panel's "⛶ Maximize" button (or M) blows it up to a large
+## authoring view: with a Structure/Stamp tool selected, CLICK in the 3D view to place
+## the picked object at the cursor (trees, rocks, houses…), live; with Pan selected a
+## click re-aims the camera. Arrows keep orbiting. (Self-test: run with `-- --we-selftest`.)
 ##
 ## Run:  godot --path . res://tools/world_editor.tscn
 
@@ -1071,20 +1071,21 @@ func _build_3d_view_panel() -> void:
 	_v3d_max_btn = Button.new()
 	_v3d_max_btn.text = "⛶ Maximize"
 	_v3d_max_btn.toggle_mode = true
-	_v3d_max_btn.tooltip_text = "Fill the screen with a navigable 3D view (M). Click in it to walk; arrows orbit."
+	_v3d_max_btn.tooltip_text = "Fill the screen with a large 3D authoring view (M). With a Structure/Stamp tool, click in it to place at the cursor; otherwise click re-aims the camera. Arrows orbit."
 	_v3d_max_btn.pressed.connect(_toggle_3d_maximize)
 	bar.add_child(_v3d_max_btn)
 	var hint := Label.new()
-	hint.text = "arrows orbit · F focus cursor"
+	hint.text = "click: place / re-aim · arrows orbit"
 	hint.add_theme_font_size_override("font_size", 10)
 	hint.add_theme_color_override("font_color", Color(0.6, 0.62, 0.66))
 	bar.add_child(hint)
 	_v3d_container = SubViewportContainer.new()
 	_v3d_container.custom_minimum_size = _V3D_SIZE
 	_v3d_container.stretch = true
-	# View-only: mouse stays with the editor (the 2D map), so clicking the 3D panel
-	# never moves the embedded player. Arrow keys still reach it to orbit the camera.
+	# Docked = view-only (mouse passes to the 2D map). Maximized flips to STOP so the
+	# editor receives clicks here for 3D placement / camera re-aim (see _apply_v3d_layout).
 	_v3d_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_v3d_container.gui_input.connect(_on_v3d_gui_input)
 	box.add_child(_v3d_container)
 	_v3d_panel.position = Vector2(get_viewport().get_visible_rect().size) - Vector2(_V3D_SIZE) - Vector2(24, 24)
 
@@ -1103,10 +1104,9 @@ func _toggle_3d_view() -> void:
 		_v3d_max = false   # always reopen in the small docked corner
 
 
-## Toggle the 3D panel between the small docked corner and a large, navigable view
-## that fills most of the screen. In large mode you can click inside the view to
-## walk the camera around (so you can scout where to place trees/roads/houses), and
-## the camera follows the player instead of staying pinned to the 2D cursor.
+## Toggle the 3D panel between the small docked corner and a large authoring view that
+## fills most of the screen. In large mode the editor receives clicks in the 3D view:
+## a placement tool drops its object at the cursor; otherwise the click re-aims the camera.
 func _toggle_3d_maximize() -> void:
 	if not _v3d_on:
 		# Turning maximize on also turns the 3D view on (convenience).
@@ -1128,13 +1128,11 @@ func _apply_v3d_layout() -> void:
 		_v3d_container.custom_minimum_size = Vector2(sz)
 		if _v3d_vp != null:
 			_v3d_vp.size = sz
-			_v3d_vp.handle_input_locally = true        # route clicks into the world → walk
+			_v3d_vp.handle_input_locally = false       # the EDITOR owns clicks (place / re-aim)
 		_v3d_container.mouse_filter = Control.MOUSE_FILTER_STOP
 		_v3d_panel.position = Vector2(210, 52)
-		# Follow the live (walking) player so the user can explore the world freely.
-		var rend: Node = _v3d_world.get("render_3d") if _v3d_world != null else null
-		if rend != null:
-			rend.set("editor_cam_target", null)
+		# Pin the camera to the authoring focus (no wandering player); click re-aims it.
+		_focus_3d(_v3d_focus_tile if _in_bounds_tile(_v3d_focus_tile) else _spawn_tile)
 	else:
 		_v3d_container.custom_minimum_size = _V3D_SIZE
 		if _v3d_vp != null:
@@ -1185,7 +1183,8 @@ func _focus_3d(tile: Vector2i) -> void:
 
 
 ## Re-mesh the chunks a stroke (or undo/redo) touched so terrain/biome/water edits show
-## up in the 3D view. Structure/creature entities are refreshed in a later milestone.
+## up in the 3D view. (Structure entities placed via the 3D view are refreshed separately
+## by _refresh_3d_entities.)
 func _resync_3d_tiles(tiles: Array) -> void:
 	if not _v3d_on or _v3d_world == null:
 		return
@@ -1201,6 +1200,79 @@ func _resync_3d_tiles(tiles: Array) -> void:
 			continue
 		seen[k] = true
 		rend.call("rebuild_chunk", cx, cy)
+
+
+## Clicks inside the maximized 3D view (mouse_filter STOP routes them here). With a
+## placement tool active, drop the selected structure/stamp at the cursor's tile and
+## refresh the 3D entities live; otherwise re-aim the camera at the clicked point.
+func _on_v3d_gui_input(event: InputEvent) -> void:
+	if not (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT):
+		return
+	if not _v3d_on or _busy:
+		return
+	var tile := _v3d_tile_under_mouse()
+	if tile.x == -2147483648 or not _in_bounds_tile(tile):
+		return
+	match _tool:
+		Tool.STRUCTURE:
+			_begin_stroke()
+			_place_structure(tile)
+			_commit_stroke()
+			_refresh_3d_entities(tile)
+		Tool.STAMP:
+			_begin_stroke()
+			_place_stamp(tile)
+			_commit_stroke()
+			_refresh_3d_entities(tile)
+		Tool.SPAWN:
+			_begin_stroke()
+			_set_spawn(tile)
+			_commit_stroke()
+		_:
+			_focus_3d(tile)
+			_status.text = "3D camera → (%d, %d)" % [tile.x, tile.y]
+	_v3d_container.accept_event()
+
+
+## World tile under the 3D-view cursor: map the container-local mouse into the
+## SubViewport's pixel space, then raycast through the embedded camera to the ground.
+func _v3d_tile_under_mouse() -> Vector2i:
+	const NONE := Vector2i(-2147483648, 0)
+	if _v3d_world == null or _v3d_vp == null:
+		return NONE
+	var rend: Node = _v3d_world.get("render_3d")
+	if rend == null or not rend.has_method("screen_to_iso"):
+		return NONE
+	var csize := _v3d_container.size
+	if csize.x <= 0.0 or csize.y <= 0.0:
+		return NONE
+	var local := _v3d_container.get_local_mouse_position()
+	var sub_px := Vector2(local.x / csize.x, local.y / csize.y) * Vector2(_v3d_vp.size)
+	var iso: Vector2 = rend.call("screen_to_iso", sub_px)
+	return WG.world_to_tile(iso)
+
+
+## Respawn the embedded world's entities for the placed tile's chunk (+ neighbours, so
+## footprints that cross a chunk border show), then force a static-batch rebuild so the
+## new structure appears in the 3D view without a reload.
+func _refresh_3d_entities(tile: Vector2i) -> void:
+	if _v3d_world == null:
+		return
+	var sp: Object = _v3d_world.get("_entity_spawner")
+	var containers: Dictionary = _v3d_world.get("_chunk_containers")
+	if sp == null or containers == null:
+		return
+	var c0 := WG.tile_to_chunk(tile)
+	for dy: int in range(-1, 2):
+		for dx: int in range(-1, 2):
+			var chunk: RefCounted = _chunks.get("%d:%d" % [c0.x + dx, c0.y + dy])
+			if chunk == null or not containers.has(chunk.key()):
+				continue
+			sp.call("on_chunk_unloaded", chunk)
+			sp.call("on_chunk_loaded", chunk, true)
+	var rend: Node = _v3d_world.get("render_3d")
+	if rend != null:
+		rend.set("_static_sig", "")   # force the static prop batch to rebuild
 
 
 func _in_bounds_tile(t: Vector2i) -> bool:
