@@ -9,7 +9,8 @@ const Chunk := preload("res://scripts/worldgen/chunk.gd")
 const SaveMigration := preload("res://autoload/save_migration.gd")
 
 ## Bump when generation logic changes; stale explored snapshots regenerate.
-const GENERATOR_VERSION := 17
+## 18: authored land-mask coastline + Aldreth region layout from the illustrated map.
+const GENERATOR_VERSION := 18
 
 var world_seed: int = 0
 var obelisks: Dictionary = {}       # chunk_key -> {name, x, y}

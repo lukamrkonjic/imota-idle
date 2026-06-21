@@ -179,6 +179,16 @@ var _clim_biomes: Array = []        # [{id, t0,t1,m0,m1,e0,e1, off, extreme}] bi
 var _region_anchors: Array = []     # [{c:Vector2, r:float, t:float, m:float}] authored climate pulls
 var _extreme_anchors: Dictionary = {}  # biome_id -> [{c:Vector2, r:float}] confinement basins
 
+## Drop the cached region/climate tables so the next query rebuilds them from the
+## current reg.spec.regions. Used by tools/biome_shuffle.gd to re-render biome
+## dispositions after reassigning region biomes, without rebuilding the land SDF.
+func reset_region_cache() -> void:
+	_clim_ready = false
+	_clim_biomes.clear()
+	_region_anchors.clear()
+	_extreme_anchors.clear()
+
+
 func _ensure_climate_cache() -> void:
 	if _clim_ready:
 		return

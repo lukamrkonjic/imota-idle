@@ -58,11 +58,19 @@ func _ready() -> void:
 
 	DirAccess.make_dir_recursive_absolute(OUT_DIR)
 	var spawn: Vector2i = gen.default_spawn_tile()
+	# Permanent index->id tables so the byte-indexed chunk data survives any future
+	# reorder/removal in biomes.json: BakedWorldStore remaps baked indices back to
+	# current indices by ID (with deprecatedBiomes/Tiles fallbacks) on load.
+	var biome_ids: Array = []
+	for bd: Dictionary in reg.biomes:
+		biome_ids.append(str(bd["id"]))
 	var doc := {
-		"version": 1,
+		"version": 2,
 		"id": spec.id,
 		"bounds": {"min": [b.position.x, b.position.y], "max": [b.end.x - 1, b.end.y - 1]},
 		"spawn": [spawn.x, spawn.y],
+		"biomeIds": biome_ids,
+		"tileIds": Array(reg.tile_order),
 		"chunks": chunks_doc,
 	}
 	var world_path: String = OUT_DIR + str(spec.id) + ".world"

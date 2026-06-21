@@ -20,6 +20,7 @@ class_name FiniteWorldGenerator
 const WG := preload("res://scripts/worldgen/wg.gd")
 const Chunk := preload("res://scripts/worldgen/chunk.gd")
 const WorldGenerator := preload("res://scripts/worldgen/world_generator.gd")
+const BiomeClassifier := preload("res://scripts/worldgen/biome_classifier.gd")
 
 var reg: RefCounted
 var spec: RefCounted
@@ -36,6 +37,7 @@ var _t_sand: int
 var _t_deep: int
 var _b_ocean: int
 var _b_beach: int
+var _has_land_mask := false   # authored mask owns the coast => skip the ring-coastline pass
 
 # threading
 var _results: Dictionary = {}
@@ -57,6 +59,7 @@ func setup(p_reg: RefCounted, p_seed: int) -> void:
 	_t_deep = int(reg.tile_index.get("deep_water", 0))
 	_b_ocean = int(reg.biome_index.get("ocean", 255))
 	_b_beach = int(reg.biome_index.get("beach", _b_ocean))
+	_has_land_mask = spec.active and spec.finite and FileAccess.file_exists(BiomeClassifier.land_mask_path(str(spec.id)))
 	overrides = _build_overrides()
 
 
@@ -256,6 +259,12 @@ func _apply_overrides(chunk: RefCounted) -> void:
 
 
 func _apply_coastline(chunk: RefCounted, cx: int, cy: int) -> void:
+	# With an authored land mask, the coast is already where the mask says (ocean
+	# biome -> deep/shallow tiles per tile_at, sand ring on shore). Forcing the
+	# outer bounds rings to sea here would cut any landmass that reaches the edge,
+	# so let the mask own the entire coastline.
+	if _has_land_mask:
+		return
 	var b := bounds
 	var ring: int = min(
 		min(cx - b.position.x, b.end.x - 1 - cx),

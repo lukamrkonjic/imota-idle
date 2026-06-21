@@ -2,8 +2,9 @@ extends Node
 ## Headless validation. Run:
 const ValidateContent := preload("res://tools/validate_content.gd")
 # Worldgen determinism baseline — refactors of the generation pipeline must keep these.
-const WORLDGEN_TILES_HASH := 141795875
-const WORLDGEN_ELEV_SUM := 25716
+# Re-pinned for the authored mask-driven Aldreth coastline (generatorVersion 18).
+const WORLDGEN_TILES_HASH := 2155871874
+const WORLDGEN_ELEV_SUM := 13677
 const ContentId := preload("res://scripts/content/content_id.gd")
 const SaveMigration := preload("res://autoload/save_migration.gd")
 const SkillRemap := preload("res://scripts/content/skill_remap.gd")

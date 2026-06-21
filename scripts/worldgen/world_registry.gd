@@ -19,6 +19,13 @@ var sub_biomes: Array = []              # sub-biome placement rules from biomes.
 var parent_biome_ids: PackedStringArray = []  # ids that can be macro parent regions
 var biome_neighbors: Dictionary = {}    # parent id -> allowed neighbor ids
 var biome_transitions: Dictionary = {}  # "a:b" -> {width, tiles resolved}
+# Deprecation maps (biomes.json "deprecatedBiomes"/"deprecatedTiles"): removed-id ->
+# ordered fallback ids. A baked world keeps a permanent index->id table; on load a
+# removed id resolves through these so REMOVING a biome/tile never rerolls or
+# corrupts the map — it just shows its fallback. Values may be a bare ["a","b"]
+# array or {"fallbacks":["a","b"]}.
+var deprecated_biomes: Dictionary = {}  # old biome id -> [fallback ids]
+var deprecated_tiles: Dictionary = {}   # old tile id  -> [fallback ids]
 
 # --- skill sites / stations ---
 var site_defaults: Dictionary = {}
@@ -47,6 +54,8 @@ func load_all() -> void:
 	_parse_biomes(biome_doc.get("biomes", []))
 	_parse_sub_biomes(biome_doc.get("subBiomes", []))
 	_parse_transitions(biome_doc.get("transitions", {}))
+	deprecated_biomes = _parse_deprecations(biome_doc.get("deprecatedBiomes", {}))
+	deprecated_tiles = _parse_deprecations(biome_doc.get("deprecatedTiles", {}))
 
 	var sites_doc := _read("skill_sites.json")
 	site_defaults = sites_doc.get("defaults", {"resources": 8, "respawnSec": 25.0})
@@ -185,6 +194,42 @@ func biome(idx: int) -> Dictionary:
 
 func biome_by_id(id: String) -> Dictionary:
 	return biomes[int(biome_index.get(id, biomes.size() - 1))]
+
+
+## Normalize a deprecation doc into {oldId: PackedStringArray(fallbacks)}.
+static func _parse_deprecations(raw: Dictionary) -> Dictionary:
+	var out: Dictionary = {}
+	for old_id: String in raw:
+		var v: Variant = raw[old_id]
+		var fbs: Array = v if v is Array else (v as Dictionary).get("fallbacks", []) if v is Dictionary else []
+		var clean: PackedStringArray = []
+		for fb: Variant in fbs:
+			clean.append(str(fb))
+		out[old_id] = clean
+	return out
+
+
+## Current biome id for a (possibly removed) id: the id itself if it still exists,
+## else the first existing fallback (one transitive hop), else "".
+func resolve_biome_id(id: String) -> String:
+	return _resolve_id(id, biome_index, deprecated_biomes)
+
+
+func resolve_tile_id(id: String) -> String:
+	return _resolve_id(id, tile_index, deprecated_tiles)
+
+
+func _resolve_id(id: String, index: Dictionary, deprecated: Dictionary) -> String:
+	if index.has(id):
+		return id
+	for fb: String in deprecated.get(id, PackedStringArray()):
+		if index.has(fb):
+			return fb
+		# one transitive hop: a fallback that is itself deprecated
+		for fb2: String in deprecated.get(fb, PackedStringArray()):
+			if index.has(fb2):
+				return fb2
+	return ""
 
 
 # ------------------------------------------------------------ skill sites ----

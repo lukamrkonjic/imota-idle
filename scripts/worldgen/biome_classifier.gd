@@ -68,6 +68,28 @@ var _continents: Array = []     # [{c:Vector2, rx:float, ry:float}] authored lan
 var _land_discs: Array = []     # [{c:Vector2, r:float}] forced-land discs (tiles)
 var _land_corridors: Array = [] # [{a,b:Vector2, r:float}] connecting land bridges
 
+# --- AUTHORED land mask (the real Aldreth coastline) --------------------------
+# When data/world/masks/<world>_land.png exists (world = active spec id), it — not
+# the ellipse field above — is the single source of the continent SHAPE (traced from
+# the illustrated map by tools/world_trace.gd). We precompute a signed-distance field
+# from it once (positive = tiles inland, negative = tiles offshore) and sample THAT,
+# so the coast follows the map's fractal outline with a controllable beach width, and
+# the per-tile cost is just a few float reads. No mask => the ellipse path runs
+# unchanged, so other specs/worlds still work.
+const _MASK_DIR := "res://data/world/masks/"
+const _MASK_SHORE := 0.04       # landmass value at the waterline (=> coast_sink ~0.72, ocean/beach edge)
+const _MASK_SLOPE := 0.013      # landmass gained per tile inland (=> ~3-tile beach, solid land beyond ~6)
+const _MASK_FRAY := 0.012       # tile-scale jitter on the waterline so it isn't a smooth interpolation
+var _has_land_mask := false
+var _land_sdf: PackedFloat32Array = PackedFloat32Array()  # signed dist in MASK PIXELS (+inland/-sea)
+var _mask_w := 0
+var _mask_h := 0
+var _mask_min_tx := 0.0
+var _mask_min_ty := 0.0
+var _mask_tile_w := 1.0
+var _mask_tile_h := 1.0
+var _tiles_per_mask_px := 1.0
+
 
 func setup(p_reg: RefCounted, p_seed: int) -> void:
 	reg = p_reg
@@ -109,8 +131,13 @@ func setup(p_reg: RefCounted, p_seed: int) -> void:
 	_t_sand = int(reg.tile_index["sand"])
 	_t_rock = int(reg.tile_index["rock"])
 	_t_cobble = int(reg.tile_index["cobble"])
-	_build_continents()
-	_build_land_guarantees()
+	if _finite:
+		_load_land_mask()
+	# The ellipse continents + land-guarantee discs are only the FALLBACK shape;
+	# skip them entirely when the authored mask is driving the coastline.
+	if not _has_land_mask:
+		_build_continents()
+		_build_land_guarantees()
 
 
 ## Precompute the forced-land discs (every authored region + the home core) and
@@ -262,6 +289,15 @@ func coast_sink(tx: float, ty: float) -> float:
 func _landmass(tx: float, ty: float) -> float:
 	if not _finite:
 		return 1.0
+	# AUTHORED mask drives the shape when present: signed tile-distance to the coast,
+	# mapped into the same landmass scale (>0 land, <0 sea) the rest of the pipeline
+	# expects, with a small waterline fray. No ellipse/island/guarantee maths here.
+	if _has_land_mask:
+		var s := _land_signed_tiles(tx, ty)
+		if s <= -900.0:
+			return -1.0   # beyond the authored bounds = open sea
+		var fray := _surface_detail.get_noise_2d(tx * 3.0, ty * 3.0) * _MASK_FRAY
+		return _MASK_SHORE + s * _MASK_SLOPE + fray
 	# Heavy, low-frequency domain warp twists the coast into peninsulas and gulfs
 	# rather than a clean disc.
 	var wx := _domain_warp.get_noise_2d(tx * 0.0016, ty * 0.0016) * 470.0
@@ -294,6 +330,124 @@ func _landmass(tx: float, ty: float) -> float:
 	if g > 0.0:
 		lm = lerpf(lm, maxf(lm, _GUARANTEE_LAND), g)
 	return lm
+
+
+## True when the authored land mask is the active coastline source.
+func has_land_mask() -> bool:
+	return _has_land_mask
+
+
+## Path to a world's authored land mask (single source of truth for all tools).
+static func land_mask_path(world_id: String) -> String:
+	return _MASK_DIR + world_id + "_land.png"
+
+
+## Load the traced land mask (if any) and precompute its signed-distance field.
+## The mask covers the full authored bounds 1:1 in tile space.
+func _load_land_mask() -> void:
+	var img := _load_png_image(land_mask_path(str(reg.spec.id)))
+	if img == null:
+		return
+	img.convert(Image.FORMAT_RGB8)
+	_mask_w = img.get_width()
+	_mask_h = img.get_height()
+	if _mask_w < 2 or _mask_h < 2:
+		return
+	var b: Rect2i = reg.spec.bounds
+	_mask_min_tx = float(b.position.x) * WG.CHUNK_TILES
+	_mask_min_ty = float(b.position.y) * WG.CHUNK_TILES
+	_mask_tile_w = float(b.size.x) * WG.CHUNK_TILES
+	_mask_tile_h = float(b.size.y) * WG.CHUNK_TILES
+	_tiles_per_mask_px = (_mask_tile_w / float(_mask_w) + _mask_tile_h / float(_mask_h)) * 0.5
+	_build_land_sdf(img)
+	_has_land_mask = true
+
+
+## Two-pass chamfer signed-distance transform of the binary mask (land = bright).
+## sdf > 0 inside land (distance to nearest sea, in mask pixels); < 0 in the sea
+## (negative distance to nearest land). Cheap (O(2·W·H)) and runs once at setup.
+func _build_land_sdf(img: Image) -> void:
+	var n := _mask_w * _mask_h
+	var INF := 1.0e9
+	var d_in := PackedFloat32Array()  # dist to nearest SEA (0 on sea)
+	var d_out := PackedFloat32Array() # dist to nearest LAND (0 on land)
+	d_in.resize(n)
+	d_out.resize(n)
+	# Read the raw RGB8 buffer once (red byte per pixel) — far faster than get_pixel
+	# 1.5M times, which matters because every bake worker builds this.
+	var data := img.get_data()   # FORMAT_RGB8 => 3 bytes/pixel, R first
+	for i: int in n:
+		var is_land := data[i * 3] > 127
+		d_in[i] = INF if is_land else 0.0
+		d_out[i] = 0.0 if is_land else INF
+	_chamfer(d_in, INF)
+	_chamfer(d_out, INF)
+	_land_sdf = PackedFloat32Array()
+	_land_sdf.resize(n)
+	for i: int in n:
+		_land_sdf[i] = d_in[i] - d_out[i]
+
+
+## In-place chamfer distance transform (forward + backward 3×3 passes).
+func _chamfer(d: PackedFloat32Array, INF: float) -> void:
+	var DIAG := 1.4142136
+	var w := _mask_w
+	var h := _mask_h
+	for y: int in h:
+		for x: int in w:
+			var i := y * w + x
+			if d[i] == 0.0:
+				continue
+			var m := d[i]
+			if x > 0: m = minf(m, d[i - 1] + 1.0)
+			if y > 0: m = minf(m, d[i - w] + 1.0)
+			if x > 0 and y > 0: m = minf(m, d[i - w - 1] + DIAG)
+			if x < w - 1 and y > 0: m = minf(m, d[i - w + 1] + DIAG)
+			d[i] = m
+	for y: int in range(h - 1, -1, -1):
+		for x: int in range(w - 1, -1, -1):
+			var i := y * w + x
+			if d[i] == 0.0:
+				continue
+			var m := d[i]
+			if x < w - 1: m = minf(m, d[i + 1] + 1.0)
+			if y < h - 1: m = minf(m, d[i + w] + 1.0)
+			if x < w - 1 and y < h - 1: m = minf(m, d[i + w + 1] + DIAG)
+			if x > 0 and y < h - 1: m = minf(m, d[i + w - 1] + DIAG)
+			d[i] = m
+
+
+## Signed distance to the coast at a world tile, in TILES (+inland / -offshore).
+## Returns -999 well beyond the authored bounds. Bilinear over the SDF.
+func _land_signed_tiles(tx: float, ty: float) -> float:
+	var u := (tx - _mask_min_tx) / _mask_tile_w
+	var v := (ty - _mask_min_ty) / _mask_tile_h
+	if u < -0.02 or u > 1.02 or v < -0.02 or v > 1.02:
+		return -999.0
+	var fx := clampf(u, 0.0, 1.0) * float(_mask_w - 1)
+	var fy := clampf(v, 0.0, 1.0) * float(_mask_h - 1)
+	var x0 := floori(fx)
+	var y0 := floori(fy)
+	var x1 := mini(x0 + 1, _mask_w - 1)
+	var y1 := mini(y0 + 1, _mask_h - 1)
+	var tfx := fx - float(x0)
+	var tfy := fy - float(y0)
+	var s00 := _land_sdf[y0 * _mask_w + x0]
+	var s10 := _land_sdf[y0 * _mask_w + x1]
+	var s01 := _land_sdf[y1 * _mask_w + x0]
+	var s11 := _land_sdf[y1 * _mask_w + x1]
+	var s := lerpf(lerpf(s00, s10, tfx), lerpf(s01, s11, tfx), tfy)
+	return s * _tiles_per_mask_px
+
+
+static func _load_png_image(path: String) -> Image:
+	if not FileAccess.file_exists(path):
+		return null
+	var bytes := FileAccess.get_file_as_bytes(path)
+	var img := Image.new()
+	if img.load_png_from_buffer(bytes) != OK:
+		return null
+	return img
 
 
 ## 0..1 strength of the forced-land guarantee at a tile: 1 in a region/corridor

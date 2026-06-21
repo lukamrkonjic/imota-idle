@@ -18,16 +18,35 @@ const PALETTE := {
 	"beach": Color8(214, 196, 142),
 	"plains": Color8(96, 140, 64),
 	"wheatfield": Color8(196, 168, 78),
+	"flower_meadow": Color8(140, 178, 96),
 	"forest": Color8(54, 96, 52),
+	"dense_forest": Color8(32, 66, 36),
+	"grove": Color8(96, 150, 80),
 	"boreal_forest": Color8(60, 104, 92),
 	"rocky_hills": Color8(126, 124, 120),
-	"tundra": Color8(226, 230, 236),
-	"desert": Color8(206, 178, 120),
-	"savanna": Color8(160, 156, 86),
-	"swamp": Color8(64, 78, 66),
-	"jungle": Color8(38, 84, 46),
-	"volcanic": Color8(110, 60, 52),
-	"alpine": Color8(210, 214, 222),
+	"heather_moor": Color8(132, 96, 140),
+	"tundra": Color8(210, 216, 220),
+	"snowdrift": Color8(236, 240, 246),
+	"alpine": Color8(214, 220, 230),
+	"lichen_field": Color8(150, 166, 150),
+	"desert": Color8(214, 184, 120),
+	"cactus_plain": Color8(196, 174, 112),
+	"oasis": Color8(80, 150, 110),
+	"salt_pan": Color8(228, 224, 214),
+	"savanna": Color8(176, 160, 86),
+	"savanna_scrub": Color8(150, 140, 80),
+	"badlands": Color8(168, 104, 72),
+	"thorn_waste": Color8(140, 100, 70),
+	"swamp": Color8(64, 84, 66),
+	"bog": Color8(74, 78, 58),
+	"jungle": Color8(38, 92, 46),
+	"bamboo_thicket": Color8(120, 150, 60),
+	"volcanic": Color8(120, 56, 48),
+	"scorched": Color8(80, 60, 56),
+	"obsidian_ridge": Color8(44, 40, 48),
+	"geyser_field": Color8(150, 160, 170),
+	"dead_forest": Color8(96, 92, 84),
+	"corrupted_bog": Color8(86, 64, 96),
 }
 
 
@@ -61,7 +80,7 @@ func _ready() -> void:
 			var id: String = cls.map_gen.parent_id_at(tx, ty)
 			img.set_pixel(px, py, PALETTE.get(id, Color8(255, 0, 255)))
 
-	var out := "res://data/world/baked/aldreth_preview.png"
+	var out := "res://data/world/baked/" + str(spec.id) + "_preview.png"
 	img.save_png(out)
 	print(JSON.stringify({
 		"tool": "coast_preview",

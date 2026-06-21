@@ -28,9 +28,15 @@ var spawn_tile := Vector2i.ZERO   # authored player spawn (global tile), if any
 var _chunks: Dictionary = {}     # "cx:cy" -> entry dict
 var _ocean_tile := 0
 var _ocean_biome := 255
+var _reg: RefCounted = null
+# Index remap LUTs (baked byte index -> current byte index, by stable id). Empty =
+# identity (older bakes with no id table, or ids unchanged). See _build_remaps.
+var _biome_remap: PackedByteArray = PackedByteArray()
+var _tile_remap: PackedByteArray = PackedByteArray()
 
 
 func setup(reg: RefCounted) -> void:
+	_reg = reg
 	_ocean_tile = int(reg.tile_index.get("deep_water", 0))
 	_ocean_biome = int(reg.biome_index.get("ocean", 255))
 
@@ -61,8 +67,62 @@ func load_world(id: String) -> bool:
 		spawn_tile = Vector2i(int(sp[0]), int(sp[1]))
 		has_spawn = true
 	_chunks = doc.get("chunks", {})
+	_build_remaps(doc)
 	loaded = true
 	return true
+
+
+## Build baked-index -> current-index LUTs from the bake's permanent id tables.
+## Absent tables (older bakes) => identity (no remap). Removed ids resolve through
+## reg.deprecated_biomes/_tiles; if nothing resolves, a safe default is used.
+func _build_remaps(doc: Dictionary) -> void:
+	_biome_remap = PackedByteArray()
+	_tile_remap = PackedByteArray()
+	if _reg == null:
+		return
+	var default_biome: int = int(_reg.biome_index.get("plains", maxi(0, _reg.biomes.size() - 1)))
+	var default_tile: int = int(_reg.tile_index.get("grass", 0))
+	_biome_remap = _make_remap(doc.get("biomeIds", []), _reg.biome_index, _reg.deprecated_biomes, default_biome, true)
+	_tile_remap = _make_remap(doc.get("tileIds", []), _reg.tile_index, _reg.deprecated_tiles, default_tile, false)
+
+
+func _make_remap(baked_ids: Array, index: Dictionary, deprecated: Dictionary, default_idx: int, biome: bool) -> PackedByteArray:
+	if baked_ids.is_empty():
+		return PackedByteArray()   # identity — nothing to remap
+	var lut := PackedByteArray()
+	lut.resize(256)
+	for i: int in 256:
+		lut[i] = default_idx
+	if biome:
+		lut[255] = 255             # sub-biome 'none' sentinel is not an id
+	for baked_idx: int in mini(baked_ids.size(), 256):
+		var id := str(baked_ids[baked_idx])
+		var resolved := _resolve(id, index, deprecated)
+		if resolved >= 0:
+			lut[baked_idx] = resolved
+	return lut
+
+
+func _resolve(id: String, index: Dictionary, deprecated: Dictionary) -> int:
+	if index.has(id):
+		return int(index[id])
+	for fb: String in deprecated.get(id, PackedStringArray()):
+		if index.has(fb):
+			return int(index[fb])
+		for fb2: String in deprecated.get(fb, PackedStringArray()):
+			if index.has(fb2):
+				return int(index[fb2])
+	return -1
+
+
+static func _remap(arr: PackedByteArray, lut: PackedByteArray) -> PackedByteArray:
+	if lut.is_empty():
+		return arr
+	var out := PackedByteArray()
+	out.resize(arr.size())
+	for i: int in arr.size():
+		out[i] = lut[arr[i]]
+	return out
 
 
 func has(cx: int, cy: int) -> bool:
@@ -77,10 +137,10 @@ func build_chunk(cx: int, cy: int) -> RefCounted:
 	var e: Dictionary = _chunks[key]
 	var chunk: RefCounted = Chunk.new()
 	chunk.setup(0, cx, cy)
-	chunk.tiles = _decode(e.get("t", ""))
-	chunk.biomes_t = _decode(e.get("b", ""))
-	chunk.parent_biomes_t = _decode(e.get("p", ""))
-	chunk.sub_biomes_t = _decode(e.get("s", ""))
+	chunk.tiles = _remap(_decode(e.get("t", "")), _tile_remap)
+	chunk.biomes_t = _remap(_decode(e.get("b", "")), _biome_remap)
+	chunk.parent_biomes_t = _remap(_decode(e.get("p", "")), _biome_remap)
+	chunk.sub_biomes_t = _remap(_decode(e.get("s", "")), _biome_remap)
 	if e.has("k"):                       # collision layer (older bakes lack it)
 		chunk.collision = _decode(e.get("k", ""))
 	if e.has("e"):                       # terrain elevation (older bakes lack it)
