@@ -234,10 +234,11 @@ func _update_stream_radius() -> void:
 	var span_x: float = float(WG.CHUNK_TILES) * WG.ISO_HW
 	var span_y: float = float(WG.CHUNK_TILES) * WG.ISO_HH
 	var r: int = ceili((wx / span_x + wy / span_y) * 0.5)
-	# World editor (aerial view) caps the terrain radius so zooming way out can't try
-	# to mesh thousands of chunks at once (OOM/freeze); beyond the cap the far map fogs.
+	# World editor (aerial view): the View slider FORCES the terrain radius so it can
+	# both load more (see further) and stay bounded when zoomed way out (no OOM). It
+	# overrides the zoom-derived radius entirely — the slider is the authority.
 	if editor_stream_cap > 0:
-		r = mini(r, editor_stream_cap)
+		r = editor_stream_cap
 	# Terrain must fill the whole zoomed-out view, but interactive/entity chunks
 	# only need a modest buffer around the player. Expanding both was flooding the
 	# moving camera with hundreds of extra CanvasItems.

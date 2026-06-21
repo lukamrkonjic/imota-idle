@@ -168,9 +168,13 @@ var _v3d_zoom := 0.45             # lower = wider aerial view (cam ortho size gr
 var _v3d_panning := false
 var _v3d_pan_prev := Vector2.ZERO
 var _v3d_focus_pos := Vector2.ZERO   # float world-space camera focus (WASD/pan move it)
-var _v3d_view_cap := 14              # aerial terrain radius (chunks); the View slider drives it
+var _v3d_view_cap := 8               # aerial terrain radius (chunks); the View slider drives it
 var _v3d_view_slider: HSlider
 var _v3d_view_label: Label
+# World minimap (bottom-right): whole-world baked map; click to jump the aerial camera.
+var _minimap_panel: PanelContainer
+var _minimap_tex: TextureRect
+var _minimap_marker: ColorRect
 
 
 func _ready() -> void:
@@ -198,6 +202,7 @@ func _ready() -> void:
 	_build_view()
 	_build_ui()
 	_build_3d_view_panel()
+	_build_world_minimap()
 	_set_tool(Tool.PAN)
 	_refresh_palette()
 	_refresh_history_buttons()
@@ -443,6 +448,7 @@ func _process(_delta: float) -> void:
 	# 3D world canvas: WASD flies the aerial camera over the map.
 	if _v3d_on:
 		_v3d_wasd(_delta)
+		_update_minimap_marker()
 	# Pointer is "over UI" whenever any editor Control is under the cursor — used
 	# to keep the mouse wheel scrolling lists instead of zooming the map.
 	_ui_hover = get_viewport().gui_get_hovered_control() != null
@@ -1110,8 +1116,8 @@ func _build_3d_view_panel() -> void:
 	_v3d_view_label.add_theme_color_override("font_color", Color(0.7, 0.78, 0.7))
 	bar.add_child(_v3d_view_label)
 	_v3d_view_slider = HSlider.new()
-	_v3d_view_slider.min_value = 6
-	_v3d_view_slider.max_value = 24
+	_v3d_view_slider.min_value = 4
+	_v3d_view_slider.max_value = 16
 	_v3d_view_slider.step = 1
 	_v3d_view_slider.value = _v3d_view_cap
 	_v3d_view_slider.custom_minimum_size = Vector2(130, 0)
@@ -1140,6 +1146,73 @@ func _build_3d_view_panel() -> void:
 	_v3d_panel.position = Vector2(get_viewport().get_visible_rect().size) - Vector2(_V3D_SIZE) - Vector2(24, 24)
 
 
+## Bottom-right world minimap: the whole baked map; click anywhere to jump the aerial
+## camera there. A marker shows where the 3D view is currently centred.
+func _build_world_minimap() -> void:
+	_minimap_panel = PanelContainer.new()
+	_minimap_panel.add_theme_stylebox_override("panel", _panel(Color(0.06, 0.07, 0.09)))
+	_minimap_panel.top_level = true
+	_minimap_panel.visible = false
+	_hud.add_child(_minimap_panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	_minimap_panel.add_child(box)
+	var lbl := Label.new()
+	lbl.text = "World map — click to go"
+	lbl.add_theme_font_size_override("font_size", 10)
+	lbl.add_theme_color_override("font_color", Color(0.7, 0.78, 0.7))
+	box.add_child(lbl)
+	_minimap_tex = TextureRect.new()
+	_minimap_tex.texture = load("res://data/world/baked/" + str(_spec.id) + "_map.png")
+	var mw := 300.0
+	_minimap_tex.custom_minimum_size = Vector2(mw, mw * float(_h) / float(_w))
+	_minimap_tex.stretch_mode = TextureRect.STRETCH_SCALE
+	_minimap_tex.mouse_filter = Control.MOUSE_FILTER_STOP
+	_minimap_tex.gui_input.connect(_on_minimap_input)
+	box.add_child(_minimap_tex)
+	_minimap_marker = ColorRect.new()
+	_minimap_marker.color = Color(1.0, 1.0, 1.0, 0.95)
+	_minimap_marker.size = Vector2(8, 8)
+	_minimap_marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_minimap_tex.add_child(_minimap_marker)
+
+
+## Park the minimap in the bottom-right corner.
+func _position_minimap() -> void:
+	if _minimap_panel == null:
+		return
+	var vp := get_viewport().get_visible_rect().size
+	_minimap_panel.reset_size()
+	_minimap_panel.position = vp - _minimap_panel.size - Vector2(16, 16)
+
+
+## Click on the minimap -> jump the aerial camera to that world position.
+func _on_minimap_input(event: InputEvent) -> void:
+	if not (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT):
+		return
+	var sz := _minimap_tex.size
+	if sz.x <= 0.0 or sz.y <= 0.0:
+		return
+	var pos: Vector2 = (event as InputEventMouseButton).position
+	var frac := pos / sz
+	var tx := _min_tx + int(frac.x * float(_w))
+	var ty := _min_ty + int(frac.y * float(_h))
+	if not _v3d_on:
+		_toggle_3d_view()
+	_v3d_set_focus_world(WG.tile_to_world(tx, ty))
+	_minimap_tex.accept_event()
+
+
+## Keep the minimap marker over the current aerial focus.
+func _update_minimap_marker() -> void:
+	if _minimap_marker == null or _minimap_tex == null or _w <= 0 or _h <= 0:
+		return
+	var frac := Vector2(
+		float(_v3d_focus_tile.x - _min_tx) / float(_w),
+		float(_v3d_focus_tile.y - _min_ty) / float(_h))
+	_minimap_marker.position = frac * _minimap_tex.size - _minimap_marker.size * 0.5
+
+
 ## Toggle between the 2D map editor and the full-screen 3D world canvas. When ON, the
 ## rendered world REPLACES the 2D map (the 2D sprite + overlay hide) and the 3D view
 ## fills the editor area behind the tool panels — an aerial world-builder you pan
@@ -1154,6 +1227,10 @@ func _toggle_3d_view() -> void:
 		_sprite.visible = not _v3d_on
 	if _overlay != null:
 		_overlay.visible = not _v3d_on
+	if _minimap_panel != null:
+		_minimap_panel.visible = _v3d_on
+		if _v3d_on:
+			_position_minimap.call_deferred()
 	if _v3d_on:
 		if _v3d_world == null:
 			_spawn_embedded_world()
