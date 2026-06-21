@@ -1174,8 +1174,10 @@ func _apply_v3d_layout() -> void:
 	var vp := get_viewport().get_visible_rect().size
 	var sz := Vector2i(maxi(360, int(vp.x) - _V3D_LEFT), maxi(280, int(vp.y) - _V3D_TOP))
 	_v3d_container.custom_minimum_size = Vector2(sz)
+	# NOTE: do NOT set _v3d_vp.size — `stretch = true` makes the container drive the
+	# SubViewport size. Setting it manually is ignored (and left the viewport stuck at
+	# 540x380, which broke the streaming-radius math and the View slider).
 	if _v3d_vp != null:
-		_v3d_vp.size = sz
 		_v3d_vp.handle_input_locally = false       # the EDITOR owns clicks (place / pan)
 	_v3d_container.mouse_filter = Control.MOUSE_FILTER_STOP
 	_v3d_panel.position = Vector2(_V3D_LEFT, _V3D_TOP)
