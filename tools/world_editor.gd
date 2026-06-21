@@ -168,6 +168,9 @@ var _v3d_zoom := 0.45             # lower = wider aerial view (cam ortho size gr
 var _v3d_panning := false
 var _v3d_pan_prev := Vector2.ZERO
 var _v3d_focus_pos := Vector2.ZERO   # float world-space camera focus (WASD/pan move it)
+var _v3d_view_cap := 14              # aerial terrain radius (chunks); the View slider drives it
+var _v3d_view_slider: HSlider
+var _v3d_view_label: Label
 
 
 func _ready() -> void:
@@ -1102,6 +1105,20 @@ func _build_3d_view_panel() -> void:
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bar.add_child(spacer)
+	_v3d_view_label = Label.new()
+	_v3d_view_label.add_theme_font_size_override("font_size", 10)
+	_v3d_view_label.add_theme_color_override("font_color", Color(0.7, 0.78, 0.7))
+	bar.add_child(_v3d_view_label)
+	_v3d_view_slider = HSlider.new()
+	_v3d_view_slider.min_value = 6
+	_v3d_view_slider.max_value = 24
+	_v3d_view_slider.step = 1
+	_v3d_view_slider.value = _v3d_view_cap
+	_v3d_view_slider.custom_minimum_size = Vector2(130, 0)
+	_v3d_view_slider.tooltip_text = "View distance — how far the aerial view streams (more = see further, but heavier)."
+	_v3d_view_slider.value_changed.connect(_on_v3d_view_changed)
+	bar.add_child(_v3d_view_slider)
+	_update_v3d_view_label()
 	_v3d_max_btn = Button.new()
 	_v3d_max_btn.text = "✕ 2D Map"
 	_v3d_max_btn.tooltip_text = "Back to the flat 2D map editor (M toggles)."
@@ -1186,8 +1203,9 @@ func _spawn_embedded_world() -> void:
 	var rend: Node = _v3d_world.get("render_3d")
 	if rend != null:
 		rend.set("editor_hide_player", true)
-	# Cap terrain streaming so zooming way out can't try to mesh the whole continent.
-	_v3d_world.set("editor_stream_cap", 14)
+	# Cap terrain streaming so zooming way out can't try to mesh the whole continent;
+	# the View-distance slider tunes this radius.
+	_v3d_world.set("editor_stream_cap", _v3d_view_cap)
 
 
 ## Aim the 3D camera at a world tile by teleporting the embedded player there (the
@@ -1283,6 +1301,19 @@ func _v3d_place_at_cursor() -> void:
 			_begin_stroke(); _set_spawn(tile); _commit_stroke()
 		_:
 			_status.text = "Pick a Structure/Stamp tool, then click to place. (%d, %d)" % [tile.x, tile.y]
+
+
+## View-distance slider: drive the aerial terrain streaming radius live.
+func _on_v3d_view_changed(v: float) -> void:
+	_v3d_view_cap = int(v)
+	if _v3d_world != null:
+		_v3d_world.set("editor_stream_cap", _v3d_view_cap)
+	_update_v3d_view_label()
+
+
+func _update_v3d_view_label() -> void:
+	if _v3d_view_label != null:
+		_v3d_view_label.text = "View %d" % _v3d_view_cap
 
 
 func _v3d_zoom_by(factor: float) -> void:
