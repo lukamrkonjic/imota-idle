@@ -159,6 +159,12 @@ var _v3d_btn: Button
 var _v3d_max_btn: Button
 var _v3d_focus_tile := Vector2i(-2147483648, 0)   # last tile the 3D camera was sent to
 const _V3D_SIZE := Vector2i(540, 380)
+# Maximized = aerial "satellite" camera: steep top-down-ish pitch, zoomed out, free
+# pan (right-drag) + wheel zoom across the map; left-click places with a paint tool.
+const _V3D_SAT_PITCH := 1.16      # near top-down aerial (CAM_PITCH_MAX is 1.40)
+var _v3d_zoom := 0.45             # lower = wider aerial view (cam ortho size grows)
+var _v3d_panning := false
+var _v3d_pan_prev := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -193,6 +199,20 @@ func _ready() -> void:
 		if _a.begins_with("--we-selftest"):
 			_run_selftest.call_deferred()
 			break
+		if _a.begins_with("--we-sat"):
+			_run_sat_shot.call_deferred()
+			break
+
+
+## Dev verification: enter the aerial satellite view over the heartland and screenshot.
+func _run_sat_shot() -> void:
+	_toggle_3d_maximize()
+	_focus_3d(Vector2i(0, 0))
+	await get_tree().create_timer(9.0).timeout
+	if _v3d_vp != null:
+		_v3d_vp.get_texture().get_image().save_png("user://we_sat.png")
+		print("[we-sat] saved we_sat.png")
+	get_tree().quit()
 
 
 ## Dev verification: find a scattered set-piece POI in the baked world, aim the 3D
@@ -1069,13 +1089,13 @@ func _build_3d_view_panel() -> void:
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bar.add_child(spacer)
 	_v3d_max_btn = Button.new()
-	_v3d_max_btn.text = "⛶ Maximize"
+	_v3d_max_btn.text = "🛰 Satellite"
 	_v3d_max_btn.toggle_mode = true
-	_v3d_max_btn.tooltip_text = "Fill the screen with a large 3D authoring view (M). With a Structure/Stamp tool, click in it to place at the cursor; otherwise click re-aims the camera. Arrows orbit."
+	_v3d_max_btn.tooltip_text = "Full-screen aerial satellite view of the world (M). Right-drag pans across the map, wheel zooms, arrows orbit/tilt. With a Structure/Stamp tool, left-click places at the cursor."
 	_v3d_max_btn.pressed.connect(_toggle_3d_maximize)
 	bar.add_child(_v3d_max_btn)
 	var hint := Label.new()
-	hint.text = "click: place / re-aim · arrows orbit"
+	hint.text = "L-click place · R-drag pan · wheel zoom"
 	hint.add_theme_font_size_override("font_size", 10)
 	hint.add_theme_color_override("font_color", Color(0.6, 0.62, 0.66))
 	bar.add_child(hint)
@@ -1131,8 +1151,9 @@ func _apply_v3d_layout() -> void:
 			_v3d_vp.handle_input_locally = false       # the EDITOR owns clicks (place / re-aim)
 		_v3d_container.mouse_filter = Control.MOUSE_FILTER_STOP
 		_v3d_panel.position = Vector2(210, 52)
-		# Pin the camera to the authoring focus (no wandering player); click re-aims it.
+		# Pin the camera to the authoring focus (no wandering player); right-drag pans it.
 		_focus_3d(_v3d_focus_tile if _in_bounds_tile(_v3d_focus_tile) else _spawn_tile)
+		_apply_v3d_satellite_camera()
 	else:
 		_v3d_container.custom_minimum_size = _V3D_SIZE
 		if _v3d_vp != null:
@@ -1140,12 +1161,18 @@ func _apply_v3d_layout() -> void:
 			_v3d_vp.handle_input_locally = false       # view-only: editor keeps the mouse
 		_v3d_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_v3d_panel.position = Vector2(vp) - Vector2(_V3D_SIZE) - Vector2(24, 24)
-		# Re-pin the camera to the last authoring focus so the 2D map drives the view again.
+		# Back to the small docked corner preview at the default iso framing.
+		var rend: Node = _v3d_world.get("render_3d") if _v3d_world != null else null
+		if rend != null:
+			rend.set("_cam_pitch", 0.413)
+		var cam2d: Node = _v3d_world.get("_camera") if _v3d_world != null else null
+		if cam2d != null:
+			cam2d.set("zoom", Vector2(1.65, 1.65))
 		_focus_3d(_v3d_focus_tile if _in_bounds_tile(_v3d_focus_tile) else _spawn_tile)
 	_v3d_panel.reset_size.call_deferred()
 	if _v3d_max_btn != null:
 		_v3d_max_btn.button_pressed = _v3d_max
-		_v3d_max_btn.text = "🗗 Restore" if _v3d_max else "⛶ Maximize"
+		_v3d_max_btn.text = "🗗 Restore" if _v3d_max else "🛰 Satellite"
 
 
 func _spawn_embedded_world() -> void:
@@ -1202,53 +1229,97 @@ func _resync_3d_tiles(tiles: Array) -> void:
 		rend.call("rebuild_chunk", cx, cy)
 
 
-## Clicks inside the maximized 3D view (mouse_filter STOP routes them here). With a
-## placement tool active, drop the selected structure/stamp at the cursor's tile and
-## refresh the 3D entities live; otherwise re-aim the camera at the clicked point.
-func _on_v3d_gui_input(event: InputEvent) -> void:
-	if not (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT):
+## Put the embedded camera into the aerial "satellite" framing: steep top-down-ish
+## pitch + a wide zoom-out so you survey the region, not a player's-eye iso shot.
+func _apply_v3d_satellite_camera() -> void:
+	if _v3d_world == null:
 		return
+	var rend: Node = _v3d_world.get("render_3d")
+	if rend != null:
+		rend.set("_cam_pitch", _V3D_SAT_PITCH)
+	var cam2d: Node = _v3d_world.get("_camera")
+	if cam2d != null:
+		cam2d.set("zoom", Vector2(_v3d_zoom, _v3d_zoom))
+
+
+## Input inside the maximized aerial view (mouse_filter STOP routes it here):
+##   left-click  -> place the selected structure/stamp at the cursor (or set spawn)
+##   right-drag  -> pan the aerial camera across the map
+##   wheel       -> zoom the aerial view in/out
+func _on_v3d_gui_input(event: InputEvent) -> void:
 	if not _v3d_on or _busy:
 		return
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
+			_v3d_zoom_by(1.12)
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
+			_v3d_zoom_by(1.0 / 1.12)
+		elif event.button_index == MOUSE_BUTTON_RIGHT:
+			_v3d_panning = event.pressed
+			_v3d_pan_prev = _v3d_container.get_local_mouse_position()
+		elif event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+			_v3d_place_at_cursor()
+		_v3d_container.accept_event()
+	elif event is InputEventMouseMotion and _v3d_panning:
+		_v3d_pan_drag()
+		_v3d_container.accept_event()
+
+
+func _v3d_place_at_cursor() -> void:
 	var tile := _v3d_tile_under_mouse()
 	if tile.x == -2147483648 or not _in_bounds_tile(tile):
 		return
 	match _tool:
 		Tool.STRUCTURE:
-			_begin_stroke()
-			_place_structure(tile)
-			_commit_stroke()
+			_begin_stroke(); _place_structure(tile); _commit_stroke()
 			_refresh_3d_entities(tile)
 		Tool.STAMP:
-			_begin_stroke()
-			_place_stamp(tile)
-			_commit_stroke()
+			_begin_stroke(); _place_stamp(tile); _commit_stroke()
 			_refresh_3d_entities(tile)
 		Tool.SPAWN:
-			_begin_stroke()
-			_set_spawn(tile)
-			_commit_stroke()
+			_begin_stroke(); _set_spawn(tile); _commit_stroke()
 		_:
-			_focus_3d(tile)
-			_status.text = "3D camera → (%d, %d)" % [tile.x, tile.y]
-	_v3d_container.accept_event()
+			_status.text = "Pick a Structure/Stamp tool, then click to place. (%d, %d)" % [tile.x, tile.y]
 
 
-## World tile under the 3D-view cursor: map the container-local mouse into the
-## SubViewport's pixel space, then raycast through the embedded camera to the ground.
-func _v3d_tile_under_mouse() -> Vector2i:
-	const NONE := Vector2i(-2147483648, 0)
+func _v3d_zoom_by(factor: float) -> void:
+	_v3d_zoom = clampf(_v3d_zoom * factor, 0.32, 1.6)
+	var cam2d: Node = _v3d_world.get("_camera") if _v3d_world != null else null
+	if cam2d != null:
+		cam2d.set("zoom", Vector2(_v3d_zoom, _v3d_zoom))
+
+
+## Grab-the-map pan: move the camera focus by the world delta the cursor dragged.
+func _v3d_pan_drag() -> void:
+	var cur := _v3d_container.get_local_mouse_position()
+	var prev_iso := _v3d_screen_iso(_v3d_pan_prev)
+	var cur_iso := _v3d_screen_iso(cur)
+	_v3d_pan_prev = cur
+	if prev_iso == Vector2.INF or cur_iso == Vector2.INF:
+		return
+	var center := WG.tile_to_world(_v3d_focus_tile.x, _v3d_focus_tile.y) + (prev_iso - cur_iso)
+	_focus_3d(WG.world_to_tile(center))
+
+
+## Container-local mouse -> world iso position via the embedded camera ground raycast.
+func _v3d_screen_iso(local: Vector2) -> Vector2:
 	if _v3d_world == null or _v3d_vp == null:
-		return NONE
+		return Vector2.INF
 	var rend: Node = _v3d_world.get("render_3d")
 	if rend == null or not rend.has_method("screen_to_iso"):
-		return NONE
+		return Vector2.INF
 	var csize := _v3d_container.size
 	if csize.x <= 0.0 or csize.y <= 0.0:
-		return NONE
-	var local := _v3d_container.get_local_mouse_position()
+		return Vector2.INF
 	var sub_px := Vector2(local.x / csize.x, local.y / csize.y) * Vector2(_v3d_vp.size)
-	var iso: Vector2 = rend.call("screen_to_iso", sub_px)
+	return rend.call("screen_to_iso", sub_px)
+
+
+## World tile under the 3D-view cursor (or sentinel x when off-map / no view).
+func _v3d_tile_under_mouse() -> Vector2i:
+	var iso := _v3d_screen_iso(_v3d_container.get_local_mouse_position())
+	if iso == Vector2.INF:
+		return Vector2i(-2147483648, 0)
 	return WG.world_to_tile(iso)
 
 
