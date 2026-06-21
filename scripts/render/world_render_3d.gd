@@ -1919,6 +1919,11 @@ func _sync_style_dressing() -> void:
 ## latched. Hidden when the player is on another layer (caves), shown on the
 ## overworld where the home campsite lives.
 func _sync_spawn_dressing() -> void:
+	# Gated off by default so a hand-authored world has a bare spawn (Settings →
+	# "Spawn campsite decor"). When off, never compose the cozy-camp diorama.
+	if not GameSettings.spawn_decor_enabled:
+		dressing_root.visible = false
+		return
 	dressing_root.visible = (world.current_layer == SPAWN_LAYER)
 	if _spawn_dressing_built or world.current_layer != SPAWN_LAYER:
 		return
