@@ -104,6 +104,9 @@ const ELEV_PEAK_THRESHOLD := 0.96
 func elevation_steps(tx: float, ty: float) -> int:
 	if not _cl._finite:
 		return 0
+	# Authored elevation mask wins (drives terraces, mountains, snow) when present.
+	if _cl.has_elev_mask():
+		return _cl.mask_elev_steps(tx, ty)
 	var mh := mountain_height_field(tx, ty)
 	if mh < ELEV_FOOT_THRESHOLD:
 		return 0

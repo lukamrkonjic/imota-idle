@@ -1,1608 +1,1608 @@
 {
-	"_doc": [
-		"Aldreth — a FINITE, hand-authored continent traced from the illustrated map (schema v2).",
-		"COASTLINE is the authored land mask data/world/masks/aldreth_land.png (traced by",
-		"tools/world_trace.gd from data/world/source/aldreth_atlas.png); BiomeClassifier samples it.",
-		"Macro-geography: a big irregular MAIN continent (heartlands centre, frostlands NW, volcanic",
-		"calamity NE, western marches W, southern fens S) + the SUNSPEAR desert PENINSULA on the SE",
-		"cape, with offshore islands: Greywood Isle (W), Ironward Isle (NE), the Verdant Isles (SW),",
-		"Ember Isle + Jungle Isle (S). Axes x=east, y=south (chunk units); origin ~ map centre.",
-		"Regions are ELLIPSE biome-influence masks (center+radius[rx,ry]+rotation+warp), resolved by",
-		"`priority` then specificity, grouped under `macroRegions`; they steer the climate model, they",
-		"don't carve land (the mask does). Edit tools/gen_regions.py + re-run, or edit regions here",
-		"directly (this file is canonical). `generation` declares placement(fixed)+terrain(baked|",
-		"procedural)+persistence; only fixed:false regions (Tanglewild) regenerate at runtime."
-	],
-	"anchors": [
-		{
-			"chunk": [
-				-2,
-				-2
-			],
-			"id": "spawn",
-			"label": "Greenhollow",
-			"locked": false,
-			"poi": "player_spawn",
-			"region": "greenhollow",
-			"teleport": false
-		},
-		{
-			"chunk": [
-				-12,
-				-7
-			],
-			"id": "aldspire_keep",
-			"label": "Aldspire Keep",
-			"locked": true,
-			"poi": "capital_city",
-			"region": "aldspire",
-			"teleport": true
-		},
-		{
-			"boss": "Amaruq",
-			"chunk": [
-				-15,
-				-31
-			],
-			"id": "graymarch_keep",
-			"label": "Graymarch Ruins",
-			"locked": true,
-			"poi": "great_ruins",
-			"region": "graymarch"
-		},
-		{
-			"boss": "Giant Mole",
-			"chunk": [
-				-36,
-				-1
-			],
-			"id": "molehollow",
-			"label": "The Molehollow",
-			"locked": true,
-			"poi": "mole_dungeon",
-			"region": "oakshade"
-		}
-	],
-	"bounds": {
-		"max": [
-			67.0,
-			44.0
-		],
-		"min": [
-			-67.0,
-			-45.0
-		]
-	},
-	"coordinateSystem": {
-		"chunkSizeTiles": 16.0,
-		"note": "Chunk c -> centre tile (c*16+8). Settlements/roads/features in TILE space.",
-		"unit": "chunk",
-		"xDirection": "east",
-		"yDirection": "south"
-	},
-	"defaults": {
-		"coastalBiome": "beach",
-		"oceanBiome": "ocean",
-		"regionBlendWidth": 3.0
-	},
-	"features": [],
-	"generatorVersion": 19,
-	"id": "aldreth",
-	"islandGroups": [
-		{
-			"id": "greywood_isle",
-			"name": "Greywood Isle",
-			"kind": "continent_island",
-			"macroRegion": "greywood_isle",
-			"regions": [
-				"westcape",
-				"highmoor"
-			]
-		},
-		{
-			"id": "ironward_isle",
-			"name": "Ironward Isle",
-			"kind": "continent_island",
-			"macroRegion": "ironward_isle",
-			"regions": [
-				"ironward"
-			]
-		},
-		{
-			"id": "verdant_isles",
-			"name": "The Verdant Isles",
-			"kind": "island_group",
-			"macroRegion": "verdant_isles",
-			"regions": [
-				"verdant",
-				"sirensrest"
-			]
-		},
-		{
-			"id": "ember_isle",
-			"name": "Ember Isle",
-			"kind": "island",
-			"macroRegion": "emberjungle_isles",
-			"regions": [
-				"emberisle"
-			]
-		},
-		{
-			"id": "jungle_isle",
-			"name": "Jungle Isle",
-			"kind": "island",
-			"macroRegion": "emberjungle_isles",
-			"regions": [
-				"jungleisle"
-			]
-		}
-	],
-	"macroRegions": [
-		{
-			"id": "central_heartlands",
-			"name": "The Central Heartlands",
-			"role": "hub",
-			"theme": "lush temperate: forests, grasslands, wheatfarms"
-		},
-		{
-			"id": "western_marches",
-			"name": "The Western Marches",
-			"role": "major",
-			"theme": "broadleaf + spruce forest on the continent's west"
-		},
-		{
-			"id": "frostlands",
-			"name": "The Frostlands",
-			"role": "major",
-			"theme": "tundra, boreal, snow — the cold north-west"
-		},
-		{
-			"id": "northern_calamity",
-			"name": "The Northern Calamity",
-			"role": "major",
-			"theme": "volcanic, ash, geysers, dead land — the hostile north-east"
-		},
-		{
-			"id": "southern_fens",
-			"name": "The Southern Fens",
-			"role": "major",
-			"theme": "swamp, bog, witch country + jungle"
-		},
-		{
-			"id": "sunspear_peninsula",
-			"name": "Sunspear Peninsula",
-			"role": "major",
-			"theme": "savanna -> badlands -> desert, the south-east cape"
-		},
-		{
-			"id": "greywood_isle",
-			"name": "Greywood Isle",
-			"role": "island",
-			"theme": "temperate grove/moor island (west)"
-		},
-		{
-			"id": "ironward_isle",
-			"name": "Ironward Isle",
-			"role": "island",
-			"theme": "cold alpine rock island (north-east)"
-		},
-		{
-			"id": "verdant_isles",
-			"name": "The Verdant Isles",
-			"role": "island",
-			"theme": "green grove islands (south-west)"
-		},
-		{
-			"id": "emberjungle_isles",
-			"name": "The Ember & Jungle Isles",
-			"role": "island",
-			"theme": "volcanic + jungle islands (south)"
-		}
-	],
-	"name": "The Realm of Aldreth",
-	"oceanBeyondBounds": true,
-	"contentMode": "blank",
-	"regions": [
-		{
-			"id": "greenhollow",
-			"name": "Greenhollow Vale",
-			"biome": "plains",
-			"req": 1,
-			"danger": "safe",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					-2,
-					-2
-				],
-				"radius": [
-					8.0,
-					5.5
-				],
-				"rotation": -10,
-				"warp": {
-					"seed": 821,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 50,
-			"blendWidth": 3,
-			"macroRegion": "central_heartlands",
-			"role": "hub",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "aldspire",
-			"name": "Aldspire",
-			"biome": "plains",
-			"req": 2,
-			"danger": "safe",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					-12,
-					-7
-				],
-				"radius": [
-					5.1,
-					3.3
-				],
-				"rotation": -75,
-				"warp": {
-					"seed": 798,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 60,
-			"blendWidth": 3,
-			"macroRegion": "central_heartlands",
-			"role": "micro",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "larkmeadow",
-			"name": "Larkmeadow",
-			"biome": "flower_meadow",
-			"req": 4,
-			"danger": "safe",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					-7,
-					-13
-				],
-				"radius": [
-					6.4,
-					4.1
-				],
-				"rotation": -50,
-				"warp": {
-					"seed": 865,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 60,
-			"blendWidth": 3,
-			"macroRegion": "central_heartlands",
-			"role": "micro",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "brightfields",
-			"name": "Brightfields",
-			"biome": "wheatfield",
-			"req": 3,
-			"danger": "safe",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					6,
-					2
-				],
-				"radius": [
-					7.0,
-					4.5
-				],
-				"rotation": -82,
-				"warp": {
-					"seed": 440,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "central_heartlands",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "saltcove",
-			"name": "Salt Cove",
-			"biome": "beach",
-			"req": 7,
-			"danger": "safe",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					3,
-					-11
-				],
-				"radius": [
-					4.6,
-					3.0
-				],
-				"rotation": -88,
-				"warp": {
-					"seed": 682,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 60,
-			"blendWidth": 3,
-			"macroRegion": "central_heartlands",
-			"role": "micro",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "stonereach",
-			"name": "Stonereach",
-			"biome": "rocky_hills",
-			"req": 14,
-			"danger": "low",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					-15,
-					3
-				],
-				"radius": [
-					6.4,
-					4.1
-				],
-				"rotation": -41,
-				"warp": {
-					"seed": 869,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "central_heartlands",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "mosswood",
-			"name": "Mosswood",
-			"biome": "forest",
-			"req": 6,
-			"danger": "safe",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					-31,
-					-7
-				],
-				"radius": [
-					7.7,
-					4.9
-				],
-				"rotation": -68,
-				"warp": {
-					"seed": 254,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "western_marches",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "oakshade",
-			"name": "Oakshade Forest",
-			"biome": "forest",
-			"req": 9,
-			"danger": "safe",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					-36,
-					-1
-				],
-				"radius": [
-					7.7,
-					4.9
-				],
-				"rotation": 33,
-				"warp": {
-					"seed": 862,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "western_marches",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "deepwood",
-			"name": "The Deepwood",
-			"biome": "dense_forest",
-			"req": 13,
-			"danger": "low",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					-26,
-					-13
-				],
-				"radius": [
-					7.7,
-					4.9
-				],
-				"rotation": 72,
-				"warp": {
-					"seed": 525,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "western_marches",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "wolfden",
-			"name": "Wolfden",
-			"biome": "boreal_forest",
-			"req": 22,
-			"danger": "medium",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					-38,
-					-17
-				],
-				"radius": [
-					7.7,
-					4.9
-				],
-				"rotation": 6,
-				"warp": {
-					"seed": 478,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "western_marches",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "frostspire",
-			"name": "The Frostspire",
-			"biome": "snowdrift",
-			"req": 60,
-			"danger": "wilderness",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					-28,
-					-39
-				],
-				"radius": [
-					7.7,
-					4.9
-				],
-				"rotation": 78,
-				"warp": {
-					"seed": 443,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "frostlands",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			},
-			"allowBoundsClipping": true
-		},
-		{
-			"id": "helcarn",
-			"name": "Helcarn",
-			"biome": "snowdrift",
-			"req": 62,
-			"danger": "wilderness",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					-19,
-					-35
-				],
-				"radius": [
-					7.7,
-					4.9
-				],
-				"rotation": 88,
-				"warp": {
-					"seed": 936,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "frostlands",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			},
-			"allowBoundsClipping": true
-		},
-		{
-			"id": "frostmere",
-			"name": "Frostmere",
-			"biome": "tundra",
-			"req": 30,
-			"danger": "medium",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					-27,
-					-30
-				],
-				"radius": [
-					7.7,
-					4.9
-				],
-				"rotation": -32,
-				"warp": {
-					"seed": 695,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "frostlands",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "frostwood",
-			"name": "Frostwood",
-			"biome": "boreal_forest",
-			"req": 28,
-			"danger": "medium",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					-34,
-					-29
-				],
-				"radius": [
-					9.0,
-					5.7
-				],
-				"rotation": 26,
-				"warp": {
-					"seed": 272,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "frostlands",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "graymarch",
-			"name": "Graymarch",
-			"biome": "rocky_hills",
-			"req": 33,
-			"danger": "medium",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					-15,
-					-31
-				],
-				"radius": [
-					6.4,
-					4.1
-				],
-				"rotation": 47,
-				"warp": {
-					"seed": 588,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 60,
-			"blendWidth": 3,
-			"macroRegion": "frostlands",
-			"role": "micro",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "northwatch",
-			"name": "Northwatch",
-			"biome": "rocky_hills",
-			"req": 35,
-			"danger": "high",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					-2,
-					-37
-				],
-				"radius": [
-					6.4,
-					4.1
-				],
-				"rotation": 29,
-				"warp": {
-					"seed": 529,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "northern_calamity",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "riftlands",
-			"name": "The Riftlands",
-			"biome": "rocky_hills",
-			"req": 57,
-			"danger": "elite",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					16,
-					-33
-				],
-				"radius": [
-					6.4,
-					4.1
-				],
-				"rotation": -66,
-				"warp": {
-					"seed": 544,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 60,
-			"blendWidth": 3,
-			"macroRegion": "northern_calamity",
-			"role": "micro",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "cinderpeak",
-			"name": "Cinderpeak",
-			"biome": "volcanic",
-			"req": 55,
-			"danger": "elite",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					8,
-					-29
-				],
-				"radius": [
-					7.7,
-					4.9
-				],
-				"rotation": -75,
-				"warp": {
-					"seed": 602,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "northern_calamity",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "ashfall",
-			"name": "Ashfall",
-			"biome": "badlands",
-			"req": 49,
-			"danger": "high",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					16,
-					-25
-				],
-				"radius": [
-					6.4,
-					4.1
-				],
-				"rotation": -48,
-				"warp": {
-					"seed": 404,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 60,
-			"blendWidth": 3,
-			"macroRegion": "northern_calamity",
-			"role": "micro",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "thegeysers",
-			"name": "The Geysers",
-			"biome": "geyser_field",
-			"req": 52,
-			"danger": "elite",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					3,
-					-24
-				],
-				"radius": [
-					5.1,
-					3.3
-				],
-				"rotation": 82,
-				"warp": {
-					"seed": 528,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 60,
-			"blendWidth": 3,
-			"macroRegion": "northern_calamity",
-			"role": "micro",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "blightmoor",
-			"name": "Blightmoor",
-			"biome": "dead_forest",
-			"req": 53,
-			"danger": "elite",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					18,
-					-23
-				],
-				"radius": [
-					7.7,
-					4.9
-				],
-				"rotation": 8,
-				"warp": {
-					"seed": 675,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "northern_calamity",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "eastreach",
-			"name": "Eastreach",
-			"biome": "savanna",
-			"req": 15,
-			"danger": "low",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					19,
-					-2
-				],
-				"radius": [
-					8.0,
-					5.0
-				],
-				"rotation": 65,
-				"warp": {
-					"seed": 310,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "sunspear_peninsula",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "duskreach",
-			"name": "Duskreach",
-			"biome": "badlands",
-			"req": 31,
-			"danger": "medium",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					26,
-					5
-				],
-				"radius": [
-					7.0,
-					4.6
-				],
-				"rotation": -11,
-				"warp": {
-					"seed": 834,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "sunspear_peninsula",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "emberscrub",
-			"name": "Emberscrub",
-			"biome": "savanna_scrub",
-			"req": 34,
-			"danger": "medium",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					33,
-					9
-				],
-				"radius": [
-					6.4,
-					4.1
-				],
-				"rotation": 13,
-				"warp": {
-					"seed": 20,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 60,
-			"blendWidth": 3,
-			"macroRegion": "sunspear_peninsula",
-			"role": "micro",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "scorchplain",
-			"name": "Scorchplain",
-			"biome": "cactus_plain",
-			"req": 37,
-			"danger": "high",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					41,
-					15
-				],
-				"radius": [
-					6.4,
-					4.1
-				],
-				"rotation": -47,
-				"warp": {
-					"seed": 744,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "sunspear_peninsula",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "sunspear",
-			"name": "Sunspear Dunes",
-			"biome": "desert",
-			"req": 41,
-			"danger": "high",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					49,
-					21
-				],
-				"radius": [
-					11.0,
-					7.0
-				],
-				"rotation": -16,
-				"warp": {
-					"seed": 858,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "sunspear_peninsula",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "mirage",
-			"name": "Mirage Oasis",
-			"biome": "oasis",
-			"req": 39,
-			"danger": "high",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					44,
-					23
-				],
-				"radius": [
-					5.1,
-					3.3
-				],
-				"rotation": 80,
-				"warp": {
-					"seed": 380,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 60,
-			"blendWidth": 3,
-			"macroRegion": "sunspear_peninsula",
-			"role": "micro",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "saltpan",
-			"name": "The Salt Pan",
-			"biome": "salt_pan",
-			"req": 43,
-			"danger": "high",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					56,
-					28
-				],
-				"radius": [
-					7.0,
-					4.5
-				],
-				"rotation": -78,
-				"warp": {
-					"seed": 833,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 60,
-			"blendWidth": 3,
-			"macroRegion": "sunspear_peninsula",
-			"role": "micro",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "greywater",
-			"name": "Greywater Mire",
-			"biome": "swamp",
-			"req": 23,
-			"danger": "medium",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					-8,
-					11
-				],
-				"radius": [
-					13.0,
-					8.0
-				],
-				"rotation": -10,
-				"warp": {
-					"seed": 642,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "southern_fens",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "mirewood",
-			"name": "Mirewood",
-			"biome": "swamp",
-			"req": 24,
-			"danger": "medium",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					-22,
-					9
-				],
-				"radius": [
-					11.0,
-					7.0
-				],
-				"rotation": 15,
-				"warp": {
-					"seed": 43,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "southern_fens",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "witchmere",
-			"name": "Witchmere",
-			"biome": "swamp",
-			"req": 33,
-			"danger": "medium",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					-2,
-					15
-				],
-				"radius": [
-					12.0,
-					7.0
-				],
-				"rotation": -20,
-				"warp": {
-					"seed": 332,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "southern_fens",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "bogmire",
-			"name": "Bogmire",
-			"biome": "bog",
-			"req": 27,
-			"danger": "medium",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					-13,
-					18
-				],
-				"radius": [
-					8.0,
-					5.0
-				],
-				"rotation": 25,
-				"warp": {
-					"seed": 218,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 60,
-			"blendWidth": 3,
-			"macroRegion": "southern_fens",
-			"role": "micro",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "blackfen",
-			"name": "Blackfen",
-			"biome": "bog",
-			"req": 29,
-			"danger": "medium",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					6,
-					13
-				],
-				"radius": [
-					8.0,
-					6.0
-				],
-				"rotation": -15,
-				"warp": {
-					"seed": 369,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 60,
-			"blendWidth": 3,
-			"macroRegion": "southern_fens",
-			"role": "micro",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "tanglewild",
-			"name": "The Tanglewild",
-			"biome": "jungle",
-			"req": 46,
-			"danger": "high",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					16,
-					11
-				],
-				"radius": [
-					8.0,
-					5.0
-				],
-				"rotation": 80,
-				"warp": {
-					"seed": 853,
-					"strength": 0.32
-				}
-			},
-			"fixed": false,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "southern_fens",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "procedural",
-				"persistGeneratedChunks": true
-			}
-		},
-		{
-			"id": "westcape",
-			"name": "Westcape",
-			"biome": "grove",
-			"req": 16,
-			"danger": "low",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					-55,
-					-17
-				],
-				"radius": [
-					6.4,
-					4.1
-				],
-				"rotation": -9,
-				"warp": {
-					"seed": 169,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 60,
-			"blendWidth": 3,
-			"macroRegion": "greywood_isle",
-			"role": "micro",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "highmoor",
-			"name": "Highmoor",
-			"biome": "heather_moor",
-			"req": 19,
-			"danger": "low",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					-52,
-					-11
-				],
-				"radius": [
-					7.7,
-					4.9
-				],
-				"rotation": -46,
-				"warp": {
-					"seed": 404,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "greywood_isle",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "ironward",
-			"name": "Ironward Isle",
-			"biome": "alpine",
-			"req": 58,
-			"danger": "elite",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					52,
-					-26
-				],
-				"radius": [
-					7.7,
-					5.0
-				],
-				"rotation": 30,
-				"warp": {
-					"seed": 791,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "ironward_isle",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "verdant",
-			"name": "Verdant Isle",
-			"biome": "grove",
-			"req": 17,
-			"danger": "low",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					-50,
-					13
-				],
-				"radius": [
-					7.7,
-					4.9
-				],
-				"rotation": -20,
-				"warp": {
-					"seed": 30,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "verdant_isles",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "sirensrest",
-			"name": "Siren's Rest",
-			"biome": "grove",
-			"req": 20,
-			"danger": "medium",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					-48,
-					34
-				],
-				"radius": [
-					6.4,
-					4.1
-				],
-				"rotation": 40,
-				"warp": {
-					"seed": 380,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 60,
-			"blendWidth": 3,
-			"macroRegion": "verdant_isles",
-			"role": "micro",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "emberisle",
-			"name": "Ember Isle",
-			"biome": "volcanic",
-			"req": 50,
-			"danger": "elite",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					-13,
-					35
-				],
-				"radius": [
-					6.4,
-					4.1
-				],
-				"rotation": 0,
-				"warp": {
-					"seed": 497,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "emberjungle_isles",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		},
-		{
-			"id": "jungleisle",
-			"name": "Jungle Isle",
-			"biome": "jungle",
-			"req": 44,
-			"danger": "high",
-			"shape": {
-				"type": "ellipse",
-				"center": [
-					11,
-					35
-				],
-				"radius": [
-					7.0,
-					4.5
-				],
-				"rotation": 15,
-				"warp": {
-					"seed": 311,
-					"strength": 0.32
-				}
-			},
-			"fixed": true,
-			"motif": "",
-			"priority": 40,
-			"blendWidth": 3,
-			"macroRegion": "emberjungle_isles",
-			"role": "major",
-			"generation": {
-				"placement": "fixed",
-				"terrain": "baked"
-			}
-		}
-	],
-	"relationships": [
-		{
-			"kind": "service_present",
-			"region": "greenhollow",
-			"service": "bank",
-			"why": "The beginner home must have a bank."
-		},
-		{
-			"kind": "service_present",
-			"region": "aldspire",
-			"service": "anvil",
-			"why": "Smithing belongs in the capital forge."
-		},
-		{
-			"from": "spawn",
-			"kind": "reachable",
-			"to": "aldspire",
-			"why": "Players must be able to walk home to the capital across Kingsbridge."
-		}
-	],
-	"roads": [],
-	"routes": [
-		{
-			"from": "spawn",
-			"to": "aldspire"
-		},
-		{
-			"from": "spawn",
-			"to": "graymarch_keep"
-		},
-		{
-			"from": "spawn",
-			"to": "molehollow"
-		}
-	],
-	"seed": 7.0,
-	"settlements": [],
-	"validation": {
-		"anchorsMustBeInsideRegion": true,
-		"rejectDuplicateIds": true,
-		"rejectUnresolvedReferences": true,
-		"warnOnBoundsClipping": true,
-		"warnOnUnreachableSettlements": true
-	},
-	"version": 2.0
+ "_doc": [
+  "Aldreth \u2014 a FINITE, hand-authored continent traced from the illustrated map (schema v2).",
+  "COASTLINE is the authored land mask data/world/masks/aldreth_land.png (traced by",
+  "tools/world_trace.gd from data/world/source/aldreth_atlas.png); BiomeClassifier samples it.",
+  "Macro-geography: a big irregular MAIN continent (heartlands centre, frostlands NW, volcanic",
+  "calamity NE, western marches W, southern fens S) + the SUNSPEAR desert PENINSULA on the SE",
+  "cape, with offshore islands: Greywood Isle (W), Ironward Isle (NE), the Verdant Isles (SW),",
+  "Ember Isle + Jungle Isle (S). Axes x=east, y=south (chunk units); origin ~ map centre.",
+  "Regions are ELLIPSE biome-influence masks (center+radius[rx,ry]+rotation+warp), resolved by",
+  "`priority` then specificity, grouped under `macroRegions`; they steer the climate model, they",
+  "don't carve land (the mask does). Edit tools/gen_regions.py + re-run, or edit regions here",
+  "directly (this file is canonical). `generation` declares placement(fixed)+terrain(baked|",
+  "procedural)+persistence; only fixed:false regions (Tanglewild) regenerate at runtime."
+ ],
+ "anchors": [
+  {
+   "chunk": [
+    0,
+    0
+   ],
+   "id": "spawn",
+   "label": "Greenhollow",
+   "locked": false,
+   "poi": "player_spawn",
+   "region": "greenhollow",
+   "teleport": false
+  },
+  {
+   "chunk": [
+    -12,
+    -7
+   ],
+   "id": "aldspire_keep",
+   "label": "Aldspire Keep",
+   "locked": true,
+   "poi": "capital_city",
+   "region": "aldspire",
+   "teleport": true
+  },
+  {
+   "boss": "Amaruq",
+   "chunk": [
+    -15,
+    -31
+   ],
+   "id": "graymarch_keep",
+   "label": "Graymarch Ruins",
+   "locked": true,
+   "poi": "great_ruins",
+   "region": "graymarch"
+  },
+  {
+   "boss": "Giant Mole",
+   "chunk": [
+    -36,
+    -1
+   ],
+   "id": "molehollow",
+   "label": "The Molehollow",
+   "locked": true,
+   "poi": "mole_dungeon",
+   "region": "oakshade"
+  }
+ ],
+ "bounds": {
+  "min": [
+   -80,
+   -45
+  ],
+  "max": [
+   80,
+   45
+  ]
+ },
+ "coordinateSystem": {
+  "chunkSizeTiles": 16.0,
+  "note": "Chunk c -> centre tile (c*16+8). Settlements/roads/features in TILE space.",
+  "unit": "chunk",
+  "xDirection": "east",
+  "yDirection": "south"
+ },
+ "defaults": {
+  "coastalBiome": "beach",
+  "oceanBiome": "ocean",
+  "regionBlendWidth": 3.0
+ },
+ "features": [],
+ "generatorVersion": 20,
+ "id": "aldreth",
+ "islandGroups": [
+  {
+   "id": "greywood_isle",
+   "name": "Greywood Isle",
+   "kind": "continent_island",
+   "macroRegion": "greywood_isle",
+   "regions": [
+    "westcape",
+    "highmoor"
+   ]
+  },
+  {
+   "id": "ironward_isle",
+   "name": "Ironward Isle",
+   "kind": "continent_island",
+   "macroRegion": "ironward_isle",
+   "regions": [
+    "ironward"
+   ]
+  },
+  {
+   "id": "verdant_isles",
+   "name": "The Verdant Isles",
+   "kind": "island_group",
+   "macroRegion": "verdant_isles",
+   "regions": [
+    "verdant",
+    "sirensrest"
+   ]
+  },
+  {
+   "id": "ember_isle",
+   "name": "Ember Isle",
+   "kind": "island",
+   "macroRegion": "emberjungle_isles",
+   "regions": [
+    "emberisle"
+   ]
+  },
+  {
+   "id": "jungle_isle",
+   "name": "Jungle Isle",
+   "kind": "island",
+   "macroRegion": "emberjungle_isles",
+   "regions": [
+    "jungleisle"
+   ]
+  }
+ ],
+ "macroRegions": [
+  {
+   "id": "central_heartlands",
+   "name": "The Central Heartlands",
+   "role": "hub",
+   "theme": "lush temperate: forests, grasslands, wheatfarms"
+  },
+  {
+   "id": "western_marches",
+   "name": "The Western Marches",
+   "role": "major",
+   "theme": "broadleaf + spruce forest on the continent's west"
+  },
+  {
+   "id": "frostlands",
+   "name": "The Frostlands",
+   "role": "major",
+   "theme": "tundra, boreal, snow \u2014 the cold north-west"
+  },
+  {
+   "id": "northern_calamity",
+   "name": "The Northern Calamity",
+   "role": "major",
+   "theme": "volcanic, ash, geysers, dead land \u2014 the hostile north-east"
+  },
+  {
+   "id": "southern_fens",
+   "name": "The Southern Fens",
+   "role": "major",
+   "theme": "swamp, bog, witch country + jungle"
+  },
+  {
+   "id": "sunspear_peninsula",
+   "name": "Sunspear Peninsula",
+   "role": "major",
+   "theme": "savanna -> badlands -> desert, the south-east cape"
+  },
+  {
+   "id": "greywood_isle",
+   "name": "Greywood Isle",
+   "role": "island",
+   "theme": "temperate grove/moor island (west)"
+  },
+  {
+   "id": "ironward_isle",
+   "name": "Ironward Isle",
+   "role": "island",
+   "theme": "cold alpine rock island (north-east)"
+  },
+  {
+   "id": "verdant_isles",
+   "name": "The Verdant Isles",
+   "role": "island",
+   "theme": "green grove islands (south-west)"
+  },
+  {
+   "id": "emberjungle_isles",
+   "name": "The Ember & Jungle Isles",
+   "role": "island",
+   "theme": "volcanic + jungle islands (south)"
+  }
+ ],
+ "name": "The Realm of Aldreth",
+ "oceanBeyondBounds": true,
+ "contentMode": "blank",
+ "regions": [
+  {
+   "id": "greenhollow",
+   "name": "Greenhollow Vale",
+   "biome": "plains",
+   "req": 1,
+   "danger": "safe",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     -2,
+     -2
+    ],
+    "radius": [
+     8.0,
+     5.5
+    ],
+    "rotation": -10,
+    "warp": {
+     "seed": 821,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 50,
+   "blendWidth": 3,
+   "macroRegion": "central_heartlands",
+   "role": "hub",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "aldspire",
+   "name": "Aldspire",
+   "biome": "plains",
+   "req": 2,
+   "danger": "safe",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     -12,
+     -7
+    ],
+    "radius": [
+     5.1,
+     3.3
+    ],
+    "rotation": -75,
+    "warp": {
+     "seed": 798,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 60,
+   "blendWidth": 3,
+   "macroRegion": "central_heartlands",
+   "role": "micro",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "larkmeadow",
+   "name": "Larkmeadow",
+   "biome": "flower_meadow",
+   "req": 4,
+   "danger": "safe",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     -7,
+     -13
+    ],
+    "radius": [
+     6.4,
+     4.1
+    ],
+    "rotation": -50,
+    "warp": {
+     "seed": 865,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 60,
+   "blendWidth": 3,
+   "macroRegion": "central_heartlands",
+   "role": "micro",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "brightfields",
+   "name": "Brightfields",
+   "biome": "wheatfield",
+   "req": 3,
+   "danger": "safe",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     6,
+     2
+    ],
+    "radius": [
+     7.0,
+     4.5
+    ],
+    "rotation": -82,
+    "warp": {
+     "seed": 440,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "central_heartlands",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "saltcove",
+   "name": "Salt Cove",
+   "biome": "beach",
+   "req": 7,
+   "danger": "safe",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     3,
+     -11
+    ],
+    "radius": [
+     4.6,
+     3.0
+    ],
+    "rotation": -88,
+    "warp": {
+     "seed": 682,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 60,
+   "blendWidth": 3,
+   "macroRegion": "central_heartlands",
+   "role": "micro",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "stonereach",
+   "name": "Stonereach",
+   "biome": "rocky_hills",
+   "req": 14,
+   "danger": "low",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     -15,
+     3
+    ],
+    "radius": [
+     6.4,
+     4.1
+    ],
+    "rotation": -41,
+    "warp": {
+     "seed": 869,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "central_heartlands",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "mosswood",
+   "name": "Mosswood",
+   "biome": "forest",
+   "req": 6,
+   "danger": "safe",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     -31,
+     -7
+    ],
+    "radius": [
+     7.7,
+     4.9
+    ],
+    "rotation": -68,
+    "warp": {
+     "seed": 254,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "western_marches",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "oakshade",
+   "name": "Oakshade Forest",
+   "biome": "forest",
+   "req": 9,
+   "danger": "safe",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     -36,
+     -1
+    ],
+    "radius": [
+     7.7,
+     4.9
+    ],
+    "rotation": 33,
+    "warp": {
+     "seed": 862,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "western_marches",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "deepwood",
+   "name": "The Deepwood",
+   "biome": "dense_forest",
+   "req": 13,
+   "danger": "low",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     -26,
+     -13
+    ],
+    "radius": [
+     7.7,
+     4.9
+    ],
+    "rotation": 72,
+    "warp": {
+     "seed": 525,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "western_marches",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "wolfden",
+   "name": "Wolfden",
+   "biome": "boreal_forest",
+   "req": 22,
+   "danger": "medium",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     -38,
+     -17
+    ],
+    "radius": [
+     7.7,
+     4.9
+    ],
+    "rotation": 6,
+    "warp": {
+     "seed": 478,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "western_marches",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "frostspire",
+   "name": "The Frostspire",
+   "biome": "snowdrift",
+   "req": 60,
+   "danger": "wilderness",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     -28,
+     -39
+    ],
+    "radius": [
+     7.7,
+     4.9
+    ],
+    "rotation": 78,
+    "warp": {
+     "seed": 443,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "frostlands",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   },
+   "allowBoundsClipping": true
+  },
+  {
+   "id": "helcarn",
+   "name": "Helcarn",
+   "biome": "snowdrift",
+   "req": 62,
+   "danger": "wilderness",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     -19,
+     -35
+    ],
+    "radius": [
+     7.7,
+     4.9
+    ],
+    "rotation": 88,
+    "warp": {
+     "seed": 936,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "frostlands",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   },
+   "allowBoundsClipping": true
+  },
+  {
+   "id": "frostmere",
+   "name": "Frostmere",
+   "biome": "tundra",
+   "req": 30,
+   "danger": "medium",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     -27,
+     -30
+    ],
+    "radius": [
+     7.7,
+     4.9
+    ],
+    "rotation": -32,
+    "warp": {
+     "seed": 695,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "frostlands",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "frostwood",
+   "name": "Frostwood",
+   "biome": "boreal_forest",
+   "req": 28,
+   "danger": "medium",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     -34,
+     -29
+    ],
+    "radius": [
+     9.0,
+     5.7
+    ],
+    "rotation": 26,
+    "warp": {
+     "seed": 272,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "frostlands",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "graymarch",
+   "name": "Graymarch",
+   "biome": "rocky_hills",
+   "req": 33,
+   "danger": "medium",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     -15,
+     -31
+    ],
+    "radius": [
+     6.4,
+     4.1
+    ],
+    "rotation": 47,
+    "warp": {
+     "seed": 588,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 60,
+   "blendWidth": 3,
+   "macroRegion": "frostlands",
+   "role": "micro",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "northwatch",
+   "name": "Northwatch",
+   "biome": "rocky_hills",
+   "req": 35,
+   "danger": "high",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     -2,
+     -37
+    ],
+    "radius": [
+     6.4,
+     4.1
+    ],
+    "rotation": 29,
+    "warp": {
+     "seed": 529,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "northern_calamity",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "riftlands",
+   "name": "The Riftlands",
+   "biome": "rocky_hills",
+   "req": 57,
+   "danger": "elite",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     16,
+     -33
+    ],
+    "radius": [
+     6.4,
+     4.1
+    ],
+    "rotation": -66,
+    "warp": {
+     "seed": 544,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 60,
+   "blendWidth": 3,
+   "macroRegion": "northern_calamity",
+   "role": "micro",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "cinderpeak",
+   "name": "Cinderpeak",
+   "biome": "volcanic",
+   "req": 55,
+   "danger": "elite",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     8,
+     -29
+    ],
+    "radius": [
+     7.7,
+     4.9
+    ],
+    "rotation": -75,
+    "warp": {
+     "seed": 602,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "northern_calamity",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "ashfall",
+   "name": "Ashfall",
+   "biome": "badlands",
+   "req": 49,
+   "danger": "high",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     16,
+     -25
+    ],
+    "radius": [
+     6.4,
+     4.1
+    ],
+    "rotation": -48,
+    "warp": {
+     "seed": 404,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 60,
+   "blendWidth": 3,
+   "macroRegion": "northern_calamity",
+   "role": "micro",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "thegeysers",
+   "name": "The Geysers",
+   "biome": "geyser_field",
+   "req": 52,
+   "danger": "elite",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     3,
+     -24
+    ],
+    "radius": [
+     5.1,
+     3.3
+    ],
+    "rotation": 82,
+    "warp": {
+     "seed": 528,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 60,
+   "blendWidth": 3,
+   "macroRegion": "northern_calamity",
+   "role": "micro",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "blightmoor",
+   "name": "Blightmoor",
+   "biome": "dead_forest",
+   "req": 53,
+   "danger": "elite",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     18,
+     -23
+    ],
+    "radius": [
+     7.7,
+     4.9
+    ],
+    "rotation": 8,
+    "warp": {
+     "seed": 675,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "northern_calamity",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "eastreach",
+   "name": "Eastreach",
+   "biome": "savanna",
+   "req": 15,
+   "danger": "low",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     19,
+     -2
+    ],
+    "radius": [
+     8.0,
+     5.0
+    ],
+    "rotation": 65,
+    "warp": {
+     "seed": 310,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "sunspear_peninsula",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "duskreach",
+   "name": "Duskreach",
+   "biome": "badlands",
+   "req": 31,
+   "danger": "medium",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     26,
+     5
+    ],
+    "radius": [
+     7.0,
+     4.6
+    ],
+    "rotation": -11,
+    "warp": {
+     "seed": 834,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "sunspear_peninsula",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "emberscrub",
+   "name": "Emberscrub",
+   "biome": "savanna_scrub",
+   "req": 34,
+   "danger": "medium",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     33,
+     9
+    ],
+    "radius": [
+     6.4,
+     4.1
+    ],
+    "rotation": 13,
+    "warp": {
+     "seed": 20,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 60,
+   "blendWidth": 3,
+   "macroRegion": "sunspear_peninsula",
+   "role": "micro",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "scorchplain",
+   "name": "Scorchplain",
+   "biome": "cactus_plain",
+   "req": 37,
+   "danger": "high",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     41,
+     15
+    ],
+    "radius": [
+     6.4,
+     4.1
+    ],
+    "rotation": -47,
+    "warp": {
+     "seed": 744,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "sunspear_peninsula",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "sunspear",
+   "name": "Sunspear Dunes",
+   "biome": "desert",
+   "req": 41,
+   "danger": "high",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     49,
+     21
+    ],
+    "radius": [
+     11.0,
+     7.0
+    ],
+    "rotation": -16,
+    "warp": {
+     "seed": 858,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "sunspear_peninsula",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "mirage",
+   "name": "Mirage Oasis",
+   "biome": "oasis",
+   "req": 39,
+   "danger": "high",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     44,
+     23
+    ],
+    "radius": [
+     5.1,
+     3.3
+    ],
+    "rotation": 80,
+    "warp": {
+     "seed": 380,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 60,
+   "blendWidth": 3,
+   "macroRegion": "sunspear_peninsula",
+   "role": "micro",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "saltpan",
+   "name": "The Salt Pan",
+   "biome": "salt_pan",
+   "req": 43,
+   "danger": "high",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     56,
+     28
+    ],
+    "radius": [
+     7.0,
+     4.5
+    ],
+    "rotation": -78,
+    "warp": {
+     "seed": 833,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 60,
+   "blendWidth": 3,
+   "macroRegion": "sunspear_peninsula",
+   "role": "micro",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "greywater",
+   "name": "Greywater Mire",
+   "biome": "swamp",
+   "req": 23,
+   "danger": "medium",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     -8,
+     11
+    ],
+    "radius": [
+     13.0,
+     8.0
+    ],
+    "rotation": -10,
+    "warp": {
+     "seed": 642,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "southern_fens",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "mirewood",
+   "name": "Mirewood",
+   "biome": "swamp",
+   "req": 24,
+   "danger": "medium",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     -22,
+     9
+    ],
+    "radius": [
+     11.0,
+     7.0
+    ],
+    "rotation": 15,
+    "warp": {
+     "seed": 43,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "southern_fens",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "witchmere",
+   "name": "Witchmere",
+   "biome": "swamp",
+   "req": 33,
+   "danger": "medium",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     -2,
+     15
+    ],
+    "radius": [
+     12.0,
+     7.0
+    ],
+    "rotation": -20,
+    "warp": {
+     "seed": 332,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "southern_fens",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "bogmire",
+   "name": "Bogmire",
+   "biome": "bog",
+   "req": 27,
+   "danger": "medium",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     -13,
+     18
+    ],
+    "radius": [
+     8.0,
+     5.0
+    ],
+    "rotation": 25,
+    "warp": {
+     "seed": 218,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 60,
+   "blendWidth": 3,
+   "macroRegion": "southern_fens",
+   "role": "micro",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "blackfen",
+   "name": "Blackfen",
+   "biome": "bog",
+   "req": 29,
+   "danger": "medium",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     6,
+     13
+    ],
+    "radius": [
+     8.0,
+     6.0
+    ],
+    "rotation": -15,
+    "warp": {
+     "seed": 369,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 60,
+   "blendWidth": 3,
+   "macroRegion": "southern_fens",
+   "role": "micro",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "tanglewild",
+   "name": "The Tanglewild",
+   "biome": "jungle",
+   "req": 46,
+   "danger": "high",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     16,
+     11
+    ],
+    "radius": [
+     8.0,
+     5.0
+    ],
+    "rotation": 80,
+    "warp": {
+     "seed": 853,
+     "strength": 0.32
+    }
+   },
+   "fixed": false,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "southern_fens",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "procedural",
+    "persistGeneratedChunks": true
+   }
+  },
+  {
+   "id": "westcape",
+   "name": "Westcape",
+   "biome": "grove",
+   "req": 16,
+   "danger": "low",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     -55,
+     -17
+    ],
+    "radius": [
+     6.4,
+     4.1
+    ],
+    "rotation": -9,
+    "warp": {
+     "seed": 169,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 60,
+   "blendWidth": 3,
+   "macroRegion": "greywood_isle",
+   "role": "micro",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "highmoor",
+   "name": "Highmoor",
+   "biome": "heather_moor",
+   "req": 19,
+   "danger": "low",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     -52,
+     -11
+    ],
+    "radius": [
+     7.7,
+     4.9
+    ],
+    "rotation": -46,
+    "warp": {
+     "seed": 404,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "greywood_isle",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "ironward",
+   "name": "Ironward Isle",
+   "biome": "alpine",
+   "req": 58,
+   "danger": "elite",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     52,
+     -26
+    ],
+    "radius": [
+     7.7,
+     5.0
+    ],
+    "rotation": 30,
+    "warp": {
+     "seed": 791,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "ironward_isle",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "verdant",
+   "name": "Verdant Isle",
+   "biome": "grove",
+   "req": 17,
+   "danger": "low",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     -50,
+     13
+    ],
+    "radius": [
+     7.7,
+     4.9
+    ],
+    "rotation": -20,
+    "warp": {
+     "seed": 30,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "verdant_isles",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "sirensrest",
+   "name": "Siren's Rest",
+   "biome": "grove",
+   "req": 20,
+   "danger": "medium",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     -48,
+     34
+    ],
+    "radius": [
+     6.4,
+     4.1
+    ],
+    "rotation": 40,
+    "warp": {
+     "seed": 380,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 60,
+   "blendWidth": 3,
+   "macroRegion": "verdant_isles",
+   "role": "micro",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "emberisle",
+   "name": "Ember Isle",
+   "biome": "volcanic",
+   "req": 50,
+   "danger": "elite",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     -13,
+     35
+    ],
+    "radius": [
+     6.4,
+     4.1
+    ],
+    "rotation": 0,
+    "warp": {
+     "seed": 497,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "emberjungle_isles",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  },
+  {
+   "id": "jungleisle",
+   "name": "Jungle Isle",
+   "biome": "jungle",
+   "req": 44,
+   "danger": "high",
+   "shape": {
+    "type": "ellipse",
+    "center": [
+     11,
+     35
+    ],
+    "radius": [
+     7.0,
+     4.5
+    ],
+    "rotation": 15,
+    "warp": {
+     "seed": 311,
+     "strength": 0.32
+    }
+   },
+   "fixed": true,
+   "motif": "",
+   "priority": 40,
+   "blendWidth": 3,
+   "macroRegion": "emberjungle_isles",
+   "role": "major",
+   "generation": {
+    "placement": "fixed",
+    "terrain": "baked"
+   }
+  }
+ ],
+ "relationships": [
+  {
+   "kind": "service_present",
+   "region": "greenhollow",
+   "service": "bank",
+   "why": "The beginner home must have a bank."
+  },
+  {
+   "kind": "service_present",
+   "region": "aldspire",
+   "service": "anvil",
+   "why": "Smithing belongs in the capital forge."
+  },
+  {
+   "from": "spawn",
+   "kind": "reachable",
+   "to": "aldspire",
+   "why": "Players must be able to walk home to the capital across Kingsbridge."
+  }
+ ],
+ "roads": [],
+ "routes": [
+  {
+   "from": "spawn",
+   "to": "aldspire"
+  },
+  {
+   "from": "spawn",
+   "to": "graymarch_keep"
+  },
+  {
+   "from": "spawn",
+   "to": "molehollow"
+  }
+ ],
+ "seed": 7.0,
+ "settlements": [],
+ "validation": {
+  "anchorsMustBeInsideRegion": true,
+  "rejectDuplicateIds": true,
+  "rejectUnresolvedReferences": true,
+  "warnOnBoundsClipping": true,
+  "warnOnUnreachableSettlements": true
+ },
+ "version": 2.0
 }

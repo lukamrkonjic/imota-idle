@@ -119,6 +119,20 @@ func _parent_idx(gtx: int, gty: int) -> int:
 
 
 func _parent_id(gtx: int, gty: int) -> String:
+	# AUTHORED BIOME MASK (tools/trace_world.py): each land tile's biome is read
+	# straight from the traced reference, so the world matches the art exactly. The
+	# coastline (ocean/beach) still comes from the land-mask coast field.
+	if classifier.has_biome_mask():
+		if reg.spec.active and reg.spec.finite:
+			var shore: float = classifier.coast_sink(float(gtx), float(gty))
+			if shore > 0.72:
+				return "ocean"
+			if shore > 0.34:
+				return "beach"
+		var mi: int = classifier.mask_biome_idx(float(gtx), float(gty))
+		if mi >= 0:
+			return reg.parent_biome_id(mi)
+		return AUTHORED_BASE
 	# Biomes follow the noise + continent + progression model everywhere, so the
 	# map reads as natural terrain (not square authored regions). WorldSpec
 	# regions still provide zone NAMES / level reqs and anchor POIs; they no
@@ -416,6 +430,14 @@ static func _fit(v: float, lo: float, hi: float, tol: float) -> float:
 func _sub_idx_for(parent_idx: int, gtx: int, gty: int) -> int:
 	if parent_idx < 0 or parent_idx >= reg.biomes.size():
 		return 255
+	# Honor a micro-biome the mask classified explicitly (e.g. salt_pan, flower_meadow)
+	# when it belongs to this parent; otherwise fall through to procedural stamping so
+	# marsh_pool / oasis / scorched / grove etc. still appear within their parents.
+	if classifier.has_biome_mask():
+		var mi: int = classifier.mask_biome_idx(float(gtx), float(gty))
+		if mi >= 0 and mi != parent_idx and bool(reg.biomes[mi].get("isSubBiome", false)):
+			if int(reg.biome_index.get(reg.parent_biome_id(mi), -1)) == parent_idx:
+				return mi
 	var parent_id: String = str(reg.biomes[parent_idx]["id"])
 	var best_sub := 255
 	var best_pri := -1

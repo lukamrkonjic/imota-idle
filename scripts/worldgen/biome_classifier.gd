@@ -90,6 +90,19 @@ var _mask_tile_w := 1.0
 var _mask_tile_h := 1.0
 var _tiles_per_mask_px := 1.0
 
+# Authored data masks (same geometry/bounds as the land mask): per-tile biome,
+# elevation and rivers/lakes traced from the reference art (tools/trace_world.py).
+# When present they DRIVE biome/elevation/water directly — the procedural
+# climate/orography/hydrology models are bypassed.
+const _ELEV_MAX := 44            # mirrors MountainField.ELEV_MAX_STEPS
+var _has_biome_mask := false
+var _has_elev_mask := false
+var _has_river_mask := false
+var _biome_data: PackedByteArray = PackedByteArray()   # 1 byte/px = palette index
+var _elev_data: PackedByteArray = PackedByteArray()    # 1 byte/px = 0..255 height
+var _river_data: PackedByteArray = PackedByteArray()   # 1 byte/px = 0/255 water
+var _biome_lut: PackedInt32Array = PackedInt32Array()  # palette index -> reg biome index
+
 
 func setup(p_reg: RefCounted, p_seed: int) -> void:
 	reg = p_reg
@@ -133,6 +146,7 @@ func setup(p_reg: RefCounted, p_seed: int) -> void:
 	_t_cobble = int(reg.tile_index["cobble"])
 	if _finite:
 		_load_land_mask()
+		_load_data_masks()
 	# The ellipse continents + land-guarantee discs are only the FALLBACK shape;
 	# skip them entirely when the authored mask is driving the coastline.
 	if not _has_land_mask:
@@ -363,6 +377,102 @@ func _load_land_mask() -> void:
 	_has_land_mask = true
 
 
+## Load the authored biome / elevation / river masks (same size as the land mask).
+func _load_data_masks() -> void:
+	if not _has_land_mask:
+		return
+	var id := str(reg.spec.id)
+	_biome_data = _load_mask_bytes(_MASK_DIR + id + "_biomes.png")
+	_elev_data = _load_mask_bytes(_MASK_DIR + id + "_elev.png")
+	_river_data = _load_mask_bytes(_MASK_DIR + id + "_rivers.png")
+	var n := _mask_w * _mask_h
+	_has_biome_mask = _biome_data.size() == n
+	_has_elev_mask = _elev_data.size() == n
+	_has_river_mask = _river_data.size() == n
+	if _has_biome_mask:
+		_build_biome_lut(id)
+		if _biome_lut.is_empty():
+			_has_biome_mask = false
+
+
+func _load_mask_bytes(path: String) -> PackedByteArray:
+	var img := _load_png_image(path)
+	if img == null:
+		return PackedByteArray()
+	if img.get_width() != _mask_w or img.get_height() != _mask_h:
+		push_warning("Data mask size mismatch, ignored: " + path)
+		return PackedByteArray()
+	img.convert(Image.FORMAT_R8)   # one byte per pixel (red channel)
+	return img.get_data()
+
+
+## Map the mask's palette (index -> biome id, from aldreth_mask.json) to runtime
+## biome indices, so a pixel value resolves to a reg biome.
+func _build_biome_lut(id: String) -> void:
+	_biome_lut = PackedInt32Array()
+	var path := _MASK_DIR + id + "_mask.json"
+	if not FileAccess.file_exists(path):
+		return
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not parsed is Dictionary:
+		return
+	var palette: Array = (parsed as Dictionary).get("biomePalette", [])
+	var fallback := int(reg.biome_index.get("forest", 0))
+	for entry: Variant in palette:
+		_biome_lut.append(int(reg.biome_index.get(str(entry), fallback)))
+
+
+## Nearest mask-pixel flat index for a world tile, or -1 outside the bounds.
+func _mask_pi(tx: float, ty: float) -> int:
+	var u := (tx - _mask_min_tx) / _mask_tile_w
+	var v := (ty - _mask_min_ty) / _mask_tile_h
+	if u < 0.0 or u >= 1.0 or v < 0.0 or v >= 1.0:
+		return -1
+	var x := clampi(int(u * float(_mask_w)), 0, _mask_w - 1)
+	var y := clampi(int(v * float(_mask_h)), 0, _mask_h - 1)
+	return y * _mask_w + x
+
+
+func has_biome_mask() -> bool:
+	return _has_biome_mask
+
+
+## Runtime biome index from the authored biome mask, or -1 (out of bounds / no mask).
+func mask_biome_idx(tx: float, ty: float) -> int:
+	if not _has_biome_mask:
+		return -1
+	var pi := _mask_pi(tx, ty)
+	if pi < 0:
+		return -1
+	var p := int(_biome_data[pi])
+	return _biome_lut[p] if p < _biome_lut.size() else -1
+
+
+func has_elev_mask() -> bool:
+	return _has_elev_mask
+
+
+## Authored elevation in steps (0..ELEV_MAX). A mild gamma keeps lowland flat while
+## still reaching tall peaks where the traversability map is "Blocked"/snow.
+func mask_elev_steps(tx: float, ty: float) -> int:
+	var pi := _mask_pi(tx, ty)
+	if pi < 0:
+		return 0
+	var v := float(_elev_data[pi]) / 255.0
+	return clampi(int(round(pow(v, 1.4) * float(_ELEV_MAX))), 0, _ELEV_MAX)
+
+
+func has_river_mask() -> bool:
+	return _has_river_mask
+
+
+func mask_is_water(tx: float, ty: float) -> bool:
+	if not _has_river_mask:
+		return false
+	var pi := _mask_pi(tx, ty)
+	return pi >= 0 and _river_data[pi] > 127
+
+
 ## Two-pass chamfer signed-distance transform of the binary mask (land = bright).
 ## sdf > 0 inside land (distance to nearest sea, in mask pixels); < 0 in the sea
 ## (negative distance to nearest land). Cheap (O(2·W·H)) and runs once at setup.
@@ -576,20 +686,30 @@ func volcanic_region_ok(tx: float, ty: float, f: Vector3) -> bool:
 
 
 
-# Hydrology delegated to HydrologyField (hydrology_field.gd).
+# Hydrology: the authored river/lake mask DRIVES all inland water when present
+# (procedural rivers/lakes are bypassed); otherwise delegate to HydrologyField.
 func river_at(tx: float, ty: float, h: float) -> int:
+	if _has_river_mask:
+		return 2 if mask_is_water(tx, ty) else 0
 	return _hydro.river_at(tx, ty, h)
 
 
 func lake_at(tx: float, ty: float, h: float, parent_id: String = "") -> int:
+	if _has_river_mask:
+		return 0   # lakes are part of the river mask, resolved by river_at
 	return _hydro.lake_at(tx, ty, h, parent_id)
 
 
 func _touches_water_tile(tx: float, ty: float) -> bool:
+	if _has_river_mask:
+		return mask_is_water(tx + 1.0, ty) or mask_is_water(tx - 1.0, ty) \
+			or mask_is_water(tx, ty + 1.0) or mask_is_water(tx, ty - 1.0)
 	return _hydro._touches_water_tile(tx, ty)
 
 
 func _near_surface_water(tx: float, ty: float, h: float) -> bool:
+	if _has_river_mask:
+		return _touches_water_tile(tx, ty)
 	return _hydro._near_surface_water(tx, ty, h)
 
 
