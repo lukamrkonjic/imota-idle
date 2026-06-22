@@ -1,6 +1,9 @@
 # Godot editor cache / imported assets
 .godot/
 
+# macOS Finder cruft
+.DS_Store
+
 # Reference game sources (local research material, ~600 MB)
 games-with-worldgen/
 

@@ -45,12 +45,7 @@ func build() -> Control:
 		hb.add_theme_constant_override("separation", UiScale.i(5))
 		hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		hb.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-		var icon := ItemIcon.new()
-		icon.kind = SkillRegistry.icon(skill)
-		icon.tint = SkillRegistry.color(skill)
-		icon.custom_minimum_size = UiScale.v2(Vector2(26, 26))
-		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		hb.add_child(icon)
+		hb.add_child(_skill_icon(skill))
 		var lbl := Label.new()
 		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -73,6 +68,29 @@ func build() -> Control:
 		skills_grid.add_child(cell)
 		_cells[skill] = lbl
 	return skills_grid
+
+
+## The skill's authored icon (assets/skill_icons/<skill>.rgba); falls back to the procedural
+## ItemIcon glyph if that art is missing.
+func _skill_icon(skill: String) -> Control:
+	var tex := SkillRegistry.icon_texture(skill)
+	if tex != null:
+		var tr := TextureRect.new()
+		tr.texture = tex
+		tr.custom_minimum_size = UiScale.v2(Vector2(32, 32))
+		# IGNORE_SIZE so the 64px texture doesn't force a 64px minimum — it renders at our 32px
+		# request, downscaled cleanly via the generated mipmaps.
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		return tr
+	var icon := ItemIcon.new()
+	icon.kind = SkillRegistry.icon(skill)
+	icon.tint = SkillRegistry.color(skill)
+	icon.custom_minimum_size = UiScale.v2(Vector2(26, 26))
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return icon
 
 
 func refresh() -> void:

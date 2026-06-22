@@ -719,6 +719,7 @@ func toggle_game_menu() -> void:
 	if game_menu_popup.visible:
 		game_menu_popup.hide()
 	else:
+		_scale_popup(game_menu_popup)
 		game_menu_popup.popup_centered()
 
 
@@ -928,6 +929,7 @@ func open_settings() -> void:
 	_settings_minimap_lock.button_pressed = GameSettings.minimap_lock_north
 	_settings_auto_retaliate.button_pressed = GameSettings.auto_retaliate
 	_select_settings_fps_limit(GameSettings.fps_limit)
+	_scale_popup(settings_popup)
 	settings_popup.popup_centered()
 
 
@@ -938,10 +940,21 @@ func _select_settings_fps_limit(value: int) -> void:
 			return
 
 
+## Popups are Windows (not in the scaled HUD layers), so they need the UI-size slider applied as
+## a content scale factor — otherwise they stay base-size while the panels grow and feel "too
+## small". Keeps every popup on the same visual level as the rest of the HUD.
+func _scale_popup(p: Window) -> void:
+	if p != null:
+		p.content_scale_factor = GameSettings.ui_scale
+
+
 func _apply_hud_from_settings(_property: StringName = &"") -> void:
 	var scale_vec := Vector2(GameSettings.ui_scale, GameSettings.ui_scale)
 	for layer: Control in _hud_scale_layers:
 		layer.scale = scale_vec
+	_scale_popup(popup)
+	_scale_popup(settings_popup)
+	_scale_popup(game_menu_popup)
 	if zone_label:
 		zone_label.visible = GameSettings.show_zone_banner
 	if layer_label:
@@ -958,6 +971,7 @@ func _open_popup(title: String) -> void:
 	popup_title.text = title
 	for c: Node in popup_list.get_children():
 		c.queue_free()
+	_scale_popup(popup)
 	popup.popup_centered()
 
 

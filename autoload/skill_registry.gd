@@ -57,6 +57,22 @@ func icon(skill: String) -> String:
 	return str(meta(skill).get("icon", "misc"))
 
 
+# Authored skill icons (assets/skill_icons/<skill>.png, imported as textures). Cached; null when
+# an icon is missing so callers can fall back to the procedural ItemIcon glyph.
+const SKILL_ICON_DIR := "res://assets/skill_icons"
+var _icon_tex: Dictionary = {}   # skill -> Texture2D (or null)
+
+func icon_texture(skill: String) -> Texture2D:
+	if _icon_tex.has(skill):
+		return _icon_tex[skill]
+	var tex: Texture2D = null
+	var path := "%s/%s.png" % [SKILL_ICON_DIR, skill]
+	if ResourceLoader.exists(path):
+		tex = load(path) as Texture2D
+	_icon_tex[skill] = tex   # cache misses too, so we only probe once
+	return tex
+
+
 func color(skill: String) -> Color:
 	var c: Array = meta(skill).get("color", [])
 	if c.size() >= 3:

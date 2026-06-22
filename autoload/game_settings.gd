@@ -6,7 +6,7 @@ signal changed(property: StringName)
 const SETTINGS_PATH := "user://settings.json"
 
 const UI_SCALE_MIN := 0.85
-const UI_SCALE_MAX := 1.45
+const UI_SCALE_MAX := 2.0
 const DEFAULT_UI_SCALE := 1.0
 const DEFAULT_MASTER_VOLUME := 0.8
 const DEFAULT_FPS_LIMIT := 60
