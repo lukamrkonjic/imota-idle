@@ -675,22 +675,14 @@ func _sync_camera() -> void:
 	# to the 3D ortho size so zoom works like before.
 	var zoom: float = float(world._camera.zoom.x) if world._camera != null and world._camera.zoom.x > 0.01 else 1.65
 	cam.size = CAM_SIZE_BASE / zoom
-	# Orbit direction from the arrow-key yaw/pitch (default = the original iso angle).
+	# Orbit direction from the arrow-key yaw/pitch (default = the original iso angle). The camera
+	# always looks straight at the player so the player stays centred at every tilt/zoom. (An ortho
+	# frustum can dip below the ground at a low angle when zoomed out, showing a sliver of bare sky
+	# at the very bottom — the gradual distance fog + radial coverage keep it minimal, and centred
+	# framing is preferred over lifting the view off the player.)
 	var dir := Vector3(cos(_cam_pitch) * sin(_cam_yaw), sin(_cam_pitch), cos(_cam_pitch) * cos(_cam_yaw))
 	cam.position = c + dir * CAM_DIST
 	cam.look_at(c + Vector3(0, 0.75, 0), Vector3.UP)
-	# An ORTHOGRAPHIC frustum dips its lower edge BELOW the ground plane when tilted low and zoomed
-	# out, so the bottom of the screen shows bare sky ("fog under the player") — no terrain loading
-	# can fill it (there's no ground along those rays). Rather than forbid the low angle, SLIDE the
-	# camera up its own up-axis so the bottom edge rides on the ground: the view shifts up (player
-	# sits a little lower on screen, like a real low-angle shot) instead of revealing the void.
-	var up := cam.global_transform.basis.y
-	if up.y > 0.01:
-		var bottom_y := cam.position.y - (cam.size * 0.5) * up.y   # world Y of the frustum's lower edge
-		var deficit := (c.y + 0.5) - bottom_y                      # how far it sits below ground (+0.5 margin)
-		if deficit > 0.0:
-			var lift := minf(deficit / up.y, cam.size * 0.46 / up.y)  # cap so the player stays on screen
-			cam.position += up * lift
 	_snap_camera()
 
 
