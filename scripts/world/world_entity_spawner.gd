@@ -255,8 +255,8 @@ func _spawn_ground_decor(chunk: RefCounted, container: Node2D) -> void:
 
 
 func _spawn_ground_decor_tile(chunk: RefCounted, container: Node2D, seed: int, tx: int, ty: int) -> void:
-	if WorldGen.reg.spec.is_blank():
-		return   # blank canvas: no ambient ground decor (placed by hand)
+	# Decorative ground flora scatters even on "blank" authored worlds — only harvestable
+	# nodes (gather sites/ores) are hand-placed; the cosmetic clutter stays procedural.
 	var tile: Dictionary = WorldGen.reg.tile_def(chunk.tile_id(tx, ty))
 	var tname: String = WorldGen.reg.tile_order[chunk.tile_id(tx, ty)]
 	var elev := int(chunk.elev[ty * WG.CHUNK_TILES + tx]) if chunk.elev.size() > 0 else 0
@@ -307,8 +307,8 @@ func _spawn_canopy(chunk: RefCounted, container: Node2D) -> void:
 
 
 func _spawn_canopy_tile(chunk: RefCounted, container: Node2D, seed: int, tx: int, ty: int) -> void:
-	if WorldGen.reg.spec.is_blank():
-		return   # blank canvas: no ambient trees/canopy (placed by hand)
+	# Decorative trees scatter even on "blank" authored worlds (cosmetic clutter is
+	# procedural; only harvestable rare trees/ores are placed by hand, with care).
 	var elev := int(chunk.elev[ty * WG.CHUNK_TILES + tx]) if chunk.elev.size() > 0 else 0
 	if elev > 0:
 		return  # no ambient forest on raised/impassable rock (alpine has its own pass)

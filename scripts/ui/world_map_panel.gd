@@ -49,11 +49,20 @@ func setup(p_hud: CanvasLayer) -> void:
 func toggle() -> void:
 	visible = not visible
 	if visible:
+		_fit_viewport()
 		queue_redraw()
+
+
+# A Control directly under a CanvasLayer is NOT auto-sized by its parent, so anchors
+# alone leave `size` at 0×0 (nothing draws). Pin it to the full viewport explicitly.
+func _fit_viewport() -> void:
+	position = Vector2.ZERO
+	size = get_viewport_rect().size
 
 
 func _process(_delta: float) -> void:
 	if visible:
+		_fit_viewport()
 		queue_redraw()
 
 
@@ -95,7 +104,8 @@ func _draw() -> void:
 		_text_center("Run tools/world_bake.tscn to build the map", _map_rect.get_center(), 16, Color.WHITE)
 	draw_rect(_map_rect, Color(0.55, 0.5, 0.35), false, 2.0)
 
-	_draw_fog()
+	# Fog-of-war disabled: the world map shows the full continent (OSRS-style). The old
+	# per-chunk fog also produced a grid artifact from overlapping translucent cells.
 	_draw_overlays()
 	_draw_player()
 	_draw_title()

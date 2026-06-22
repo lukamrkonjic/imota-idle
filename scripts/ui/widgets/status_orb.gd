@@ -48,7 +48,7 @@ func _draw() -> void:
 			col = Color(0.3, 0.55, 0.85); lbl = "Pray"; text = str(GameState.level("prayer"))
 		"run":
 			frac = GameState.run_energy / 100.0
-			lbl = "Run"; text = str(int(round(GameState.run_energy)))
+			lbl = "Run"; text = str(int(GameState.run_energy))   # OSRS floors the % (int truncates)
 			if GameState.resting:
 				col = Color(0.4, 0.62, 0.9); border = Color(0.55, 0.8, 1.0)      # resting
 			elif GameState.run_enabled:

@@ -49,9 +49,7 @@ var _death_rng := RandomNumberGenerator.new()
 const HIGH_ALCH_LEVEL := 55
 const HIGH_ALCH_RATE := 0.6
 const HIGH_ALCH_XP := 65.0
-const RUN_REGEN_PER_SEC := 0.5
-const RUN_DRAIN_PER_SEC := 2.2         # % energy spent per second of running (before Agility)
-const REST_REGEN_MULT := 2.6           # resting recharges this much faster
+const REST_REGEN_MULT := 2.6           # sitting (rest) recharges this much faster than walking
 
 var _hp_regen_timer := 0.0
 
@@ -647,19 +645,23 @@ func use_run_energy(amount: float) -> void:
 	EventBus.run_energy_changed.emit(run_energy)
 
 
-## Per-frame running cost: higher Agility drains slower (OSRS); auto-stops when empty.
+## Per-frame running cost. OSRS: units/tick = ⌊60 + 67·clamp(weight,0,64)/64⌋·(1 − Agility/300),
+## of 10000 units = 100%. No weight system yet → weight 0 → 60 units/tick = 0.6%/tick.
+## Ticks are 0.6s, so 0.6%/tick ÷ 0.6 = 1.0%/sec before the Agility factor.
 func drain_running(delta: float) -> void:
-	use_run_energy(RUN_DRAIN_PER_SEC * delta / (1.0 + float(level("agility")) * 0.006))
+	var rate: float = 1.0 - float(level("agility")) / 300.0   # % per second (weight 0)
+	use_run_energy(rate * delta)
 	if run_energy <= 0.0:
 		set_run(false)
 
 
+## OSRS regen: units/tick = ⌊Agility/10⌋ + 15 (of 10000). ÷100 → %/tick, ÷0.6 → %/sec.
 func regen_run_energy(delta: float) -> void:
 	if run_enabled and is_moving:
 		return                      # spending energy while running; no regen
 	if run_energy >= 100.0:
 		return
-	var rate := RUN_REGEN_PER_SEC * (1.0 + float(level("agility")) * 0.01)
+	var rate: float = (floor(float(level("agility")) / 10.0) + 15.0) / 60.0   # % per second
 	if resting:
 		rate *= REST_REGEN_MULT
 	run_energy = clampf(run_energy + rate * delta, 0.0, 100.0)

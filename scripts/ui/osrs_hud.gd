@@ -123,6 +123,15 @@ func _ready() -> void:
 ## unhandled input so the chosen key rebinds instead of triggering its old action.
 func _input(event: InputEvent) -> void:
 	if _rebinding_action == "":
+		# Map toggle is handled here in _input (ahead of GUI / unhandled input) so a focused
+		# HUD control or CanvasLayer input ordering can't swallow the M key — unless we're
+		# actually typing into a text field.
+		if event is InputEventKey and event.pressed and not event.echo \
+				and (event.keycode == KEY_M or event.physical_keycode == KEY_M):
+			var fo := get_viewport().gui_get_focus_owner()
+			if not (fo is LineEdit or fo is TextEdit):
+				world_map.toggle()
+				get_viewport().set_input_as_handled()
 		return
 	if not (event is InputEventKey and event.pressed and not event.echo):
 		return
@@ -139,10 +148,7 @@ func _input(event: InputEvent) -> void:
 func _unhandled_key_input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed and not event.echo):
 		return
-	if event.keycode == KEY_M or event.physical_keycode == KEY_M:
-		world_map.toggle()
-		get_viewport().set_input_as_handled()
-	elif event.keycode == KEY_ESCAPE and world_map.visible:
+	if event.keycode == KEY_ESCAPE and world_map.visible:
 		world_map.visible = false
 		get_viewport().set_input_as_handled()
 	elif event.keycode == GameSettings.keybind("hide_hud"):
