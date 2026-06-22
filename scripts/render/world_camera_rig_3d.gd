@@ -26,6 +26,13 @@ const BUDGET_ORTHO_CLOSE := 9.0     # at/below this ortho (zoomed in) the lowest
 const BUDGET_ORTHO_FAR := 30.0      # at/above this ortho (zoomed out) the top-down floor applies
 const BUDGET_PITCH_CLOSE := 0.24    # ~14° — cinematic low angle, allowed only when zoomed in
 const BUDGET_PITCH_FAR := 0.62      # ~36° — strategic top-down floor when zoomed far out
+# Up/Down sweep the camera between two coupled poses, eased smoothly (NOT a linear tilt):
+#   hold Up   -> overview  : max zoom-OUT + top-down
+#   hold Down -> cinematic : zoom-IN + lowest pitch
+# PAN_EASE is the smoothing rate (lower = slower, more gradual glide).
+const PAN_EASE := 1.7
+const ZOOM_OUT_MAX := 0.55                              # matches WorldInputController.ZOOM_MIN (max zoom-out)
+const ZOOM_CINEMATIC := CAM_SIZE_BASE / BUDGET_ORTHO_CLOSE   # zoom-in where the lowest pitch unlocks
 # Radians of yaw/pitch per pixel of middle-mouse drag (before the cam_rotate_speed multiplier).
 const CAM_DRAG_YAW := 0.006
 const CAM_DRAG_PITCH := 0.004
@@ -96,23 +103,36 @@ func effective_min_pitch() -> float:
 	return clampf(floor_pitch, CAM_PITCH_MIN, CAM_PITCH_MAX)
 
 
-## Arrow keys orbit the camera around the player: Left/Right spin the yaw a full
-## 360°, Up/Down tilt the pitch (clamped). Picking adapts automatically because
+## Arrow keys: Left/Right spin the yaw a full 360°. Up/Down sweep the camera smoothly between a
+## top-down OVERVIEW (max zoom-out) and a low CINEMATIC pose (zoomed in) — pitch and zoom are
+## eased toward the held pose together, so holding Down pans all the way down (auto zooming in) and
+## holding Up pans all the way up (auto zooming out to max). Picking adapts automatically because
 ## screen_to_iso casts through the live camera.
 func update_input(delta: float) -> void:
 	var spd: float = GameSettings.cam_rotate_speed   # user-tunable orbit/tilt multiplier
-	var pmin := effective_min_pitch()
 	if Input.is_key_pressed(KEY_LEFT):
 		_cam_yaw -= CAM_YAW_SPEED * spd * delta
 	if Input.is_key_pressed(KEY_RIGHT):
 		_cam_yaw += CAM_YAW_SPEED * spd * delta
-	if Input.is_key_pressed(KEY_UP):
-		_cam_pitch = clampf(_cam_pitch + CAM_PITCH_SPEED * spd * delta, pmin, CAM_PITCH_MAX)
-	if Input.is_key_pressed(KEY_DOWN):
-		_cam_pitch = clampf(_cam_pitch - CAM_PITCH_SPEED * spd * delta, pmin, CAM_PITCH_MAX)
-	# Keep pitch within the live budget even if it was set lower before (e.g. view-distance
-	# slider dropped, or a stored value) so the world edge can't be exposed.
-	_cam_pitch = clampf(_cam_pitch, pmin, CAM_PITCH_MAX)
+	if world != null and world._camera != null:
+		var cur_zoom: float = world._camera.zoom.x
+		var tgt_zoom := cur_zoom
+		var tgt_pitch := _cam_pitch
+		if Input.is_key_pressed(KEY_UP):
+			tgt_zoom = ZOOM_OUT_MAX        # overview: ease out to max + tilt top-down
+			tgt_pitch = CAM_PITCH_MAX
+		elif Input.is_key_pressed(KEY_DOWN):
+			tgt_zoom = maxf(cur_zoom, ZOOM_CINEMATIC)   # cinematic: ease IN (never pop out) + tilt down
+			tgt_pitch = CAM_PITCH_MIN      # the floor clamp below pins pitch to the live budget floor
+		# Frame-rate-independent exponential ease toward the held pose (no-op when neither is held).
+		var k := 1.0 - exp(-PAN_EASE * spd * delta)
+		if not is_equal_approx(tgt_zoom, cur_zoom):
+			var nz := lerpf(cur_zoom, tgt_zoom, k)
+			world._camera.zoom = Vector2(nz, nz)
+		_cam_pitch = lerpf(_cam_pitch, tgt_pitch, k)
+	# Clamp to the live budget floor (reflecting the eased zoom) so the world edge can't be exposed;
+	# this is also what pins the descending pitch to the floor while Down zooms in.
+	_cam_pitch = clampf(_cam_pitch, effective_min_pitch(), CAM_PITCH_MAX)
 	_cam_yaw = wrapf(_cam_yaw, -PI, PI)
 
 

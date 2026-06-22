@@ -29,11 +29,14 @@ func build() -> Control:
 		var cell := PanelContainer.new()
 		cell.add_theme_stylebox_override("panel", hud._style(hud.STONE_DARK))
 		cell.custom_minimum_size = UiScale.v2(Vector2(84, 40))
-		cell.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		var skill_copy := skill
+		var locked := GameState.is_skill_locked(skill)
+		cell.mouse_default_cursor_shape = Control.CURSOR_ARROW if locked else Control.CURSOR_POINTING_HAND
 		cell.gui_input.connect(func(event: InputEvent) -> void:
 			if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 				hud.show_ui_click_marker(event.global_position)
+				if GameState.is_skill_locked(skill_copy):
+					return   # locked skills are faded + don't open the skill guide
 				hud.open_skill_guide(skill_copy))
 		cell.mouse_entered.connect(func() -> void: _show_hover(skill_copy, cell))
 		cell.mouse_exited.connect(func() -> void: _hide_hover())
@@ -55,6 +58,18 @@ func build() -> Control:
 		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		hb.add_child(lbl)
 		cell.add_child(hb)
+		if locked:
+			# Fade the skill icon + level, then float a lock glyph centred over the cell.
+			hb.modulate.a = 0.32
+			var lockwrap := CenterContainer.new()
+			lockwrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var lockicon := ItemIcon.new()
+			lockicon.kind = "lock"
+			lockicon.tint = Color(0.82, 0.80, 0.74)
+			lockicon.custom_minimum_size = UiScale.v2(Vector2(20, 20))
+			lockicon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			lockwrap.add_child(lockicon)
+			cell.add_child(lockwrap)   # added after hb -> drawn on top
 		skills_grid.add_child(cell)
 		_cells[skill] = lbl
 	return skills_grid
@@ -71,6 +86,9 @@ func update_cell(skill: String) -> void:
 	var lbl: Label = _cells[skill]
 	var lvl := GameState.level(skill)
 	lbl.text = str(lvl)
+	if GameState.is_skill_locked(skill):
+		lbl.tooltip_text = "%s — locked (coming soon)" % skill.capitalize()
+		return
 	var cur := float(DataRegistry.xp_for_level(lvl))
 	var next := float(DataRegistry.xp_for_level(lvl + 1))
 	var frac := clampf((GameState.xp(skill) - cur) / maxf(next - cur, 1.0), 0.0, 1.0)
@@ -103,6 +121,16 @@ func _show_hover(skill: String, cell: Control) -> void:
 		hud.hud_root.add_child(_hover)
 	var lvl := GameState.level(skill)
 	var cur := GameState.xp(skill)
+	if GameState.is_skill_locked(skill):
+		_hover_name.text = "%s — locked" % skill.capitalize()
+		_hover_bar.value = 0.0
+		_hover_xp.text = "Coming soon"
+		_hover.reset_size()
+		var lpos := cell.global_position + Vector2(-_hover.size.x - UiScale.f(6.0), 0.0)
+		lpos.x = maxf(lpos.x, UiScale.f(4.0))
+		_hover.global_position = lpos
+		_hover.visible = true
+		return
 	_hover_name.text = "%s — Level %d" % [skill.capitalize(), lvl]
 	if lvl >= DataRegistry.max_level:
 		_hover_bar.value = 1.0

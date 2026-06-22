@@ -18,6 +18,18 @@ const SKILLS := [
 	"agility",
 ]
 
+# Skills not yet shipped: shown faded + locked in the skilling menu. The deferred BOW vertical
+# (ranged + fletching + crafting) is locked together so nothing it feeds is left stranded — see
+# the content audit (Bowstring / Molten Glass come only from crafting). Currently a MENU lock only
+# — it does not yet block training/activities.
+const LOCKED_SKILLS := {
+	"ranged": true, "magic": true, "fletching": true, "crafting": true,
+	"alchemy": true, "hunter": true, "thieving": true, "farming": true, "agility": true,
+}
+
+func is_skill_locked(skill: String) -> bool:
+	return LOCKED_SKILLS.has(skill)
+
 # OSRS-style fixed 28-slot inventory (Imota spec §0). Was a Bloobs-shaped 24.
 const BASE_INVENTORY_SLOTS := 28
 

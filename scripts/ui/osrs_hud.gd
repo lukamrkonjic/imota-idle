@@ -1000,39 +1000,25 @@ func open_skill_guide(skill: String) -> void:
 		any = true
 		var sorted := nodes.duplicate()
 		sorted.sort_custom(func(a, b): return int(a["level"]) < int(b["level"]))
-		# Spoiler-free (spec §3c): show unlocked nodes plus only the NEXT one as a
-		# teaser; everything further out stays hidden until reachable.
-		var node_teaser_shown := false
+		# Every node, level order: icon + name, whole row clicks to auto-gather. Rows above the
+		# player's level are faded + non-interactive (locked).
 		for n: Dictionary in sorted:
 			var unlocked: bool = lvl >= int(n["level"])
-			if not unlocked:
-				if node_teaser_shown:
-					continue
-				node_teaser_shown = true
-			var row := HBoxContainer.new()
-			var lbl := Label.new()
-			lbl.text = "Lvl %d  %s" % [int(n["level"]), str(n.get("displayName", n["name"]))]
 			var give_names: PackedStringArray = []
 			for it: String in n["items"]:
 				give_names.append(DataRegistry.item_display_name(it))
-			lbl.tooltip_text = "Gives: %s\n%.0f XP per gather" % [", ".join(give_names), float(n["xp"])]
-			lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			lbl.clip_text = true
-			lbl.add_theme_color_override("font_color",
-				Color(0.9, 0.9, 0.8) if unlocked else Color(0.45, 0.45, 0.45))
-			row.add_child(lbl)
-			var go := Button.new()
-			go.text = "Go"
-			go.tooltip_text = "Auto-walk to the nearest %s and gather" % str(n.get("displayName", n["name"]))
-			go.disabled = not unlocked
+			var icon_item := str(n["items"][0]) if not (n["items"] as Array).is_empty() else ""
+			var title := str(n.get("displayName", n["name"]))
+			var tip := "Gives: %s\n%.0f XP per gather" % [", ".join(give_names), float(n["xp"])]
+			if not unlocked:
+				tip += "\nRequires %s level %d" % [skill.capitalize(), int(n["level"])]
 			var node_name := str(n["name"])
 			var skill_copy := skill
-			go.pressed.connect(func() -> void:
+			var act := func() -> void:
 				if world != null:
 					EventBus.gather_requested.emit(skill_copy, node_name)
-					popup.hide())
-			row.add_child(go)
-			popup_list.add_child(row)
+					popup.hide()
+			popup_list.add_child(_skill_guide_row(int(n["level"]), icon_item, title, unlocked, tip, act))
 
 	var recipes: Array = DataRegistry.recipes_by_skill.get(skill, [])
 	if not recipes.is_empty():
@@ -1041,39 +1027,24 @@ func open_skill_guide(skill: String) -> void:
 		head.text = "— Recipes (made at a %s station) —" % skill.capitalize()
 		head.add_theme_color_override("font_color", Color(0.7, 0.62, 0.4))
 		popup_list.add_child(head)
-		var recipe_teaser_shown := false
 		for r: Dictionary in recipes:
 			var unlocked: bool = lvl >= int(r["levelReq"])
-			if not unlocked:
-				if recipe_teaser_shown:
-					continue
-				recipe_teaser_shown = true
-			var row := HBoxContainer.new()
-			var lbl := Label.new()
 			var input_strs: PackedStringArray = []
 			for input: Dictionary in r["inputs"]:
 				input_strs.append("%dx %s" % [int(input["qty"]), DataRegistry.item_display_name(input["item"])])
-			lbl.text = "Lvl %d  %s" % [int(r["levelReq"]), str(r.get("displayName", r["name"]))]
-			lbl.tooltip_text = "Needs: %s\nMakes: %dx %s\n%.0f XP, %.1fs" % [
+			var title := str(r.get("displayName", r["name"]))
+			var tip := "Needs: %s\nMakes: %dx %s\n%.0f XP, %.1fs" % [
 				", ".join(input_strs), int(r["output"]["qty"]), DataRegistry.item_display_name(r["output"]["item"]),
 				float(r["xp"]), float(r["time"])]
-			lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			lbl.clip_text = true
-			lbl.add_theme_color_override("font_color",
-				Color(0.9, 0.9, 0.8) if unlocked else Color(0.45, 0.45, 0.45))
-			row.add_child(lbl)
-			var make := Button.new()
-			make.text = "Make"
-			make.tooltip_text = "Auto-walk to the nearest station and craft"
-			make.disabled = not unlocked
+			if not unlocked:
+				tip += "\nRequires %s level %d" % [skill.capitalize(), int(r["levelReq"])]
 			var recipe_name := str(r["name"])
 			var skill_copy2 := skill
-			make.pressed.connect(func() -> void:
+			var act := func() -> void:
 				if world != null:
 					EventBus.station_requested.emit(skill_copy2, recipe_name)
-					popup.hide())
-			row.add_child(make)
-			popup_list.add_child(row)
+					popup.hide()
+			popup_list.add_child(_skill_guide_row(int(r["levelReq"]), str(r["output"]["item"]), title, unlocked, tip, act))
 
 	if not any:
 		var lbl := Label.new()
@@ -1083,6 +1054,50 @@ func open_skill_guide(skill: String) -> void:
 			lbl.text = "%s sites appear in the world as you explore.\n(This skill's sim is still on the roadmap.)" % skill.capitalize()
 		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		popup_list.add_child(lbl)
+
+
+## One skill-guide row, HUD style: [Lvl N] [resource art] [name]. The whole row is a clickable
+## panel that fires the auto-skill action (gather / station). Locked rows (player level below the
+## requirement) are faded and inert. icon_item is the resource (fish / ore / herb / log / product)
+## whose procedural ItemIcon art is drawn.
+func _skill_guide_row(level: int, icon_item: String, title: String, unlocked: bool, tooltip: String, on_click: Callable) -> PanelContainer:
+	var row := PanelContainer.new()
+	row.add_theme_stylebox_override("panel", _style(Color(0.20, 0.19, 0.17) if unlocked else Color(0.14, 0.13, 0.12)))
+	row.tooltip_text = tooltip
+	if unlocked:
+		row.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		row.gui_input.connect(func(e: InputEvent) -> void:
+			if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+				show_ui_click_marker(e.global_position)
+				on_click.call())
+	var hb := HBoxContainer.new()
+	hb.mouse_filter = Control.MOUSE_FILTER_IGNORE   # let clicks fall through to the row panel
+	hb.add_theme_constant_override("separation", UiScale.i(8))
+	var lv := Label.new()
+	lv.text = "Lvl %d" % level
+	lv.custom_minimum_size = UiScale.v2(Vector2(46, 0))
+	lv.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lv.add_theme_color_override("font_color", Color(0.84, 0.78, 0.52) if unlocked else Color(0.5, 0.48, 0.42))
+	hb.add_child(lv)
+	var icon := ItemIcon.new()
+	icon.kind = ItemIcon.classify(icon_item, DataRegistry.get_item(icon_item))
+	icon.tint = ItemIcon.material_color(icon_item)
+	icon.custom_minimum_size = UiScale.v2(Vector2(26, 26))
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hb.add_child(icon)
+	var nm := Label.new()
+	nm.text = title
+	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	nm.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	nm.clip_text = true
+	nm.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	nm.add_theme_color_override("font_color", Color(0.93, 0.91, 0.8) if unlocked else Color(0.55, 0.55, 0.52))
+	hb.add_child(nm)
+	row.add_child(hb)
+	if not unlocked:
+		row.modulate.a = 0.5
+	return row
 
 
 ## Farming panel: shows each plot's state and the seeds you can plant now
