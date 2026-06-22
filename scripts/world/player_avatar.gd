@@ -8,9 +8,16 @@ extends Node2D
 
 signal arrived
 
-const SPEED := 95.0
+const WALK_SPEED := 34.0   # ~1.8 tiles/sec — OSRS walk pace
+const RUN_SPEED := 68.0    # 2x walk, gated on run toggle + energy
 const ACCEL := 460.0   # px/s² — eases up to full speed in ~0.2s (a little inertia)
 var _speed := 0.0      # current eased speed
+
+## Target pace this frame: run when toggled on and there's energy, else walk.
+func _target_speed() -> float:
+	if GameState.run_enabled and GameState.run_energy > 0.0:
+		return RUN_SPEED
+	return WALK_SPEED
 
 var walk_target := Vector2.ZERO
 var walking := false
@@ -19,9 +26,15 @@ var progress := -1.0
 
 func _process(delta: float) -> void:
 	if walking:
+		GameState.is_moving = true
+		if GameState.resting:
+			GameState.set_resting(false)   # moving cancels rest
 		# A little inertia: ease the speed up from rest so a start isn't an instant
 		# snap to full pace (but ACCEL is high enough that it never feels sluggish).
-		_speed = move_toward(_speed, SPEED, ACCEL * delta)
+		_speed = move_toward(_speed, _target_speed(), ACCEL * delta)
+		# Running spends energy (Agility-scaled inside GameState).
+		if GameState.run_enabled and GameState.run_energy > 0.0:
+			GameState.drain_running(delta)
 		var to_target := walk_target - position
 		var step := _speed * delta
 		if to_target.length() <= step:
@@ -34,6 +47,7 @@ func _process(delta: float) -> void:
 		else:
 			position += to_target.normalized() * step
 	else:
+		GameState.is_moving = false
 		_speed = 0.0
 
 

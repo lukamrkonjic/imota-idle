@@ -14,6 +14,7 @@ signal prayer_activated(prayer_name: String)   # a prayer was just toggled ON (w
 signal firemaking_log_burned   # one log consumed by the firemaking fire (world FX)
 signal slayer_changed   # slayer task assigned/progressed/completed (HUD refresh)
 signal run_energy_changed(value: float)
+signal run_toggled(enabled: bool, resting: bool)
 
 signal activity_started(kind: String, label: String)
 signal activity_stopped(reason: String)

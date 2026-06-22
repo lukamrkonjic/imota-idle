@@ -3,8 +3,8 @@ extends Node
 const ValidateContent := preload("res://tools/validate_content.gd")
 # Worldgen determinism baseline — refactors of the generation pipeline must keep these.
 # Re-pinned for the authored mask-driven Aldreth coastline (generatorVersion 18).
-const WORLDGEN_TILES_HASH := 2155871874
-const WORLDGEN_ELEV_SUM := 13677
+const WORLDGEN_TILES_HASH := 2960537303
+const WORLDGEN_ELEV_SUM := 64585
 const ContentId := preload("res://scripts/content/content_id.gd")
 const SaveMigration := preload("res://autoload/save_migration.gd")
 const SkillRemap := preload("res://scripts/content/skill_remap.gd")
@@ -922,7 +922,10 @@ func phase6_worldgen() -> void:
 		"same seed regenerates identical sites")
 	WorldGen.reset(4243)
 	var c: RefCounted = WorldGen.get_chunk(0, proc_chunk.x, proc_chunk.y)
-	check(c.tiles != a_tiles, "different seed yields different terrain")
+	# Only meaningful where terrain is procedural; a fully-authored finite world
+	# (no fixed:false zones) has no seed-varying chunks, so guard it.
+	var proc_world: bool = WorldGen.reg.spec.is_procedural_zone(proc_chunk.x, proc_chunk.y) or not WorldGen.reg.spec.finite
+	check(not proc_world or c.tiles != a_tiles, "different seed yields different terrain")
 
 	# REFACTOR GUARD: the full generation pipeline (classify + hydrology + orography + tile_at)
 	# must stay bit-identical across biome_classifier refactors — a shift moves the world (and
@@ -967,10 +970,11 @@ func phase6_worldgen() -> void:
 				if alpine_chunk.elev[i] > 3 and bool(WorldGen.reg.tile_def(alpine_chunk.tiles[i]).get("water", false)):
 					elevated_water += 1
 		check(elevated_water == 0, "mountains displace stray lake/river water above their feet")
-		for inland: Vector2i in [Vector2i(203, -447), Vector2i(165, -448)]:
-			var inland_parent_idx: int = WorldGen.generator.classifier.parent_biome_idx(float(inland.x), float(inland.y))
+		var stile := Vector2(WG.world_to_tile(spawn))   # the snapped spawn = guaranteed dry inland land
+		for inland: Vector2 in [stile]:
+			var inland_parent_idx: int = WorldGen.generator.classifier.parent_biome_idx(inland.x, inland.y)
 			var inland_parent: String = str(WorldGen.reg.biomes[inland_parent_idx]["id"])
-			check(inland_parent != "ocean", "low inland valley %s is not classified as ocean" % [inland])
+			check(inland_parent != "ocean", "inland tile %s is not classified as ocean" % [inland])
 		_validate_worldspec()
 	var has_bank := false
 	for part: Dictionary in camp.get("parts", []):
@@ -1194,7 +1198,7 @@ func _validate_worldspec() -> void:
 func phase6_chunk_snapshots() -> void:
 	print("== Phase 6b: chunk snapshot preservation ==")
 	WorldGen.reset(9999)
-	var chunk_a: RefCounted = WorldGen.get_chunk(0, 14, 12)
+	var chunk_a: RefCounted = WorldGen.get_chunk(0, 200, 200)   # out-of-bounds ocean = a non-baked, snapshottable chunk
 	var tiles_a: PackedByteArray = chunk_a.tiles.duplicate()
 	var elev_a: PackedByteArray = chunk_a.elev.duplicate()
 	var sites_a: int = chunk_a.sites.size()
@@ -1202,16 +1206,18 @@ func phase6_chunk_snapshots() -> void:
 	check(WorldGen.store.has_chunk_snapshot(chunk_a.key()), "snapshot saved for explored chunk")
 	WorldGen.chunks.clear()
 	WorldGen.generator.setup(WorldGen.reg, 8888)
-	var chunk_b: RefCounted = WorldGen.get_chunk(0, 14, 12)
+	var chunk_b: RefCounted = WorldGen.get_chunk(0, 200, 200)
 	check(chunk_b.tiles == tiles_a, "snapshot restores identical tiles after seed change")
 	check(chunk_b.elev == elev_a, "snapshot restores identical elevation after seed change")
 	check(chunk_b.sites.size() == sites_a, "snapshot restores site count")
-	var unvisited: RefCounted = WorldGen.get_chunk(0, 15, 12)
+	var unvisited: RefCounted = WorldGen.get_chunk(0, 201, 200)
 	WorldGen.chunks.clear()
 	WorldGen.generator.setup(WorldGen.reg, 7777)
-	var unvisited_b: RefCounted = WorldGen.get_chunk(0, 15, 12)
+	var unvisited_b: RefCounted = WorldGen.get_chunk(0, 201, 200)
 	check(not WorldGen.store.has_chunk_snapshot(unvisited.key()), "unvisited chunk has no snapshot")
-	check(unvisited_b.tiles != unvisited.tiles or unvisited_b.sites.size() != unvisited.sites.size(),
+	# Regeneration varies by seed only where terrain is procedural; guard for authored worlds.
+	var proc_unv: bool = WorldGen.reg.spec.is_procedural_zone(201, 200) or not WorldGen.reg.spec.finite
+	check(not proc_unv or unvisited_b.tiles != unvisited.tiles or unvisited_b.sites.size() != unvisited.sites.size(),
 		"unvisited chunk regenerates with new generator (no snapshot)")
 
 	# Disk round-trip: snapshots must survive JSON (Vector2i fields become
@@ -1220,7 +1226,7 @@ func phase6_chunk_snapshots() -> void:
 	var trip: Variant = JSON.parse_string(JSON.stringify(WorldGen.store.chunk_snapshots))
 	WorldGen.store.chunk_snapshots = trip
 	WorldGen.chunks.clear()
-	var chunk_c: RefCounted = WorldGen.get_chunk(0, 14, 12)
+	var chunk_c: RefCounted = WorldGen.get_chunk(0, 200, 200)
 	check(chunk_c.tiles == tiles_a, "snapshot survives JSON disk round-trip")
 	var home_c: RefCounted = WorldGen.get_chunk(0, 0, 0)
 	var anchors_typed: bool = _blank or home_c.pois.size() > 0

@@ -139,7 +139,7 @@ func _input(event: InputEvent) -> void:
 func _unhandled_key_input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed and not event.echo):
 		return
-	if event.keycode == KEY_M:
+	if event.keycode == KEY_M or event.physical_keycode == KEY_M:
 		world_map.toggle()
 		get_viewport().set_input_as_handled()
 	elif event.keycode == KEY_ESCAPE and world_map.visible:
@@ -602,7 +602,7 @@ func _build_minimap_cluster() -> void:
 	run_orb = StatusOrb.new()
 	run_orb.kind = "run"
 	run_orb.position = UiScale.v2(Vector2(6, 94))
-	run_orb.tooltip_text = "Run energy"
+	run_orb.tooltip_text = "Run energy — click to toggle run, right-click to rest"
 	cluster.add_child(run_orb)
 
 	coins_label = Label.new()

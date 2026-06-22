@@ -175,6 +175,7 @@ var _v3d_view_label: Label
 var _minimap_panel: PanelContainer
 var _minimap_tex: TextureRect
 var _minimap_marker: ColorRect
+var _show_minimap := true   # Overlays > "World map" toggle (hide the bottom-right map)
 
 
 func _ready() -> void:
@@ -1040,6 +1041,7 @@ func _build_ui() -> void:
 	_overlay_check(lb, "Danger/level", _show_danger, func(on: bool) -> void: _show_danger = on)
 	_overlay_check(lb, "Walkability", _show_walk, func(on: bool) -> void: _show_walk = on)
 	_overlay_check(lb, "Elevation", _show_elevation, func(on: bool) -> void: _show_elevation = on)
+	_overlay_check(lb, "World map", _show_minimap, _set_show_minimap)
 
 	var sep := HSeparator.new()
 	lb.add_child(sep)
@@ -1163,7 +1165,10 @@ func _build_world_minimap() -> void:
 	lbl.add_theme_color_override("font_color", Color(0.7, 0.78, 0.7))
 	box.add_child(lbl)
 	_minimap_tex = TextureRect.new()
-	_minimap_tex.texture = load("res://data/world/baked/" + str(_spec.id) + "_map.png")
+	# Load the freshly-baked map straight from disk (bypass Godot's import cache, which can
+	# serve a stale pre-rebake texture — that makes the map show the wrong world and sends
+	# click-to-go to the wrong place).
+	_minimap_tex.texture = _load_baked_map_texture()
 	var mw := 300.0
 	_minimap_tex.custom_minimum_size = Vector2(mw, mw * float(_h) / float(_w))
 	_minimap_tex.stretch_mode = TextureRect.STRETCH_SCALE
@@ -1175,6 +1180,33 @@ func _build_world_minimap() -> void:
 	_minimap_marker.size = Vector2(8, 8)
 	_minimap_marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_minimap_tex.add_child(_minimap_marker)
+
+
+## Read the baked overview PNG straight off disk so we never display a stale import-cached
+## texture (which mismatches the live bounds and breaks click-to-go).
+func _load_baked_map_texture() -> Texture2D:
+	var path := "res://data/world/baked/" + str(_spec.id) + "_map.png"
+	var bytes := FileAccess.get_file_as_bytes(path)
+	if bytes.size() > 0:
+		var img := Image.new()
+		if img.load_png_from_buffer(bytes) == OK:
+			return ImageTexture.create_from_image(img)
+	return load(path)   # fall back to the imported resource if the raw read fails
+
+
+## Overlays > "World map" checkbox.
+func _set_show_minimap(on: bool) -> void:
+	_show_minimap = on
+	_apply_minimap_visibility()
+
+
+## The minimap shows only in 3D view AND when the user hasn't toggled it off.
+func _apply_minimap_visibility() -> void:
+	if _minimap_panel == null:
+		return
+	_minimap_panel.visible = _v3d_on and _show_minimap
+	if _minimap_panel.visible:
+		_position_minimap.call_deferred()
 
 
 ## Park the minimap in the bottom-right corner.
@@ -1228,9 +1260,7 @@ func _toggle_3d_view() -> void:
 	if _overlay != null:
 		_overlay.visible = not _v3d_on
 	if _minimap_panel != null:
-		_minimap_panel.visible = _v3d_on
-		if _v3d_on:
-			_position_minimap.call_deferred()
+		_apply_minimap_visibility()
 	if _v3d_on:
 		if _v3d_world == null:
 			_spawn_embedded_world()

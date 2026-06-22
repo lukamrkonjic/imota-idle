@@ -39,6 +39,9 @@ var slayer_task: Dictionary = {}       # {monster, required, done} or {} when no
 var slayer_points: int = 0             # currency earned from completing slayer tasks
 var _slayer_rng := RandomNumberGenerator.new()
 var run_energy: float = 100.0          # Agility meta-stat (spec §16); speeds auto-nav
+var run_enabled := false               # OSRS run toggle (minimap run orb, left-click)
+var resting := false                   # sitting to recharge faster (run orb, right-click)
+var is_moving := false                 # set each frame by the player avatar
 var player_pos: Vector2 = Vector2.INF  # last world position; Vector2.INF = "use spawn" (new game)
 var _death_rng := RandomNumberGenerator.new()
 
@@ -47,6 +50,8 @@ const HIGH_ALCH_LEVEL := 55
 const HIGH_ALCH_RATE := 0.6
 const HIGH_ALCH_XP := 65.0
 const RUN_REGEN_PER_SEC := 0.5
+const RUN_DRAIN_PER_SEC := 2.2         # % energy spent per second of running (before Agility)
+const REST_REGEN_MULT := 2.6           # resting recharges this much faster
 
 var _hp_regen_timer := 0.0
 
@@ -72,6 +77,8 @@ func reset_state() -> void:
 	slayer_task = {}
 	slayer_points = 0
 	run_energy = 100.0
+	run_enabled = false
+	resting = false
 	player_pos = Vector2.INF
 	# Starter kit: the Bronze tool set (real smithing-recipe items from the
 	# export). Bronze Sword needs Attack 3 — it waits in the inventory; until
@@ -640,12 +647,43 @@ func use_run_energy(amount: float) -> void:
 	EventBus.run_energy_changed.emit(run_energy)
 
 
+## Per-frame running cost: higher Agility drains slower (OSRS); auto-stops when empty.
+func drain_running(delta: float) -> void:
+	use_run_energy(RUN_DRAIN_PER_SEC * delta / (1.0 + float(level("agility")) * 0.006))
+	if run_energy <= 0.0:
+		set_run(false)
+
+
 func regen_run_energy(delta: float) -> void:
+	if run_enabled and is_moving:
+		return                      # spending energy while running; no regen
 	if run_energy >= 100.0:
 		return
 	var rate := RUN_REGEN_PER_SEC * (1.0 + float(level("agility")) * 0.01)
+	if resting:
+		rate *= REST_REGEN_MULT
 	run_energy = clampf(run_energy + rate * delta, 0.0, 100.0)
 	EventBus.run_energy_changed.emit(run_energy)
+
+
+## Minimap run orb — left-click toggles running.
+func toggle_run() -> void:
+	set_run(not run_enabled)
+
+func set_run(on: bool) -> void:
+	if on and run_energy <= 0.0:
+		on = false
+	if on:
+		resting = false             # running cancels rest
+	run_enabled = on
+	EventBus.run_toggled.emit(run_enabled, resting)
+
+## Right-click the run orb — sit down to recharge faster.
+func set_resting(on: bool) -> void:
+	if on:
+		run_enabled = false         # can't run while resting
+	resting = on
+	EventBus.run_toggled.emit(run_enabled, resting)
 
 
 ## On death, destroy whatever is in ONE random equipment slot (empty slot = no
@@ -723,6 +761,7 @@ func to_save_dict() -> Dictionary:
 		"current_hp": current_hp,
 		"combat_style": combat_style,
 		"run_energy": run_energy,
+		"run_enabled": run_enabled,
 		"active_prayers": active_prayers.duplicate(),
 		"devotion": devotion,
 		"slayer_task": slayer_task.duplicate(),
@@ -772,6 +811,8 @@ func from_save_dict(d: Dictionary) -> void:
 	coins = int(d.get("coins", d.get("gold", 0)))
 	combat_style = str(d.get("combat_style", "attack"))
 	run_energy = clampf(float(d.get("run_energy", 100.0)), 0.0, 100.0)
+	run_enabled = bool(d.get("run_enabled", false))
+	resting = false
 	var pp: Variant = d.get("player_pos", null)
 	player_pos = Vector2(float(pp[0]), float(pp[1])) if (pp is Array and pp.size() == 2) else Vector2.INF
 	active_prayers = []

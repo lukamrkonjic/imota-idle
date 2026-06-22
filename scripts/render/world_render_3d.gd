@@ -56,6 +56,7 @@ var _mover_prev: Dictionary = {}     # key -> last 3D pos (for walk detection)
 var _mover_yaw: Dictionary = {}      # key -> facing yaw (turned with spring inertia)
 var _mover_yaw_vel: Dictionary = {}  # key -> angular velocity for the turn spring
 var _mover_walk: Dictionary = {}     # key -> smoothed walk amount 0..1
+var _mover_sit: Dictionary = {}      # key -> smoothed sit amount 0..1 (player resting)
 var _attack_t: Dictionary = {}       # key -> time (s) the last attack lunge started
 var _hurt_t: Dictionary = {}         # key -> time (s) a body last took a hit (red flash + shake)
 var _mover_death: Dictionary = {}    # key -> {t0, pos} while a defeated mover plays its death topple
@@ -1567,6 +1568,18 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 					MoverRig._pose_humanoid(node, pos3, yaw, walk, t, phase, base, atk)
 		_:
 			MoverRig._pose_quadruped(node, pos3, yaw, walk, t, phase, base, atk)
+	# Resting: the player folds down to sit on the ground (right-click the run orb).
+	# Eased in/out and applied over the idle pose; moving cancels it.
+	var sit_target := 1.0 if (key == "player" and GameState.resting and not moving) else 0.0
+	var sit: float = lerpf(float(_mover_sit.get(key, 0.0)), sit_target, clampf(dt * 7.0, 0.0, 1.0))
+	_mover_sit[key] = sit
+	if sit > 0.001:
+		MoverRig._set_pivot(node, "leg_l", sit * -1.4)        # thighs swing FORWARD (in front), not back
+		MoverRig._set_pivot(node, "leg_r", sit * -1.4)
+		MoverRig._set_pivot(node, "leg_l/knee_l", sit * 1.5)  # knees fold so shins/feet come down in front
+		MoverRig._set_pivot(node, "leg_r/knee_r", sit * 1.5)
+		MoverRig._set_pivot(node, "spine", sit * 0.18)
+		node.position.y -= sit * 0.46 * base
 	# A swing steps the body into the target — the lunge that sells the hit.
 	if atk > 0.0:
 		node.position += Vector3(sin(yaw), 0.0, cos(yaw)) * (sin(atk * PI) * 0.22)

@@ -121,9 +121,9 @@ static func apply_structure_collision(chunk: RefCounted) -> void:
 ## little south) so players naturally expand without starting across rivers from
 ## the home camp. Keep this measured in tiles, not continent-scale chunks.
 func default_spawn_tile() -> Vector2i:
-	var c := Vector2i(
-		bounds.position.x + bounds.size.x / 2,
-		bounds.position.y + bounds.size.y / 2)
+	# Spawn at the home/spawn anchor (the (0,0) camp), not the geometric bounds centre —
+	# the two differ when the world is recentred so the authored spawn maps to origin.
+	var c: Vector2i = spec.anchor_by_id("spawn").get("chunk", Vector2i.ZERO) if spec != null else Vector2i.ZERO
 	var cx := c.x * WG.CHUNK_TILES + WG.CHUNK_TILES / 2
 	var cy := c.y * WG.CHUNK_TILES + WG.CHUNK_TILES / 2
 	var off := clampi(int(round(float(WG.CHUNK_TILES) * 0.65)), 4, WG.CHUNK_TILES)
