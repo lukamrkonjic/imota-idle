@@ -302,6 +302,38 @@ static func _set_pivot(node: Node3D, pivot_name: String, angle: float) -> void:
 		p.rotation.x = angle
 
 
+## Like _set_pivot but also yaws the pivot (Y) — for poses that splay a limb sideways
+## (e.g. the cross-legged sit opening the knees outward); single-axis pitch can't.
+static func _set_pivot_xy(node: Node3D, pivot_name: String, ax: float, ay: float) -> void:
+	var p := _pivot(node, pivot_name)
+	if p != null:
+		p.rotation.x = ax
+		p.rotation.y = ay
+
+
+## Cross-legged "seated on the ground" fold — a meditating-monk pose layered over the
+## idle pose by the renderer. `sit` is the eased 0..1 amount, `base` the rig scale.
+##
+## A single-axis pitch on the hips reads as sitting on an invisible chair (thighs jut
+## forward, shins hang straight down). To sit ON THE GROUND the thighs also YAW outward
+## so the knees splay to the sides, the knees fold hard so the shins tuck low and cross
+## in front, the torso holds near-upright, the hands settle into the lap, and the whole
+## rig drops so the seat meets the ground instead of hovering at chair height.
+static func pose_sit(node: Node3D, sit: float, base: float) -> void:
+	if sit <= 0.001:
+		return
+	_set_pivot_xy(node, "leg_l", sit * -1.55, sit * 0.62)   # L thigh: fold ~flat + splay out
+	_set_pivot_xy(node, "leg_r", sit * -1.55, sit * -0.62)  # R thigh: fold ~flat + splay out
+	_set_pivot(node, "leg_l/knee_l", sit * 2.3)             # shins tuck back low, crossing under the lap
+	_set_pivot(node, "leg_r/knee_r", sit * 2.3)
+	_set_pivot(node, "spine", sit * 0.05)                   # upright meditative back (idle slump was 0.18)
+	_set_pivot(node, "arm_l", sit * 0.18)                   # hands come to rest in the lap
+	_set_pivot(node, "arm_r", sit * 0.18)
+	_set_pivot(node, "arm_l/elbow_l", sit * -1.2)
+	_set_pivot(node, "arm_r/elbow_r", sit * -1.2)
+	node.position.y -= sit * 0.82 * base                    # drop the seat to the ground (idle floated at 0.46)
+
+
 ## Resolve a named rig pivot, CACHED per rig. Pivots like "arm_l" now sit under the
 ## `spine` pivot, so a plain path lookup misses and needs a recursive search — doing
 ## that every frame for every mover was the dominant per-frame cost. We resolve once

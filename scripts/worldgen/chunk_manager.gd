@@ -81,6 +81,24 @@ func loaded_chunks() -> Array:
 	return out
 
 
+## Data chunks within `radius` chunks of the player — the 3D terrain BUILD ring, sized by
+## the view-distance slider (independent of the small nav ring). Each needs its neighbours'
+## data to mesh seamlessly, which the streaming radius (kept >= radius + 1) guarantees.
+func terrain_chunks(radius: int) -> Array:
+	var out: Array = []
+	# A disc (Euclidean), not a square — matches the renderer's radial terrain cull so we
+	# don't build corner chunks that would only be hidden. +1 chunk margin keeps the visible
+	# disc fully meshed at its edge.
+	var r2 := float((radius + 1) * (radius + 1))
+	for key: String in _chunks.keys():
+		var c := _coord_from_key(key)
+		var dx := float(c.x - _center.x)
+		var dy := float(c.y - _center.y)
+		if dx * dx + dy * dy <= r2:
+			out.append(_chunks[key])
+	return out
+
+
 ## Every chunk with loaded DATA — the larger streaming ring, a superset of loaded_chunks().
 ## Renderers index this so they can sample a built chunk's NEIGHBOUR tiles (one ring out)
 ## and produce seamless shared borders on the first build (the apron / halo pattern).

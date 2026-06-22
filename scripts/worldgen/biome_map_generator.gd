@@ -114,8 +114,23 @@ func transition_near(_gtx: int, _gty: int, _my_idx: int, _parent_at: Callable) -
 	return {}
 
 
+# Temporarily PARKED biomes: remapped to a stand-in at generation time so they vanish
+# from the world without touching their data, ids, or the authored mask (save-safe — the
+# biome definitions stay in biomes.json). Re-add a biome by deleting its entry here and
+# rebaking. Savanna is parked as beach for now (re-add savanna later).
+const _PARKED_BIOMES := {"savanna": "beach", "savanna_scrub": "beach"}
+
+
+func _remap_biome_id(id: String) -> String:
+	return str(_PARKED_BIOMES.get(id, id))
+
+
+func _is_parked_idx(idx: int) -> bool:
+	return idx >= 0 and idx < reg.biomes.size() and _PARKED_BIOMES.has(str(reg.biomes[idx]["id"]))
+
+
 func _parent_idx(gtx: int, gty: int) -> int:
-	return int(reg.biome_index.get(_parent_id(gtx, gty), reg.biomes.size() - 1))
+	return int(reg.biome_index.get(_remap_biome_id(_parent_id(gtx, gty)), reg.biomes.size() - 1))
 
 
 func _parent_id(gtx: int, gty: int) -> String:
@@ -435,7 +450,7 @@ func _sub_idx_for(parent_idx: int, gtx: int, gty: int) -> int:
 	# marsh_pool / oasis / scorched / grove etc. still appear within their parents.
 	if classifier.has_biome_mask():
 		var mi: int = classifier.mask_biome_idx(float(gtx), float(gty))
-		if mi >= 0 and mi != parent_idx and bool(reg.biomes[mi].get("isSubBiome", false)):
+		if mi >= 0 and mi != parent_idx and bool(reg.biomes[mi].get("isSubBiome", false)) and not _is_parked_idx(mi):
 			if int(reg.biome_index.get(reg.parent_biome_id(mi), -1)) == parent_idx:
 				return mi
 	var parent_id: String = str(reg.biomes[parent_idx]["id"])
@@ -455,7 +470,8 @@ func _sub_idx_for(parent_idx: int, gtx: int, gty: int) -> int:
 		if pri > best_pri:
 			best_pri = pri
 			best_sub = sub_idx
-	return best_sub
+	# Drop a parked sub-biome (e.g. savanna_scrub) so the remapped parent shows cleanly.
+	return 255 if _is_parked_idx(best_sub) else best_sub
 
 
 func _sub_stamp_covers(rule: Dictionary, gtx: int, gty: int) -> bool:

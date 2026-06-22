@@ -2,11 +2,16 @@ extends RefCounted
 class_name WorldInputController
 ## Mouse clicks, zoom, and hover targeting.
 
-const ZOOM_MIN := 1.1
-const ZOOM_MAX := 2.4
-const ZOOM_STEP := 0.1
+# Wider, more extreme zoom range: lower min = pull much farther out, higher max =
+# push much closer in. The 3D ortho size is CAM_SIZE_BASE / zoom, so higher zoom = nearer.
+const ZOOM_MIN := 0.55
+const ZOOM_MAX := 4.5
+const ZOOM_STEP := 0.15
 
 var world: Node2D
+
+## True while the middle mouse button is held — drag then orbits the 3D camera.
+var _orbiting := false
 
 
 func setup(w: Node2D) -> void:
@@ -38,6 +43,19 @@ func handle_input(event: InputEvent) -> void:
 	# multiplying the current zoom by it gives smooth continuous scaling.
 	if event is InputEventMagnifyGesture:
 		_set_zoom(world._camera.zoom.x * event.factor)
+		world.get_viewport().set_input_as_handled()
+		return
+	# Middle-mouse drag orbits the camera, same axes as the arrow keys. Press starts the
+	# drag (ignored over a HUD panel so it can't hijack a scrollable list), release ends it,
+	# and motion in between feeds the renderer's orbit.
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_MIDDLE:
+		_orbiting = event.pressed and not _over_ui()
+		if event.pressed:
+			world.get_viewport().set_input_as_handled()
+		return
+	if event is InputEventMouseMotion and _orbiting:
+		if world.render_3d != null and world.render_3d.is_active():
+			world.render_3d.orbit_drag(event.relative)
 		world.get_viewport().set_input_as_handled()
 		return
 	if event is InputEventMouseButton and event.pressed:

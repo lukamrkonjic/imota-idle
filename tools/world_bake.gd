@@ -113,4 +113,5 @@ func _encode_chunk(chunk: RefCounted) -> Dictionary:
 		"pois": chunk.pois.duplicate(true),
 		"monsters": chunk.monsters.duplicate(true),
 		"structures": chunk.structures.duplicate(true),
+		"cuts": chunk.tree_cuts.keys(),
 	}

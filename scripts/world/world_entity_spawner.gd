@@ -309,6 +309,8 @@ func _spawn_canopy(chunk: RefCounted, container: Node2D) -> void:
 func _spawn_canopy_tile(chunk: RefCounted, container: Node2D, seed: int, tx: int, ty: int) -> void:
 	# Decorative trees scatter even on "blank" authored worlds (cosmetic clutter is
 	# procedural; only harvestable rare trees/ores are placed by hand, with care).
+	if chunk.tree_cuts.has(ty * WG.CHUNK_TILES + tx):
+		return  # the world editor's eraser cleared the ambient tree on this tile
 	var elev := int(chunk.elev[ty * WG.CHUNK_TILES + tx]) if chunk.elev.size() > 0 else 0
 	if elev > 0:
 		return  # no ambient forest on raised/impassable rock (alpine has its own pass)

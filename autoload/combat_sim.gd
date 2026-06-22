@@ -403,9 +403,10 @@ func save_activity() -> Dictionary:
 
 
 func restore_activity(data: Dictionary) -> void:
+	# Do NOT auto-resume a fight on load. Unlike gather/craft (you reload standing at the
+	# node), a fight is bound to a live world enemy entity that may not exist at spawn —
+	# resuming the data-only fight produces a "ghost" enemy that keeps hitting you with
+	# nothing on screen. Combat must be re-engaged by clicking an actual world enemy.
+	# (Also clears the stale combat activity baked into older saves.)
 	if str(data.get("kind", "")) != "combat":
 		return
-	var enemy_ref: String = str(data.get("enemy_id", data.get("enemy", "")))
-	var e := DataRegistry.get_enemy(enemy_ref)
-	if not e.is_empty():
-		start_combat(str(e["name"]), str(data.get("train", "attack")))

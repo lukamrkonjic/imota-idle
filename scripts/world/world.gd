@@ -243,10 +243,13 @@ func _update_stream_radius() -> void:
 	# only need a modest buffer around the player. Expanding both was flooding the
 	# moving camera with hundreds of extra CanvasItems.
 	var active_r: int = WG.NAV_RADIUS if zoom < 0.7 else mini(r + 1, WG.ACTIVE_RADIUS + 1)
-	# Stream terrain a little further when the view-distance setting is turned up, so
-	# the now-visible far chunks actually exist to be drawn (and fogged).
-	var view_bump: int = floori(clampf(GameSettings.view_distance, 0.0, 1.0) * 2.5)
-	chunk_manager.set_radii(r + 2 + view_bump, active_r)
+	# Stream DATA at least one ring beyond the 3D terrain build ring, so every chunk it
+	# meshes has its 8 neighbours' data (seamless borders). The render's terrain_ring scales
+	# with the view-distance slider; the zoom-derived r still widens streaming when zoomed out.
+	var terrain_need: int = 0
+	if render_3d != null and render_3d.is_active():
+		terrain_need = int(render_3d.terrain_ring) + 2
+	chunk_manager.set_radii(maxi(r + 2, terrain_need), active_r)
 	var bake_queue := get_node_or_null("BakeQueue")
 	if bake_queue != null:
 		var moving := _last_bake_gate_pos != Vector2.INF and player.position.distance_squared_to(_last_bake_gate_pos) > 1.0

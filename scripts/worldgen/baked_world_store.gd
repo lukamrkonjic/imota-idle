@@ -151,6 +151,9 @@ func build_chunk(cx: int, cy: int) -> RefCounted:
 	chunk.pois = (e.get("pois", []) as Array).duplicate(true)
 	chunk.monsters = (e.get("monsters", []) as Array).duplicate(true)
 	chunk.structures = (e.get("structures", []) as Array).duplicate(true)
+	chunk.tree_cuts = {}   # back-compat: pre-cuts bakes have no "cuts" key -> no cuts
+	for ci: int in (e.get("cuts", []) as Array):
+		chunk.tree_cuts[int(ci)] = true
 	return chunk
 
 

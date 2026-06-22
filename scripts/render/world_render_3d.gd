@@ -16,6 +16,7 @@ const PALETTE_SNAP := preload("res://shaders/palette_snap.gdshader")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 const PropMeshes := preload("res://scripts/render/prop_meshes.gd")
 const EquipLoadout := preload("res://scripts/render/equip_loadout.gd")
+const SmithyProp := preload("res://scripts/render/smithy_prop.gd")
 
 const INTERNAL := Vector2i(640, 360)   # internal render res (higher = finer/less chunky pixels)
 const TILE_S := 1.0                 # 3D units per tile
@@ -66,6 +67,15 @@ var _env: Environment                # kept so the view-distance slider can retu
 var _sun: DirectionalLight3D         # kept so the slider can scale shadow distance
 var _terrain_cull := 34.0            # visible terrain radius (tiles), driven by view_distance
 var _prop_cull := 30.0               # visible prop/decor radius (tiles)
+# The 3D terrain BUILD ring (chunks): how far full-detail terrain meshes are generated
+# around the player. The view-distance slider scales this between MIN and MAX so it
+# genuinely extends how far the world renders (the old code pinned terrain to the tiny
+# 3-chunk nav ring, so the slider could only shrink — never extend — the visible world).
+const TERRAIN_RING_MIN := 3
+const TERRAIN_RING_MAX := 10          # slider's max FLOOR (~160 tiles)
+const TERRAIN_RING_HARD_MAX := 14     # absolute cap incl. zoom-out coverage (perf bound, ~224 tiles)
+var terrain_ring := TERRAIN_RING_MIN  # public: world._update_stream_radius streams data to match
+var _view_ring_floor := TERRAIN_RING_MIN   # slider-driven minimum; the live ring also grows to fit zoom
 var _player_node: Node3D
 var _cam_yaw := PI / 4.0          # orbit angle around the player (Left/Right arrows)
 var _cam_pitch := 0.413           # elevation above horizon (Up/Down arrows); matches old iso
@@ -111,6 +121,8 @@ var _rb_gbuf := PackedFloat32Array() # its instance buffer, filled across frames
 var _rb_gi := 0                      # instance index within the current group
 var _forest_preview_done := false
 var _water_preview_done := false
+var _smithy_done := false
+var smithy_node: Node3D = null   # the placed smithy model (kept so it persists at spawn)
 var _frames := 0
 var _captured := false
 var _active := false
@@ -416,6 +428,7 @@ func _process(delta: float) -> void:
 	_maybe_teleport_to_forest_preview()
 	_maybe_teleport_to_water_preview()
 	_maybe_fx_preview()
+	_maybe_place_smithy()
 	# Per-frame memo for tile-info/corner-colour sampling (terrain build + every mover
 	# height sample hit the same tiles thousands of times in a frame).
 	_ti_cache.clear()
@@ -427,6 +440,7 @@ func _process(delta: float) -> void:
 	_apply_pixelation()   # keeps render res matched to the window + pixelation slider
 	_update_camera_input(delta)
 	_sync_camera()
+	_refresh_view_extent()   # grow the loaded terrain to cover the current zoom/tilt footprint
 	_sync_terrain()
 	_sync_movers()
 	_sync_static_batches()
@@ -436,6 +450,34 @@ func _process(delta: float) -> void:
 	var capture_frame := 150 if (_forest_preview_enabled() or _water_preview_enabled()) else 90
 	if _frames == capture_frame and not _captured:
 		_capture()
+
+
+## Place the imported smithy model at the spawn camp (once, after the spawn chunk's data is
+## loaded so the ground height is real), then teleport the player there to see it. Static prop —
+## parented under props_root and kept for the session.
+func _maybe_place_smithy() -> void:
+	if _smithy_done:
+		return
+	var spawn := WorldGen.spawn_position()
+	var st := WG.world_to_tile(spawn)
+	# Wait until the spawn chunk's data is present so height_at() returns the real ground.
+	if not world.chunk_manager.data_chunks().any(func(c: RefCounted) -> bool:
+			return c.cx == floori(float(st.x) / WG.CHUNK_TILES) and c.cy == floori(float(st.y) / WG.CHUNK_TILES)):
+		return
+	_smithy_done = true
+	# Sit it a few tiles off the camp centre so it doesn't overlap the bank/campfire.
+	var pos := WG.tile_to_world(st.x + 4, st.y - 2)
+	var model_scale := SmithyProp.scale_for(4.0)   # ~4 tiles across
+	var inst := SmithyProp.build()
+	inst.scale = Vector3(model_scale, model_scale, model_scale)
+	inst.position = iso_to_3d(pos, height_at(pos)) + Vector3(0.0, SmithyProp.bottom_offset(model_scale), 0.0)
+	inst.rotation.y = PI * 0.15
+	props_root.add_child(inst)
+	smithy_node = inst
+	# Teleport the player to the camp so the smithy is right there in view.
+	world.teleport_to(spawn)
+	_static_sig = ""
+	print("[world3d] placed smithy at tile %s, teleported to spawn %s" % [WG.world_to_tile(pos), st])
 
 
 func _maybe_teleport_to_forest_preview() -> void:
@@ -577,7 +619,8 @@ const CAM_SIZE_BASE := 19.5   # ortho size at the default 1.65 zoom
 const CAM_DIST := 31.0
 const CAM_YAW_SPEED := 1.7    # rad/sec — Left/Right orbit (full 360°)
 const CAM_PITCH_SPEED := 1.1  # rad/sec — Up/Down tilt
-const CAM_PITCH_MIN := 0.16   # near the horizon
+const CAM_PITCH_MIN := 0.16   # near the horizon — low cinematic tilt; the bottom-edge stays on the
+                              # ground via the frustum lift in _sync_camera (not a pitch limit)
 const CAM_PITCH_MAX := 1.40   # near top-down (kept off the gimbal pole)
 
 
@@ -595,6 +638,22 @@ func _update_camera_input(delta: float) -> void:
 	if Input.is_key_pressed(KEY_DOWN):
 		_cam_pitch = clampf(_cam_pitch - CAM_PITCH_SPEED * spd * delta, CAM_PITCH_MIN, CAM_PITCH_MAX)
 	_cam_yaw = wrapf(_cam_yaw, -PI, PI)
+
+
+# Radians of yaw/pitch per pixel of middle-mouse drag (before the cam_rotate_speed
+# multiplier). Tuned so a ~full-window horizontal drag sweeps most of a 360° orbit and
+# a vertical drag covers the pitch clamp — the drag equivalent of the arrow-key orbit.
+const CAM_DRAG_YAW := 0.006
+const CAM_DRAG_PITCH := 0.004
+
+
+## Middle-mouse drag orbit: rotate the camera by a screen-pixel mouse delta. Drag
+## moves the world WITH the cursor (grab-and-drag feel) on both axes: dragging right
+## spins the view so the scene follows, dragging down tilts toward top-down.
+func orbit_drag(rel: Vector2) -> void:
+	var spd: float = GameSettings.cam_rotate_speed
+	_cam_yaw = wrapf(_cam_yaw - rel.x * CAM_DRAG_YAW * spd, -PI, PI)
+	_cam_pitch = clampf(_cam_pitch + rel.y * CAM_DRAG_PITCH * spd, CAM_PITCH_MIN, CAM_PITCH_MAX)
 
 
 func _sync_camera() -> void:
@@ -620,6 +679,18 @@ func _sync_camera() -> void:
 	var dir := Vector3(cos(_cam_pitch) * sin(_cam_yaw), sin(_cam_pitch), cos(_cam_pitch) * cos(_cam_yaw))
 	cam.position = c + dir * CAM_DIST
 	cam.look_at(c + Vector3(0, 0.75, 0), Vector3.UP)
+	# An ORTHOGRAPHIC frustum dips its lower edge BELOW the ground plane when tilted low and zoomed
+	# out, so the bottom of the screen shows bare sky ("fog under the player") — no terrain loading
+	# can fill it (there's no ground along those rays). Rather than forbid the low angle, SLIDE the
+	# camera up its own up-axis so the bottom edge rides on the ground: the view shifts up (player
+	# sits a little lower on screen, like a real low-angle shot) instead of revealing the void.
+	var up := cam.global_transform.basis.y
+	if up.y > 0.01:
+		var bottom_y := cam.position.y - (cam.size * 0.5) * up.y   # world Y of the frustum's lower edge
+		var deficit := (c.y + 0.5) - bottom_y                      # how far it sits below ground (+0.5 margin)
+		if deficit > 0.0:
+			var lift := minf(deficit / up.y, cam.size * 0.46 / up.y)  # cap so the player stays on screen
+			cam.position += up * lift
 	_snap_camera()
 
 
@@ -664,8 +735,8 @@ func _snap_camera() -> void:
 const DEFER_MAX_WAIT := 24   # frames a chunk may wait for neighbour data before force-building
 
 func _sync_terrain() -> void:
-	var live := {}   # the build set: chunks that should have a terrain mesh (nav ring)
-	for chunk: RefCounted in world.chunk_manager.loaded_chunks():
+	var live := {}   # the build set: every loaded chunk within the view-distance terrain ring
+	for chunk: RefCounted in world.chunk_manager.terrain_chunks(terrain_ring):
 		live[chunk.key()] = true
 	# APRON / HALO: index EVERY chunk with loaded data (a ring larger than the build set),
 	# so building a chunk can sample its neighbour tiles one ring out and compute complete,
@@ -701,6 +772,25 @@ func _sync_terrain() -> void:
 		_chunk_nbr[pick] = _data_nbr_count(pick)
 		_chunk_wait.erase(pick)
 		_terrain_built = true
+		# CATCH-UP: when many chunks are missing at once (just zoomed out / view grew), build a
+		# few extra neighbour-complete chunks this frame so the new, larger ring fills in within
+		# a fraction of a second instead of crawling in one-per-frame with the edge exposed.
+		var missing := 0
+		for k: String in live:
+			if not _chunk_meshes.has(k):
+				missing += 1
+		if missing > 24:
+			var extra := 0
+			for k2: String in live:
+				if extra >= TERRAIN_CATCHUP_BUILDS:
+					break
+				if not _chunk_meshes.has(k2) and _data_nbr_count(k2) == 8:
+					var n2 := _build_chunk_terrain(_chunk_by_key[k2])
+					terrain_root.add_child(n2)
+					_chunk_meshes[k2] = n2
+					_chunk_nbr[k2] = _data_nbr_count(k2)
+					_chunk_wait.erase(k2)
+					extra += 1
 	else:
 		# Pass 2b: nothing new to build this frame -> reconcile any chunk that was
 		# force-built with partial neighbour data once more of its neighbours have loaded.
@@ -718,15 +808,36 @@ func _sync_terrain() -> void:
 				_chunk_nbr[key2] = nc
 				_terrain_built = true
 				break
-	for key: String in _chunk_meshes.keys():
-		if not live.has(key):
-			var mi: Node = _chunk_meshes[key]
-			if is_instance_valid(mi):
-				mi.queue_free()
-			_chunk_meshes.erase(key)
-			_chunk_nbr.erase(key)
-			_chunk_wait.erase(key)
+	# Persist built terrain ("load once"): meshes are NOT freed when the player walks away, so
+	# revisiting an area never re-streams or flickers — the radial cull just hides the far ones.
+	# Only evict when over budget, dropping the chunks farthest from the player first, so memory
+	# stays bounded on a long trek.
+	if _chunk_meshes.size() > MAX_TERRAIN_MESHES:
+		_evict_far_terrain(_chunk_meshes.size() - MAX_TERRAIN_MESHES)
 	_update_terrain_visibility()
+
+
+const MAX_TERRAIN_MESHES := 1400   # persisted terrain budget; ~radius-21-chunk explored area
+const TERRAIN_CATCHUP_BUILDS := 5  # extra chunk meshes built in one frame while the ring is filling
+
+func _evict_far_terrain(count: int) -> void:
+	var g := _world_to_grid(world.player.position)
+	var ranked: Array = []
+	for key: String in _chunk_meshes.keys():
+		var parts := key.split(":")
+		if parts.size() < 3:
+			continue
+		var ct := Vector2(float(int(parts[1]) * WG.CHUNK_TILES), float(int(parts[2]) * WG.CHUNK_TILES))
+		ranked.append([ct.distance_squared_to(g), key])
+	ranked.sort_custom(func(a: Array, b: Array) -> bool: return a[0] > b[0])   # farthest first
+	for i: int in mini(count, ranked.size()):
+		var key: String = ranked[i][1]
+		var mi: Node = _chunk_meshes.get(key)
+		if is_instance_valid(mi):
+			mi.queue_free()
+		_chunk_meshes.erase(key)
+		_chunk_nbr.erase(key)
+		_chunk_wait.erase(key)
 
 
 ## Editor hook (world editor's live 3D view): discard the built terrain mesh for a chunk
@@ -781,7 +892,11 @@ func _update_terrain_visibility() -> void:
 		var cx := int(parts[1])
 		var cy := int(parts[2])
 		var center := Vector2(float(cx * WG.CHUNK_TILES + WG.CHUNK_TILES / 2), float(cy * WG.CHUNK_TILES + WG.CHUNK_TILES / 2))
-		node.visible = absf(center.x - g.x) <= _terrain_cull and absf(center.y - g.y) <= _terrain_cull
+		# RADIAL cull (a disc, not a square): a square's corners reach the cull distance x1.41,
+		# and at the default 45° camera yaw those corners sit straight ahead/behind — so they
+		# rendered as a big fully-hazed cream band ("fog under the player"). A disc ends at the
+		# same radius in every direction, so it dissolves uniformly into the matching sky haze.
+		node.visible = center.distance_squared_to(g) <= _terrain_cull * _terrain_cull
 
 
 ## Map the view-distance setting (0..1) to a visible terrain radius, then retune
@@ -789,19 +904,59 @@ func _update_terrain_visibility() -> void:
 ## still hides the terrain boundary), and the shadow distance (capped — shadows
 ## past the fogged range are invisible, so keeping them short is a free perf win).
 func _apply_view_distance() -> void:
-	var vt := lerpf(34.0, 64.0, clampf(GameSettings.view_distance, 0.0, 1.0))
+	# The slider sets the FLOOR for the terrain ring; the live ring (in _refresh_view_extent,
+	# every frame) also grows to cover the camera's actual ground footprint when zoomed out or
+	# tilted, so the loaded edge is never visible as a bare band under the player.
+	_view_ring_floor = int(round(lerpf(float(TERRAIN_RING_MIN), float(TERRAIN_RING_MAX),
+		clampf(GameSettings.view_distance, 0.0, 1.0))))
+	_refresh_view_extent()
+
+
+## Per-frame: size the loaded terrain to COVER the camera's real ground footprint (zoom + tilt
+## aware), never below the slider floor and capped for perf. Then retune everything that scales
+## with the resulting radius (prop cull, the atmospheric fog ramp, shadow distance). This is the
+## "loaded distance = camera view + margin" rule: zooming out grows the loaded disc to match, so
+## you never see the bare loaded edge under the player.
+func _refresh_view_extent() -> void:
+	terrain_ring = clampi(maxi(_view_ring_floor, _required_terrain_ring()),
+		TERRAIN_RING_MIN, TERRAIN_RING_HARD_MAX)
+	var vt := float(terrain_ring * WG.CHUNK_TILES)
 	_terrain_cull = vt
 	_prop_cull = vt - 4.0
 	if _env != null:
-		_env.fog_depth_end = vt + 14.0     # camera-depth ≈ CAM_DIST + tiles; full haze past the edge
-		_env.fog_depth_begin = vt - 10.0
+		# Long, gradual distance haze (atmospheric depth, not a hard beige band): crisp around
+		# the player, fully dissolved into the matching sky by the terrain's visible edge.
+		_env.fog_depth_end = vt
+		_env.fog_depth_begin = maxf(vt * 0.5, CAM_DIST + 12.0)
 	if _water_mat != null:
-		# Collapse the water's near-field detail to its calm tone JUST inside the fog ramp, so
-		# distant rivers/seas are already a soft band by the time the haze blends them away.
 		_water_mat.set_shader_parameter("detail_fade_begin", vt - 20.0)
 		_water_mat.set_shader_parameter("detail_fade_end", vt - 2.0)
 	if _sun != null:
-		_sun.directional_shadow_max_distance = clampf(vt * 0.85, 30.0, 52.0)
+		_sun.directional_shadow_max_distance = clampf(vt * 0.85, 30.0, 60.0)
+
+
+## The terrain ring (in chunks) needed to cover what the camera actually sees: project the four
+## viewport corners onto the ground plane and take the farthest from the player. Grows with
+## zoom-out and low tilt; quantised to chunks (which also damps frame-to-frame jitter).
+func _required_terrain_ring() -> int:
+	if cam == null or sub == null or sub.size.y <= 0:
+		return _view_ring_floor
+	var vp := Vector2(sub.size)
+	var pg := _world_to_grid(world.player.position)
+	var py := height_at(world.player.position)
+	var max_d2 := 0.0
+	for c: Vector2 in [Vector2.ZERO, Vector2(vp.x, 0.0), Vector2(0.0, vp.y), vp]:
+		var o := cam.project_ray_origin(c)
+		var n := cam.project_ray_normal(c)
+		if absf(n.y) < 0.0001:
+			continue
+		var t := (py - o.y) / n.y
+		if t < 0.0:
+			continue
+		var hit := o + n * t
+		var g := Vector2(hit.x / TILE_S, hit.z / TILE_S)
+		max_d2 = maxf(max_d2, g.distance_squared_to(pg))
+	return ceili(sqrt(max_d2) / float(WG.CHUNK_TILES)) + 1
 
 
 # Water basin model. The surface rides the LOCAL sea-level rolling baseline minus
@@ -1573,13 +1728,7 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 	var sit_target := 1.0 if (key == "player" and GameState.resting and not moving) else 0.0
 	var sit: float = lerpf(float(_mover_sit.get(key, 0.0)), sit_target, clampf(dt * 7.0, 0.0, 1.0))
 	_mover_sit[key] = sit
-	if sit > 0.001:
-		MoverRig._set_pivot(node, "leg_l", sit * -1.4)        # thighs swing FORWARD (in front), not back
-		MoverRig._set_pivot(node, "leg_r", sit * -1.4)
-		MoverRig._set_pivot(node, "leg_l/knee_l", sit * 1.5)  # knees fold so shins/feet come down in front
-		MoverRig._set_pivot(node, "leg_r/knee_r", sit * 1.5)
-		MoverRig._set_pivot(node, "spine", sit * 0.18)
-		node.position.y -= sit * 0.46 * base
+	MoverRig.pose_sit(node, sit, base)
 	# A swing steps the body into the target — the lunge that sells the hit.
 	if atk > 0.0:
 		node.position += Vector3(sin(yaw), 0.0, cos(yaw)) * (sin(atk * PI) * 0.22)

@@ -6,6 +6,10 @@ extends Control
 const UiScale := preload("res://scripts/ui/ui_scale.gd")
 
 var kind := "hp"
+## Invoked when rest is engaged via right-click. The HUD wires this to halt the player
+## (stop walking / sims) so resting actually takes hold whether you were running,
+## walking, or standing still — otherwise movement cancels rest the next frame.
+var on_rest: Callable
 
 
 func _ready() -> void:
@@ -25,7 +29,12 @@ func _gui_input(event: InputEvent) -> void:
 			GameState.toggle_run()
 			accept_event()
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
-			GameState.set_resting(not GameState.resting)
+			var now_resting := not GameState.resting
+			GameState.set_resting(now_resting)
+			# Engaging rest while moving needs the player stopped, or player_avatar cancels
+			# it on the next frame — so right-click reliably sits you down from any state.
+			if now_resting and on_rest.is_valid():
+				on_rest.call()
 			accept_event()
 
 

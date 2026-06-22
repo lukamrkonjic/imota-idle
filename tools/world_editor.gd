@@ -34,6 +34,7 @@ const BakedWorldStore := preload("res://scripts/worldgen/baked_world_store.gd")
 const FiniteWorldGenerator := preload("res://scripts/worldgen/finite_world_generator.gd")
 const StampLibrary := preload("res://scripts/worldgen/stamp_library.gd")
 const PlaceablePreview := preload("res://tools/placeable_preview.gd")
+const MountainField := preload("res://scripts/worldgen/mountain_field.gd")
 
 const OUT_DIR := "res://data/world/baked/"
 
@@ -81,6 +82,8 @@ const STRUCTURES := [
 const ROOF_COLORS := ["7a3b3b", "3b5a7a", "4a6b3a", "6b5a3a", "5a3b6b", "7a6b3a"]
 const STRUCT_MARK := Color(0.95, 0.85, 0.4)
 const SPAWN_MARK := Color(0.3, 1.0, 0.45)
+const TREE_MARK := Color(0.16, 0.42, 0.18, 0.92)   # ambient canopy dot on the 2D map
+const TREE_DRAW_ZOOM := 1.2   # px/tile below which canopy dots are sub-pixel — skip (perf)
 
 var _reg: RefCounted
 var _spec: RefCounted
@@ -117,6 +120,12 @@ var _show_biomes := false
 var _show_danger := false
 var _show_walk := false
 var _show_elevation := false
+var _show_trees := true   # draw the procedural ambient canopy as dots (and what the eraser cut)
+# Per-chunk canopy cache: chunk key -> PackedInt32Array of local tile indices that grow an
+# ambient tree (deterministic, so computed once). Cuts are filtered at draw; a chunk's entry
+# is invalidated only when its terrain/biome is edited (see _apply_state). This keeps the
+# every-frame map redraw cheap instead of re-running the canopy gate over every tile.
+var _canopy_cache: Dictionary = {}
 
 var _panning := false
 var _painting := false
@@ -554,6 +563,7 @@ func _apply_state(gtx: int, gty: int, state: Array) -> void:
 	chunk.biomes_t[ci] = int(state[1])
 	chunk.parent_biomes_t[ci] = int(state[2])
 	chunk.sub_biomes_t[ci] = int(state[3])
+	_canopy_cache.erase(chunk.key())   # tile/biome change can add/remove this chunk's trees
 	_set_px(gtx, gty, _tile_color(int(state[0])))
 
 
@@ -616,6 +626,7 @@ func _erase_tile(gtx: int, gty: int) -> void:
 	var key := "%d:%d" % [chunk.cx, chunk.cy]
 	_erase_from(chunk, "structures", lx, ly, key)
 	_erase_from(chunk, "monsters", lx, ly, key)
+	_cut_tree(chunk, lx, ly, key)
 	FiniteWorldGenerator.apply_structure_collision(chunk)
 	if _erase_biomes:
 		# Restore the generated (procedural) terrain/biome for this tile.
@@ -632,6 +643,55 @@ func _erase_from(chunk: RefCounted, arr_name: String, lx: int, ly: int, key: Str
 		if int(item.get("tx", -999)) == lx and int(item.get("ty", -999)) == ly:
 			_stroke["removed"].append({"key": key, "arr": arr_name, "item": item})
 			arr.remove_at(i)
+
+
+## True when the procedural ambient-canopy pass would grow a tree on this local tile —
+## the SAME gate as world_entity_spawner._spawn_canopy_tile, so the map matches the game.
+## Ignores cuts (those are filtered by the caller); this is the cacheable, pure part.
+func _canopy_raw(chunk: RefCounted, lx: int, ly: int) -> bool:
+	var ci := ly * WG.CHUNK_TILES + lx
+	if chunk.elev.size() > 0 and int(chunk.elev[ci]) > 0:
+		return false
+	var tid: int = chunk.tile_id(lx, ly)
+	var tile: Dictionary = _reg.tile_def(tid)
+	if bool(tile.get("water", false)) or not bool(tile.get("walkable", true)) or bool(tile.get("hazard", false)):
+		return false
+	if _reg.tile_order[tid] in ["dirt", "cobble", "plaza", "plank_floor", "building_wall"]:
+		return false
+	var b_idx: int = chunk.biome_at(lx, ly)
+	if b_idx == 255:
+		return false
+	var cfg: Dictionary = _reg.canopy(str(_reg.biomes[b_idx]["id"]))
+	var density := float(cfg.get("density", 0.0))
+	if density <= 0.0:
+		return false
+	return WG.r01(WorldGen.store.world_seed, chunk.cx * 271 + lx, chunk.cy * 283 + ly, 211) <= density
+
+
+## Cached list of a chunk's canopy tile indices (cuts NOT applied). Computed once per chunk
+## and reused every redraw; invalidated by _apply_state when the chunk's terrain/biome edits.
+func _chunk_canopy(chunk: RefCounted) -> PackedInt32Array:
+	var k: String = chunk.key()
+	var cached: Variant = _canopy_cache.get(k)
+	if cached != null:
+		return cached
+	var out := PackedInt32Array()
+	for ly: int in WG.CHUNK_TILES:
+		for lx: int in WG.CHUNK_TILES:
+			if _canopy_raw(chunk, lx, ly):
+				out.append(ly * WG.CHUNK_TILES + lx)
+	_canopy_cache[k] = out
+	return out
+
+
+## Eraser: cut the ambient tree on this tile (records for undo). No-op if the tile has
+## no canopy or is already cut, so the cuts set stays sparse.
+func _cut_tree(chunk: RefCounted, lx: int, ly: int, key: String) -> void:
+	var ci := ly * WG.CHUNK_TILES + lx
+	if chunk.tree_cuts.has(ci) or not _canopy_raw(chunk, lx, ly):
+		return
+	chunk.tree_cuts[ci] = true
+	_stroke["cuts"].append({"key": key, "ci": ci})
 
 
 func _chunk_array(chunk: RefCounted, arr_name: String) -> Array:
@@ -772,13 +832,13 @@ func _set_px(gtx: int, gty: int, col: Color) -> void:
 # ─────────────────────────────── undo / redo ────────────────────────────────
 
 func _begin_stroke() -> void:
-	_stroke = {"tiles": {}, "added": [], "removed": [], "spawn": null}
+	_stroke = {"tiles": {}, "added": [], "removed": [], "cuts": [], "spawn": null}
 	_stroke_active = true
 
 
 func _stroke_empty() -> bool:
 	return _stroke["tiles"].is_empty() and _stroke["added"].is_empty() \
-		and _stroke["removed"].is_empty() and _stroke["spawn"] == null
+		and _stroke["removed"].is_empty() and _stroke["cuts"].is_empty() and _stroke["spawn"] == null
 
 
 func _commit_stroke() -> void:
@@ -805,6 +865,8 @@ func _do_undo() -> void:
 		_chunk_array(_chunks[a["key"]], a["arr"]).erase(a["item"])
 	for r: Dictionary in s["removed"]:
 		_chunk_array(_chunks[r["key"]], r["arr"]).append(r["item"])
+	for cut: Dictionary in s.get("cuts", []):
+		_chunks[cut["key"]].tree_cuts.erase(int(cut["ci"]))   # undo: regrow the cut tree
 	if s["spawn"] != null:
 		_spawn_tile = s["spawn"][0]
 	_refresh_stroke_collision(s)
@@ -824,6 +886,8 @@ func _do_redo() -> void:
 		_chunk_array(_chunks[a["key"]], a["arr"]).append(a["item"])
 	for r: Dictionary in s["removed"]:
 		_chunk_array(_chunks[r["key"]], r["arr"]).erase(r["item"])
+	for cut: Dictionary in s.get("cuts", []):
+		_chunks[cut["key"]].tree_cuts[int(cut["ci"])] = true   # redo: re-cut the tree
 	if s["spawn"] != null:
 		_spawn_tile = s["spawn"][1]
 	_refresh_stroke_collision(s)
@@ -892,7 +956,7 @@ func _draw_overlay(c: CanvasItem) -> void:
 							var elev: int = chunk.elev[Chunk.idx(lx, ly)]
 							if elev > 0:
 								c.draw_rect(Rect2(px, py, 1.0, 1.0),
-									_elev_tint(float(elev) / float(classifier.ELEV_MAX_STEPS)))
+									_elev_tint(float(elev) / float(MountainField.ELEV_MAX_STEPS)))
 	if _show_structs:
 		var view := _view_rect_tiles()
 		for key: String in _chunks:
@@ -906,6 +970,27 @@ func _draw_overlay(c: CanvasItem) -> void:
 				var gx: float = float(bx + int(p.get("tx", 0)) - _min_tx) + 0.5
 				var gy: float = float(by + int(p.get("ty", 0)) - _min_ty) + 0.5
 				c.draw_rect(Rect2(gx - 0.5, gy - 0.5, 1.0, 1.0), STRUCT_MARK)
+		# Procedural ambient canopy: the trees the live game scatters from each biome's
+		# canopy block — the map matches the world. Cached per chunk (deterministic) so the
+		# every-frame redraw just iterates a short index list per visible chunk instead of
+		# re-running the gate over 256 tiles. Cut tiles (chunk.tree_cuts) are filtered out, so
+		# erasing shows immediately. Skipped when zoomed out, where the dots are sub-pixel.
+		if _show_trees and zoom >= TREE_DRAW_ZOOM:
+			var tview := _view_rect_tiles()
+			for tkey: String in _chunks:
+				var tchunk: RefCounted = _chunks[tkey]
+				var tbx: int = tchunk.cx * WG.CHUNK_TILES
+				var tby: int = tchunk.cy * WG.CHUNK_TILES
+				if tbx + WG.CHUNK_TILES < tview.position.x or tbx > tview.end.x \
+						or tby + WG.CHUNK_TILES < tview.position.y or tby > tview.end.y:
+					continue
+				var cuts: Dictionary = tchunk.tree_cuts
+				for ci: int in _chunk_canopy(tchunk):
+					if cuts.has(ci):
+						continue
+					var ttx := float(tbx + (ci % WG.CHUNK_TILES) - _min_tx) + 0.5
+					var tty := float(tby + (ci / WG.CHUNK_TILES) - _min_ty) + 0.5
+					c.draw_rect(Rect2(ttx - 0.35, tty - 0.35, 0.7, 0.7), TREE_MARK)
 	if _show_spawn:
 		var sp := Vector2(float(_spawn_tile.x - _min_tx) + 0.5, float(_spawn_tile.y - _min_ty) + 0.5)
 		var r := 2.5
@@ -1035,6 +1120,7 @@ func _build_ui() -> void:
 
 	_header(lb, "Overlays")
 	_overlay_check(lb, "Structures", _show_structs, func(on: bool) -> void: _show_structs = on)
+	_overlay_check(lb, "Trees", _show_trees, func(on: bool) -> void: _show_trees = on)
 	_overlay_check(lb, "Player spawn", _show_spawn, func(on: bool) -> void: _show_spawn = on)
 	_overlay_check(lb, "Collision/water", _show_collision, func(on: bool) -> void: _show_collision = on)
 	_overlay_check(lb, "Biome tint", _show_biomes, func(on: bool) -> void: _show_biomes = on)
@@ -1606,7 +1692,7 @@ func _refresh_palette() -> void:
 		Tool.SPAWN:
 			_note("Click a walkable tile to set the player spawn. Current: (%d, %d)" % [_spawn_tile.x, _spawn_tile.y])
 		Tool.ERASE:
-			_note("Brush to remove placed structures & monsters. Tick 'Erase biomes too' to also restore generated terrain.")
+			_note("Brush to remove placed structures, monsters & ambient trees (shown as green dots — toggle the 'Trees' overlay). Tick 'Erase biomes too' to also restore generated terrain.")
 		_:
 			_note("Right-drag to pan, wheel to zoom. Pick a tool to edit.")
 	_update_preview()
@@ -1851,6 +1937,7 @@ func _save() -> void:
 			"pois": chunk.pois.duplicate(true),
 			"monsters": chunk.monsters.duplicate(true),
 			"structures": chunk.structures.duplicate(true),
+			"cuts": chunk.tree_cuts.keys(),
 		}
 	var doc := {
 		"version": 1,

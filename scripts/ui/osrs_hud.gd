@@ -531,7 +531,7 @@ func _build_settings_popup() -> void:
 	# costs more; the label shows the approximate visible radius in tiles.
 	_add_settings_slider_row(
 		box, "View distance", 0.0, 1.0, 0.05, GameSettings.view_distance,
-		func(v: float) -> String: return "%d tiles" % int(roundf(lerpf(34.0, 64.0, v))),
+		func(v: float) -> String: return "%d tiles" % int(roundf(lerpf(48.0, 144.0, v))),
 		func(v: float) -> void: GameSettings.set_view_distance(v))
 
 	# Camera rotation: how fast the arrow keys orbit/tilt the camera (1.0 = default).
@@ -609,6 +609,13 @@ func _build_minimap_cluster() -> void:
 	run_orb.kind = "run"
 	run_orb.position = UiScale.v2(Vector2(6, 94))
 	run_orb.tooltip_text = "Run energy — click to toggle run, right-click to rest"
+	# Right-clicking rest halts the player so it engages from any state (running/walking/still).
+	run_orb.on_rest = func() -> void:
+		if world != null:
+			world._path_ctrl.stop_walking()
+			world._activity_ctrl.stop_all_sims()
+			world.pending_action = {}
+			world.auto_task = {}
 	cluster.add_child(run_orb)
 
 	coins_label = Label.new()

@@ -21,6 +21,14 @@ var _tiles_h := 1
 var _map_rect := Rect2()
 var _font: Font
 
+const ZOOM_MAX := 8.0          # how far past fit-to-screen the wheel can magnify
+const ZOOM_STEP := 1.18        # multiplier per wheel notch
+var _zoom := 1.0               # 1.0 = fit the whole continent; >1 magnifies
+var _pan := Vector2.ZERO       # map-centre offset from screen centre (drag to move)
+var _dragging := false
+var _drag_moved := false
+var _drag_last := Vector2.ZERO
+
 
 func setup(p_hud: CanvasLayer) -> void:
 	hud = p_hud
@@ -49,6 +57,9 @@ func setup(p_hud: CanvasLayer) -> void:
 func toggle() -> void:
 	visible = not visible
 	if visible:
+		_zoom = 1.0          # always reopen fit-to-screen
+		_pan = Vector2.ZERO
+		_dragging = false
 		_fit_viewport()
 		queue_redraw()
 
@@ -67,19 +78,65 @@ func _process(_delta: float) -> void:
 
 
 func _gui_input(event: InputEvent) -> void:
-	# Click the map to close; M / Esc handled by the HUD.
-	if event is InputEventMouseButton and event.pressed:
-		visible = false
+	# Scroll wheel zooms (toward the cursor); drag pans; a plain click closes.
+	# M / Esc are handled by the HUD.
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
+			_zoom_at(event.position, ZOOM_STEP)
+			accept_event()
+			return
+		if event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
+			_zoom_at(event.position, 1.0 / ZOOM_STEP)
+			accept_event()
+			return
+		if event.button_index == MOUSE_BUTTON_LEFT or event.button_index == MOUSE_BUTTON_RIGHT:
+			if event.pressed:
+				_dragging = true
+				_drag_moved = false
+				_drag_last = event.position
+			else:
+				_dragging = false
+				if not _drag_moved:
+					visible = false   # a click that didn't drag closes the map
+			accept_event()
+			return
+	elif event is InputEventMouseMotion and _dragging:
+		var d: Vector2 = event.position - _drag_last
+		if d.length() > 2.0:
+			_drag_moved = true
+		_pan += d
+		_drag_last = event.position
+		queue_redraw()
+		accept_event()
+
+
+## Magnify by `factor`, keeping the world point under the cursor pinned in place.
+func _zoom_at(mouse: Vector2, factor: float) -> void:
+	_compute_map_rect()
+	var rect := _map_rect
+	var new_zoom := clampf(_zoom * factor, 1.0, ZOOM_MAX)
+	if is_equal_approx(new_zoom, _zoom) or rect.size.x <= 0.0:
+		return
+	var frac: Vector2 = (mouse - rect.position) / rect.size   # cursor's spot within the map
+	var new_size: Vector2 = rect.size * (new_zoom / _zoom)
+	var new_center: Vector2 = mouse + (Vector2(0.5, 0.5) - frac) * new_size
+	_zoom = new_zoom
+	_pan = Vector2.ZERO if is_equal_approx(_zoom, 1.0) else new_center - size * 0.5
+	queue_redraw()
 
 
 # --- coordinate mapping --------------------------------------------------------
 
 func _compute_map_rect() -> void:
 	var avail := size * 0.86
-	var scale := minf(avail.x / float(_tiles_w), avail.y / float(_tiles_h))
+	var scale := minf(avail.x / float(_tiles_w), avail.y / float(_tiles_h)) * _zoom
 	var w := float(_tiles_w) * scale
 	var h := float(_tiles_h) * scale
-	_map_rect = Rect2((size - Vector2(w, h)) * 0.5, Vector2(w, h))
+	# Clamp the pan so the map centre stays on-screen (can't drag the continent away).
+	_pan.x = clampf(_pan.x, -size.x * 0.5, size.x * 0.5)
+	_pan.y = clampf(_pan.y, -size.y * 0.5, size.y * 0.5)
+	var center := size * 0.5 + _pan
+	_map_rect = Rect2(center - Vector2(w, h) * 0.5, Vector2(w, h))
 
 
 func _tile_to_screen(gtx: float, gty: float) -> Vector2:
@@ -177,7 +234,8 @@ func _draw_player() -> void:
 func _draw_title() -> void:
 	var spec: RefCounted = WorldGen.reg.spec
 	_text_center(str(spec.spec_name), Vector2(size.x * 0.5, _map_rect.position.y - 22.0), 22, Color(0.95, 0.9, 0.7))
-	_text_center("Press M or click to close", Vector2(size.x * 0.5, _map_rect.end.y + 24.0), 13, Color(0.7, 0.7, 0.7))
+	_text_center("Scroll to zoom · drag to pan · click or M to close",
+		Vector2(size.x * 0.5, _map_rect.end.y + 24.0), 13, Color(0.7, 0.7, 0.7))
 
 
 # --- primitives ----------------------------------------------------------------

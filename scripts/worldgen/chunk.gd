@@ -31,6 +31,10 @@ var pois: Array = []
 var monsters: Array = []
 var structures: Array = []  # loose entity parts from multi-chunk megastructures
                             # (cities/ruins); same shape as poi parts, abs tx/ty
+var tree_cuts: Dictionary = {}  # local tile idx (idx(tx,ty)) -> true: procedural canopy
+                                # trees the editor's eraser removed. Honoured by the
+                                # spawner so a cut tile grows no ambient tree. Sparse;
+                                # absent = empty (back-compat with pre-cuts bakes/saves).
 
 
 func setup(p_layer: int, p_cx: int, p_cy: int) -> void:
