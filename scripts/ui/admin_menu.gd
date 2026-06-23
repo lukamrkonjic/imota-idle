@@ -474,6 +474,30 @@ func _build_misc_tab() -> void:
 			EventBus.teleport_requested.emit(WorldGen.spawn_position())
 			_popup.hide())
 
+	# Weather override — flip the global weather on the fly. "Auto" hands it back to the
+	# climate-gated scheduler; the others force that weather everywhere (for testing/showcase).
+	var wlabel := Label.new()
+	wlabel.text = "Weather"
+	wlabel.add_theme_font_size_override("font_size", UiScale.i(13))
+	wlabel.add_theme_color_override("font_color", ACCENT)
+	box.add_child(wlabel)
+	var wstatus := Label.new()
+	wstatus.text = "Current: %s" % Weather.label()
+	wstatus.add_theme_color_override("font_color", Color(0.7, 0.85, 0.7))
+	box.add_child(wstatus)
+	Weather.changed.connect(func(m: String) -> void:
+		if is_instance_valid(wstatus):
+			wstatus.text = "Current: %s" % m.capitalize())
+	var wrow := HBoxContainer.new()
+	wrow.add_theme_constant_override("separation", UiScale.i(4))
+	for m: String in Weather.MODES:
+		var b := Button.new()
+		b.text = m.capitalize()
+		var mm: String = m
+		b.pressed.connect(func() -> void: Weather.set_mode(mm))
+		wrow.add_child(b)
+	box.add_child(wrow)
+
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.add_child(box)

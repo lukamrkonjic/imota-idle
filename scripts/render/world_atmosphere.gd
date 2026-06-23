@@ -13,6 +13,16 @@ var world3d: Node3D
 var _water_mat: ShaderMaterial
 var _env: Environment
 var _sun: DirectionalLight3D
+# Clear-weather baselines, captured at setup so the per-frame weather grade lerps from a fixed
+# reference instead of drifting. See _apply_weather().
+var _sky_mat: ProceduralSkyMaterial
+var _base_sky_hi: Color
+var _base_sky_horizon: Color
+var _base_ambient: Color
+var _base_ambient_energy: float
+var _base_fog: Color
+var _base_sun_energy: float
+var _base_sun_color: Color
 
 
 func setup(w3d: Node3D, water_mat: ShaderMaterial) -> void:
@@ -65,6 +75,13 @@ func _setup_environment() -> void:
 	we.environment = env
 	world3d.add_child(we)
 	_env = env
+	# Capture clear-weather baselines for the per-frame weather grade.
+	_sky_mat = sky_mat
+	_base_sky_hi = sky_hi
+	_base_sky_horizon = horizon_col
+	_base_ambient = env.ambient_light_color
+	_base_ambient_energy = env.ambient_light_energy
+	_base_fog = horizon_col
 
 
 func _setup_sun() -> void:
@@ -80,6 +97,8 @@ func _setup_sun() -> void:
 	sun.shadow_blur = 0.7   # tighter edge: the wide 1.5 blur shimmered ("fuzzy") in motion;
 	world3d.add_child(sun)
 	_sun = sun
+	_base_sun_energy = sun.light_energy
+	_base_sun_color = sun.light_color
 
 
 ## Retune the fog ramp, shadow distance and water detail-fade from the camera's VISUAL extent.
@@ -100,6 +119,29 @@ func update(_camera_rig: WorldCameraRig3D, stream_view: TerrainStreamView) -> vo
 	if _sun != null:
 		# Shadows past the fogged range are invisible, so keeping them short is a free perf win.
 		_sun.directional_shadow_max_distance = clampf(vt * 0.85, 30.0, 60.0)
+	_apply_weather()
+
+
+## Wash the sky / fog / ambient / sun toward the current weather: snow = cool white + brighter, flatter
+## light; rain = cool blue-grey + dimmer, moodier light. Lerps from the clear-weather baselines so it's
+## reversible and never accumulates. Reads the global Weather autoload.
+func _apply_weather() -> void:
+	var t: Color = Weather.tint
+	var a: float = t.a
+	var wash := Color(t.r, t.g, t.b)
+	_env.ambient_light_color = _base_ambient.lerp(wash, a * 0.6)
+	_env.ambient_light_energy = _base_ambient_energy * (1.0 + Weather.snow * 0.22 - Weather.rain * 0.22)
+	_env.fog_light_color = _base_fog.lerp(wash, a * 0.7)
+	_env.fog_sky_affect = 0.5 + (Weather.snow + Weather.rain) * 0.35   # precip thickens the haze
+	if _sky_mat != null:
+		var horizon := _base_sky_horizon.lerp(wash, a * 0.6)
+		_sky_mat.sky_horizon_color = horizon
+		_sky_mat.ground_horizon_color = horizon
+		_sky_mat.ground_bottom_color = horizon
+		_sky_mat.sky_top_color = _base_sky_hi.lerp(wash, a * 0.45)
+	if _sun != null:
+		_sun.light_energy = _base_sun_energy * (1.0 - Weather.rain * 0.42 - Weather.snow * 0.12)
+		_sun.light_color = _base_sun_color.lerp(wash, a * 0.4)
 
 
 ## View-distance slider hook. The per-frame update() is the actual driver (it reads the live

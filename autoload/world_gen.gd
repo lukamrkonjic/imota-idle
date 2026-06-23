@@ -127,6 +127,15 @@ func biome_id_at(world_pos: Vector2) -> String:
 	return str(reg.biomes[idx]["id"])
 
 
+## Weather climate (0 = cold north/high .. 1 = warm south) at a world position — the gate the
+## Weather autoload uses so snow/rain follow the map's geography, not biome.
+func climate_at(world_pos: Vector2) -> float:
+	if generator == null or generator.classifier == null:
+		return 0.6
+	var t := WG.world_to_tile(world_pos)
+	return generator.classifier.climate01(float(t.x), float(t.y))
+
+
 func tile_debug_at(world_pos: Vector2, layer: int = 0) -> Dictionary:
 	var t: Vector2i = WG.world_to_tile(world_pos)
 	var c: Vector2i = WG.tile_to_chunk(t)

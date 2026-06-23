@@ -158,6 +158,14 @@ func _build_scene() -> void:
 	add_child(_ambience)
 	_ambience.setup(self)
 
+	# Weather overlay on its OWN CanvasLayer above the 3D present (layer 0) and below the HUD, so the
+	# snow/rain/wind particles always composite over the rendered world in screen space.
+	var weather_layer := CanvasLayer.new()
+	weather_layer.name = "WeatherFx"
+	weather_layer.layer = 4
+	add_child(weather_layer)
+	weather_layer.add_child(WorldWeatherFx.new())
+
 	_biome_debug = BiomeDebugOverlay.new()
 	_biome_debug.name = "BiomeDebug"
 	_biome_debug.z_index = 500

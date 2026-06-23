@@ -56,7 +56,11 @@ void fragment() {
 
 func process_tick(delta: float) -> void:
 	_xp_float_cooldown = maxf(_xp_float_cooldown - delta, 0.0)
-	TreeArt.advance_wind(delta)
+	# Drive global weather off the LOCAL climate at the player (snow north/high, rain warm south);
+	# renderers (atmosphere grade, particle overlay, tree wind) then read Weather.* directly.
+	var climate := WorldGen.climate_at(world.player.position) if world.current_layer == 0 else 0.6
+	Weather.update(delta, climate)
+	TreeArt.advance_wind(delta * (0.5 + Weather.wind * 2.2))   # windier weather sways trees faster
 	_cached_visible_rect = _visible_world_rect()
 	# Cheap (a handful of AABB tests) and done every frame so terrain shows/hides
 	# right at the view edge with no late pop when panning or walking fast.

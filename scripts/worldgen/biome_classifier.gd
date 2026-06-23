@@ -253,6 +253,21 @@ func fields(tx: float, ty: float) -> Vector3:
 	return Vector3(h, m, t)
 
 
+## Weather climate at a tile: 0 = cold (far north / high ground) .. 1 = warm (deep south, low).
+## A continuous field from LATITUDE (north colder), ELEVATION (higher colder) and the regional
+## temperature noise — so weather can gate on it WITHOUT being tied to biome (which shifts a lot):
+## snow can fall in a cool mid-world forest, but the warm south never crosses the snow threshold.
+func climate01(tx: float, ty: float) -> float:
+	var n: float = geo(tx, ty)["n"]                       # -1 due-south .. +1 due-north
+	var lat_warm := clampf(0.5 - n * 0.5, 0.0, 1.0)       # 1 deep south .. 0 far north
+	var temp := fields(tx, ty).z                          # regional temperature 0..1
+	var elev := 0
+	if _mtn != null:
+		elev = _mtn.elevation_steps(tx, ty)
+	var elev_cold := clampf(float(elev) / 40.0, 0.0, 1.0) # high ground reads colder
+	return clampf(lat_warm * 0.55 + temp * 0.45 - elev_cold * 0.7, 0.0, 1.0)
+
+
 # Normalised distance from the continent centre (0 core .. 1 rim), with a touch
 # of domain warp so progression bands read as organic, not perfect circles.
 func norm_dist(tx: float, ty: float) -> float:

@@ -26,6 +26,7 @@ PrayerSim="*res://autoload/prayer_sim.gd"
 WorldGen="*res://autoload/world_gen.gd"
 SaveManager="*res://autoload/save_manager.gd"
 GameSettings="*res://autoload/game_settings.gd"
+Weather="*res://autoload/weather.gd"
 
 [debug]
 
