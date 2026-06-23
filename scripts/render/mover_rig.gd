@@ -129,19 +129,31 @@ static func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float,
 		arm_r = 0.12 + idle_arm * 0.3   # rest the hand on a side-planted staff
 		elbow_r = -0.16
 	if chop > 0.0:
-		# Dedicated woodcutting chop: axe raised high over the right shoulder on the windup, a
-		# snappy accelerating downswing to a chest/waist-height hit in front, a brief impact hold,
-		# then a slow, weighty pull back up. Body leans back on the windup and dips forward into it.
-		var s := _chop_swing(chop)              # <0 windup lift .. 0 overhead .. 1 axe in the wood
+		# Woodcutting chop, swung like a real axe into a tree: the axe is carried OUT TO THE RIGHT
+		# (arm abducted, not overhead), then swung in a horizontal/diagonal arc ACROSS the body into
+		# the trunk in front, with the torso twisting to drive it. Windup slow, downswing snappy,
+		# brief impact hold, slow weighty recovery. The shoulder needs full-axis (roll+yaw) control,
+		# so we set its rotation directly rather than the single-axis _set_pivot.
+		var s := _chop_swing(chop)              # <0 windup reach .. 0 ready .. 1 axe in the wood
 		var sd := clampf(s, 0.0, 1.0)
-		arm_r = lerpf(-1.95, 0.85, clampf(s, -0.35, 1.0))   # over the shoulder -> down in front
-		elbow_r = lerpf(-1.35, -0.22, sd)                   # forearm folded back -> driven to the hit
-		arm_l = lerpf(0.32, 0.58, sd)                       # off hand braces + follows the swing
-		elbow_l = lerpf(-0.45, -0.9, sd)
-		_set_pivot(node, "spine", lerpf(-0.12, 0.34, sd))   # lean back at the top, bend into the chop
-		node.rotation.z = sway + roll - 0.10 * (1.0 - sd)   # slight back/right turn on the windup
-		node.position.y -= 0.06 * sd                        # body compresses down on impact
-	elif atk > 0.0:
+		var sh := _pivot(node, "arm_r")
+		if sh != null:
+			# (pitch, yaw, roll): wound up high-right (roll out, yaw back) -> across to a chest-
+			# height hit in front (roll in, yaw forward, pitch down a touch).
+			var ar := Vector3(-0.25, 0.5, 1.25).lerp(Vector3(0.35, -0.55, 0.3), sd)
+			if s < 0.0:
+				ar += Vector3(-0.12, 0.14, 0.16) * (-s)    # reach further back-right on the windup
+			sh.rotation = ar
+		var sp := _pivot(node, "spine")
+		if sp != null:
+			# torso twists right on the windup, then rotates forward/left through the swing
+			sp.rotation = Vector3(-0.04, 0.34, 0.0).lerp(Vector3(0.12, -0.24, 0.0), sd)
+		_set_pivot(node, "arm_r/elbow_r", -0.95)             # forearm bent, holding the axe across
+		_set_pivot(node, "arm_l", lerpf(0.28, 0.52, sd))     # off hand braces + follows the swing
+		_set_pivot(node, "arm_l/elbow_l", lerpf(-0.5, -0.9, sd))
+		node.position.y -= 0.05 * sd                         # small body compression on impact
+		return
+	if atk > 0.0:
 		var strike := sin(atk * PI)
 		arm_r = lerpf(arm_r, -1.5, strike)   # lead arm chops overarm
 		elbow_r = lerpf(elbow_r, -1.0, strike)  # forearm folds in for the chop
