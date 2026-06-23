@@ -50,3 +50,8 @@ signal gather_requested(skill: String, node_name: String)
 signal station_requested(skill: String, recipe_name: String)
 signal teleport_requested(pos: Vector2)
 signal navigate_requested(pos: Vector2)   # minimap click → walk-route to a world position
+
+# --- woodcutting feedback (render FX: shake/leaves on a log, fall+pop on depletion) -----
+signal wc_log_chopped(pos: Vector2, species: String)   # one log obtained — small leaves puff
+signal wc_tree_felled(entity: Node, species: String)   # tree depleted — fall over + pop + leaves
+signal wc_tree_grew(entity: Node, species: String)     # tree respawned — grow back up from the stump

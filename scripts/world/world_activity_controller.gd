@@ -204,6 +204,15 @@ func begin_action(entity: Node2D) -> void:
 			var i := int(action["site_index"])
 			if i < chunk.sites.size():
 				target = FishingHelper.best_stand(world.player.position, chunk, chunk.sites[i])
+	elif str(action.get("type", "")) == "gather":
+		# Stand a clear gap SHORT of the tree/rock/bush (OSRS-style) so the player chops from
+		# beside it instead of clipping into the trunk.
+		var pg: Vector2 = world.player.position
+		var ggap := _attack_gap(entity)
+		if pg.distance_to(entity.position) > ggap:
+			target = entity.position + (pg - entity.position).normalized() * ggap
+		else:
+			target = pg
 	world.walk_to_pos(target)
 
 
@@ -282,12 +291,17 @@ func on_xp_gained(skill: String, amount: float) -> void:
 		var i := int(world.gather_ref["site_index"])
 		var site: Dictionary = chunk.sites[i]
 		site["remaining"] = int(site["remaining"]) - 1
+		var entity: Node2D = world.gather_ref.get("entity")
+		# Woodcutting feedback: a small leaves puff each log; a fall + pop when the tree depletes.
+		if skill == "woodcutting" and is_instance_valid(entity):
+			EventBus.wc_log_chopped.emit(entity.position, str(entity.get("prop_kind")))
 		if int(site["remaining"]) <= 0:
-			var entity: Node2D = world.gather_ref.get("entity")
 			WorldGen.deplete_site(chunk, i)
 			TickSim.stop("depleted")
 			if entity != null:
 				entity.dimmed = true
+				if skill == "woodcutting":
+					EventBus.wc_tree_felled.emit(entity, str(entity.get("prop_kind")))
 			EventBus.combat_log.emit("[color=#444]The %s is depleted.[/color]" % str(site["node"]))
 			world.gather_ref = {}
 			if world.auto_task.get("mode", "") == "gather":

@@ -286,6 +286,9 @@ func _tile_info_compute(gtx: int, gty: int) -> Dictionary:
 		# raised ground so mountains keep their alpine look.
 		var eff: int = chunk.biome_at(lx, ly)
 		col = TerrainStyle.biome_tinted(col, tile_name, WorldGen.reg.biome_tint(eff), 0.10 if elev > 0 else 0.34)
+		# A Short Hike-style painterly patches: soft broad blobs of lighter/darker shades + a
+		# rare biome accent, so the ground isn't one flat colour.
+		col = TerrainStyle.terrain_patch(col, tile_name, biome_id, gtx, gty)
 	return {
 		"top": top,
 		"water": water,

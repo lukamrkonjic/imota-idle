@@ -210,8 +210,25 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 	var desired := yaw
 	var want := false
 	if moving:
-		desired = atan2(vel.x, vel.z)
-		want = true
+		# The PLAYER faces its STABLE walk target (the waypoint it's heading to) rather than the
+		# instantaneous velocity, so a single-frame path snap at the start of a walk can't read as
+		# a backward step and spin the body 180°. Other movers face their travel direction.
+		if key == "player" and world.player.walking:
+			var wt: Vector3 = _iso_to_3d.call(world.player.walk_target, 0.0)
+			var dv := Vector2(wt.x - pos3.x, wt.z - pos3.z)
+			if dv.length() > 0.06:
+				desired = atan2(dv.x, dv.y)
+				want = true
+		else:
+			desired = atan2(vel.x, vel.z)
+			want = true
+	# Woodcutting: square up to the tree being chopped, so the player always faces it.
+	if key == "player" and _chopping and not world.gather_ref.is_empty():
+		var te: Object = world.gather_ref.get("entity")
+		if is_instance_valid(te):
+			var t3: Vector3 = _iso_to_3d.call((te as Node2D).position, 0.0)
+			desired = atan2(t3.x - pos3.x, t3.z - pos3.z)
+			want = true
 	var face: Variant = _combat_face_pos(key, moving)
 	if face != null:
 		var f3: Vector3 = _iso_to_3d.call(face, 0.0)

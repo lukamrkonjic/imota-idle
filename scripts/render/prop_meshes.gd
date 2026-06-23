@@ -33,6 +33,9 @@ const CANOPY := [
 static func entity_parts(e: Node) -> Array:
 	match str(e.kind):
 		"tree", "landmark_tree":
+			# A freshly chopped-down tree shows a STUMP until it regrows (the fall is a one-off FX).
+			if e.has_meta("felled"):
+				return decor_parts("stump")
 			# A choppable canopy tree keeps its ambient species mesh (fir/oak/birch/…) via prop_kind.
 			var pk := str(e.get("prop_kind"))
 			if pk.begins_with("canopy_"):
@@ -1344,6 +1347,11 @@ static func apply_equipment(rig: Node3D, loadout: Dictionary) -> void:
 				continue
 			holder = build_node(parts)
 		holder.name = "equip"
+		# Per-type GRIP so a held weapon reads correctly instead of poking up into the body:
+		# a 1H melee weapon hangs down at the side (blade out, visible from the top-down camera);
+		# staves/wands stay upright (planted); a 2H weapon is carried across the body.
+		if slot == "mainhand":
+			holder.rotation = _weapon_grip(kind)
 		# Flag flowing cloth pieces so the renderer can sway them (cheap procedural
 		# secondary motion — no physics). Skirts and capes are the big flowy ones.
 		holder.set_meta("cloth", kind in ["robe_bottom", "robe_top", "cape", "hood"])
@@ -1351,6 +1359,19 @@ static func apply_equipment(rig: Node3D, loadout: Dictionary) -> void:
 			if mi is MeshInstance3D:
 				(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		sock2.add_child(holder)
+
+
+## Resting orientation (socket-local euler) for a held mainhand weapon, by kind. The weapon
+## meshes are modelled pointing +Y (up the forearm, toward the body — hidden), so 1H weapons get
+## flipped to hang DOWN at the side; uprights (staff/wand/spear/bow) stay as-is; 2H lies across.
+static func _weapon_grip(kind: String) -> Vector3:
+	match kind:
+		"staff", "raven_staff", "wand", "spear", "bow":
+			return Vector3.ZERO                       # planted / upright
+		"greatsword", "twohand", "2h", "battleaxe", "warhammer", "halberd":
+			return Vector3(2.35, 0.0, -0.95)          # carried diagonally across the body
+		_:                                            # sword / scimitar / dagger / axe / mace (1H)
+			return Vector3(2.95, 0.0, 0.28)           # hangs down + angled out from the leg
 
 
 ## Palette for an equipment material tier; `tint` overrides cloth/gem colour.

@@ -99,5 +99,12 @@ func on_site_respawned(chunk_key: String, site_index: int) -> void:
 	var e: Node2D = world._site_entities.get("%s#%d" % [chunk_key, site_index])
 	if e != null:
 		e.dimmed = false
+		if e.has_meta("felled"):
+			# Regrew: animate the tree growing up from the stump (the FX clears the stump + rebuilds
+			# the batch when the grow finishes). Headless/no-renderer just snaps back to a full tree.
+			if world.render_3d != null:
+				EventBus.wc_tree_grew.emit(e, str(e.get("prop_kind")))
+			else:
+				e.remove_meta("felled")
 	if world.auto_task.get("mode", "") == "gather" and bool(world.auto_task.get("waiting", false)) and not TickSim.active:
 		find_next()

@@ -16,12 +16,102 @@ var _kneel_t := 0.0
 var _fx_bursts: Array = []
 
 
+const PropMeshes := preload("res://scripts/render/prop_meshes.gd")
+
+
 func setup(ctx) -> void:
 	_ctx = ctx
 	EventBus.activity_started.connect(_on_activity_started)
 	EventBus.activity_stopped.connect(_on_activity_stopped)
 	EventBus.prayer_activated.connect(_on_prayer_activated)
 	EventBus.firemaking_log_burned.connect(_on_firemaking_burned)
+	EventBus.wc_log_chopped.connect(_on_wc_log)
+	EventBus.wc_tree_felled.connect(_on_wc_felled)
+	EventBus.wc_tree_grew.connect(_on_wc_grew)
+
+
+## One log obtained: a small puff of leaves shaken loose from the canopy.
+func _on_wc_log(pos: Vector2, species: String) -> void:
+	var top: Vector3 = _ctx.iso_to_3d(pos, _ctx.height_at(pos) + 2.0)
+	_leaves_burst(top, 5, _leaf_color(species), 0.45, 1.0)
+
+
+## Tree depleted: it tips over and POPS into a burst of leaves, leaving a stump behind.
+func _on_wc_felled(entity: Node, species: String) -> void:
+	if not is_instance_valid(entity):
+		return
+	# Swap the batched tree to a stump THIS FRAME (synchronous rebuild) so the full tree doesn't
+	# stand next to the falling copy — only the one-off copy below tips over.
+	(entity as Object).set_meta("felled", true)
+	_ctx.force_static_batches()
+	var pos2: Vector2 = (entity as Node2D).position
+	var base: Vector3 = _ctx.iso_to_3d(pos2, _ctx.height_at(pos2))
+	var kind := species if species.begins_with("canopy_") else "canopy_broadleaf"
+	var copy := PropMeshes.build_node(PropMeshes.decor_parts(kind))
+	copy.position = base
+	_ctx.props_root.add_child(copy)
+	# A random horizontal fall direction (rotate the copy about its base).
+	var ang := randf() * TAU
+	_fx_bursts.append({"node": copy, "t": 0.0, "dur": 1.05, "kind": "fall",
+		"axis": Vector3(cos(ang), 0.0, sin(ang)), "leaf": _leaf_color(species), "base": base})
+
+
+## Tree respawned: it springs back up from the stump (a one-off copy scales up with a little
+## overshoot); when it finishes, the batched full tree is restored in place of the stump.
+func _on_wc_grew(entity: Node, species: String) -> void:
+	if not is_instance_valid(entity):
+		return
+	var pos2: Vector2 = (entity as Node2D).position
+	var base: Vector3 = _ctx.iso_to_3d(pos2, _ctx.height_at(pos2))
+	var kind := species if species.begins_with("canopy_") else "canopy_broadleaf"
+	var copy := PropMeshes.build_node(PropMeshes.decor_parts(kind))
+	copy.position = base
+	copy.scale = Vector3.ONE * 0.06
+	_ctx.props_root.add_child(copy)
+	_fx_bursts.append({"node": copy, "t": 0.0, "dur": 0.7, "kind": "grow", "entity": entity})
+
+
+## Spawn a node of small leaf cards that scatter, drift down and fade.
+func _leaves_burst(at: Vector3, count: int, col: Color, spread: float, fall: float) -> void:
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(col.r, col.g, col.b, 0.95)
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var node := Node3D.new()
+	node.position = at
+	var leaves: Array = []
+	for i: int in count:
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.16, 0.03, 0.12)
+		mi.mesh = bm
+		mi.material_override = mat
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.position = Vector3(randf_range(-spread, spread), randf_range(-0.1, 0.2), randf_range(-spread, spread))
+		mi.rotation = Vector3(randf() * TAU, randf() * TAU, randf() * TAU)
+		node.add_child(mi)
+		leaves.append({"mi": mi,
+			"vel": Vector3(randf_range(-0.6, 0.6), -fall * randf_range(0.6, 1.2), randf_range(-0.6, 0.6)),
+			"spin": Vector3(randf_range(-4, 4), randf_range(-4, 4), randf_range(-4, 4))})
+	_ctx.props_root.add_child(node)
+	_fx_bursts.append({"node": node, "mat": mat, "t": 0.0, "dur": 1.3, "kind": "leaves", "leaves": leaves})
+
+
+## Ease-out with a small overshoot (springy "pop up"), x in [0,1].
+static func _ease_out_back(x: float) -> float:
+	var c := 1.70158
+	var p := x - 1.0
+	return 1.0 + (c + 1.0) * p * p * p + c * p * p
+
+
+## Leaf tint from the tree species (autumn gold for birch, dark for conifers, else fresh green).
+func _leaf_color(species: String) -> Color:
+	if "birch" in species or "maple" in species:
+		return Color(0.82, 0.66, 0.24)
+	if "fir" in species or "spruce" in species or "pine" in species or "dead" in species:
+		return Color(0.30, 0.42, 0.24)
+	return Color(0.38, 0.54, 0.26)
 
 
 func _on_activity_started(kind: String, detail: String) -> void:
@@ -192,17 +282,44 @@ func update(delta: float) -> void:
 			continue
 		b["t"] += delta
 		var p: float = clampf(b["t"] / float(b["dur"]), 0.0, 1.0)
-		if str(b.get("kind", "burst")) == "log":
+		var kind := str(b.get("kind", "burst"))
+		if kind == "log":
 			# Arc the log from the player into the fire.
 			var from: Vector3 = b["from"]
 			var to: Vector3 = b["to"]
 			node.position = from.lerp(to, p) + Vector3(0.0, sin(p * PI) * 0.6, 0.0)
 			node.rotate_x(delta * 8.0)
+		elif kind == "leaves":
+			# Leaf cards scatter, accelerate downward and spin, fading out together.
+			for leaf: Dictionary in b["leaves"]:
+				var mi: Node3D = leaf["mi"]
+				leaf["vel"].y -= delta * 1.8
+				mi.position += (leaf["vel"] as Vector3) * delta
+				mi.rotation += (leaf["spin"] as Vector3) * delta
+			(b["mat"] as StandardMaterial3D).albedo_color.a = (1.0 - p) * 0.95
+		elif kind == "fall":
+			# Tip over about the base, then "pop" (shrink) into the leaf burst spawned on finish.
+			if p < 0.62:
+				node.transform.basis = Basis(b["axis"], ease(p / 0.62, 0.4) * (PI * 0.5))
+			else:
+				var sp := clampf(1.0 - (p - 0.62) / 0.38, 0.0, 1.0)
+				node.transform.basis = Basis(b["axis"], PI * 0.5).scaled(Vector3.ONE * sp)
+		elif kind == "grow":
+			# Spring up from the stump (scale 0 -> 1 with a little overshoot).
+			node.scale = Vector3.ONE * maxf(_ease_out_back(p), 0.04)
 		else:
 			node.scale = Vector3.ONE * (0.4 + p * 1.4)
 			node.position.y += delta * 1.1
 			(b["mat"] as StandardMaterial3D).albedo_color.a = (1.0 - p) * 0.85
 		if p >= 1.0:
+			if kind == "fall":
+				_leaves_burst((b["base"] as Vector3) + Vector3(0.0, 0.5, 0.0), 10, b["leaf"], 0.55, 0.9)
+			elif kind == "grow":
+				# Grown: restore the batched full tree in place of the stump (instant swap).
+				var ent: Object = b.get("entity")
+				if is_instance_valid(ent) and (ent as Object).has_meta("felled"):
+					(ent as Object).remove_meta("felled")
+					_ctx.force_static_batches()
 			node.queue_free()
 			_fx_bursts.remove_at(i)
 

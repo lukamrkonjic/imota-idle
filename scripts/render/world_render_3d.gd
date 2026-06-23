@@ -318,6 +318,13 @@ func invalidate_static_batches() -> void:
 		static_prop_batcher.invalidate()
 
 
+## Rebuild the static-prop batch IMMEDIATELY (a tree felled to a stump / regrown) so the swap is
+## instant — no momentary double of the old and new prop.
+func force_static_batches() -> void:
+	if static_prop_batcher != null:
+		static_prop_batcher.force_rebuild()
+
+
 ## Is terrain DATA loaded at this grid point? The camera rig's coverage auto-zoom probes this so
 ## the view tightens before its footprint reaches past loaded terrain (world edge / streaming).
 func _terrain_loaded_at(grid: Vector2) -> bool:

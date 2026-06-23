@@ -65,6 +65,19 @@ func update(terrain_built: bool) -> void:
 	_advance_staged_rebuild()
 
 
+## Rebuild the static batch NOW, synchronously. Used when ONE prop's look changes (a tree felled
+## to a stump, or regrown) so the swap is instant — otherwise the staged rebuild keeps the old
+## full tree up for a few frames and you see it standing next to the falling copy. Meshes are
+## cached and per-prop transforms are reused, so a single rebuild is cheap; fellings are rare.
+func force_rebuild() -> void:
+	_rb_active = false
+	_start_staged_rebuild("force:%d" % int(world.entities.size()))
+	var guard := 0
+	while _rb_active and guard < 200000:
+		_advance_staged_rebuild()
+		guard += 1
+
+
 ## Snapshot the current static-prop set for a fresh staged rebuild.
 func _start_staged_rebuild(sig: String) -> void:
 	_rb_active = true

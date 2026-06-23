@@ -6,6 +6,7 @@ class_name TerrainStyle
 ## final Color. See docs/ART_GUIDE.md. The world render only calls grade() + the is_* helpers.
 
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
+const WG := preload("res://scripts/worldgen/wg.gd")
 
 # Tile categories — the single source of truth (geometry + art both classify off these).
 const PATH_TILES := ["dirt", "cobble", "mud", "gravel", "badland_clay"]
@@ -72,6 +73,66 @@ static func biome_tinted(base: Color, tile: String, tint: Color, strength: float
 			return base
 		_:
 			return base.lerp(tint, strength * 0.5)
+
+
+## A Short Hike-style painterly ground variation: blends the graded tile colour through soft,
+## BROAD noise blobs toward lighter/darker shades of itself, plus a rare biome accent (heather,
+## leaf-litter, lichen, dry grass…). So each biome reads as patches of closely-related tones
+## instead of one flat colour. Low-frequency only (no high-freq texture); strength scales by
+## surface family so grass varies most and snow/rock barely. Sampled in GLOBAL tile space so the
+## blobs are continuous across chunks (no grid), and corner-averaging in the mesher softens it.
+static func terrain_patch(base: Color, tile: String, biome_id: String, gx: int, gy: int) -> Color:
+	var fam := surface_family(tile)
+	if fam == "water" or fam == "path":
+		return base
+	var amt := 1.0
+	match fam:
+		"grass": amt = 1.0
+		"rock", "sand": amt = 0.5
+		"snow": amt = 0.28
+		_: amt = 0.6
+	# Broad soft blobs (~24-tile period) with a little finer variation -> organic painterly patches.
+	var big := WG._smooth_val(0, gx, gy, 24.0, 700) * 0.72 + WG._smooth_val(0, gx, gy, 9.0, 701) * 0.28
+	var shifted: Color
+	if big < 0.5:
+		shifted = _patch_dark(base).lerp(base, clampf(big * 2.0, 0.0, 1.0))
+	else:
+		shifted = base.lerp(_patch_light(base), clampf((big - 0.5) * 2.0, 0.0, 1.0))
+	var col := base.lerp(shifted, amt)
+	# Rare, soft accent patches on living ground (heather / flowers / lichen / leaf-litter).
+	if fam == "grass":
+		var acc := WG._smooth_val(0, gx, gy, 6.5, 702)
+		if acc > 0.82:
+			var accent := _biome_accent(biome_id)
+			if accent.a > 0.0:
+				col = col.lerp(accent, clampf((acc - 0.82) * 3.0, 0.0, 1.0) * 0.42)
+	return col
+
+
+## Lighter + slightly WARMER shade of a ground colour (sunlit patch).
+static func _patch_light(c: Color) -> Color:
+	return Color.from_hsv(wrapf(c.h - 0.02, 0.0, 1.0), maxf(c.s * 0.92, 0.0), minf(c.v * 1.17, 1.0))
+
+
+## Darker + slightly COOLER shade of a ground colour (shaded / mossy patch).
+static func _patch_dark(c: Color) -> Color:
+	return Color.from_hsv(wrapf(c.h + 0.02, 0.0, 1.0), minf(c.s * 1.08, 1.0), c.v * 0.82)
+
+
+## A sparse rare-accent colour per biome family (transparent = no accent).
+static func _biome_accent(biome_id: String) -> Color:
+	match biome_id:
+		"plains", "wheatfield", "sunlit_glade": return Color(0.86, 0.80, 0.34)        # dry yellow-green
+		"wildflower_meadow", "flower_meadow", "alpine_flower_field", "highland_meadow": return Color(0.74, 0.52, 0.80)  # soft purple bloom
+		"forest", "dense_forest", "grove", "jungle", "volcanic_jungle": return Color(0.50, 0.39, 0.25)  # brown leaf-litter
+		"boreal_forest", "misty_pine_woods", "taiga": return Color(0.40, 0.34, 0.21)  # needle floor
+		"heather_moor", "haunted_moor", "thorn_waste": return Color(0.56, 0.39, 0.62) # purple heather
+		"swamp", "bog", "corrupted_bog", "marsh_pool", "salt_marsh", "tide_flats": return Color(0.33, 0.40, 0.24)  # dark moss / peat
+		"rocky_hills", "alpine", "rocky_clearing", "badlands": return Color(0.56, 0.52, 0.46)  # grey stone
+		"beach", "palm_beach": return Color(0.82, 0.75, 0.56)                          # pale sand / shell
+		"desert", "savanna", "savanna_scrub", "cactus_plain", "dune_sea": return Color(0.76, 0.63, 0.36)  # ochre
+		"tundra", "snowdrift", "lichen_field": return Color(0.60, 0.66, 0.56)          # lichen grey-green
+		_: return Color(0, 0, 0, 0)
 
 
 ## Warm + enrich a terrain tile colour with BROAD low-frequency painterly variation, alpine

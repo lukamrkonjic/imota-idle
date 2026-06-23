@@ -377,11 +377,34 @@ func _spawn_canopy_tile(chunk: RefCounted, container: Node2D, seed: int, tx: int
 	# table (data/world/tree_species.json). The site loop renders it (keeping the visual species)
 	# and makes it interactable; no separate decor node, so there's exactly one tree per tile.
 	var node_name := str(_species_node.get(picked, "Regular Tree"))
+	var lvl := int(_wc_level.get(node_name, 1))
+	# Depletion mapped from OSRS: a regular tree always falls after 1 log; higher tiers give more
+	# (they last longer), respawning a touch slower the rarer they are.
+	var logs := 1 if node_name == "Regular Tree" else clampi(2 + lvl / 15, 2, 12)
 	chunk.sites.append({
-		"skill": "woodcutting", "node": node_name, "level": int(_wc_level.get(node_name, 1)),
+		"skill": "woodcutting", "node": node_name, "level": lvl,
 		"kind": "tree", "tree_species": picked, "tx": tx, "ty": ty,
-		"resources": 5, "remaining": 5, "respawn_sec": 22.0, "available": true, "respawn_at": 0.0,
+		"resources": logs, "remaining": logs, "respawn_sec": _wc_respawn(node_name),
+		"available": true, "respawn_at": 0.0,
 	})
+
+
+## Stump respawn time (seconds) per tree, mapped from OSRS Forestry depletion timers. Higher-tier
+## trees take much longer to regrow; tweak here to rebalance the woodcutting economy.
+func _wc_respawn(node: String) -> float:
+	match node:
+		"Regular Tree": return 8.0
+		"Oak Tree": return 27.0
+		"Willow Tree", "Teak Tree": return 30.0
+		"Maple Tree", "Acadia Tree": return 60.0
+		"Eucalyptus Tree": return 84.0
+		"Yew Tree": return 114.0
+		"Elven Tree": return 180.0
+		"Red Maple Tree": return 200.0
+		"Magic Tree": return 234.0
+		"Rubra Tree": return 264.0
+		"Lunarwood Tree": return 300.0
+	return 30.0
 
 
 func _pick_alpine_decor(elev: int, roll: float, variant: int) -> String:
