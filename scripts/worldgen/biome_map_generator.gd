@@ -27,8 +27,8 @@ var classifier: RefCounted
 # noise, so each biome's blobs bleed a few tiles across their border and interleave with the
 # neighbour — soft, noisy, gradual edges. Interiors (all neighbours the same) are unchanged, so
 # biome cores stay distinct. BLEND_RADIUS is the (configurable) max bleed in tiles.
-const BLEND_RADIUS := 6     # coherent blob bleed (tiles)
-const BLEND_JITTER := 3.0   # per-tile random bleed (tiles) — interleaves even perfectly clean borders
+const BLEND_RADIUS := 11    # coherent blob bleed (tiles) — how far patches of a biome reach in
+const BLEND_JITTER := 9.0   # per-tile random bleed (tiles) — width + speckle of the sprinkled mix
 var _blend_noise: FastNoiseLite
 
 
