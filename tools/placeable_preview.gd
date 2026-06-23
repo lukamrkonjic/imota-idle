@@ -13,7 +13,7 @@ const StampLibrary := preload("res://scripts/worldgen/stamp_library.gd")
 const PropMeshes := preload("res://scripts/render/prop_meshes.gd")
 const WG := preload("res://scripts/worldgen/wg.gd")
 
-const VIEW := Vector2i(176, 172)
+const VIEW := Vector2i(232, 224)
 const ROOF_COLORS := ["7a3b3b", "3b5a7a", "4a6b3a", "6b5a3a", "5a3b6b", "7a6b3a"]
 
 var reg: RefCounted
@@ -33,7 +33,7 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_vp = SubViewport.new()
 	_vp.size = VIEW
-	_vp.transparent_bg = true
+	_vp.transparent_bg = false
 	_vp.msaa_3d = Viewport.MSAA_DISABLED
 	_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(_vp)
@@ -57,7 +57,8 @@ func _ready() -> void:
 	_cam.projection = Camera3D.PROJECTION_ORTHOGONAL
 	world.add_child(_cam)
 	var env := Environment.new()
-	env.background_mode = Environment.BG_CLEAR_COLOR
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = Color(0.56, 0.63, 0.71)   # soft sky-grey backdrop (never a dark slab)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.64, 0.70, 0.80)
 	env.ambient_light_energy = 0.6

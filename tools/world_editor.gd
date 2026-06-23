@@ -562,15 +562,9 @@ func _process(_delta: float) -> void:
 func _position_preview_panel() -> void:
 	if _preview_panel == null:
 		return
-	var vp := get_viewport_rect().size
-	var ph: float = _preview_panel.size.y
-	if _selected_choice_btn != null and is_instance_valid(_selected_choice_btn) \
-			and _selected_choice_btn.is_visible_in_tree():
-		var r := _selected_choice_btn.get_global_rect()
-		var y: float = clampf(r.position.y - 6.0, 8.0, maxf(8.0, vp.y - ph - 8.0))
-		_preview_panel.position = Vector2(r.end.x + 10.0, y)
-	else:
-		_preview_panel.position = Vector2(200.0, 60.0)
+	# FIXED spot just right of the sidebar — never tracks the selected row (that made it jump
+	# up/down). Always in the same place so it's easy to glance at.
+	_preview_panel.position = Vector2(8 + SIDEBAR_W + 12, 58)
 
 
 func _tile_under_mouse() -> Vector2i:
