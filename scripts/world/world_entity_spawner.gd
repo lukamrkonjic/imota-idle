@@ -620,6 +620,8 @@ func _spawn_poi_part(chunk: RefCounted, poi: Dictionary, part: Dictionary, conta
 	e.kind = kind
 	e.label = str(part.get("label", ""))
 	e.position = chunk.tile_world(int(part["tx"]), int(part["ty"]))
+	if part.has("ox"):
+		e.position += Vector2(float(part["ox"]), float(part["oy"]))   # free (non-grid) placement offset
 	e.display_size = 54.0 if kind == "tent" else 40.0
 	e.click_radius = 38.0
 	if part.has("yaw"):

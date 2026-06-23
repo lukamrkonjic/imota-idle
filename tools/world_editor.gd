@@ -131,6 +131,8 @@ var _erase_biomes := false
 var _sel_biome := ""
 var _sel_terrain := "grass"
 var _sel_struct := 0
+var _place_off := Vector2.ZERO   # sub-tile iso offset for free (non-grid) structure placement
+var _struct_open: Dictionary = {}   # structure-accordion: category name → expanded?
 var _sel_stamp := 0
 var _sel_creature := ""
 var _stamp_variant := 0
@@ -588,6 +590,7 @@ func _apply_tool(just_pressed: bool) -> void:
 				_commit_stroke()
 		Tool.STRUCTURE:
 			if just_pressed:
+				_place_off = Vector2.ZERO   # 2D map clicks snap to the tile centre
 				_place_structure(_hover_tile)
 				_commit_stroke()
 		Tool.SPAWN:
@@ -979,6 +982,9 @@ func _place_structure(t: Vector2i) -> void:
 		part["color"] = ROOF_COLORS[_ghost_variant % ROOF_COLORS.size()]
 	part["yaw"] = float(_stamp_rot) * (PI * 0.5)
 	part["variant"] = _ghost_variant   # spawn the exact model the ghost previewed
+	if _place_off != Vector2.ZERO:
+		part["ox"] = _place_off.x       # free placement: sub-tile iso offset from the tile centre
+		part["oy"] = _place_off.y
 	chunk.structures.append(part)
 	_stroke["added"].append({"key": "%d:%d" % [chunk.cx, chunk.cy], "arr": "structures", "item": part})
 	# Buildings/walls collide via non-walkable wall tiles (same as the baked city),
@@ -2019,13 +2025,9 @@ func _update_hover_gizmo() -> void:
 		_hide_flat_gizmo()
 		_ensure_ghost(rend)
 		if _ghost_root != null and is_instance_valid(_ghost_root):
-			# Snap to the hovered tile's CENTRE (where the click actually drops it), not the
-			# sub-tile cursor point — so the ghost sits exactly where the structure will spawn.
-			var tile := WG.world_to_tile(iso)
-			var tiso := WG.tile_to_world(tile.x, tile.y)
-			var tc: Vector3 = rend.call("iso_to_3d", tiso, rend.call("height_at", tiso))
+			# Follow the exact cursor point (free placement drops it there, no grid snap).
 			_ghost_root.visible = true
-			_ghost_root.global_transform = Transform3D(Basis(Vector3.UP, float(_stamp_rot) * (PI * 0.5)), tc)
+			_ghost_root.global_transform = Transform3D(Basis(Vector3.UP, float(_stamp_rot) * (PI * 0.5)), center)
 		return
 	if ghost_settle:
 		# The whole settlement cluster at the hovered tile (buildings are placed absolutely, so
@@ -2353,9 +2355,13 @@ func _v3d_road_end() -> void:
 
 
 func _v3d_place_at_cursor() -> void:
+	var iso := _v3d_screen_iso(_v3d_container.get_local_mouse_position())
 	var tile := _v3d_tile_under_mouse()
 	if tile.x == -2147483648 or not _in_bounds_tile(tile):
 		return
+	# Free placement: drop the structure at the EXACT cursor point, not the tile centre, so you
+	# can nudge several decor pieces together without the grid snapping them into rows.
+	_place_off = (iso - WG.tile_to_world(tile.x, tile.y)) if iso != Vector2.INF else Vector2.ZERO
 	match _tool:
 		Tool.STRUCTURE:
 			_begin_stroke(); _place_structure(tile); _commit_stroke()
@@ -2585,11 +2591,7 @@ func _refresh_palette() -> void:
 				_add_stamp_preview(stamps[_sel_stamp])
 			_note("Click to place. R rotate, F flip. Each placement varies.")
 		Tool.STRUCTURE:
-			_header(_palette_box, "Structures")
-			for i: int in STRUCTURES.size():
-				var ii := i
-				_choice(str(STRUCTURES[i][0]), str(i), _sel_struct == i,
-					func(_id: String) -> void: _sel_struct = ii)
+			_build_structure_accordion()
 		Tool.CREATURE:
 			_header(_palette_box, "Creatures (preview)")
 			_note("Browse the bestiary art. Creatures are placed by world generation, not painted.")
@@ -2673,6 +2675,81 @@ func _update_preview() -> void:
 				_preview.show_creature(_sel_creature)
 		_:
 			_preview.show_empty("Pick a paint/place tool to preview")
+
+
+# ───────────────────────── structure accordion ──────────────────────────────
+# Ordered category list. Each structure is bucketed by _struct_category(); categories render
+# as collapsible headers so the long list is browsable instead of one flat scroll.
+const STRUCT_CATEGORY_ORDER := [
+	"Buildings", "Walls & fences", "Town props", "Camp & light", "Ruins & monuments",
+	"Landmarks", "Trees & nature", "Decor · plants", "Decor · fungi", "Decor · rocks",
+	"Decor · wood", "Decor · desert", "Decor · snow & ice", "Decor · coastal",
+	"Decor · camp props", "Other"]
+
+
+func _build_structure_accordion() -> void:
+	# Bucket every structure index by category (preserving list order within a bucket).
+	var buckets: Dictionary = {}
+	for i: int in STRUCTURES.size():
+		var cat := _struct_category(STRUCTURES[i][1] as Dictionary)
+		if not buckets.has(cat):
+			buckets[cat] = []
+		buckets[cat].append(i)
+	# Auto-open the category holding the current selection so it's always visible.
+	var sel_cat := _struct_category(STRUCTURES[_sel_struct][1] as Dictionary)
+	for cat: String in STRUCT_CATEGORY_ORDER:
+		if not buckets.has(cat):
+			continue
+		var open := bool(_struct_open.get(cat, cat == sel_cat))
+		_accordion_header(cat, open, buckets[cat].size())
+		if not open:
+			continue
+		for i: int in buckets[cat]:
+			var ii := i
+			_choice("  " + str(STRUCTURES[i][0]), str(i), _sel_struct == i,
+				func(_id: String) -> void: _sel_struct = ii)
+
+
+func _accordion_header(cat: String, open: bool, count: int) -> void:
+	var b := Button.new()
+	b.text = ("▾ " if open else "▸ ") + cat + "  (%d)" % count
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.custom_minimum_size = Vector2(176, 0)
+	b.add_theme_color_override("font_color", Color(0.85, 0.72, 0.3))
+	b.pressed.connect(func() -> void:
+		_struct_open[cat] = not open
+		_refresh_palette())
+	_palette_box.add_child(b)
+
+
+func _struct_category(part: Dictionary) -> String:
+	var kind := str(part.get("kind", ""))
+	var prop := str(part.get("prop", ""))
+	match kind:
+		"house", "building", "tent": return "Buildings"
+		"city_wall": return "Walls & fences"
+		"fountain", "sign", "anvil", "chest", "altar", "stall": return "Town props"
+		"campfire", "lantern": return "Camp & light"
+		"obelisk", "ruin_arch", "ruin_pillar", "broken_wall", "rubble_pile", "broken_statue": return "Ruins & monuments"
+		"mammoth", "meteor", "bridge": return "Landmarks"
+		"tree", "bush", "rock": return "Trees & nature"
+		"city_prop":
+			return "Camp & light" if prop == "lamp" else "Town props"
+		"decor":
+			return _decor_category(prop)
+	return "Other"
+
+
+func _decor_category(prop: String) -> String:
+	if prop == "fence_post": return "Walls & fences"
+	if prop in ["boulder", "rock_pile", "cairn", "standing_stone", "crystal", "geode", "pebble"]: return "Decor · rocks"
+	if prop in ["log", "log_pile", "branch", "tree_roots", "mossy_log"]: return "Decor · wood"
+	if prop in ["agave", "tumbleweed", "sagebrush", "animal_skull"]: return "Decor · desert"
+	if prop in ["snow_patch", "ice_shard", "frozen_shrub"]: return "Decor · snow & ice"
+	if prop in ["seashell", "starfish", "coral"]: return "Decor · coastal"
+	if prop in ["toadstool", "mushroom_cluster", "bracket_fungus", "mushroom"]: return "Decor · fungi"
+	if prop in ["barrel", "crate", "sack", "hay_bale", "bucket", "signpost", "anthill"]: return "Decor · camp props"
+	return "Decor · plants"   # flowers, fern, reed, shrub, grass, cattail, thistle, berry, clover, lily pad, dandelion
 
 
 func _header(parent: Control, text: String) -> void:
