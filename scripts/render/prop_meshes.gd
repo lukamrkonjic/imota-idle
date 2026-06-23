@@ -1602,7 +1602,9 @@ static func _weapon_grip(kind: String) -> Vector3:
 			return Vector3.ZERO                       # planted / upright
 		"greatsword", "twohand", "2h", "battleaxe", "warhammer", "halberd":
 			return Vector3(2.35, 0.0, -0.95)          # carried diagonally across the body
-		_:                                            # sword / scimitar / dagger / axe / mace (1H)
+		"axe":                                        # woodcutting axe: gripped at the haft, HEAD OUT
+			return Vector3(2.7, 0.0, -0.1)            # past the fist (an extension of the arm) to chop
+		_:                                            # sword / scimitar / dagger / mace (1H)
 			return Vector3(0.22, 0.0, -0.18)          # held UPRIGHT in the hand, blade up, tilted just off the body
 
 
