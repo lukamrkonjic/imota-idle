@@ -294,16 +294,46 @@ func _emit_bridge(center: Array, _hw: float) -> void:
 
 # --- draggable fence (the "fence" style) --------------------------------------
 
+const FENCE_SPACING := 2.0     # tiles between posts; the rail mesh spans exactly one gap
+
 func _emit_fence(center: Array) -> void:
-	# One oriented post+rail segment per centerline sample; yaw aligns the rails ALONG the path so
-	# consecutive segments connect into a continuous fence. Each sits on the terrain (the renderer
-	# places structures at ground height), so the fence steps up and down hills with the land.
-	var n := center.size()
+	# Resample the drawn curve to EVENLY spaced posts so the fence reads as a clean post-and-rail
+	# run (not a dense pile of overlapping rails). Each segment is a post + a rail reaching to the
+	# next post (yaw aligned along the run); the final post carries no forward rail. Each sits on
+	# the terrain (placed at ground height), so the run steps up and down hills with the land.
+	var pts := _resample_even(center, FENCE_SPACING)
+	var n := pts.size()
 	for i: int in n:
-		var c: Vector2 = center[i]
-		var fwd: Vector2 = center[mini(i + 1, n - 1)] - center[maxi(i - 1, 0)]
+		var c: Vector2 = pts[i]
+		var fwd: Vector2 = (pts[i + 1] - c) if i < n - 1 else (c - pts[i - 1])
 		var yaw := atan2(fwd.x, fwd.y) if fwd.length() > 0.01 else 0.0
-		_add_struct(int(round(c.x)), int(round(c.y)), {"kind": "fence", "yaw": yaw, "gx": c.x, "gy": c.y})
+		var kind := "fence" if i < n - 1 else "fence_post"   # last post has no rail to connect forward
+		_add_struct(int(round(c.x)), int(round(c.y)), {"kind": kind, "yaw": yaw, "gx": c.x, "gy": c.y})
+
+
+## Walk a polyline and emit a point every `step` of arc length (even spacing), always keeping the
+## final endpoint so the run reaches where it was drawn.
+func _resample_even(pts: Array, step: float) -> Array:
+	if pts.size() < 2:
+		return pts
+	var out: Array = [pts[0]]
+	var acc := 0.0
+	for i: int in range(1, pts.size()):
+		var a: Vector2 = pts[i - 1]
+		var b: Vector2 = pts[i]
+		var seg := a.distance_to(b)
+		if seg <= 0.0001:
+			continue
+		var dir := (b - a) / seg
+		var d := step - acc
+		while d <= seg:
+			out.append(a + dir * d)
+			d += step
+		acc = seg - (d - step)
+	var last: Vector2 = pts[pts.size() - 1]
+	if out[out.size() - 1].distance_to(last) > step * 0.4:
+		out.append(last)
+	return out
 
 
 # --- roadside decor -----------------------------------------------------------

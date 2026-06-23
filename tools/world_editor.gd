@@ -1151,11 +1151,13 @@ func _finalize_road() -> void:
 	_spec.roads.append(road)
 	_stroke["road"] = road
 	var brush := RoadBrush.new()
-	brush.build_roads(_reg, WorldGen.store.world_seed, [road], Callable(self, "_elev_at"))
+	# Roads KEEP the terrain elevation and just repaint the surface tile, so they conform to the
+	# existing hill surface (the mesher smooths the terraced steps into a curve) instead of cutting
+	# their own graded channel. (Grading is left in RoadBrush behind an elevation sampler if ever
+	# wanted, but is intentionally not used here.)
+	brush.build_roads(_reg, WorldGen.store.world_seed, [road])
 	for k: Vector2i in brush.road_tiles:
 		_set_road_tile(k.x, k.y, int(brush.road_tiles[k]))
-	for k: Vector2i in brush.road_elev:        # grade the road into a walkable climb (saved with the chunk)
-		_record_elev(k.x, k.y, int(brush.road_elev[k]))
 	for ckey: String in brush.structures:
 		if _chunks.has(ckey):
 			for part: Dictionary in brush.structures[ckey]:

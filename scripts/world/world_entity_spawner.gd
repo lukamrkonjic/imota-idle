@@ -738,7 +738,7 @@ func _spawn_poi_part(chunk: RefCounted, poi: Dictionary, part: Dictionary, conta
 				e.bridge_a = WG.grid_to_iso(Vector2(float(part["ax"]) + 0.5, float(part["ay"]) + 0.5))
 				e.bridge_b = WG.grid_to_iso(Vector2(float(part["bx"]) + 0.5, float(part["by"]) + 0.5))
 				e.bridge_t = float(part["t"])
-		"fence":
+		"fence", "fence_post":
 			# A dragged fence segment: yaw orients its rails along the path; gx/gy place it on the
 			# exact smooth centerline; it rides the terrain height so the run climbs hills.
 			e.yaw = float(part.get("yaw", 0.0))

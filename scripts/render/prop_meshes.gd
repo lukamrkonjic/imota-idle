@@ -112,7 +112,9 @@ static func entity_parts(e: Node) -> Array:
 		"bridge_pole":
 			return _bridge_pole_parts()
 		"fence":
-			return _fence_parts()
+			return _fence_parts(true)
+		"fence_post":
+			return _fence_parts(false)
 		"city_prop":
 			return _city_prop_parts(str(e.get("prop_kind")))
 		"decor":
@@ -1002,16 +1004,20 @@ static func _bridge_parts() -> Array:
 	return parts
 
 
-## A fence segment: a vertical post + two rails running ALONG +Z (the path direction, set by the
-## entity's yaw) so consecutive segments link into a continuous fence. The rails overrun ~1 tile
-## forward to bridge straight + diagonal post spacing.
-static func _fence_parts() -> Array:
-	var w := _mat("wood_light", "trunk_b", "cabin_trim")
+## A fence segment: a chunky post, plus (unless it's the run's last post) two rails running ALONG
+## +Z — the path direction set by the entity's yaw — that reach to the NEXT post (FENCE_RAIL ≈ the
+## post spacing, with a hair of overlap so the joint is clean). Even spacing + matched rail length
+## gives a tidy post-and-rail look instead of a pile of overlapping boards.
+const FENCE_RAIL := 2.08    # rail length (≈ RoadBrush.FENCE_SPACING of 2.0, slight overlap)
+
+static func _fence_parts(with_rail := true) -> Array:
 	var p := _mat("trunk_a", "trunk_b", "wood_light")
-	return [
-		_part(_box("fence_post", Vector3(0.11, 0.52, 0.11)), p, Vector3(0, 0.26, 0)),
-		_part(_box("fence_rail_top", Vector3(0.06, 0.07, 1.5)), w, Vector3(0, 0.4, 0.5)),
-		_part(_box("fence_rail_bot", Vector3(0.06, 0.07, 1.5)), w, Vector3(0, 0.2, 0.5))]
+	var parts: Array = [_part(_box("fence_post", Vector3(0.13, 0.54, 0.13)), p, Vector3(0, 0.27, 0))]
+	if with_rail:
+		var w := _mat("wood_light", "trunk_b", "cabin_trim")
+		parts.append(_part(_box("fence_rail_top", Vector3(0.05, 0.08, FENCE_RAIL)), w, Vector3(0, 0.4, FENCE_RAIL * 0.5)))
+		parts.append(_part(_box("fence_rail_bot", Vector3(0.05, 0.08, FENCE_RAIL)), w, Vector3(0, 0.2, FENCE_RAIL * 0.5)))
+	return parts
 
 
 static func _bridge_pole_parts() -> Array:
