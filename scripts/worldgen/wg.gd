@@ -60,6 +60,34 @@ static func r01(p_seed: int, a: int, b: int = 0, c: int = 0) -> float:
 	return float(hash_i(p_seed, a, b, c) % 1000003) / 1000003.0
 
 
+# Density multiplier at a stand centre (>1 to CONCENTRATE trees into clumps; clearings -> 0).
+const CANOPY_CLUMP_PEAK := 2.2
+
+## OSRS-style tree-clumping multiplier on a biome's canopy density. A smooth low-frequency
+## cluster field concentrates trees into tight stands separated by big open clearings instead
+## of an even per-tile scatter: ~0 across most of the map (clearings), up to CANOPY_CLUMP_PEAK×
+## the biome density in a stand centre. Net effect is sparser woods that read as clusters.
+## Shared by the runtime spawner and the editor's 2D canopy dots so the two always match.
+static func canopy_density_mul(p_seed: int, gx: int, gy: int) -> float:
+	var n := _smooth_val(p_seed, gx, gy, 9.0, 240) * 0.62 + _smooth_val(p_seed, gx, gy, 4.0, 241) * 0.38
+	return smoothstep(0.55, 0.82, n) * CANOPY_CLUMP_PEAK
+
+
+## Smooth bilinear value-noise on a coarse grid (period `scale` tiles), in [0, 1).
+static func _smooth_val(p_seed: int, gx: int, gy: int, scale: float, salt: int) -> float:
+	var x := float(gx) / scale
+	var y := float(gy) / scale
+	var x0 := floori(x)
+	var y0 := floori(y)
+	var fx := x - float(x0)
+	var fy := y - float(y0)
+	fx = fx * fx * (3.0 - 2.0 * fx)
+	fy = fy * fy * (3.0 - 2.0 * fy)
+	return lerpf(
+		lerpf(r01(p_seed, x0, y0, salt), r01(p_seed, x0 + 1, y0, salt), fx),
+		lerpf(r01(p_seed, x0, y0 + 1, salt), r01(p_seed, x0 + 1, y0 + 1, salt), fx), fy)
+
+
 ## Deterministic pick from a weighted dict {key: weight}. Returns "" if empty.
 static func pick_weighted(weights: Dictionary, roll: float) -> String:
 	var total := 0.0

@@ -113,7 +113,9 @@ func _advance_staged_rebuild() -> void:
 				if parts.is_empty():
 					continue
 				if pl == _IDENTITY_XF:
-					pl = Transform3D(Basis.IDENTITY, _iso_to_3d.call(d.position, _height.call(d.position)))
+					# Most structures sit axis-aligned (yaw 0); bridge deck segments carry a yaw
+					# so they lay along the path they were drawn over.
+					pl = Transform3D(Basis(Vector3.UP, float(d.yaw)), _iso_to_3d.call(d.position, _height.call(d.position) + float(d.height_offset)))
 				_rb_xf[id] = pl
 				_collect(parts, pl, _rb_groups)
 		if _rb_i >= _rb_list.size():

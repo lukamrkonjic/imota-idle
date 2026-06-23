@@ -9,6 +9,7 @@ const WorldWaterDecor := preload("res://scripts/world/world_water_decor.gd")
 const IsoSprites := preload("res://scripts/world/art/iso_sprites.gd")
 const TreeArt := preload("res://scripts/world/art/trees/tree_art.gd")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
+const TerrainStyle := preload("res://scripts/render/terrain_style.gd")
 const FishingHelper := preload("res://scripts/world/fishing_helper.gd")
 
 var world: Node2D
@@ -262,7 +263,9 @@ func _spawn_ground_decor_tile(chunk: RefCounted, container: Node2D, seed: int, t
 	var elev := int(chunk.elev[ty * WG.CHUNK_TILES + tx]) if chunk.elev.size() > 0 else 0
 	if bool(tile.get("water", false)) or (elev <= 0 and not bool(tile.get("walkable", true))):
 		return
-	if elev <= 0 and tname in ["sand", "sand_dune", "shallow", "rock", "cobble", "snow", "gravel", "savanna_grass", "jungle_loam", "boreal_moss", "badland_clay"]:
+	# Roads + paved/bridge tiles stay clear of ground clutter so a drawn road reads clean.
+	# Erasing a road reverts the tile, so the procedural clutter returns automatically.
+	if elev <= 0 and (TerrainStyle.is_path(tname) or tname in ["sand", "sand_dune", "shallow", "rock", "snow", "plank_floor", "plaza", "savanna_grass", "jungle_loam", "boreal_moss"]):
 		return
 	var r := WG.r01(seed, chunk.cx * 251 + tx, chunk.cy * 263 + ty, 201)
 	var biome_id := _tile_biome_id(chunk, tx, ty)
@@ -318,15 +321,21 @@ func _spawn_canopy_tile(chunk: RefCounted, container: Node2D, seed: int, tx: int
 	if bool(tile.get("water", false)) or not bool(tile.get("walkable", true)) or bool(tile.get("hazard", false)):
 		return
 	var tname: String = WorldGen.reg.tile_order[chunk.tile_id(tx, ty)]
-	if tname in ["dirt", "cobble", "plaza", "plank_floor", "building_wall"]:
-		return  # keep paths/settlement floors clear of trees
+	if TerrainStyle.is_path(tname) or tname in ["plaza", "plank_floor", "building_wall"]:
+		return  # keep roads / paths / settlement floors / bridges clear of trees
 	var biome_id := _tile_biome_id(chunk, tx, ty)
 	var cfg: Dictionary = WorldGen.reg.canopy(biome_id)
 	var density := float(cfg.get("density", 0.0))
 	if density <= 0.0:
 		return
+	# OSRS-style clumping: a smooth low-frequency cluster field carves the even per-tile
+	# scatter into dense stands separated by open clearings; CANOPY_THIN keeps the woods
+	# sparse overall (clearings -> ~0 trees, stand centres -> the biome's density).
+	var gx: int = chunk.cx * WG.CHUNK_TILES + tx
+	var gy: int = chunk.cy * WG.CHUNK_TILES + ty
+	var eff := density * WG.canopy_density_mul(seed, gx, gy)
 	var r := WG.r01(seed, chunk.cx * 271 + tx, chunk.cy * 283 + ty, 211)
-	if r > density:
+	if r > eff:
 		return
 	var kinds: Array = cfg.get("kinds", [])
 	if kinds.is_empty():
@@ -621,8 +630,14 @@ func _spawn_poi_part(chunk: RefCounted, poi: Dictionary, part: Dictionary, conta
 			e.variant = absi(hash(kind + str(e.label) + chunk.key() + str(part["tx"]) + ":" + str(part["ty"]))) % 1000
 			if kind == "tree":
 				e.display_size = 90.0
-		"bridge":
-			pass  # purely decorative deck over the canal
+		"bridge", "bridge_pole":
+			# Plank-bridge meshes: an oriented deck segment (deck + planks + side rails) or a support
+			# pillar. yaw lays the deck ALONG the path, height_offset rides it above the water (gentle
+			# arch), and gx/gy place it at the exact smooth centerline (not the rounded tile centre).
+			e.yaw = float(part.get("yaw", 0.0))
+			e.height_offset = float(part.get("h", 0.0))
+			if part.has("gx"):
+				e.position = WG.grid_to_iso(Vector2(float(part["gx"]) + 0.5, float(part["gy"]) + 0.5))
 		"fountain":
 			e.display_size = 40.0
 			e.click_radius = 30.0

@@ -21,12 +21,15 @@ const WG := preload("res://scripts/worldgen/wg.gd")
 const Chunk := preload("res://scripts/worldgen/chunk.gd")
 const WorldGenerator := preload("res://scripts/worldgen/world_generator.gd")
 const BiomeClassifier := preload("res://scripts/worldgen/biome_classifier.gd")
+const RoadBrush := preload("res://scripts/worldgen/road_brush.gd")
 
 var reg: RefCounted
 var spec: RefCounted
 var seed: int
 var bounds := Rect2i()
-var overrides: Dictionary = {}
+var overrides: Dictionary = {}     # water features (rivers / lakes): tile + flatten elev
+var road_tiles: Dictionary = {}    # RoadBrush road body (incl. plank "bridge" decks): tile, KEEPS elevation
+var road_structs: Dictionary = {}  # "cx:cy" -> Array[part] (roadside decor)
 var natural_only := false   ## true => terrain + natural life only, no man-made content
 
 var _t_cobble: int
@@ -61,6 +64,14 @@ func setup(p_reg: RefCounted, p_seed: int) -> void:
 	_b_beach = int(reg.biome_index.get("beach", _b_ocean))
 	_has_land_mask = spec.active and spec.finite and FileAccess.file_exists(BiomeClassifier.land_mask_path(str(spec.id)))
 	overrides = _build_overrides()
+	# Roads/bridges compile through the RoadBrush (curves, variable width, feather,
+	# elevation-following, auto-bridges). Built once here, single-threaded — it needs
+	# a classifier to test where the centerline crosses water.
+	if not spec.roads.is_empty():
+		var brush := RoadBrush.new()
+		brush.build(reg, seed)
+		road_tiles = brush.road_tiles
+		road_structs = brush.structures
 
 
 # --- structure collision (derived) --------------------------------------------
@@ -195,6 +206,7 @@ func _gen_group(group: Array) -> void:
 		var chunk: RefCounted = gen.generate_natural(c.x, c.y) if natural_only else gen.generate(0, c.x, c.y)
 		_apply_coastline(chunk, c.x, c.y)
 		_apply_overrides(chunk)
+		_apply_road_structs(chunk)
 		apply_structure_collision(chunk)
 		local["%d:%d" % [c.x, c.y]] = chunk
 		_done_mutex.lock()
@@ -208,6 +220,7 @@ func _gen_group(group: Array) -> void:
 # --- authored rasterization (roads / rivers / lakes / coastline) ---------------
 
 func _build_overrides() -> Dictionary:
+	# Water features only. Roads + bridges are compiled by the RoadBrush (see setup).
 	var ov: Dictionary = {}
 	for feat: Dictionary in spec.features:
 		match str(feat.get("kind", "")):
@@ -215,9 +228,6 @@ func _build_overrides() -> Dictionary:
 				_stamp_polyline(ov, feat.get("points", []), int(feat.get("width", 2)), _t_water, _t_shallow)
 			"lake":
 				_stamp_disc(ov, feat.get("tile", Vector2i.ZERO), int(feat.get("radius", 6)), _t_water, _t_shallow)
-	for road: Dictionary in spec.roads:
-		var tile := _t_cobble if str(road.get("kind", "")) == "major" else _t_dirt
-		_stamp_polyline(ov, road.get("points", []), int(road.get("width", 1)), tile, -1)
 	return ov
 
 
@@ -244,18 +254,33 @@ func _stamp_disc(ov: Dictionary, center: Vector2i, r: int, core: int, rim: int) 
 
 
 func _apply_overrides(chunk: RefCounted) -> void:
-	if overrides.is_empty():
+	if overrides.is_empty() and road_tiles.is_empty():
 		return
 	var bx: int = chunk.cx * WG.CHUNK_TILES
 	var by: int = chunk.cy * WG.CHUNK_TILES
 	for ly: int in WG.CHUNK_TILES:
 		for lx: int in WG.CHUNK_TILES:
 			var key := Vector2i(bx + lx, by + ly)
+			var i := Chunk.idx(lx, ly)
+			# Water features (rivers / lakes): carve water and flatten.
 			if overrides.has(key):
-				var i := Chunk.idx(lx, ly)
 				chunk.tiles[i] = int(overrides[key])
 				if chunk.elev.size() > i:
 					chunk.elev[i] = 0
+			# Road body (incl. plank "bridge" decks): repaint the tile but KEEP its terrain
+			# elevation so the road rolls over hills instead of cutting a flat shelf.
+			if road_tiles.has(key):
+				chunk.tiles[i] = int(road_tiles[key])
+
+
+## Append the RoadBrush's per-chunk structure parts (bridge rails, roadside decor)
+## to this chunk. Local tile coords were already resolved when the brush built them.
+func _apply_road_structs(chunk: RefCounted) -> void:
+	var key := "%d:%d" % [chunk.cx, chunk.cy]
+	if not road_structs.has(key):
+		return
+	for part: Dictionary in road_structs[key]:
+		chunk.structures.append(part.duplicate())
 
 
 func _apply_coastline(chunk: RefCounted, cx: int, cy: int) -> void:

@@ -1,0 +1,11 @@
+{
+  "_doc": "Placeholder settlement templates for the editor's Settlement tool (key 0). Placing one stamps a cluster of NORMAL structures (houses, walls, fountain, market…) that you then hand-edit per placement with the Structure/Erase tools. Tune a size here (radius, building counts, wall) and re-place to restyle. Sizes scale camp < hamlet < village < town < city. Fields: radius (tile half-extent), houses/halls/tents/stalls/lamps (counts), well/fountain/campfire (centre feature), anvil/chest (services), wall ('partial' | 'full'), sign (entrance signpost).",
+  "order": ["camp", "hamlet", "village", "town", "city"],
+  "templates": {
+    "camp":    { "label": "Camp",    "radius": 2,  "campfire": true, "tents": 3, "sign": true },
+    "hamlet":  { "label": "Hamlet",  "radius": 4,  "well": true, "houses": 4, "lamps": 2, "sign": true },
+    "village": { "label": "Village", "radius": 6,  "well": true, "houses": 8, "stalls": 2, "anvil": true, "lamps": 3, "sign": true },
+    "town":    { "label": "Town",    "radius": 9,  "fountain": true, "houses": 14, "halls": 1, "stalls": 3, "anvil": true, "chest": true, "lamps": 5, "wall": "partial", "sign": true },
+    "city":    { "label": "City",    "radius": 13, "fountain": true, "houses": 24, "halls": 3, "stalls": 5, "anvil": true, "chest": true, "lamps": 8, "wall": "full", "sign": true }
+  }
+}

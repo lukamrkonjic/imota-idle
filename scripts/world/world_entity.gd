@@ -33,6 +33,8 @@ var glow_color := Color(0.7, 0.55, 0.95)  # altars/shrines
 var attuned := false                       # obelisks
 var roof_color := Color(0.5, 0.3, 0.3)     # houses
 var prop_kind := ""                         # city_prop subtype
+var yaw := 0.0                               # structures: Y-rotation (bridge decks orient along the path)
+var height_offset := 0.0                     # structures: extra 3D height (bridge decks ride above the water)
 var mountain_snow := 0.0                     # mountains: 0..1 snow cap coverage
 var roof_alpha := 1.0                        # houses — fades as the player nears (read by the 3D renderer)
 

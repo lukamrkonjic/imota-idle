@@ -1,0 +1,13 @@
+{
+  "_doc": "Modular road styles for the editor's Road tool. Each authored road carries a 'style' id (or falls back via kindToStyle from its 'kind'). Edit a style + re-bake to restyle every road that uses it. Fields: core=terrain tile painted as the road; width=base HALF-width in tiles; jitter=how much the width swells/pinches along the road; feather=soft stochastic rim depth in tiles; decor=probability per road tile of a roadside pebble/tuft. The 'bridge' style is just a clean plank deck (core=plank_floor) you draw directly wherever you want a crossing — there is no automatic water detection.",
+  "kindToStyle": { "major": "trunk", "minor": "trail" },
+  "styles": {
+    "trunk":  { "core": "dirt",        "width": 2.1, "jitter": 0.6,  "feather": 1.4,  "decor": 0.05 },
+    "road":   { "core": "dirt",        "width": 1.6, "jitter": 0.5,  "feather": 1.2,  "decor": 0.06 },
+    "trail":  { "core": "dirt",        "width": 1.0, "jitter": 0.4,  "feather": 1.0,  "decor": 0.07 },
+    "stone":  { "core": "cobble",      "width": 1.9, "jitter": 0.4,  "feather": 1.1,  "decor": 0.03 },
+    "gravel": { "core": "gravel",      "width": 1.5, "jitter": 0.5,  "feather": 1.1,  "decor": 0.04 },
+    "desert": { "core": "sand",        "width": 1.6, "jitter": 0.8,  "feather": 1.4,  "decor": 0.03 },
+    "bridge": { "core": "plank_floor", "width": 0.6, "jitter": 0.1, "feather": 0.25, "decor": 0.0, "deck": true }
+  }
+}

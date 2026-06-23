@@ -61,8 +61,12 @@ func generate(layer: int, cx: int, cy: int, above_chunk: RefCounted = null) -> R
 			chunk.tiles[i] = classifier.tile_at(gx, gy, f, chunk.biomes_t[i], chunk, tx, ty)
 	_place_mountains(chunk)
 	# Blank-canvas worlds get terrain + biomes only — no auto trees / gather nodes /
-	# houses / POIs / monsters. Content is placed by hand in the editor afterwards.
+	# procedural POIs / monsters. But CURATED content still places: the spawn camp +
+	# hand-authored WorldSpec anchors (settlements / landmarks), so the designer has
+	# real destinations to wire roads between. Everything else is placed by hand.
 	if reg.spec.active and reg.spec.is_blank():
+		var blank_occupied: Dictionary = {}
+		poi_placer.place_authored_only(chunk, blank_occupied, placement_grid)
 		return chunk
 	var occupied: Dictionary = {}
 	poi_placer.place(chunk, occupied, placement_grid)

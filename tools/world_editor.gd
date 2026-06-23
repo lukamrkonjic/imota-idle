@@ -32,13 +32,14 @@ const WG := preload("res://scripts/worldgen/wg.gd")
 const Chunk := preload("res://scripts/worldgen/chunk.gd")
 const BakedWorldStore := preload("res://scripts/worldgen/baked_world_store.gd")
 const FiniteWorldGenerator := preload("res://scripts/worldgen/finite_world_generator.gd")
+const RoadBrush := preload("res://scripts/worldgen/road_brush.gd")
 const StampLibrary := preload("res://scripts/worldgen/stamp_library.gd")
 const PlaceablePreview := preload("res://tools/placeable_preview.gd")
 const MountainField := preload("res://scripts/worldgen/mountain_field.gd")
 
 const OUT_DIR := "res://data/world/baked/"
 
-enum Tool { PAN, BIOME, TERRAIN, STAMP, STRUCTURE, ERASE, SPAWN, CREATURE }
+enum Tool { PAN, BIOME, TERRAIN, STAMP, STRUCTURE, ERASE, SPAWN, CREATURE, ROAD, SETTLEMENT }
 
 const TERRAIN := [
 	["grass", "Grass"], ["grass_dark", "Dark grass"], ["dirt", "Dirt path"],
@@ -112,6 +113,13 @@ var _sel_creature := ""
 var _stamp_variant := 0
 var _stamp_rot := 0
 var _stamp_flip := false
+var _sel_road_style := "road"
+var _road_pts: Array[Vector2i] = []
+var _road_drawing := false
+var _road_styles_cache: Dictionary = {}
+var _sel_settlement := "village"
+var _settlement_rot := 0
+var _settlement_cache: Dictionary = {}
 var _spawn_tile := Vector2i.ZERO
 var _show_structs := true
 var _show_spawn := true
@@ -252,6 +260,12 @@ func _run_selftest() -> void:
 	for a: String in OS.get_cmdline_user_args():
 		if a.begins_with("--we-selftest="):
 			want = a.trim_prefix("--we-selftest=")
+	if want == "road":
+		_run_road_selftest()
+		return
+	if want == "settlement":
+		_run_settlement_selftest()
+		return
 	# biome:<id> — find a tile of that biome (away from the coast/spawn) and frame it.
 	if want.begins_with("biome:"):
 		var bid := want.trim_prefix("biome:")
@@ -413,15 +427,27 @@ func _unhandled_input(event: InputEvent) -> void:
 		_handle_key(event)
 
 
+## App shortcuts live here (not _handle_key) so undo/redo/save fire even when a
+## toolbar button or the docked 3D view currently holds keyboard focus.
+func _shortcut_input(event: InputEvent) -> void:
+	if _busy or not (event is InputEventKey) or not event.pressed or event.echo or not event.ctrl_pressed:
+		return
+	match event.keycode:
+		KEY_Z:
+			if event.shift_pressed: _do_redo()
+			else: _do_undo()
+			get_viewport().set_input_as_handled()
+		KEY_Y:
+			_do_redo()
+			get_viewport().set_input_as_handled()
+		KEY_S:
+			_save()
+			get_viewport().set_input_as_handled()
+
+
 func _handle_key(event: InputEventKey) -> void:
 	if event.ctrl_pressed:
-		match event.keycode:
-			KEY_Z:
-				if event.shift_pressed: _do_redo()
-				else: _do_undo()
-			KEY_Y: _do_redo()
-			KEY_S: _save()
-		return
+		return   # Ctrl shortcuts (undo/redo/save) are handled in _shortcut_input
 	match event.keycode:
 		KEY_BRACKETLEFT: _set_brush(_brush - 1)
 		KEY_BRACKETRIGHT: _set_brush(_brush + 1)
@@ -429,6 +455,9 @@ func _handle_key(event: InputEventKey) -> void:
 			if _tool == Tool.STAMP:
 				_stamp_rot = (_stamp_rot + 1) % 4
 				_status.text = "Stamp rotation: %d°" % (_stamp_rot * 90)
+			elif _tool == Tool.SETTLEMENT:
+				_settlement_rot = (_settlement_rot + 1) % 4
+				_status.text = "Settlement rotation: %d°" % (_settlement_rot * 90)
 		KEY_F:
 			if _tool == Tool.STAMP:
 				_stamp_flip = not _stamp_flip
@@ -445,6 +474,8 @@ func _handle_key(event: InputEventKey) -> void:
 		KEY_6: _set_tool(Tool.ERASE)
 		KEY_7: _set_tool(Tool.SPAWN)
 		KEY_8: _set_tool(Tool.CREATURE)
+		KEY_9: _set_tool(Tool.ROAD)
+		KEY_0: _set_tool(Tool.SETTLEMENT)
 
 
 func _zoom_at(factor: float) -> void:
@@ -468,6 +499,9 @@ func _process(_delta: float) -> void:
 		_update_coords()
 	if _painting and not _ui_hover and _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE]:
 		_apply_tool(false)
+	if _painting and not _ui_hover and _tool == Tool.ROAD and _road_drawing:
+		if _road_pts.is_empty() or _road_pts[_road_pts.size() - 1] != _hover_tile:
+			_road_pts.append(_hover_tile)
 	if _img_dirty:
 		_img_dirty = false
 		_tex.update(_img)
@@ -515,6 +549,16 @@ func _apply_tool(just_pressed: bool) -> void:
 		Tool.SPAWN:
 			if just_pressed:
 				_set_spawn(_hover_tile)
+				_commit_stroke()
+		Tool.ROAD:
+			if just_pressed:
+				_road_pts.clear()
+				_road_pts.append(_hover_tile)
+				_road_drawing = true
+				_status.text = "Drawing road… drag across the map, release to finish."
+		Tool.SETTLEMENT:
+			if just_pressed:
+				_place_settlement(_hover_tile)
 				_commit_stroke()
 
 
@@ -656,7 +700,7 @@ func _canopy_raw(chunk: RefCounted, lx: int, ly: int) -> bool:
 	var tile: Dictionary = _reg.tile_def(tid)
 	if bool(tile.get("water", false)) or not bool(tile.get("walkable", true)) or bool(tile.get("hazard", false)):
 		return false
-	if _reg.tile_order[tid] in ["dirt", "cobble", "plaza", "plank_floor", "building_wall"]:
+	if _reg.tile_order[tid] in ["dirt", "cobble", "mud", "gravel", "badland_clay", "plaza", "plank_floor", "building_wall"]:
 		return false
 	var b_idx: int = chunk.biome_at(lx, ly)
 	if b_idx == 255:
@@ -665,7 +709,9 @@ func _canopy_raw(chunk: RefCounted, lx: int, ly: int) -> bool:
 	var density := float(cfg.get("density", 0.0))
 	if density <= 0.0:
 		return false
-	return WG.r01(WorldGen.store.world_seed, chunk.cx * 271 + lx, chunk.cy * 283 + ly, 211) <= density
+	var seed: int = WorldGen.store.world_seed
+	var eff := density * WG.canopy_density_mul(seed, chunk.cx * WG.CHUNK_TILES + lx, chunk.cy * WG.CHUNK_TILES + ly)
+	return WG.r01(seed, chunk.cx * 271 + lx, chunk.cy * 283 + ly, 211) <= eff
 
 
 ## Cached list of a chunk's canopy tile indices (cuts NOT applied). Computed once per chunk
@@ -832,7 +878,7 @@ func _set_px(gtx: int, gty: int, col: Color) -> void:
 # ─────────────────────────────── undo / redo ────────────────────────────────
 
 func _begin_stroke() -> void:
-	_stroke = {"tiles": {}, "added": [], "removed": [], "cuts": [], "spawn": null}
+	_stroke = {"tiles": {}, "added": [], "removed": [], "cuts": [], "spawn": null, "road": null}
 	_stroke_active = true
 
 
@@ -844,6 +890,9 @@ func _stroke_empty() -> bool:
 func _commit_stroke() -> void:
 	if not _stroke_active:
 		return
+	if _road_drawing:
+		_finalize_road()
+		_road_drawing = false
 	_stroke_active = false
 	if _stroke_empty():
 		return
@@ -869,6 +918,8 @@ func _do_undo() -> void:
 		_chunks[cut["key"]].tree_cuts.erase(int(cut["ci"]))   # undo: regrow the cut tree
 	if s["spawn"] != null:
 		_spawn_tile = s["spawn"][0]
+	if s.get("road") != null:
+		_spec.roads.erase(s["road"])
 	_refresh_stroke_collision(s)
 	_resync_3d_tiles(s["tiles"].keys())
 	_redo.append(s)
@@ -890,6 +941,8 @@ func _do_redo() -> void:
 		_chunks[cut["key"]].tree_cuts[int(cut["ci"])] = true   # redo: re-cut the tree
 	if s["spawn"] != null:
 		_spawn_tile = s["spawn"][1]
+	if s.get("road") != null:
+		_spec.roads.append(s["road"])
 	_refresh_stroke_collision(s)
 	_resync_3d_tiles(s["tiles"].keys())
 	_history.append(s)
@@ -909,6 +962,300 @@ func _refresh_stroke_collision(s: Dictionary) -> void:
 			FiniteWorldGenerator.apply_structure_collision(_chunks[key])
 
 
+# ─────────────────────────────── road tool ──────────────────────────────────
+# Drawn strokes are simplified to coarse waypoints, then compiled through the SAME
+# RoadBrush the bake uses (Catmull-Rom curve, variable width, feathered rim, auto
+# bridges over water). The road is stored as an editable polyline in spec.roads and
+# persisted to the worldspec on save — so material/wear/width stay swappable.
+
+func _finalize_road() -> void:
+	var pts := _simplify(_road_pts, 2.0)
+	if pts.size() < 2:
+		_status.text = "Road too short — drag to draw a longer path."
+		return
+	var road := {
+		"id": "road_%d" % _spec.roads.size(),
+		"kind": "minor",
+		"style": _sel_road_style,
+		"width": 0,
+		"points": pts,
+	}
+	_spec.roads.append(road)
+	_stroke["road"] = road
+	var brush := RoadBrush.new()
+	brush.build_roads(_reg, WorldGen.store.world_seed, [road])
+	for k: Vector2i in brush.road_tiles:
+		_set_road_tile(k.x, k.y, int(brush.road_tiles[k]))
+	for ckey: String in brush.structures:
+		if _chunks.has(ckey):
+			for part: Dictionary in brush.structures[ckey]:
+				_chunks[ckey].structures.append(part)
+				_stroke["added"].append({"key": ckey, "arr": "structures", "item": part})
+	_status.text = "Road '%s' drawn (%s, %d pts) → %d tiles" % [
+		road["id"], _sel_road_style, pts.size(), brush.road_tiles.size()]
+
+
+## Repaint one tile as road/bridge surface, KEEPING the chunk's biome + elevation,
+## recorded into the active stroke so the whole road is one undo step.
+func _set_road_tile(gtx: int, gty: int, tile_id: int) -> void:
+	var chunk: RefCounted = _chunk_at_tile(gtx, gty)
+	if chunk == null:
+		return
+	var ci: int = Chunk.idx(gtx - chunk.cx * WG.CHUNK_TILES, gty - chunk.cy * WG.CHUNK_TILES)
+	_record_and_set(gtx, gty, [tile_id, chunk.biomes_t[ci], chunk.parent_biomes_t[ci], chunk.sub_biomes_t[ci]])
+
+
+func _road_styles() -> Dictionary:
+	if _road_styles_cache.is_empty():
+		var path := "res://data/world/road_styles.json"
+		if FileAccess.file_exists(path):
+			var p: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+			if p is Dictionary:
+				_road_styles_cache = (p as Dictionary).get("styles", {})
+	return _road_styles_cache
+
+
+## Douglas-Peucker: drop the hand-jitter from a freehand stroke down to the few
+## waypoints that define its shape; the brush re-smooths them into a flowing curve.
+func _simplify(pts: Array, eps: float) -> Array:
+	if pts.size() <= 2:
+		return pts.duplicate()
+	var a := Vector2(pts[0])
+	var b := Vector2(pts[pts.size() - 1])
+	var dmax := 0.0
+	var idx := 0
+	for i: int in range(1, pts.size() - 1):
+		var d := _perp_dist(Vector2(pts[i]), a, b)
+		if d > dmax:
+			dmax = d
+			idx = i
+	if dmax > eps:
+		var left := _simplify(pts.slice(0, idx + 1), eps)
+		var right := _simplify(pts.slice(idx), eps)
+		left.resize(left.size() - 1)   # drop the shared junction point
+		return left + right
+	return [pts[0], pts[pts.size() - 1]]
+
+
+func _perp_dist(p: Vector2, a: Vector2, b: Vector2) -> float:
+	if a.is_equal_approx(b):
+		return p.distance_to(a)
+	var t: float = clampf((p - a).dot(b - a) / (b - a).length_squared(), 0.0, 1.0)
+	return p.distance_to(a + (b - a) * t)
+
+
+## Write the live road polylines back into the worldspec JSON so they persist and
+## stay re-styleable (the dirt is recomputed from road_styles.json on every bake).
+func _persist_roads_to_worldspec() -> void:
+	var path := "res://data/world/worldspec/%s.json" % str(_spec.id)
+	if not FileAccess.file_exists(path):
+		return
+	var p: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not (p is Dictionary):
+		return
+	var doc: Dictionary = p
+	var arr: Array = []
+	for r: Dictionary in _spec.roads:
+		var jpts: Array = []
+		for pt: Vector2i in r.get("points", []):
+			jpts.append([pt.x, pt.y])
+		arr.append({
+			"id": str(r.get("id", "")),
+			"kind": str(r.get("kind", "minor")),
+			"style": str(r.get("style", "")),
+			"width": int(r.get("width", 0)),
+			"points": jpts,
+		})
+	doc["roads"] = arr
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f != null:
+		f.store_string(JSON.stringify(doc, "\t"))
+		f.close()
+
+
+## Headless smoke-test of the whole road draw path: synthesize a wavy stroke,
+## run it through commit (which finalizes via RoadBrush), then undo it.
+func _run_road_selftest() -> void:
+	var pts: Array[Vector2i] = []
+	for i: int in range(0, 66, 3):
+		pts.append(Vector2i(-32 + i, 6 + int(round(3.0 * sin(i * 0.18)))))
+	_road_pts = pts
+	_begin_stroke()
+	_road_drawing = true
+	var before: int = _spec.roads.size()
+	_commit_stroke()
+	var tiles := 0
+	if not _history.is_empty():
+		tiles = int((_history[_history.size() - 1] as Dictionary)["tiles"].size())
+	var added: bool = _spec.roads.size() == before + 1
+	print("[we-selftest:road] roads %d->%d  tiles_painted=%d" % [before, _spec.roads.size(), tiles])
+	_do_undo()
+	var undone: bool = _spec.roads.size() == before
+	print("[we-selftest:road] after undo roads=%d  RESULT=%s" % [
+		_spec.roads.size(), ("PASS" if (added and tiles > 0 and undone) else "FAIL")])
+	get_tree().quit()
+
+
+# ─────────────────────────── settlement templates ───────────────────────────
+# Stamp a placeholder settlement (camp/hamlet/village/town/city) as a cluster of
+# NORMAL structures, so each placement stays hand-editable afterwards. Sizes come
+# from data/world/settlement_templates.json (radius + building counts + wall).
+
+func _settlement_templates() -> Dictionary:
+	if _settlement_cache.is_empty():
+		var path := "res://data/world/settlement_templates.json"
+		if FileAccess.file_exists(path):
+			var p: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+			if p is Dictionary:
+				_settlement_cache = p
+	return _settlement_cache
+
+
+func _place_settlement(center: Vector2i) -> void:
+	var doc := _settlement_templates()
+	var def: Dictionary = (doc.get("templates", {}) as Dictionary).get(_sel_settlement, {})
+	if def.is_empty():
+		_status.text = "No settlement template '%s'." % _sel_settlement
+		return
+	var occupied: Dictionary = {}
+	var touched: Dictionary = {}
+	var placed := 0
+	for part: Dictionary in _build_settlement(def, center, _settlement_rot):
+		var tx: int = int(part["tx"])
+		var ty: int = int(part["ty"])
+		var cell := Vector2i(tx, ty)
+		if occupied.has(cell):
+			continue
+		var chunk: RefCounted = _chunk_at_tile(tx, ty)
+		if chunk == null:
+			continue
+		var td := _tile_def_at(tx, ty)
+		if td.is_empty() or not bool(td.get("walkable", false)) or bool(td.get("water", false)) or bool(td.get("hazard", false)):
+			continue   # skip parts that would land in water / off the map / on a cliff
+		occupied[cell] = true
+		var lp := part.duplicate()
+		lp["tx"] = tx - chunk.cx * WG.CHUNK_TILES
+		lp["ty"] = ty - chunk.cy * WG.CHUNK_TILES
+		chunk.structures.append(lp)
+		var ckey := "%d:%d" % [chunk.cx, chunk.cy]
+		touched[ckey] = true
+		_stroke["added"].append({"key": ckey, "arr": "structures", "item": lp})
+		placed += 1
+	for ck: String in touched:
+		if _chunks.has(ck):
+			FiniteWorldGenerator.apply_structure_collision(_chunks[ck])
+	_status.text = "Placed %s (%d parts) at (%d, %d) - edit buildings with the Structure/Erase tools." % [
+		str(def.get("label", _sel_settlement)), placed, center.x, center.y]
+
+
+## Expand a template into structure parts (relative dx/dy), then rotate + resolve
+## to absolute world tiles. Layout is deterministic per placement position.
+func _build_settlement(def: Dictionary, center: Vector2i, rot: int) -> Array:
+	var parts: Array = []
+	var R: int = int(def.get("radius", 5))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(center)
+	# centre feature
+	if bool(def.get("fountain", false)):
+		parts.append({"kind": "fountain", "label": str(def.get("label", "")), "dx": 0, "dy": 0})
+	elif bool(def.get("well", false)):
+		parts.append({"kind": "city_prop", "prop": "well", "dx": 0, "dy": 0})
+	elif bool(def.get("campfire", false)):
+		parts.append({"kind": "campfire", "dx": 0, "dy": 0})
+	# houses in concentric rings
+	var houses: int = int(def.get("houses", 0))
+	var placed := 0
+	var ring := 3
+	while placed < houses and ring <= R + 1:
+		var circ: int = maxi(4, int(floor(TAU * float(ring) / 3.5)))
+		for k: int in circ:
+			if placed >= houses:
+				break
+			var ang := (float(k) / float(circ)) * TAU + rng.randf_range(-0.15, 0.15)
+			var rr := float(ring) + rng.randf_range(-1.0, 1.0)
+			parts.append({"kind": "house", "color": ROOF_COLORS[rng.randi() % ROOF_COLORS.size()],
+				"dx": int(round(cos(ang) * rr)), "dy": int(round(sin(ang) * rr))})
+			placed += 1
+		ring += 3
+	# great halls
+	var halls: int = int(def.get("halls", 0))
+	for i: int in halls:
+		var a := (float(i) / float(maxi(1, halls))) * TAU + 0.4
+		parts.append({"kind": "building", "foot": 7, "color": ROOF_COLORS[rng.randi() % ROOF_COLORS.size()],
+			"dx": int(round(cos(a) * float(R - 2))), "dy": int(round(sin(a) * float(R - 2)))})
+	# tents (camp)
+	for i: int in int(def.get("tents", 0)):
+		var a := rng.randf() * TAU
+		parts.append({"kind": "tent", "dx": int(round(cos(a) * 2.0)), "dy": int(round(sin(a) * 2.0)) + 1})
+	# market stalls + services near the centre
+	for i: int in int(def.get("stalls", 0)):
+		parts.append({"kind": "stall", "label": "Stall",
+			"dx": rng.randi_range(-2, 2), "dy": rng.randi_range(-2, 2)})
+	if bool(def.get("anvil", false)):
+		parts.append({"kind": "anvil", "station": "anvil", "label": "Anvil", "dx": 2, "dy": -2})
+	if bool(def.get("chest", false)):
+		parts.append({"kind": "chest", "station": "bank", "label": "Bank", "dx": -2, "dy": -2})
+	# lamps on a mid ring
+	var lamps: int = int(def.get("lamps", 0))
+	for i: int in lamps:
+		var a := (float(i) / float(maxi(1, lamps))) * TAU
+		parts.append({"kind": "city_prop", "prop": "lamp",
+			"dx": int(round(cos(a) * float(R) * 0.6)), "dy": int(round(sin(a) * float(R) * 0.6))})
+	# wall ring
+	match str(def.get("wall", "")):
+		"full": _ring_wall(parts, R, true)
+		"partial": _ring_wall(parts, R, false)
+	# entrance signpost
+	if bool(def.get("sign", false)):
+		parts.append({"kind": "sign", "label": str(def.get("label", "Settlement")), "dx": 0, "dy": R})
+	# rotate offsets, resolve to absolute world tiles
+	var out: Array = []
+	for p: Dictionary in parts:
+		var v := _rot_offset(int(p.get("dx", 0)), int(p.get("dy", 0)), rot)
+		var q := p.duplicate()
+		q.erase("dx")
+		q.erase("dy")
+		q["tx"] = center.x + v.x
+		q["ty"] = center.y + v.y
+		out.append(q)
+	return out
+
+
+func _ring_wall(parts: Array, R: int, full: bool) -> void:
+	var n: int = maxi(8, int(floor(TAU * float(R) / 1.3)))
+	for k: int in n:
+		var ang := (float(k) / float(n)) * TAU
+		parts.append({"kind": "city_wall", "piece": 0,
+			"dx": int(round(cos(ang) * float(R))), "dy": int(round(sin(ang) * float(R)))})
+	if full:
+		for a: float in [0.0, PI * 0.5, PI, PI * 1.5]:            # cardinal gates
+			parts.append({"kind": "city_wall", "piece": 1,
+				"dx": int(round(cos(a) * float(R))), "dy": int(round(sin(a) * float(R)))})
+		for a: float in [PI * 0.25, PI * 0.75, PI * 1.25, PI * 1.75]:   # corner towers
+			parts.append({"kind": "city_wall", "piece": 2,
+				"dx": int(round(cos(a) * float(R))), "dy": int(round(sin(a) * float(R)))})
+
+
+func _rot_offset(dx: int, dy: int, rot: int) -> Vector2i:
+	match posmod(rot, 4):
+		1: return Vector2i(-dy, dx)
+		2: return Vector2i(-dx, -dy)
+		3: return Vector2i(dy, -dx)
+		_: return Vector2i(dx, dy)
+
+
+func _run_settlement_selftest() -> void:
+	_sel_settlement = "village"
+	_begin_stroke()
+	_place_settlement(Vector2i(8, 8))
+	var added: int = _stroke["added"].size()
+	_commit_stroke()
+	print("[we-selftest:settlement] placed parts=%d" % added)
+	_do_undo()
+	print("[we-selftest:settlement] RESULT=%s" % ("PASS" if added > 0 else "FAIL"))
+	get_tree().quit()
+
+
 func _refresh_history_buttons() -> void:
 	if _undo_btn != null:
 		_undo_btn.disabled = _history.is_empty()
@@ -922,6 +1269,14 @@ func _refresh_history_buttons() -> void:
 
 func _draw_overlay(c: CanvasItem) -> void:
 	var zoom: float = _cam.zoom.x
+	# Live feedback while dragging a road: the raw stroke as a bright polyline.
+	if _road_drawing and _road_pts.size() >= 2:
+		var off := Vector2(_min_tx, _min_ty)
+		var prev := Vector2(_road_pts[0]) - off + Vector2(0.5, 0.5)
+		for i: int in range(1, _road_pts.size()):
+			var cur := Vector2(_road_pts[i]) - off + Vector2(0.5, 0.5)
+			c.draw_line(prev, cur, Color(0.95, 0.6, 0.2, 0.9), maxf(0.6, 2.0 / zoom))
+			prev = cur
 	if _show_collision or _show_biomes or _show_danger or _show_walk or _show_elevation:
 		var view := _view_rect_tiles()
 		var classifier: RefCounted = WorldGen.generator.classifier
@@ -1091,7 +1446,8 @@ func _build_ui() -> void:
 	_header(lb, "Tools")
 	for ts: Array in [[Tool.PAN, "1 Pan/View"], [Tool.BIOME, "2 Biome"], [Tool.TERRAIN, "3 Terrain"],
 			[Tool.STAMP, "4 Stamp"], [Tool.STRUCTURE, "5 Structure"], [Tool.ERASE, "6 Erase"],
-			[Tool.SPAWN, "7 Set Spawn"], [Tool.CREATURE, "8 Creatures"]]:
+			[Tool.SPAWN, "7 Set Spawn"], [Tool.CREATURE, "8 Creatures"], [Tool.ROAD, "9 Roads"],
+			[Tool.SETTLEMENT, "0 Settlements"]]:
 		var b := Button.new()
 		b.text = str(ts[1])
 		b.toggle_mode = true
@@ -1470,8 +1826,12 @@ func _on_v3d_gui_input(event: InputEvent) -> void:
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
 			_v3d_panning = event.pressed
 			_v3d_pan_prev = _v3d_container.get_local_mouse_position()
-		elif event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-			_v3d_place_at_cursor()
+		elif event.button_index == MOUSE_BUTTON_LEFT:
+			if _tool == Tool.ROAD:
+				if event.pressed: _v3d_road_begin()
+				else: _v3d_road_end()
+			elif event.pressed:
+				_v3d_place_at_cursor()
 		_v3d_container.accept_event()
 	elif event is InputEventMagnifyGesture:
 		_v3d_zoom_by(event.factor)            # trackpad pinch
@@ -1479,6 +1839,30 @@ func _on_v3d_gui_input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion and _v3d_panning:
 		_v3d_pan_drag()
 		_v3d_container.accept_event()
+	elif event is InputEventMouseMotion and _road_drawing:
+		var tl := _v3d_tile_under_mouse()
+		if tl.x != -2147483648 and (_road_pts.is_empty() or _road_pts[_road_pts.size() - 1] != tl):
+			_road_pts.append(tl)
+		_v3d_container.accept_event()
+
+
+func _v3d_road_begin() -> void:
+	var tile := _v3d_tile_under_mouse()
+	if tile.x == -2147483648:
+		return
+	_begin_stroke()
+	_road_pts.clear()
+	_road_pts.append(tile)
+	_road_drawing = true
+	_status.text = "Drawing road in 3D… drag, release to finish."
+
+
+func _v3d_road_end() -> void:
+	if not _road_drawing:
+		return
+	var mid: Vector2i = _road_pts[_road_pts.size() / 2] if not _road_pts.is_empty() else Vector2i.ZERO
+	_commit_stroke()   # finalizes the road (paints tiles, builds bridges) + resyncs 3D
+	_refresh_3d_entities(mid)
 
 
 func _v3d_place_at_cursor() -> void:
@@ -1494,8 +1878,11 @@ func _v3d_place_at_cursor() -> void:
 			_refresh_3d_entities(tile)
 		Tool.SPAWN:
 			_begin_stroke(); _set_spawn(tile); _commit_stroke()
+		Tool.SETTLEMENT:
+			_begin_stroke(); _place_settlement(tile); _commit_stroke()
+			_refresh_3d_entities(tile)
 		_:
-			_status.text = "Pick a Structure/Stamp tool, then click to place. (%d, %d)" % [tile.x, tile.y]
+			_status.text = "Pick a Structure/Stamp/Road/Settlement tool, then click to place. (%d, %d)" % [tile.x, tile.y]
 
 
 ## View-distance slider: drive the aerial terrain streaming radius live.
@@ -1693,6 +2080,22 @@ func _refresh_palette() -> void:
 			_note("Click a walkable tile to set the player spawn. Current: (%d, %d)" % [_spawn_tile.x, _spawn_tile.y])
 		Tool.ERASE:
 			_note("Brush to remove placed structures, monsters & ambient trees (shown as green dots — toggle the 'Trees' overlay). Tick 'Erase biomes too' to also restore generated terrain.")
+		Tool.ROAD:
+			_header(_palette_box, "Road style")
+			for sname: String in _road_styles().keys():
+				_choice(str(sname).capitalize(), str(sname), _sel_road_style == str(sname),
+					func(id: String) -> void: _sel_road_style = id)
+			_note("Drag to draw a road - it auto-curves and bridges any water it crosses. Ctrl+Z undoes the whole road; Ctrl+S saves the polylines to the worldspec (re-styleable).")
+		Tool.SETTLEMENT:
+			_header(_palette_box, "Settlements")
+			var sdoc := _settlement_templates()
+			var stmpls: Dictionary = sdoc.get("templates", {})
+			var sorder: Array = sdoc.get("order", stmpls.keys())
+			for sid: Variant in sorder:
+				var lbl := str((stmpls.get(str(sid), {}) as Dictionary).get("label", str(sid).capitalize()))
+				_choice(lbl, str(sid), _sel_settlement == str(sid),
+					func(id: String) -> void: _sel_settlement = id)
+			_note("Click to stamp a placeholder settlement (R rotates). Buildings drop as normal structures - edit each placement with the Structure/Erase tools.")
 		_:
 			_note("Right-drag to pan, wheel to zoom. Pick a tool to edit.")
 	_update_preview()
@@ -1956,5 +2359,6 @@ func _save() -> void:
 	f.store_string(var_to_str(doc))
 	f.close()
 	_img.save_png(OUT_DIR + str(_spec.id) + "_map.png")
-	_status.text = "Saved %d chunks + spawn → %s" % [_chunks.size(), world_path]
+	_persist_roads_to_worldspec()
+	_status.text = "Saved %d chunks, %d roads → %s" % [_chunks.size(), _spec.roads.size(), world_path]
 	print("World editor saved: ", ProjectSettings.globalize_path(world_path))

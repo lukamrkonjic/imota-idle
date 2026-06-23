@@ -175,6 +175,7 @@ func _ingest_world(doc: Dictionary) -> void:
 		roads.append({
 			"id": str(r.get("id", "")),
 			"kind": str(r.get("kind", "minor")),
+			"style": str(r.get("style", "")),
 			"width": int(r.get("width", 1)),
 			"points": pts,
 		})

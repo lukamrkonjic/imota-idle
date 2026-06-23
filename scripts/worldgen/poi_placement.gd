@@ -71,6 +71,33 @@ func place(chunk: RefCounted, occupied: Dictionary, placement_grid: RefCounted) 
 				minors += 1
 
 
+## CURATED-ONLY placement for blank-canvas worlds: the home camp + hand-authored
+## WorldSpec anchors (settlements / landmarks / dungeons), but NONE of the
+## procedural POIs. Anchors ignore the POI's biome whitelist (their tile was
+## already validated as flat walkable land) and keep their authored label.
+func place_authored_only(chunk: RefCounted, occupied: Dictionary, placement_grid: RefCounted) -> int:
+	if chunk.layer != 0:
+		return 0
+	var n := 0
+	if chunk.cx == 0 and chunk.cy == 0:
+		if _try_place(chunk, "campsite", reg.pois.get("campsite", {}), occupied, placement_grid):
+			n += 1
+	if n == 0 and reg.spec.active:
+		var anc: Dictionary = reg.spec.anchor_for_chunk(chunk.cx, chunk.cy)
+		if not anc.is_empty():
+			var adef: Dictionary = reg.pois.get(str(anc["poi"]), {}).duplicate(true)
+			if not adef.is_empty():
+				adef.erase("biomes")          # authored placement already validated for land
+				adef["_keepLabel"] = true     # keep "Imota" etc., don't let a variant rename it
+				if not str(anc.get("label", "")).is_empty():
+					adef["label"] = str(anc["label"])
+				if not str(anc.get("boss", "")).is_empty():
+					adef["_pinnedBoss"] = str(anc["boss"])
+				if _try_place(chunk, str(anc["poi"]), adef, occupied, placement_grid):
+					n += 1
+	return n
+
+
 ## Cheap predicate (no chunk generation needed): would this POI type want to
 ## live in chunk (cx, cy)? Used by WorldGen ring searches to skip chunks.
 func wants_chunk(cx: int, cy: int, zone: Dictionary, type: String) -> bool:
@@ -140,7 +167,8 @@ func _try_place(chunk: RefCounted, type: String, def: Dictionary, occupied: Dict
 		var v := _pick_variant(chunk, anchor, variants)
 		if v.is_empty():
 			return false
-		poi["label"] = str(v.get("label", poi["label"]))
+		if not bool(def.get("_keepLabel", false)):
+			poi["label"] = str(v.get("label", poi["label"]))
 		parts = [{"kind": str(v.get("kind", "sign")), "label": poi["label"], "dx": 0, "dy": 0}]
 
 	for raw: Dictionary in parts:
@@ -239,7 +267,11 @@ func _pick_variant(chunk: RefCounted, anchor: Vector2i, variants: Array) -> Dict
 		if Array(v.get("biomes", [])).has(biome_id):
 			fitting.append(v)
 	if fitting.is_empty():
-		return {}
+		# Authored anchors may sit in any biome (their placement is already validated),
+		# so fall back to the first variant rather than failing to resolve a look.
+		if variants.is_empty():
+			return {}
+		fitting = [variants[0]]
 	var roll := WG.hash_i(world_seed, chunk.cx, chunk.cy, 53) % fitting.size()
 	return fitting[roll]
 

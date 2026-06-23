@@ -102,6 +102,8 @@ static func entity_parts(e: Node) -> Array:
 			return _city_wall_parts(int(e.get("variant")))
 		"bridge":
 			return _bridge_parts()
+		"bridge_pole":
+			return _bridge_pole_parts()
 		"city_prop":
 			return _city_prop_parts(str(e.get("prop_kind")))
 		"decor":
@@ -664,10 +666,23 @@ static func _city_wall_parts(piece: int) -> Array:
 
 
 static func _bridge_parts() -> Array:
+	# An ORIENTED plank-deck segment (one per bridge tile, yaw-aligned + raised by the entity's
+	# height_offset so it rides above the water). Local +Z runs ALONG the path, +X across. A solid
+	# light deck with dark flush gap-lines reads as laid boards; a railing runs down each side.
+	var deck := _mat("trunk_a", "trunk_b", "dirt_a")
+	var gap := _mat("trunk_b", "trunk_b", "trunk_a")
+	var parts: Array = [_part(_box("bridge_deck", Vector3(1.5, 0.14, 1.35)), deck, Vector3(0, 0.07, 0))]
+	for z: float in [-0.45, 0.0, 0.45]:                            # dark plank gaps, flush on the deck
+		parts.append(_part(_box("bridge_gap", Vector3(1.5, 0.04, 0.06)), gap, Vector3(0, 0.145, z)))
+	parts.append(_part(_box("bridge_rail", Vector3(0.1, 0.26, 1.35)), gap, Vector3(-0.72, 0.24, 0)))   # side rails
+	parts.append(_part(_box("bridge_rail", Vector3(0.1, 0.26, 1.35)), gap, Vector3(0.72, 0.24, 0)))
+	return parts
+
+
+static func _bridge_pole_parts() -> Array:
+	# A square wooden support pillar from the deck rail down into the water (orientation-free).
 	return [
-		_part(_box("bridge_deck", Vector3(1.7, 0.16, 0.85)), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0, 0.08, 0)),
-		_part(_box("bridge_rail", Vector3(1.75, 0.14, 0.08)), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0, 0.32, -0.44)),
-		_part(_box("bridge_rail", Vector3(1.75, 0.14, 0.08)), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0, 0.32, 0.44))]
+		_part(_box("bridge_pole", Vector3(0.16, 1.3, 0.16)), _mat("trunk_b", "trunk_a", "dirt_a"), Vector3(0, -0.45, 0))]
 
 
 static func _city_prop_parts(prop: String) -> Array:

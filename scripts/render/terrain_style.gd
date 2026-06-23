@@ -87,8 +87,13 @@ static func grade(col: Color, tile: String, gtx: int, gty: int, elev: int = 0, s
 		var lavender_patch := 0.5 + 0.5 * sin(fx * 0.045 - fz * 0.038 + 0.7)
 		return snow.lerp(Color(0.70, 0.68, 0.91), lavender_patch * 0.10)
 	if is_path(tile) and elev <= 0:
-		var path_col := PixelPalette.pal("path_orange").lerp(PixelPalette.pal("path_light"), bright * 0.42)
-		c = c.lerp(path_col, 0.94)
+		if tile == "cobble" or tile == "gravel":
+			# Stone / gravel roads keep their cool grey base — only broad lighting, never the
+			# warm dirt tint, so a paved road reads as stone instead of orange earth.
+			c = c.lightened(bright * 0.12).darkened((1.0 - band2) * 0.06)
+		else:
+			var path_col := PixelPalette.pal("path_orange").lerp(PixelPalette.pal("path_light"), bright * 0.42)
+			c = c.lerp(path_col, 0.94)
 	elif is_rock(tile) or elev > 0:
 		# Material follows LANDFORM first: steep/convex -> warm cliff mass; calm shelves keep
 		# grass or ochre. A broad spatial bias keeps the zones off parallel elevation rings.
@@ -111,6 +116,15 @@ static func grade(col: Color, tile: String, gtx: int, gty: int, elev: int = 0, s
 		c = c.lerp(landform, 0.94)
 	elif tile in SAND_TILES:
 		c = c.lerp(PixelPalette.pal("warm_stone"), 0.5)
+	elif tile == "plank_floor":
+		# Wooden bridge / boardwalk deck — warm planks, NEVER grass-tinted, with a faint
+		# slat stripe so it reads as laid boards (A Short Hike-style plank crossing).
+		var wood := c.lightened(bright * 0.14).darkened((1.0 - band2) * 0.08)
+		var slat := 0.5 + 0.5 * sin((fx - fz) * 1.7)
+		c = wood.darkened(smoothstep(0.55, 1.0, slat) * 0.16)
+	elif tile == "plaza":
+		# Paved stone plaza — keep the cool grey, just lit (not green).
+		c = c.lightened(bright * 0.10).darkened((1.0 - band2) * 0.06)
 	else:
 		# Deep-forest grass gradient: mid foliage -> sunlit grass, drifting to leaf/forest
 		# green in shade and a moss highlight elsewhere. No lime.
