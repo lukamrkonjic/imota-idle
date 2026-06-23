@@ -33,6 +33,7 @@ const Chunk := preload("res://scripts/worldgen/chunk.gd")
 const BakedWorldStore := preload("res://scripts/worldgen/baked_world_store.gd")
 const FiniteWorldGenerator := preload("res://scripts/worldgen/finite_world_generator.gd")
 const RoadBrush := preload("res://scripts/worldgen/road_brush.gd")
+const TerrainStyle := preload("res://scripts/render/terrain_style.gd")
 const StampLibrary := preload("res://scripts/worldgen/stamp_library.gd")
 const PlaceablePreview := preload("res://tools/placeable_preview.gd")
 const MountainField := preload("res://scripts/worldgen/mountain_field.gd")
@@ -377,7 +378,11 @@ func _blit_chunk(chunk: RefCounted) -> void:
 	var by: int = chunk.cy * WG.CHUNK_TILES - _min_ty
 	for ly: int in WG.CHUNK_TILES:
 		for lx: int in WG.CHUNK_TILES:
-			_img.set_pixel(bx + lx, by + ly, _tile_color(chunk.tile_id(lx, ly)))
+			var tid: int = chunk.tile_id(lx, ly)
+			var col: Color = _tile_color(tid)
+			if not bool(_reg.tile_def(tid).get("water", false)):
+				col = TerrainStyle.biome_tinted(col, str(_reg.tile_order[tid]), _reg.biome_tint(chunk.biome_at(lx, ly)), 0.55)
+			_img.set_pixel(bx + lx, by + ly, col)
 
 
 func _tile_color(tid: int) -> Color:
@@ -493,8 +498,10 @@ func _process(_delta: float) -> void:
 	# Pointer is "over UI" whenever any editor Control is under the cursor — used
 	# to keep the mouse wheel scrolling lists instead of zooming the map.
 	_ui_hover = get_viewport().gui_get_hovered_control() != null
-	var t := _tile_under_mouse()
-	if t != _hover_tile:
+	# In the docked 3D view the cursor sits over the 3D panel, so read the tile under the 3D
+	# cursor (not the hidden 2D map) — otherwise the coords/biome readout is wrong in 3D.
+	var t := _v3d_tile_under_mouse() if _v3d_on else _tile_under_mouse()
+	if t.x != -2147483648 and t != _hover_tile:
 		_hover_tile = t
 		_update_coords()
 	if _painting and not _ui_hover and _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE]:
@@ -1429,6 +1436,7 @@ func _build_ui() -> void:
 	_v3d_btn.toggle_mode = true
 	_status = Label.new()
 	_status.text = "Loaded %d chunks" % _chunks.size()
+	_status.add_theme_font_size_override("font_size", 15)
 	_status.add_theme_color_override("font_color", Color(0.7, 0.85, 0.7))
 	tb.add_child(_status)
 
@@ -1496,8 +1504,8 @@ func _build_ui() -> void:
 	scroll.add_child(_palette_box)
 
 	_coords = Label.new()
-	_coords.add_theme_font_size_override("font_size", 10)
-	_coords.add_theme_color_override("font_color", Color(0.6, 0.7, 0.6))
+	_coords.add_theme_font_size_override("font_size", 17)
+	_coords.add_theme_color_override("font_color", Color(0.85, 0.95, 0.85))
 	lb.add_child(_coords)
 	var hint := Label.new()
 	hint.text = "RMB pan · wheel zoom · [ ] size\nCtrl+Z undo · Ctrl+Y redo"

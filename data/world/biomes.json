@@ -344,7 +344,7 @@
    "tiles": {
     "water": 1.0
    },
-   "tint": "a9bbcc",
+   "tint": "3a4558",
    "music": "ocean",
    "skillWeights": {
     "fishing": 1.0
@@ -446,7 +446,7 @@
     "lava_rock": 0.18,
     "lava": 0.04
    },
-   "tint": "85444a",
+   "tint": "564f47",
    "music": "volcanic",
    "skillWeights": {
     "mining": 3.0,
@@ -519,7 +519,7 @@
     "dirt": 0.16,
     "grass_dark": 0.1
    },
-   "tint": "a9bbcc",
+   "tint": "9a9a86",
    "music": "hills",
    "skillWeights": {
     "mining": 5.5,
@@ -607,7 +607,7 @@
     "frozen_grass": 0.23,
     "rock": 0.03
    },
-   "tint": "dfe6e0",
+   "tint": "b4c8b4",
    "music": "tundra",
    "skillWeights": {
     "woodcutting": 1.2,
@@ -693,7 +693,7 @@
     "desert_sand": 0.82,
     "desert_dune": 0.18
    },
-   "tint": "d9c277",
+   "tint": "d8be70",
    "music": "desert",
    "skillWeights": {
     "mining": 1.6,
@@ -778,7 +778,7 @@
     "mud": 0.16,
     "shallow": 0.08
    },
-   "tint": "9ba15f",
+   "tint": "566842",
    "music": "swamp",
    "skillWeights": {
     "foraging": 2.5,
@@ -865,7 +865,7 @@
     "rock": 0.28,
     "snow": 0.1
    },
-   "tint": "c4ccc8",
+   "tint": "c4d2d4",
    "music": "tundra",
    "skillWeights": {
     "mining": 3.5,
@@ -949,7 +949,7 @@
     "grass_dark": 0.2,
     "mud": 0.08
    },
-   "tint": "4a6248",
+   "tint": "468a46",
    "music": "deep_forest",
    "skillWeights": {
     "foraging": 3.2,
@@ -1035,7 +1035,7 @@
     "grass_dark": 0.22,
     "dirt": 0.1
    },
-   "tint": "5e7064",
+   "tint": "426860",
    "music": "forest",
    "skillWeights": {
     "woodcutting": 2.6,
@@ -1079,15 +1079,11 @@
      },
      {
       "kind": "canopy_pine",
-      "weight": 0.35
-     },
-     {
-      "kind": "canopy_snow_fir",
-      "weight": 0.1
+      "weight": 0.4
      },
      {
       "kind": "canopy_birch",
-      "weight": 0.1
+      "weight": 0.15
      }
     ]
    },
@@ -1130,7 +1126,7 @@
     "dirt": 0.14,
     "grass": 0.08
    },
-   "tint": "c4b878",
+   "tint": "c8b25c",
    "music": "plains",
    "skillWeights": {
     "foraging": 1.6,
@@ -1219,7 +1215,7 @@
     "rock": 0.28,
     "dirt": 0.14
    },
-   "tint": "8a6848",
+   "tint": "a8784c",
    "music": "desert",
    "skillWeights": {
     "mining": 2.8,
@@ -1289,7 +1285,7 @@
     "grass_dark": 0.7,
     "grass": 0.3
    },
-   "tint": "596e47",
+   "tint": "46663a",
    "music": "deep_forest",
    "skillWeights": {
     "woodcutting": 4.0,
@@ -1376,7 +1372,7 @@
     "grass": 0.85,
     "dirt": 0.15
    },
-   "tint": "ffffff",
+   "tint": "cfe07a",
    "music": "plains",
    "skillWeights": {
     "foraging": 2.2,
@@ -1431,7 +1427,7 @@
     "mud": 0.35,
     "marsh": 0.2
    },
-   "tint": "9ba15f",
+   "tint": "687644",
    "music": "swamp",
    "skillWeights": {
     "fishing": 2.5,
@@ -1490,7 +1486,7 @@
     "cobble": 0.25,
     "dirt": 0.2
    },
-   "tint": "a9bbcc",
+   "tint": "a6b094",
    "music": "hills",
    "skillWeights": {
     "mining": 4.5,
@@ -1549,7 +1545,7 @@
     "grass": 0.3,
     "desert_sand": 0.35
    },
-   "tint": "9ba15f",
+   "tint": "9ec468",
    "music": "desert",
    "skillWeights": {
     "foraging": 2.0,
@@ -1608,7 +1604,7 @@
     "grass": 0.72,
     "grass_dark": 0.28
    },
-   "tint": "b8c878",
+   "tint": "8cc663",
    "music": "forest",
    "skillWeights": {
     "foraging": 2.0,
@@ -1666,7 +1662,7 @@
     "jungle_loam": 0.8,
     "grass_dark": 0.2
    },
-   "tint": "5a7a48",
+   "tint": "76a858",
    "music": "deep_forest",
    "skillWeights": {
     "woodcutting": 3.5,
@@ -1724,7 +1720,7 @@
     "snow": 0.88,
     "frozen_grass": 0.12
    },
-   "tint": "e8f0ec",
+   "tint": "eaf0f4",
    "music": "tundra",
    "skillWeights": {
     "foraging": 0.8,
@@ -1774,7 +1770,7 @@
     "desert_sand": 0.7,
     "desert_dune": 0.3
    },
-   "tint": "d4b868",
+   "tint": "cec486",
    "music": "desert",
    "skillWeights": {
     "foraging": 1.2,
@@ -1870,7 +1866,7 @@
     "gravel": 0.25,
     "grass_dark": 0.2
    },
-   "tint": "8a7a88",
+   "tint": "9a78a0",
    "music": "hills",
    "skillWeights": {
     "foraging": 1.8,
@@ -1937,7 +1933,7 @@
     "marsh": 0.35,
     "shallow": 0.1
    },
-   "tint": "5a6a48",
+   "tint": "465036",
    "music": "swamp",
    "skillWeights": {
     "foraging": 2.8,
@@ -1995,7 +1991,7 @@
     "sand": 0.65,
     "shallow": 0.35
    },
-   "tint": "c8b888",
+   "tint": "bcb494",
    "music": "coast",
    "skillWeights": {
     "fishing": 2.8,
@@ -2041,7 +2037,7 @@
     "lava_rock": 0.3,
     "gravel": 0.15
    },
-   "tint": "9a5848",
+   "tint": "b0b094",
    "music": "volcanic",
    "skillWeights": {
     "mining": 3.5,
@@ -2096,7 +2092,7 @@
     "dirt": 0.25,
     "grass": 0.1
    },
-   "tint": "b8a060",
+   "tint": "b2a25c",
    "music": "plains",
    "skillWeights": {
     "foraging": 1.4,
@@ -2150,7 +2146,7 @@
     "badland_clay": 0.62,
     "rock": 0.38
    },
-   "tint": "7a5840",
+   "tint": "886a4c",
    "music": "desert",
    "skillWeights": {
     "mining": 3.0,
@@ -2201,7 +2197,7 @@
     "snow": 0.28,
     "rock": 0.14
    },
-   "tint": "b8c0b8",
+   "tint": "c6cec0",
    "music": "tundra",
    "skillWeights": {
     "foraging": 1.0,
@@ -2272,7 +2268,7 @@
     "grass": 0.82,
     "grass_dark": 0.18
    },
-   "tint": "9ba15f",
+   "tint": "5f8444",
    "music": "forest",
    "skillWeights": {
     "woodcutting": 3.0,
@@ -2365,7 +2361,7 @@
     "grass": 0.82,
     "grass_dark": 0.18
    },
-   "tint": "ffffff",
+   "tint": "aec268",
    "music": "plains",
    "skillWeights": {
     "woodcutting": 1.2,
@@ -2447,7 +2443,7 @@
     "wheat": 0.72,
     "wheat_ripe": 0.28
    },
-   "tint": "f0d27a",
+   "tint": "d6c258",
    "music": "plains",
    "skillWeights": {
     "foraging": 2.4,
@@ -2515,7 +2511,7 @@
     "mud": 0.26,
     "dirt": 0.14
    },
-   "tint": "4a4838",
+   "tint": "76705a",
    "music": "volcanic",
    "skillWeights": {
     "mining": 2.0,
@@ -2575,7 +2571,7 @@
     "ash": 0.28,
     "lava_rock": 0.14
    },
-   "tint": "33302a",
+   "tint": "443e38",
    "music": "volcanic",
    "skillWeights": {
     "mining": 2.0,
@@ -2627,7 +2623,7 @@
     "lava_rock": 0.3,
     "peak_rock": 0.14
    },
-   "tint": "26242c",
+   "tint": "383240",
    "music": "volcanic",
    "skillWeights": {
     "mining": 2.0,
@@ -2666,7 +2662,7 @@
     "marsh": 0.3,
     "mud": 0.18
    },
-   "tint": "3e4634",
+   "tint": "565062",
    "music": "volcanic",
    "skillWeights": {
     "mining": 2.0,
@@ -2721,7 +2717,7 @@
     "grass": 0.82,
     "grass_dark": 0.18
    },
-   "tint": "a8d89a",
+   "tint": "9ce0a2",
    "music": "forest",
    "skillWeights": {
     "foraging": 2.4,
@@ -2779,7 +2775,7 @@
     "grass": 0.82,
     "grass_dark": 0.18
    },
-   "tint": "9aa6d6",
+   "tint": "8a94e2",
    "music": "forest",
    "skillWeights": {
     "foraging": 2.0,
@@ -2833,7 +2829,7 @@
     "grass": 0.6,
     "grass_dark": 0.4
    },
-   "tint": "6a7a4a",
+   "tint": "44664c",
    "music": "forest",
    "skillWeights": {
     "woodcutting": 3.2,
@@ -2891,7 +2887,7 @@
     "grass": 0.82,
     "grass_dark": 0.18
    },
-   "tint": "cfe0a0",
+   "tint": "d8e882",
    "music": "forest",
    "skillWeights": {
     "foraging": 2.0,
@@ -2942,7 +2938,7 @@
     "dirt": 0.2,
     "shallow": 0.1
    },
-   "tint": "a6d8d0",
+   "tint": "86e0d2",
    "music": "forest",
    "skillWeights": {
     "foraging": 1.8,
@@ -2996,7 +2992,7 @@
     "grass": 0.85,
     "dirt": 0.15
    },
-   "tint": "9ab87a",
+   "tint": "a4c46e",
    "music": "hills",
    "skillWeights": {
     "foraging": 1.8,
@@ -3054,7 +3050,7 @@
     "grass": 0.85,
     "dirt": 0.15
    },
-   "tint": "aac888",
+   "tint": "bcd28a",
    "music": "plains",
    "skillWeights": {
     "foraging": 1.6
@@ -3103,7 +3099,7 @@
     "grass": 0.85,
     "dirt": 0.15
    },
-   "tint": "a0b87a",
+   "tint": "aec47c",
    "music": "plains",
    "skillWeights": {
     "foraging": 1.6,
@@ -3157,7 +3153,7 @@
     "grass": 0.75,
     "gravel": 0.25
    },
-   "tint": "b8c8a0",
+   "tint": "c6ceb0",
    "music": "hills",
    "skillWeights": {
     "foraging": 2.0,
@@ -3211,7 +3207,7 @@
     "grass": 0.6,
     "grass_dark": 0.4
    },
-   "tint": "6a8270",
+   "tint": "647e76",
    "music": "forest",
    "skillWeights": {
     "woodcutting": 3.0,
@@ -3224,15 +3220,15 @@
     "kinds": [
      {
       "kind": "canopy_pine",
-      "weight": 0.45
+      "weight": 0.5
      },
      {
       "kind": "canopy_fir",
       "weight": 0.35
      },
      {
-      "kind": "canopy_snow_fir",
-      "weight": 0.2
+      "kind": "canopy_birch",
+      "weight": 0.15
      }
     ]
    },
@@ -3269,7 +3265,7 @@
     "grass_dark": 0.62,
     "mud": 0.38
    },
-   "tint": "5a6a58",
+   "tint": "465046",
    "music": "swamp",
    "skillWeights": {
     "foraging": 1.2,
@@ -3327,7 +3323,7 @@
     "grass_dark": 0.62,
     "mud": 0.38
    },
-   "tint": "6a7050",
+   "tint": "565c3c",
    "music": "forest",
    "skillWeights": {
     "hunter": 1.4,
@@ -3386,7 +3382,7 @@
     "grass": 0.3,
     "mud": 0.15
    },
-   "tint": "7a7a88",
+   "tint": "76768e",
    "music": "hills",
    "skillWeights": {
     "foraging": 1.2,
@@ -3441,7 +3437,7 @@
     "dirt": 0.3,
     "cobble": 0.15
    },
-   "tint": "9aa080",
+   "tint": "9ea886",
    "music": "hills",
    "skillWeights": {
     "mining": 1.0,
@@ -3500,7 +3496,7 @@
     "dirt": 0.35,
     "cobble": 0.15
    },
-   "tint": "8a9088",
+   "tint": "92968e",
    "music": "swamp",
    "skillWeights": {
     "foraging": 0.6,
@@ -3554,7 +3550,7 @@
     "sand": 0.8,
     "grass": 0.2
    },
-   "tint": "d8c890",
+   "tint": "e0ce86",
    "music": "coast",
    "skillWeights": {
     "foraging": 1.4,
@@ -3604,7 +3600,7 @@
     "grass": 0.7,
     "mud": 0.3
    },
-   "tint": "5a8a6a",
+   "tint": "46805e",
    "music": "forest",
    "skillWeights": {
     "foraging": 2.0,
@@ -3662,7 +3658,7 @@
     "grass": 0.6,
     "ash": 0.4
    },
-   "tint": "6a7a50",
+   "tint": "546842",
    "music": "forest",
    "skillWeights": {
     "foraging": 1.6,
@@ -3705,6 +3701,85 @@
      {
       "kind": "pebble",
       "weight": 0.16
+     }
+    ]
+   }
+  },
+  {
+   "id": "wildflower_meadow",
+   "name": "Wildflower Meadow",
+   "priority": 36,
+   "neighbors": [
+    "plains",
+    "forest",
+    "beach",
+    "rocky_hills"
+   ],
+   "tiles": {
+    "grass": 0.72,
+    "grass_dark": 0.12,
+    "dirt": 0.16
+   },
+   "tint": "c8d878",
+   "music": "plains",
+   "skillWeights": {
+    "foraging": 2.6,
+    "woodcutting": 0.3,
+    "hunter": 0.6
+   },
+   "siteDensity": 0.8,
+   "monsterDensity": 0.25,
+   "canopy": {
+    "density": 0.006,
+    "kinds": [
+     {
+      "kind": "canopy_birch",
+      "weight": 0.7
+     },
+     {
+      "kind": "canopy_maple",
+      "weight": 0.3
+     }
+    ]
+   },
+   "groundDecor": {
+    "density": 0.36,
+    "kinds": [
+     {
+      "kind": "flower_purple",
+      "weight": 0.16
+     },
+     {
+      "kind": "flower_yellow",
+      "weight": 0.14
+     },
+     {
+      "kind": "flower_white",
+      "weight": 0.09
+     },
+     {
+      "kind": "flower_pink",
+      "weight": 0.06
+     },
+     {
+      "kind": "wild_grass",
+      "weight": 0.42
+     },
+     {
+      "kind": "grass",
+      "weight": 0.2
+     },
+     {
+      "kind": "fern",
+      "weight": 0.07
+     },
+     {
+      "kind": "shrub",
+      "weight": 0.05
+     },
+     {
+      "kind": "pebble",
+      "weight": 0.04
      }
     ]
    }

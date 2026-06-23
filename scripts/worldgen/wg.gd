@@ -88,6 +88,39 @@ static func _smooth_val(p_seed: int, gx: int, gy: int, scale: float, salt: int) 
 		lerpf(r01(p_seed, x0, y0 + 1, salt), r01(p_seed, x0 + 1, y0 + 1, salt), fx), fy)
 
 
+## Flower-clumping mask: TIGHT, well-separated patches with clear meadow between them, not an
+## even speckle. A narrow high threshold means most of the map scores ~0 (no flowers); only the
+## noise peaks bloom, and the steep band + high peak make those patches solid inside their edges.
+## A domain warp pushes the sample point around so the patch outlines are irregular and organic
+## rather than smooth round blobs aligned to the noise grid.
+static func flower_clump(p_seed: int, gx: int, gy: int) -> float:
+	var wx := gx + int((_smooth_val(p_seed, gx, gy, 9.0, 334) - 0.5) * 8.0)
+	var wy := gy + int((_smooth_val(p_seed, gx, gy, 9.0, 335) - 0.5) * 8.0)
+	var n := _smooth_val(p_seed, wx, wy, 6.0, 330) * 0.7 + _smooth_val(p_seed, wx, wy, 2.2, 331) * 0.3
+	return smoothstep(0.60, 0.72, n) * 3.0
+
+
+## The flower colour for a patch, from a low-frequency field so each clump leans ONE colour.
+## Purple dominates (the meadow's signature), yellow is the smallest band (it was too frequent),
+## with white/pink as accents.
+static func flower_color(p_seed: int, gx: int, gy: int) -> String:
+	var v := _smooth_val(p_seed, gx, gy, 9.0, 332)
+	if v < 0.44:
+		return "flower_purple"
+	elif v < 0.66:
+		return "flower_yellow"
+	elif v < 0.86:
+		return "flower_white"
+	return "flower_pink"
+
+
+## Coarse shape-zone field for flowers: neighbouring tiles share a value, so one silhouette
+## dominates a local area. This makes the tall spikes spawn in tight clusters together rather
+## than scattered one-by-one among daisies and low bunches.
+static func flower_shape_zone(p_seed: int, gx: int, gy: int) -> float:
+	return _smooth_val(p_seed, gx, gy, 5.0, 281)
+
+
 ## Deterministic pick from a weighted dict {key: weight}. Returns "" if empty.
 static func pick_weighted(weights: Dictionary, roll: float) -> String:
 	var total := 0.0

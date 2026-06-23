@@ -124,6 +124,7 @@ func _parse_biomes(raw: Array) -> void:
 		for tid: String in tw:
 			resolved.append([int(tile_index[tid]), float(tw[tid])])
 		biomes[i]["_tile_weights"] = resolved
+		biomes[i]["_tint"] = _hex(str(biomes[i].get("tint", "ffffff")))
 		if not bool(biomes[i].get("isSubBiome", false)):
 			parent_biome_ids.append(str(biomes[i]["id"]))
 			var nbrs: Array = biomes[i].get("neighbors", [])
@@ -190,6 +191,13 @@ func parent_biome_id(idx: int) -> String:
 
 func biome(idx: int) -> Dictionary:
 	return biomes[idx]
+
+
+## Parsed map/terrain tint Color for a biome index (white if out of range).
+func biome_tint(idx: int) -> Color:
+	if idx < 0 or idx >= biomes.size():
+		return Color.WHITE
+	return biomes[idx].get("_tint", Color.WHITE)
 
 
 func biome_by_id(id: String) -> Dictionary:

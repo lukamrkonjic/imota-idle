@@ -273,11 +273,12 @@ func _spawn_ground_decor_tile(chunk: RefCounted, container: Node2D, seed: int, t
 	var parent_id: String = WorldGen.reg.parent_biome_id(b_idx) if b_idx != 255 else biome_id
 	var near_water := _tile_near_water(chunk, tx, ty)
 	var chance := _decor_chance(biome_id, parent_id, near_water)
+	var gx: int = int(chunk.cx) * WG.CHUNK_TILES + tx
+	var gy: int = int(chunk.cy) * WG.CHUNK_TILES + ty
+	var flowery := elev <= 0 and _biome_flower_weight(biome_id) >= 0.4
 	if elev > 0:
 		# Medium-scale alpine clusters: sparse open slopes alternating with denser
 		# ledges/outcrop pockets. The low-frequency cell gate prevents even scatter.
-		var gx: int = int(chunk.cx) * WG.CHUNK_TILES + tx
-		var gy: int = int(chunk.cy) * WG.CHUNK_TILES + ty
 		var cluster := WG.r01(seed, floori(float(gx) / 5.0), floori(float(gy) / 5.0), 231)
 		chance = (0.12 if cluster > 0.48 else 0.025)
 	if r > chance:
@@ -286,6 +287,15 @@ func _spawn_ground_decor_tile(chunk: RefCounted, container: Node2D, seed: int, t
 	d.variant = int(WG.hash_i(seed, chunk.cx * 97 + tx, chunk.cy * 101 + ty, 202) % 1000)
 	var kroll := WG.r01(seed, chunk.cx * 97 + tx, chunk.cy * 101 + ty, 205)
 	d.kind = _pick_alpine_decor(elev, kroll, d.variant) if elev > 0 else _pick_decor_kind(biome_id, near_water, kroll)
+	if flowery and d.kind.begins_with("flower"):
+		# Flowers bloom only inside clump patches; between patches the tile falls back to wild
+		# grass, so the meadow floor stays full instead of bare around the flower clusters. The
+		# colour leans one hue per patch, and a per-instance shape suffix varies the silhouette.
+		var patch := WG.flower_clump(seed, gx, gy)   # ~0 in gaps .. ~1.9 in patch centres
+		if WG.r01(seed, gx * 13 + 5, gy * 13 + 9, 273) > patch:
+			d.kind = "wild_grass"
+		else:
+			d.kind = WG.flower_color(seed, gx, gy) + _flower_shape(seed, gx, gy, d.variant)
 	var jitter := Vector2(
 		(WG.r01(seed, tx, ty, 203) - 0.5) * WG.TILE * 0.28,
 		(WG.r01(seed, tx, ty, 204) - 0.5) * WG.TILE * 0.14)
@@ -369,7 +379,7 @@ func _pick_alpine_decor(elev: int, roll: float, variant: int) -> String:
 	if elev < 28 and roll < 0.10 and variant % 3 != 0:
 		return "alpine_pine"
 	if roll < 0.42:
-		return "alpine_boulder"
+		return "alpine_boulder" + str(variant % 3)   # 3 irregular boulder shapes
 	if roll < 0.64:
 		return "rubble"
 	if roll < 0.82 and elev < 30:
@@ -482,6 +492,35 @@ func _decor_chance(biome_id: String, _parent_id: String, near_water: bool) -> fl
 	if near_water:
 		return float(cfg.get("waterDensity", cfg.get("density", 0.03)))
 	return float(cfg.get("density", 0.03))
+
+
+## Total weight of flower kinds in a biome's ground decor, cached per biome. Used to
+## decide whether a tile is in a "flowery" biome (>= 0.4) and so gets meadow clumping.
+var _flower_w_cache: Dictionary = {}
+func _biome_flower_weight(biome_id: String) -> float:
+	if _flower_w_cache.has(biome_id):
+		return _flower_w_cache[biome_id]
+	var w := 0.0
+	for entry: Dictionary in WorldGen.reg.ground_decor(biome_id).get("kinds", []):
+		if str(entry.get("kind", "")).begins_with("flower"):
+			w += float(entry.get("weight", 0.0))
+	_flower_w_cache[biome_id] = w
+	return w
+
+
+## Flower silhouette suffix. The shape is driven mostly by a coarse spatial ZONE (so tall spikes
+## cluster tightly together rather than scattering), with a little per-instance variation inside
+## each zone so a cluster isn't perfectly uniform.
+func _flower_shape(seed: int, gx: int, gy: int, variant: int) -> String:
+	var zone := WG.flower_shape_zone(seed, gx, gy)
+	var v := variant % 6
+	if zone < 0.46:
+		return "_daisy" if v == 0 else "_spike"      # tall-spike clusters (the signature)
+	elif zone < 0.72:
+		return "_bell" if v == 0 else "_cluster"     # low rounded bunches
+	elif zone < 0.88:
+		return "_cluster" if v >= 4 else "_daisy"    # flat daisies
+	return "_spike" if v >= 4 else "_bell"           # nodding bells
 
 
 func _pick_decor_kind(biome_id: String, near_water: bool, roll: float) -> String:

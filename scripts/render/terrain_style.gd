@@ -58,6 +58,22 @@ static func surface_family(tile: String) -> String:
 	return "grass"
 
 
+## Shift a graded terrain colour toward its BIOME's tint so biomes read distinctly (a forest,
+## a moor, a meadow and an old-growth stand stop looking like the same green). Applied strongly
+## on grass/ground, lightly on rock/sand/snow and never on water, so mountains, beaches and
+## coasts stay legible. Shared by the 3D mesher and both 2D maps so they always match.
+static func biome_tinted(base: Color, tile: String, tint: Color, strength: float) -> Color:
+	match surface_family(tile):
+		"grass":
+			return base.lerp(tint, strength)
+		"sand", "rock", "snow":
+			return base.lerp(tint, strength * 0.25)
+		"water":
+			return base
+		_:
+			return base.lerp(tint, strength * 0.5)
+
+
 ## Warm + enrich a terrain tile colour with BROAD low-frequency painterly variation, alpine
 ## elevation layering, snow shedding on steep faces, path/trail tinting, and the forest-grass
 ## gradient. (col, tile, gtx, gty, elev, slope, curve) -> final Color.

@@ -120,17 +120,33 @@ static func is_moving(e: Node) -> bool:
 
 
 static func decor_parts(kind: String) -> Array:
+	if kind.begins_with("flower"):
+		# kind = "flower_<colour>[_<shape>]"; the shape suffix gives a meadow varied
+		# silhouettes (tall spikes, daisies, bells) instead of one repeated blob.
+		return _flower_variant_parts(kind)
 	match kind:
 		"alpine_pine":
-			# Small visual-only pines arrive in deterministic clusters from the
-			# elevated decor pass; snow-covered crowns belong on these cold shelves.
-			return _hike_conifer_parts(2, true)
-		"alpine_boulder":
-			return _hike_boulder_parts()
-		"flower":
+			# Foothill pines from the elevated decor pass (they only spawn on the lower,
+			# green shelves — elev < 28 — so they stay GREEN, not snow-white).
+			return _hike_conifer_parts(2, false)
+		"alpine_boulder", "alpine_boulder0":
+			return _boulder_parts(0)
+		"alpine_boulder1":
+			return _boulder_parts(1)
+		"alpine_boulder2":
+			return _boulder_parts(2)
+		"wild_grass", "tall_grass":
+			# Taller, looser meadow grass with golden-tipped blades — the base layer that
+			# fills the ground between flower clumps so the meadow never reads as bare.
+			var wg := _mat("moss_hi", "leaf_green", "sunlit_grass")
+			var wt := _mat("leaf_gold", "leaf_green", "sunlit_grass")
 			return [
-				_part(_sphere("d_ftuft", 0.16), _mat("foliage_c", "grass_dark", "foliage_c"), Vector3(0, 0.12, 0), Vector3(1.0, 0.7, 1.0)),
-				_part(_sphere("d_fhead", 0.1), _mat("gold", "dirt_a", "snow_a"), Vector3(0, 0.34, 0))]
+				_part(_cone("d_wg0", 0.05, 0.006, 0.70), wg, Vector3(0.0, 0.34, 0.0), Vector3.ONE, Vector3(0.06, 0.0, 0.05)),
+				_part(_cone("d_wg1", 0.05, 0.006, 0.62), wt, Vector3(0.11, 0.30, 0.05), Vector3.ONE, Vector3(0.0, 0.0, -0.5)),
+				_part(_cone("d_wg2", 0.045, 0.006, 0.60), wg, Vector3(-0.12, 0.29, -0.04), Vector3.ONE, Vector3(0.0, 0.0, 0.55)),
+				_part(_cone("d_wg3", 0.045, 0.006, 0.55), wt, Vector3(0.04, 0.27, -0.12), Vector3.ONE, Vector3(0.5, 0.0, 0.07)),
+				_part(_cone("d_wg4", 0.04, 0.006, 0.50), wg, Vector3(-0.05, 0.26, 0.11), Vector3.ONE, Vector3(-0.45, 0.0, -0.08)),
+				_part(_cone("d_wg5", 0.04, 0.006, 0.48), wt, Vector3(0.13, 0.25, 0.0), Vector3.ONE, Vector3(0.0, 0.0, -0.7))]
 		"grass":
 			# A fan of slender blades in fresh lush green, leaning outward like a real tuft.
 			var blade := _mat("moss_hi", "leaf_green", "sunlit_grass")
@@ -166,7 +182,9 @@ static func decor_parts(kind: String) -> Array:
 		"canopy_broadleaf", "canopy_oak":
 			return _tree_parts(_foliage_mat(PixelPalette.pal("mid_foliage")))
 		"canopy_birch":
-			return _tree_parts(_mat("leaf_gold", "forest_green", "snow_a"))
+			# Gold-green birch foliage — a pale lime highlight, NOT pure white, so the canopy
+			# reads as autumn-gold leaves rather than a snowed-over blob.
+			return _tree_parts(_mat_from(Color(0.80, 0.80, 0.36), Color(0.42, 0.50, 0.22), Color(0.93, 0.91, 0.56)))
 		"canopy_palm":
 			return _palm_parts()
 		"canopy_saguaro":
@@ -181,6 +199,90 @@ static func decor_parts(kind: String) -> Array:
 			return [_part(_box("d_stick", Vector3(0.5, 0.07, 0.09)), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0, 0.05, 0))]
 		_:  # grass, fern, reed, vine, moss, lichen, ... -> green tuft
 			return [_part(_sphere("d_tuft", 0.22), _mat("foliage_c", "grass_dark", "foliage_c"), Vector3(0, 0.16, 0), Vector3(1.0, 0.7, 1.0))]
+
+
+## Bloom material for a wildflower colour token (purple/yellow/white/pink).
+static func _flower_head_mat(color: String) -> Material:
+	match color:
+		"white":
+			return _mat_from(Color(0.97, 0.97, 0.94), Color(0.74, 0.76, 0.80), Color(1, 1, 1))
+		"purple":
+			return _mat_from(Color(0.58, 0.28, 0.88), Color(0.38, 0.16, 0.62), Color(0.82, 0.60, 1.0))
+		"pink":
+			return _mat_from(Color(0.97, 0.42, 0.68), Color(0.78, 0.26, 0.48), Color(1.0, 0.74, 0.88))
+		_:  # yellow / generic
+			return _mat_from(Color(1.0, 0.82, 0.16), Color(0.86, 0.58, 0.07), Color(1.0, 0.94, 0.45))
+
+
+## Parse a "flower_<colour>[_<shape>]" decor kind into the matching mesh. The colour drives
+## the bloom material; the shape suffix (spike/daisy/bell/cluster) varies the silhouette so a
+## meadow is a mix of tall lupine-style spikes, flat daisies and low clusters, not one blob.
+static func _flower_variant_parts(kind: String) -> Array:
+	var rest := kind.substr(7)            # drop "flower_" ("" for the bare "flower" kind)
+	var color := "yellow"
+	var shape := "cluster"
+	for c: String in ["purple", "yellow", "white", "pink"]:
+		if rest.begins_with(c):
+			color = c
+			if rest.length() > c.length() + 1:
+				shape = rest.substr(c.length() + 1)
+			break
+	var head := _flower_head_mat(color)
+	match shape:
+		"spike":
+			return _flower_spike_parts(head)
+		"daisy":
+			return _flower_daisy_parts(head)
+		"bell":
+			return _flower_bell_parts(head)
+		_:
+			return _flower_cluster_parts(head)
+
+
+const _FOLIAGE_STEM := ["foliage_c", "grass_dark", "foliage_b"]
+
+## Tall lupine/foxglove spike: a slim stalk with blooms stacked up it, smaller toward the tip.
+static func _flower_spike_parts(head: Material) -> Array:
+	var stem := _mat(_FOLIAGE_STEM[0], _FOLIAGE_STEM[1], _FOLIAGE_STEM[2])
+	var parts := [
+		_part(_sphere("d_ftuft", 0.13), _mat("foliage_c", "grass_dark", "foliage_c"), Vector3(0, 0.07, 0), Vector3(1.0, 0.55, 1.0)),
+		_part(_cone("d_fstem", 0.026, 0.012, 0.62), stem, Vector3(0, 0.33, 0))]
+	var hs := [0.28, 0.37, 0.45, 0.52, 0.58, 0.63]
+	var sz := [0.10, 0.092, 0.082, 0.07, 0.056, 0.04]
+	for i: int in hs.size():
+		var off: float = 0.04 if i % 2 == 0 else -0.04
+		parts.append(_part(_sphere("d_fsp%d" % i, sz[i]), head, Vector3(off, hs[i], -off * 0.55)))
+	return parts
+
+
+## Flat daisy: short stem, a wide low bloom disc, and a contrasting gold centre.
+static func _flower_daisy_parts(head: Material) -> Array:
+	var stem := _mat(_FOLIAGE_STEM[0], _FOLIAGE_STEM[1], _FOLIAGE_STEM[2])
+	return [
+		_part(_sphere("d_ftuft", 0.12), _mat("foliage_c", "grass_dark", "foliage_c"), Vector3(0, 0.06, 0), Vector3(1.0, 0.5, 1.0)),
+		_part(_cone("d_dstem", 0.018, 0.01, 0.28), stem, Vector3(0, 0.18, 0)),
+		_part(_sphere("d_dpetal", 0.135), head, Vector3(0, 0.32, 0), Vector3(1.0, 0.3, 1.0)),
+		_part(_sphere("d_dcore", 0.05), _mat("gold", "leaf_gold", "snow_a"), Vector3(0, 0.345, 0))]
+
+
+## Drooping bell flower (bluebell-style): a stem with a few heads nodding near the top.
+static func _flower_bell_parts(head: Material) -> Array:
+	var stem := _mat(_FOLIAGE_STEM[0], _FOLIAGE_STEM[1], _FOLIAGE_STEM[2])
+	return [
+		_part(_sphere("d_ftuft", 0.12), _mat("foliage_c", "grass_dark", "foliage_c"), Vector3(0, 0.06, 0), Vector3(1.0, 0.5, 1.0)),
+		_part(_cone("d_bstem", 0.02, 0.012, 0.42), stem, Vector3(0, 0.23, 0)),
+		_part(_sphere("d_bb0", 0.078), head, Vector3(0.02, 0.44, 0.0), Vector3(1.0, 1.2, 1.0)),
+		_part(_sphere("d_bb1", 0.066), head, Vector3(-0.10, 0.36, 0.05), Vector3(1.0, 1.2, 1.0)),
+		_part(_sphere("d_bb2", 0.06), head, Vector3(0.09, 0.32, -0.05), Vector3(1.0, 1.2, 1.0))]
+
+
+## Low rounded cluster: a leaf tuft topped by a small bunch of bloom heads.
+static func _flower_cluster_parts(head: Material) -> Array:
+	return [
+		_part(_sphere("d_ftuft", 0.15), _mat("foliage_c", "grass_dark", "foliage_c"), Vector3(0, 0.11, 0), Vector3(1.0, 0.7, 1.0)),
+		_part(_sphere("d_fhead0", 0.11), head, Vector3(0.0, 0.32, 0.0)),
+		_part(_sphere("d_fhead1", 0.08), head, Vector3(-0.12, 0.27, 0.06)),
+		_part(_sphere("d_fhead2", 0.08), head, Vector3(0.11, 0.28, -0.06))]
 
 
 static func water_decor_parts(kind: String) -> Array:
@@ -221,7 +323,7 @@ static func dressing_parts(kind: String, variant := 0) -> Array:
 		"hike_cliff":
 			parts = _hike_cliff_parts()
 		"hike_boulder":
-			parts = _hike_boulder_parts()
+			parts = _boulder_parts(variant)
 		"hike_pool":
 			parts = _hike_pool_parts()
 		"hike_campfire":
@@ -334,9 +436,9 @@ static func _conifer_parts_with_material(needles: Material) -> Array:
 ## Snow-region fir: off-white faceted branch tiers with a tight cool shadow
 ## ramp, matching the fully snow-loaded silhouettes in the reference.
 static func _snowy_conifer_parts() -> Array:
-	var snow_base := PixelPalette.pal("snow_a")
-	var snow := _mat_from(snow_base, snow_base.darkened(0.12), snow_base.lightened(0.08))
-	return _conifer_parts_with_material(snow)
+	# A snow-DUSTED evergreen: a green conifer whose lit/top surfaces frost white (snow_a
+	# highlight), so it reads as winter-laden rather than the old solid-white blob.
+	return _conifer_parts_with_material(_mat("mid_foliage", "forest_teal", "snow_a"))
 
 
 ## Pine: the treeline's TALL one — a long bare trunk lifting a slender clustered crown.
@@ -446,11 +548,9 @@ static func _bush_parts() -> Array:
 
 
 static func _rock_parts() -> Array:
-	var stone := _mat("stone_a", "stone_b", "ore")
-	return [
-		_part(_octa("rock_big"), stone, Vector3(0, 0.34, 0), Vector3(0.95, 0.72, 1.05)),
-		_part(_octa("rock_chip_a"), stone, Vector3(-0.42, 0.16, 0.18), Vector3(0.38, 0.32, 0.42)),
-		_part(_octa("rock_chip_b"), stone, Vector3(0.42, 0.12, -0.24), Vector3(0.32, 0.26, 0.36))]
+	# Mining-rock boulder: grey stone, a touch larger than the decor boulders, faceted and
+	# grounded (no more floating octahedron pyramids).
+	return _rock_cluster("ore", 0, _mat("stone_a", "stone_b", "ore"), _mat("stone_b", "shadow", "stone_a"), 1.12)
 
 
 ## A half-timbered medieval cottage: stone footing, cream plaster walls crossed by
@@ -772,8 +872,9 @@ static func _hike_conifer_parts(variant: int, snowy: bool = false) -> Array:
 	elif variant % 3 == 2:
 		leaf = _mat("pine_dark", "shadow", "pine_mid")
 	if snowy:
-		var snow_base := PixelPalette.pal("snow_a")
-		leaf = _mat_from(snow_base, snow_base.darkened(0.12), snow_base.lightened(0.08))
+		# Snow-DUSTED, not solid white: green needles with frosted (white-lit) tips, so a
+		# winter conifer reads as frosted rather than a bugged white blob.
+		leaf = _mat("foliage_c", "pine_dark", "snow_a")
 	return [
 		_part(_cyl("hike_pine_trunk", 0.15, 0.22, 1.35), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0, 0.68, 0)),
 		_part(_cone("hike_pine_filled_core", 0.44, 0.02, 2.9), leaf, Vector3(0, 2.08, 0)),
@@ -814,12 +915,52 @@ static func _hike_cliff_parts() -> Array:
 		_part(_octa("hike_cliff_chip_b"), stone, Vector3(0.72, 0.18, 0.44), Vector3(0.36, 0.24, 0.32))]
 
 
-static func _hike_boulder_parts() -> Array:
-	var stone := _mat("cliff_warm", "cliff_shadow", "cliff_light")
-	return [
-		_part(_octa("hike_boulder_big"), stone, Vector3(0, 0.34, 0), Vector3(0.88, 0.64, 0.98)),
-		_part(_octa("hike_boulder_flat"), stone, Vector3(0.48, 0.16, 0.18), Vector3(0.52, 0.24, 0.46)),
-		_part(_octa("hike_boulder_chip"), stone, Vector3(-0.42, 0.1, -0.22), Vector3(0.28, 0.18, 0.24))]
+## A low-poly FACETED stone lobe (few segments → angular crags, not a smooth pebble).
+static func _facet_sphere(key: String, r: float, seg := 6) -> Mesh:
+	if not _mesh_cache.has(key):
+		var m := SphereMesh.new()
+		m.radius = r
+		m.height = r * 1.85
+		m.radial_segments = seg
+		m.rings = maxi(2, seg / 2)
+		_mesh_cache[key] = m
+	return _mesh_cache[key]
+
+
+# Irregular boulder layouts — a main lobe plus asymmetric satellites. Each entry is
+# [radius, offset_x, offset_z, y_scale, xz_scale]; every lobe is grounded independently
+# (see _boulder_parts) so the whole rock sits flat on the terrain, never floating.
+const _BOULDER_VARIANTS := [
+	[[0.62, 0.0, 0.0, 0.74, 1.06], [0.40, 0.52, 0.12, 0.6, 1.18], [0.30, -0.40, -0.30, 0.58, 1.0], [0.22, 0.18, -0.46, 0.52, 1.12]],
+	[[0.56, 0.10, 0.0, 0.86, 0.96], [0.46, -0.34, 0.22, 0.66, 1.12], [0.27, 0.44, -0.20, 0.56, 1.02]],
+	[[0.68, 0.0, 0.05, 0.62, 1.22], [0.34, 0.40, 0.34, 0.52, 1.06], [0.30, -0.46, -0.10, 0.58, 1.0], [0.20, -0.10, 0.50, 0.48, 1.0]],
+]
+
+## A craggy, irregular rock — a cluster of faceted, flattened stone lobes. Each lobe's base is
+## pinned to y=0 (its centre sits at exactly its own half-height) so the rock rests flat on the
+## ground and never floats or sinks. `tag` namespaces the cached meshes per material/scale and
+## the variant picks one of the asymmetric layouts so neighbouring rocks don't repeat.
+static func _rock_cluster(tag: String, variant: int, base_mat: Material, accent_mat: Material, scale := 1.0) -> Array:
+	var v: int = variant % _BOULDER_VARIANTS.size()
+	var lobes: Array = _BOULDER_VARIANTS[v]
+	var parts: Array = [_shadow_part(0.92 * scale)]
+	for i: int in lobes.size():
+		var L: Array = lobes[i]
+		var r: float = float(L[0]) * scale
+		var sy: float = float(L[3])
+		var sxz: float = float(L[4])
+		var half: float = r * 0.925 * sy   # SphereMesh half-height (1.85r) × y-scale → base at y=0
+		parts.append(_part(
+			_facet_sphere("rock_%s_%d_%d" % [tag, v, i], r, 6 if i == 0 else 5),
+			base_mat if i % 2 == 0 else accent_mat,
+			Vector3(float(L[1]) * scale, half, float(L[2]) * scale), Vector3(sxz, sy, sxz)))
+	return parts
+
+
+## Alpine/meadow decor boulder — warm cliff stone, three shapes (selected by the decor variant).
+static func _boulder_parts(variant: int) -> Array:
+	return _rock_cluster("bld", variant,
+		_mat("cliff_warm", "cliff_shadow", "cliff_light"), _mat("cliff_shadow", "shadow", "cliff_warm"))
 
 
 static func _hike_pool_parts() -> Array:

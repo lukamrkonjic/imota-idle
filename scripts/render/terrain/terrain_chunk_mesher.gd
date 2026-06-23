@@ -281,6 +281,11 @@ func _tile_info_compute(gtx: int, gty: int) -> Dictionary:
 	var slope: int = _tile_slope_steps(gtx, gty, elev) if (not water and elev > 0) else 0
 	var curve: int = _tile_curvature_steps(gtx, gty, elev) if (not water and elev > 0) else 0
 	var col: Color = SHORE if water else TerrainStyle.grade(tdef["colors"][0], tile_name, gtx, gty, elev, slope, curve)
+	if not water:
+		# Shift toward the effective (sub-)biome's tint so biomes read distinctly; lighter on
+		# raised ground so mountains keep their alpine look.
+		var eff: int = chunk.biome_at(lx, ly)
+		col = TerrainStyle.biome_tinted(col, tile_name, WorldGen.reg.biome_tint(eff), 0.10 if elev > 0 else 0.34)
 	return {
 		"top": top,
 		"water": water,

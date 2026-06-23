@@ -30,7 +30,9 @@
   "badlands",
   "rocky_hills",
   "tundra",
-  "volcanic"
+  "volcanic",
+  "wildflower_meadow",
+  "jungle"
  ],
  "bounds": {
   "min": [

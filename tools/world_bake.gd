@@ -13,6 +13,7 @@ extends Node
 const WG := preload("res://scripts/worldgen/wg.gd")
 const BakedWorldStore := preload("res://scripts/worldgen/baked_world_store.gd")
 const FiniteWorldGenerator := preload("res://scripts/worldgen/finite_world_generator.gd")
+const TerrainStyle := preload("res://scripts/render/terrain_style.gd")
 
 const OUT_DIR := "res://data/world/baked/"
 
@@ -95,8 +96,12 @@ func _paint_map(img: Image, chunk: RefCounted, reg: RefCounted, min_tx: int, min
 	var by: int = chunk.cy * WG.CHUNK_TILES - min_ty
 	for ly: int in WG.CHUNK_TILES:
 		for lx: int in WG.CHUNK_TILES:
-			var cols: Array = reg.tile_def(chunk.tile_id(lx, ly))["colors"]
-			img.set_pixel(bx + lx, by + ly, cols[0])
+			var tid: int = chunk.tile_id(lx, ly)
+			var tdef: Dictionary = reg.tile_def(tid)
+			var col: Color = tdef["colors"][0]
+			if not bool(tdef.get("water", false)):
+				col = TerrainStyle.biome_tinted(col, str(reg.tile_order[tid]), reg.biome_tint(chunk.biome_at(lx, ly)), 0.55)
+			img.set_pixel(bx + lx, by + ly, col)
 
 
 func _encode_chunk(chunk: RefCounted) -> Dictionary:
