@@ -140,6 +140,8 @@ var _stamp_variant := 0
 var _stamp_rot := 0
 var _stamp_flip := false
 var _sel_road_style := "road"
+var _road_width := 3              # road width in tiles (diameter); the Road tool's slider sets it
+var _road_width_label: Label
 var _road_pts: Array[Vector2i] = []
 var _road_drawing := false
 var _road_styles_cache: Dictionary = {}
@@ -1157,7 +1159,7 @@ func _finalize_road() -> void:
 		"id": "road_%d" % _spec.roads.size(),
 		"kind": "minor",
 		"style": _sel_road_style,
-		"width": 0,
+		"width": _road_width,
 		"points": pts,
 	}
 	_spec.roads.append(road)
@@ -2026,10 +2028,11 @@ func _update_hover_gizmo() -> void:
 	var ghost_struct: bool = _tool == Tool.STRUCTURE   # single model at the cursor
 	var ghost_settle: bool = _tool == Tool.SETTLEMENT  # whole building cluster
 	var square: bool = _tool == Tool.STAMP             # terrain stamp: just a footprint
+	var road_disc: bool = _tool == Tool.ROAD           # show the road thickness as a disc
 	# Show only while hovering the 3D view itself. In the maximized view that container is the
 	# hovered control; over the sidebar it isn't — so this hides the cursor over the panels
 	# (the blanket _ui_hover check was wrong here: the 3D container always counts as "UI").
-	if not (ring or ghost_struct or ghost_settle or square) or get_viewport().gui_get_hovered_control() != _v3d_container:
+	if not (ring or ghost_struct or ghost_settle or square or road_disc) or get_viewport().gui_get_hovered_control() != _v3d_container:
 		_hide_hover_gizmo()
 		return
 	var iso := _v3d_screen_iso(_v3d_container.get_local_mouse_position())
@@ -2061,14 +2064,14 @@ func _update_hover_gizmo() -> void:
 	_ensure_hover_gizmo(rend)
 	if _gizmo_root == null:
 		return
-	var tiles := float(_brush) if ring else _half_footprint_tiles()
+	var tiles: float = float(_brush) if ring else (float(_road_width) * 0.5 if road_disc else _half_footprint_tiles())
 	var edge: Vector3 = rend.call("iso_to_3d", iso + Vector2(tiles * WG.TILE, 0.0), h)
 	var radius := maxf(0.4, center.distance_to(edge))
 	_gizmo_root.visible = true
 	_gizmo_root.global_position = center + Vector3(0.0, 0.08, 0.0)
-	_gizmo_disc.visible = ring
+	_gizmo_disc.visible = ring or road_disc
 	_gizmo_foot.visible = square
-	if ring:
+	if ring or road_disc:
 		_gizmo_disc.scale = Vector3(radius, 1.0, radius)
 	else:
 		_gizmo_foot.scale = Vector3(radius, 1.0, radius)
@@ -2629,7 +2632,21 @@ func _refresh_palette() -> void:
 			for sname: String in _road_styles().keys():
 				_choice(str(sname).capitalize(), str(sname), _sel_road_style == str(sname),
 					func(id: String) -> void: _sel_road_style = id)
-			_note("Drag to draw a road - it auto-curves and bridges any water it crosses. Ctrl+Z undoes the whole road; Ctrl+S saves the polylines to the worldspec (re-styleable).")
+			_road_width_label = Label.new()
+			_road_width_label.text = "Road width: %d" % _road_width
+			_palette_box.add_child(_road_width_label)
+			var rwslider := HSlider.new()
+			rwslider.min_value = 1
+			rwslider.max_value = 12
+			rwslider.step = 1
+			rwslider.value = _road_width
+			rwslider.custom_minimum_size = Vector2(210, 0)
+			rwslider.value_changed.connect(func(v: float) -> void:
+				_road_width = int(v)
+				if _road_width_label != null:
+					_road_width_label.text = "Road width: %d" % _road_width)
+			_palette_box.add_child(rwslider)
+			_note("Drag to draw a road - it auto-curves and bridges any water it crosses. The width slider sets its thickness (shown as a disc on the cursor). Ctrl+Z undoes the whole road; Ctrl+S saves the polylines to the worldspec.")
 		Tool.SETTLEMENT:
 			_header(_palette_box, "Settlements")
 			var sdoc := _settlement_templates()

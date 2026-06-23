@@ -324,7 +324,7 @@ func _visual_floor_height(gtx: int, gty: int, info: Dictionary) -> float:
 		# deepens on raised ground so the road reads as CARVED into the slope (a bench cut into the
 		# mountainside); the mesher's corner smoothing then bevels the shoulders down into the bed.
 		# Subtle on flat ground (matches the old gentle path height).
-		var carve := 0.055 + clampf(float(_elev_raw(gtx, gty)), 0.0, 14.0) * 0.014
+		var carve := 0.09 + clampf(float(_elev_raw(gtx, gty)), 0.0, 16.0) * 0.024
 		h = _smoothed_elevation_height(gtx, gty) + _rolling_hill(gtx, gty) * 0.28 - carve
 	elif top > 0.0:
 		# Elevation is authoritative for the mountain surface. Biome/structure passes

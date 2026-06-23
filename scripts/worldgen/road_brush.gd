@@ -100,8 +100,11 @@ func _stamp_road(road: Dictionary) -> void:
 		center = _straight_line(center[0], center[center.size() - 1])
 	var core := _tile(str(st.get("core", "dirt")), "dirt")
 	var base_w := float(st.get("width", 2.0))
-	# An authored per-road width acts as a minimum (lets one road be wider).
-	base_w = maxf(base_w, float(road.get("width", 0)) * 0.5)
+	# An explicit per-road width (the editor's width slider, in tiles/diameter) takes over the
+	# style default so the drawn road is exactly as thick as chosen; else use the style width.
+	var road_w := float(road.get("width", 0))
+	if road_w > 0.0:
+		base_w = road_w * 0.5
 	var jitter := float(st.get("jitter", 0.6))
 	var feather := float(st.get("feather", 1.3))
 
