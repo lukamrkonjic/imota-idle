@@ -27,7 +27,8 @@ var classifier: RefCounted
 # noise, so each biome's blobs bleed a few tiles across their border and interleave with the
 # neighbour — soft, noisy, gradual edges. Interiors (all neighbours the same) are unchanged, so
 # biome cores stay distinct. BLEND_RADIUS is the (configurable) max bleed in tiles.
-const BLEND_RADIUS := 5
+const BLEND_RADIUS := 6     # coherent blob bleed (tiles)
+const BLEND_JITTER := 3.0   # per-tile random bleed (tiles) — interleaves even perfectly clean borders
 var _blend_noise: FastNoiseLite
 
 
@@ -38,19 +39,24 @@ func setup(p_reg: RefCounted, p_seed: int, p_classifier: RefCounted) -> void:
 	_blend_noise = FastNoiseLite.new()
 	_blend_noise.seed = p_seed + 7777
 	_blend_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
-	_blend_noise.frequency = 0.18
+	# Higher frequency than a smooth domain warp: small (~2-3 tile) blobs so a border interleaves
+	# into PATCHES rather than just shifting the line wavily.
+	_blend_noise.frequency = 0.32
 	_blend_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
 	_blend_noise.fractal_octaves = 3
 
 
-## Domain-warp offset (in tiles) for the biome lookup at a tile — two decorrelated noise channels
-## give an organic 2D bleed. Zero-ish in biome interiors only matters at borders (where the
-## neighbour differs), producing the mixed band.
+## Domain-warp offset (in tiles) for the biome lookup at a tile. A coherent blob component gives
+## organic patches; a per-tile jitter guarantees adjacent tiles sample DIFFERENT spots, so even a
+## perfectly clean mask line (e.g. the islands') breaks into interleaved patches of both biomes —
+## not just a wavy clean edge. Interiors are unaffected (all neighbours are the same biome).
 func _blend_offset(gtx: int, gty: int) -> Vector2i:
 	if _blend_noise == null:
 		return Vector2i.ZERO
 	var bx := _blend_noise.get_noise_2d(float(gtx), float(gty)) * BLEND_RADIUS
 	var by := _blend_noise.get_noise_2d(float(gtx) + 311.0, float(gty) + 57.0) * BLEND_RADIUS
+	bx += (WG.r01(world_seed, gtx, gty, 4441) - 0.5) * 2.0 * BLEND_JITTER
+	by += (WG.r01(world_seed, gtx, gty, 4451) - 0.5) * 2.0 * BLEND_JITTER
 	return Vector2i(int(round(bx)), int(round(by)))
 
 
