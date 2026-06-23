@@ -245,10 +245,13 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 	var phase := float(absi(hash(key)) % 1000) * 0.006283
 	var base: float = float(node.get_meta("base_scale", 1.0))
 	var atk := _attack_progress(key, t)
-	# Woodcutting: a continuous overhead axe chop (the pose's atk drive already swings the lead
-	# arm overarm), so the player visibly hacks at the tree while the gather ticks run.
+	# Woodcutting: a dedicated overhead axe chop (windup → snappy downswing → impact hold → slow
+	# recovery), driven separately from the combat lunge so the feet stay planted while the player
+	# hacks at the tree.
+	var chop := 0.0
 	if key == "player" and _chopping:
-		atk = fmod(t * CHOP_RATE, 1.0)
+		chop = fmod(t * CHOP_RATE, 1.0)
+		atk = 0.0   # no combat step-in; the chop pose moves the body
 	var btype := str(node.get_meta("body3d", "humanoid"))
 	match btype:
 		"bird":
@@ -262,7 +265,7 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 				"gnoll":
 					MoverRig._pose_gnoll(node, pos3, yaw, walk, t, phase, base, atk)
 				_:
-					MoverRig._pose_humanoid(node, pos3, yaw, walk, t, phase, base, atk)
+					MoverRig._pose_humanoid(node, pos3, yaw, walk, t, phase, base, atk, chop)
 		_:
 			MoverRig._pose_quadruped(node, pos3, yaw, walk, t, phase, base, atk)
 	# Resting: the player folds down to sit on the ground (right-click the run orb).

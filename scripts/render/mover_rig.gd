@@ -76,7 +76,7 @@ static func _flow_cape(eq: Node3D, walk: float, t: float, phase: float) -> void:
 ## Jointed biped: knees and elbows flex for a natural bent-leg walk, and a `crouch`
 ## meta gives a bent-kneed standing stance (goblins stoop, the gnoll sneaks low).
 ## `lean` hunches the body, `arm_rest` keeps arms a touch forward (never ramrod).
-static func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float) -> void:
+static func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float, chop: float = 0.0) -> void:
 	var rest := 1.0 - walk
 	var lean: float = float(node.get_meta("lean", 0.04))
 	# `hunch` curves the upper back forward at the spine pivot (an old-lady stoop) —
@@ -128,7 +128,20 @@ static func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float,
 	if holds_staff:
 		arm_r = 0.12 + idle_arm * 0.3   # rest the hand on a side-planted staff
 		elbow_r = -0.16
-	if atk > 0.0:
+	if chop > 0.0:
+		# Dedicated woodcutting chop: axe raised high over the right shoulder on the windup, a
+		# snappy accelerating downswing to a chest/waist-height hit in front, a brief impact hold,
+		# then a slow, weighty pull back up. Body leans back on the windup and dips forward into it.
+		var s := _chop_swing(chop)              # <0 windup lift .. 0 overhead .. 1 axe in the wood
+		var sd := clampf(s, 0.0, 1.0)
+		arm_r = lerpf(-1.95, 0.85, clampf(s, -0.35, 1.0))   # over the shoulder -> down in front
+		elbow_r = lerpf(-1.35, -0.22, sd)                   # forearm folded back -> driven to the hit
+		arm_l = lerpf(0.32, 0.58, sd)                       # off hand braces + follows the swing
+		elbow_l = lerpf(-0.45, -0.9, sd)
+		_set_pivot(node, "spine", lerpf(-0.12, 0.34, sd))   # lean back at the top, bend into the chop
+		node.rotation.z = sway + roll - 0.10 * (1.0 - sd)   # slight back/right turn on the windup
+		node.position.y -= 0.06 * sd                        # body compresses down on impact
+	elif atk > 0.0:
 		var strike := sin(atk * PI)
 		arm_r = lerpf(arm_r, -1.5, strike)   # lead arm chops overarm
 		elbow_r = lerpf(elbow_r, -1.0, strike)  # forearm folds in for the chop
@@ -137,6 +150,21 @@ static func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float,
 	_set_pivot(node, "arm_r", arm_r)
 	_set_pivot(node, "arm_l/elbow_l", elbow_l)   # elbows are nested under the shoulder pivots
 	_set_pivot(node, "arm_r/elbow_r", elbow_r)
+
+
+## Chop phase (0..1) -> swing position: <0 extra-raised (windup anticipation), 0 overhead-ready,
+## 1 axe buried in the wood. Slow windup, a snappy accelerating downswing, a short impact hold,
+## then a slow weighty recovery — so the hit lands with force and the pull-back gives it weight.
+static func _chop_swing(c: float) -> float:
+	if c < 0.30:
+		return -0.16 * sin(c / 0.30 * PI)        # small anticipatory extra-lift, settling at the top
+	if c < 0.46:
+		var u := (c - 0.30) / 0.16
+		return u * u                             # downswing accelerates into the hit (snap)
+	if c < 0.56:
+		return 1.0                               # impact hold (axe pressed into the wood)
+	var v := (c - 0.56) / 0.44
+	return 1.0 - smoothstep(0.0, 1.0, v)         # slow recovery back to the raised pose
 
 
 ## Goblin stance — stands UPRIGHT but cocky and twitchy (a nimble medieval-game
