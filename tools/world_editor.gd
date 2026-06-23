@@ -1629,6 +1629,7 @@ func _build_ui() -> void:
 	_toolbar_button(tb, "⟳ Generate Full", _confirm_generate)
 	_v3d_btn = _toolbar_button(tb, "🧊 3D View", _toggle_3d_view)
 	_v3d_btn.toggle_mode = true
+	_toolbar_button(tb, "🗑 Wipe Save", _confirm_wipe_save)
 	_status = Label.new()
 	_status.text = "Loaded %d chunks" % _chunks.size()
 	_status.add_theme_font_size_override("font_size", 15)
@@ -2998,6 +2999,35 @@ func _confirm_generate_natural() -> void:
 		+ "grass, forests, water, hills, resources, wildlife. NO cities, roads,\n"
 		+ "walls or man-made content (you add those by hand afterwards).\n\n"
 		+ "REPLACES current edits and clears undo. Save first to keep them.\n\nProceed?")
+
+
+## Wipe the player's game save so the next launch is a fresh new game at the authored world spawn.
+## (The world you edit here lives in res://data — it is NOT touched.)
+func _confirm_wipe_save() -> void:
+	var dlg := ConfirmationDialog.new()
+	dlg.title = "Wipe player save?"
+	dlg.dialog_text = "Deletes your character save (skills, inventory) and explored-world state, so the\ngame starts a fresh new game at the world spawn you set here.\n\nThe world you're editing is NOT affected. This cannot be undone."
+	dlg.ok_button_text = "Wipe save"
+	_track_ui_hover(dlg)
+	_hud.add_child(dlg)
+	dlg.confirmed.connect(_wipe_save)
+	dlg.canceled.connect(dlg.queue_free)
+	dlg.popup_centered()
+
+
+## Delete the save files under user:// — platform-independent (DirAccess resolves user:// on every OS,
+## so no hard-coded macOS/Windows/Linux paths). save.json = character; world.json = explored/placed state.
+func _wipe_save() -> void:
+	var dir := DirAccess.open("user://")
+	if dir == null:
+		_status.text = "Wipe failed: cannot open the user data directory."
+		return
+	var removed: Array = []
+	for fname: String in ["save.json", "world.json"]:
+		if dir.file_exists(fname) and dir.remove(fname) == OK:
+			removed.append(fname)
+	_status.text = ("Wiped %s — next game launch starts fresh at the world spawn." % ", ".join(removed)) \
+		if not removed.is_empty() else "No save found to wipe (already a clean slate)."
 
 
 func _confirm_generate_mode(natural: bool, title: String, body: String) -> void:
