@@ -19,26 +19,36 @@ class_name RoadBrush
 const WG := preload("res://scripts/worldgen/wg.gd")
 
 # results — world-tile keyed (Vector2i) unless noted
-var road_tiles: Dictionary = {}       # Vector2i -> tile id   (KEEPS terrain elevation)
+var road_tiles: Dictionary = {}       # Vector2i -> tile id
+var road_elev: Dictionary = {}        # Vector2i -> int : a slope-limited ramp so the road climbs
+                                      # hills as a WALKABLE grade (A Short Hike) instead of stepping
 var structures: Dictionary = {}       # "cx:cy"  -> Array[part dict]  (roadside decor)
+
+# Max elevation change per centerline sample (~1 tile). The world's climb step is 1, so a road
+# graded to this stays walkable end-to-end even where it cuts across steeper terrain.
+const MAX_GRADE := 1.0
 
 var _reg: RefCounted
 var _seed: int
 var _styles: Dictionary = {}
 var _kind_to_style: Dictionary = {}
+var _elev_at: Callable                 # optional elev(gx, gy) -> int sampler; enables road grading
 
 
-## Compile every authored road in the spec.
-func build(p_reg: RefCounted, p_seed: int) -> void:
-	build_roads(p_reg, p_seed, p_reg.spec.roads)
+## Compile every authored road in the spec. Pass an elev(gx,gy)->int sampler to grade roads
+## up hills (a slope-limited walkable ramp); omit it to keep the legacy flat-following behaviour.
+func build(p_reg: RefCounted, p_seed: int, p_elev := Callable()) -> void:
+	build_roads(p_reg, p_seed, p_reg.spec.roads, p_elev)
 
 
 ## Compile an explicit road list (the editor uses this for a live preview before
 ## the roads are committed to the spec).
-func build_roads(p_reg: RefCounted, p_seed: int, roads: Array) -> void:
+func build_roads(p_reg: RefCounted, p_seed: int, roads: Array, p_elev := Callable()) -> void:
 	_reg = p_reg
 	_seed = p_seed
+	_elev_at = p_elev
 	road_tiles.clear()
+	road_elev.clear()
 	structures.clear()
 	_load_styles()
 	for road: Dictionary in roads:
@@ -101,9 +111,12 @@ func _stamp_road(road: Dictionary) -> void:
 	# visible and the deck mesh floats over it. A normal road stamps its body into the tiles.
 	var is_deck := bool(st.get("deck", false))
 	if not is_deck:
+		# Grade the road into a smooth, walkable climb where an elevation sampler is supplied.
+		var grade := _elev_at.is_valid()
+		var prof := _grade_profile(center) if grade else PackedInt32Array()
 		for i: int in center.size():
 			var w := maxf(0.6, base_w + jitter * _wnoise(arcs[i]))
-			_stamp_point(center[i], w, feather, core)
+			_stamp_point(center[i], w, feather, core, (prof[i] if grade else NO_ELEV))
 
 	if is_deck:
 		_emit_bridge(center, base_w)
@@ -154,7 +167,9 @@ func _catmull(p0: Vector2, p1: Vector2, p2: Vector2, p3: Vector2, t: float) -> V
 
 # --- variable-width stamp with feathered stochastic rim -----------------------
 
-func _stamp_point(c: Vector2, w: float, feather: float, core: int) -> void:
+const NO_ELEV := -2147483648    # "no grading" sentinel for _stamp_point's elev arg
+
+func _stamp_point(c: Vector2, w: float, feather: float, core: int, elev := NO_ELEV) -> void:
 	var cx := int(round(c.x))
 	var cy := int(round(c.y))
 	var rr := int(ceil(w + feather + 1.0))
@@ -166,9 +181,42 @@ func _stamp_point(c: Vector2, w: float, feather: float, core: int) -> void:
 			var d := sqrt(float(dx * dx + dy * dy)) + 0.6 * _ewarp(tx, ty)
 			if d <= w:
 				road_tiles[Vector2i(tx, ty)] = core
+				if elev != NO_ELEV:
+					road_elev[Vector2i(tx, ty)] = elev
 			elif d <= w + feather:
 				if _hash01(tx, ty, 7771) < 1.0 - (d - w) / feather:
 					road_tiles[Vector2i(tx, ty)] = core
+					if elev != NO_ELEV:
+						road_elev[Vector2i(tx, ty)] = elev
+
+
+## Slope-limited elevation profile along the centerline: sample the terrain, smooth it, then cap
+## the change per sample to MAX_GRADE so the road becomes a gentle WALKABLE ramp — it follows the
+## land where it's gentle and cuts a graded path where the land is steeper than the climb step.
+func _grade_profile(center: Array) -> PackedInt32Array:
+	var n := center.size()
+	var raw: Array = []
+	for i: int in n:
+		raw.append(float(int(_elev_at.call(int(round(center[i].x)), int(round(center[i].y))))))
+	# moving average (window ±3) flattens single-tile bumps under the road
+	var avg: Array = raw.duplicate()
+	for i: int in n:
+		var s := 0.0
+		var c := 0
+		for k: int in range(maxi(0, i - 3), mini(n, i + 4)):
+			s += raw[k]
+			c += 1
+		avg[i] = s / float(c)
+	# relax toward a <=MAX_GRADE-per-step ramp (forward + backward passes)
+	for _p: int in 4:
+		for i: int in range(1, n):
+			avg[i] = clampf(avg[i], avg[i - 1] - MAX_GRADE, avg[i - 1] + MAX_GRADE)
+		for i: int in range(n - 2, -1, -1):
+			avg[i] = clampf(avg[i], avg[i + 1] - MAX_GRADE, avg[i + 1] + MAX_GRADE)
+	var out := PackedInt32Array()
+	for i: int in n:
+		out.append(int(round(avg[i])))
+	return out
 
 
 # --- plank bridge structures (the "bridge" style, core=plank_floor) -----------

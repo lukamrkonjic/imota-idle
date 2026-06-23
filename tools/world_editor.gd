@@ -1150,9 +1150,11 @@ func _finalize_road() -> void:
 	_spec.roads.append(road)
 	_stroke["road"] = road
 	var brush := RoadBrush.new()
-	brush.build_roads(_reg, WorldGen.store.world_seed, [road])
+	brush.build_roads(_reg, WorldGen.store.world_seed, [road], Callable(self, "_elev_at"))
 	for k: Vector2i in brush.road_tiles:
 		_set_road_tile(k.x, k.y, int(brush.road_tiles[k]))
+	for k: Vector2i in brush.road_elev:        # grade the road into a walkable climb (saved with the chunk)
+		_record_elev(k.x, k.y, int(brush.road_elev[k]))
 	for ckey: String in brush.structures:
 		if _chunks.has(ckey):
 			for part: Dictionary in brush.structures[ckey]:

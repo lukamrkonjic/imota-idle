@@ -28,7 +28,8 @@ var spec: RefCounted
 var seed: int
 var bounds := Rect2i()
 var overrides: Dictionary = {}     # water features (rivers / lakes): tile + flatten elev
-var road_tiles: Dictionary = {}    # RoadBrush road body (incl. plank "bridge" decks): tile, KEEPS elevation
+var road_tiles: Dictionary = {}    # RoadBrush road body (incl. plank "bridge" decks): tile id
+var road_elev: Dictionary = {}     # RoadBrush graded road elevation (Vector2i -> int), walkable ramps
 var road_structs: Dictionary = {}  # "cx:cy" -> Array[part] (roadside decor)
 var natural_only := false   ## true => terrain + natural life only, no man-made content
 
@@ -69,8 +70,13 @@ func setup(p_reg: RefCounted, p_seed: int) -> void:
 	# a classifier to test where the centerline crosses water.
 	if not spec.roads.is_empty():
 		var brush := RoadBrush.new()
+		# NOTE: roads are graded into walkable climbs when DRAWN in the world editor (it samples the
+		# actual baked/edited chunk elevation and writes it straight to chunk.elev). The bake itself
+		# leaves authored spec roads flat-following for now — the finite world's elevation is mask-
+		# baked, not the procedural elevation_steps, so grading here would need the mask sampler.
 		brush.build(reg, seed)
 		road_tiles = brush.road_tiles
+		road_elev = brush.road_elev
 		road_structs = brush.structures
 
 
@@ -267,10 +273,12 @@ func _apply_overrides(chunk: RefCounted) -> void:
 				chunk.tiles[i] = int(overrides[key])
 				if chunk.elev.size() > i:
 					chunk.elev[i] = 0
-			# Road body (incl. plank "bridge" decks): repaint the tile but KEEP its terrain
-			# elevation so the road rolls over hills instead of cutting a flat shelf.
+			# Road body (incl. plank "bridge" decks): repaint the tile, and where the brush
+			# graded a walkable ramp, override the elevation so the road climbs smoothly.
 			if road_tiles.has(key):
 				chunk.tiles[i] = int(road_tiles[key])
+				if road_elev.has(key) and chunk.elev.size() > i:
+					chunk.elev[i] = int(road_elev[key])
 
 
 ## Append the RoadBrush's per-chunk structure parts (bridge rails, roadside decor)
