@@ -32,7 +32,7 @@ const PALETTE := {
 	"desert": Color8(214, 184, 120),
 	"cactus_plain": Color8(196, 174, 112),
 	"oasis": Color8(80, 150, 110),
-	"salt_pan": Color8(228, 224, 214),
+	"salt_marsh": Color8(228, 224, 214),
 	"savanna": Color8(176, 160, 86),
 	"savanna_scrub": Color8(150, 140, 80),
 	"badlands": Color8(168, 104, 72),

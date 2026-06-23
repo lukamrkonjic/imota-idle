@@ -49,7 +49,7 @@ R = [
     ("scorchplain", "Scorchplain",       "cactus_plain", 37,  41,  15,  6.4, 4.1, -47, "sunspear_peninsula", "major", True),
     ("sunspear",    "Sunspear Dunes",    "desert",       41,  49,  21, 11.0, 7.0, -16, "sunspear_peninsula", "major", True),
     ("mirage",      "Mirage Oasis",      "oasis",        39,  44,  23,  5.1, 3.3,  80, "sunspear_peninsula", "micro", True),
-    ("saltpan",     "The Salt Pan",      "salt_pan",     43,  56,  28,  7.0, 4.5, -78, "sunspear_peninsula", "micro", True),
+    ("saltpan",     "The Salt Pan",      "salt_marsh",     43,  56,  28,  7.0, 4.5, -78, "sunspear_peninsula", "micro", True),
     # --- southern fens ---
     ("greywater",   "Greywater Mire",    "swamp",        23,  -8,  11, 13.0, 8.0, -10, "southern_fens", "major", True),
     ("mirewood",    "Mirewood",          "swamp",        24, -22,   9, 11.0, 7.0,  15, "southern_fens", "major", True),

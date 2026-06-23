@@ -445,7 +445,7 @@ static func _fit(v: float, lo: float, hi: float, tol: float) -> float:
 func _sub_idx_for(parent_idx: int, gtx: int, gty: int) -> int:
 	if parent_idx < 0 or parent_idx >= reg.biomes.size():
 		return 255
-	# Honor a micro-biome the mask classified explicitly (e.g. salt_pan, flower_meadow)
+	# Honor a micro-biome the mask classified explicitly (e.g. salt_marsh, flower_meadow)
 	# when it belongs to this parent; otherwise fall through to procedural stamping so
 	# marsh_pool / oasis / scorched / grove etc. still appear within their parents.
 	if classifier.has_biome_mask():

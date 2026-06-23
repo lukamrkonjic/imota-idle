@@ -24,7 +24,7 @@ const BIOME_COL := {
 	"heather_moor": Color8(150, 96, 160), "tundra": Color8(210, 216, 220),
 	"snowdrift": Color8(236, 240, 246), "alpine": Color8(214, 220, 230),
 	"desert": Color8(214, 184, 120), "cactus_plain": Color8(196, 174, 112),
-	"oasis": Color8(80, 180, 120), "salt_pan": Color8(236, 232, 222),
+	"oasis": Color8(80, 180, 120), "salt_marsh": Color8(236, 232, 222),
 	"savanna": Color8(190, 168, 80), "savanna_scrub": Color8(150, 140, 80),
 	"badlands": Color8(178, 104, 72), "swamp": Color8(64, 96, 66),
 	"bog": Color8(84, 84, 56), "jungle": Color8(38, 110, 50),

@@ -323,7 +323,11 @@
   }
  },
  "transitions": {},
- "deprecatedBiomes": {},
+ "deprecatedBiomes": {
+  "salt_pan": [
+   "salt_marsh"
+  ]
+ },
  "deprecatedTiles": {},
  "biomes": [
   {
@@ -348,14 +352,12 @@
    "siteDensity": 0.0,
    "monsterDensity": 0.0,
    "groundDecor": {
-    "density": 0.0,
-    "waterDensity": 0.075,
-    "kinds": [
-     {
-      "kind": "pebble",
-      "weight": 1.0
-     }
-    ]
+    "density": 0,
+    "kinds": []
+   },
+   "canopy": {
+    "density": 0,
+    "kinds": []
    }
   },
   {
@@ -388,37 +390,40 @@
    "siteDensity": 0.5,
    "monsterDensity": 0.2,
    "groundDecor": {
-    "density": 0.047,
-    "waterDensity": 0.15,
+    "density": 0.055,
     "kinds": [
      {
       "kind": "shell",
-      "weight": 0.32
+      "weight": 0.4
      },
      {
       "kind": "driftwood",
-      "weight": 0.22
+      "weight": 0.3
      },
      {
       "kind": "pebble",
-      "weight": 0.28
+      "weight": 0.22
      },
      {
-      "kind": "stick",
-      "weight": 0.18
+      "kind": "reed",
+      "weight": 0.16
      }
     ]
    },
    "canopy": {
-    "density": 0.015,
+    "density": 0.006,
     "kinds": [
      {
-      "kind": "canopy_palm",
-      "weight": 0.7
+      "kind": "canopy_pine",
+      "weight": 0.55
      },
      {
-      "kind": "canopy_broadleaf",
-      "weight": 0.3
+      "kind": "canopy_fir",
+      "weight": 0.35
+     },
+     {
+      "kind": "canopy_palm",
+      "weight": 0.1
      }
     ]
    }
@@ -450,24 +455,24 @@
    "siteDensity": 0.8,
    "monsterDensity": 0.8,
    "groundDecor": {
-    "density": 0.038,
+    "density": 0.045,
     "kinds": [
      {
-      "kind": "pebble",
-      "weight": 0.85
-     },
-     {
-      "kind": "stick",
-      "weight": 0.15
-     },
-     {
       "kind": "rubble",
-      "weight": 0.1
+      "weight": 0.4
+     },
+     {
+      "kind": "pebble",
+      "weight": 0.3
+     },
+     {
+      "kind": "bone",
+      "weight": 0.22
      }
     ]
    },
    "canopy": {
-    "density": 0.008,
+    "density": 0.006,
     "kinds": [
      {
       "kind": "canopy_deadtree",
@@ -524,36 +529,44 @@
    "siteDensity": 1.35,
    "monsterDensity": 0.5,
    "groundDecor": {
-    "density": 0.066,
+    "density": 0.075,
     "kinds": [
      {
       "kind": "pebble",
-      "weight": 0.75
+      "weight": 0.4
      },
      {
       "kind": "grass",
-      "weight": 0.25
+      "weight": 0.3
      },
      {
-      "kind": "rubble",
-      "weight": 0.1
+      "kind": "moss",
+      "weight": 0.22
+     },
+     {
+      "kind": "lichen",
+      "weight": 0.16
      }
     ]
    },
    "canopy": {
-    "density": 0.012,
+    "density": 0.018,
     "kinds": [
      {
       "kind": "canopy_fir",
-      "weight": 0.5
+      "weight": 0.45
      },
      {
-      "kind": "canopy_broadleaf",
+      "kind": "canopy_pine",
       "weight": 0.3
      },
      {
       "kind": "canopy_deadtree",
-      "weight": 0.2
+      "weight": 0.15
+     },
+     {
+      "kind": "canopy_birch",
+      "weight": 0.1
      }
     ]
    },
@@ -606,32 +619,40 @@
    "siteDensity": 0.9,
    "monsterDensity": 0.6,
    "groundDecor": {
-    "density": 0.042,
+    "density": 0.06,
     "kinds": [
      {
       "kind": "lichen",
-      "weight": 0.35
-     },
-     {
-      "kind": "stick",
-      "weight": 0.38
+      "weight": 0.4
      },
      {
       "kind": "pebble",
-      "weight": 0.27
+      "weight": 0.3
+     },
+     {
+      "kind": "stick",
+      "weight": 0.22
+     },
+     {
+      "kind": "moss",
+      "weight": 0.16
      }
     ]
    },
    "canopy": {
-    "density": 0.012,
+    "density": 0.014,
     "kinds": [
      {
       "kind": "canopy_snow_fir",
-      "weight": 0.6
+      "weight": 0.55
+     },
+     {
+      "kind": "canopy_pine",
+      "weight": 0.25
      },
      {
       "kind": "canopy_deadtree",
-      "weight": 0.4
+      "weight": 0.2
      }
     ]
    },
@@ -682,28 +703,28 @@
    "siteDensity": 0.7,
    "monsterDensity": 0.6,
    "groundDecor": {
-    "density": 0.042,
+    "density": 0.04,
     "kinds": [
      {
       "kind": "cactus",
-      "weight": 0.32
+      "weight": 0.4
      },
      {
       "kind": "pebble",
-      "weight": 0.42
+      "weight": 0.3
      },
      {
       "kind": "bone",
-      "weight": 0.14
+      "weight": 0.22
      },
      {
       "kind": "stick",
-      "weight": 0.12
+      "weight": 0.16
      }
     ]
    },
    "canopy": {
-    "density": 0.022,
+    "density": 0.018,
     "kinds": [
      {
       "kind": "canopy_saguaro",
@@ -711,11 +732,11 @@
      },
      {
       "kind": "canopy_deadtree",
-      "weight": 0.3
+      "weight": 0.25
      },
      {
       "kind": "canopy_palm",
-      "weight": 0.1
+      "weight": 0.15
      }
     ]
    },
@@ -767,8 +788,7 @@
    "siteDensity": 1.0,
    "monsterDensity": 0.8,
    "groundDecor": {
-    "density": 0.104,
-    "waterDensity": 0.175,
+    "density": 0.13,
     "kinds": [
      {
       "kind": "reed",
@@ -776,36 +796,36 @@
      },
      {
       "kind": "fern",
-      "weight": 0.25
+      "weight": 0.3
      },
      {
       "kind": "mushroom",
-      "weight": 0.2
+      "weight": 0.22
+     },
+     {
+      "kind": "moss",
+      "weight": 0.16
      },
      {
       "kind": "stick",
-      "weight": 0.15
-     },
-     {
-      "kind": "bramble",
       "weight": 0.12
      }
     ]
    },
    "canopy": {
-    "density": 0.08,
+    "density": 0.07,
     "kinds": [
      {
       "kind": "canopy_deadtree",
-      "weight": 0.5
+      "weight": 0.45
      },
      {
       "kind": "canopy_broadleaf",
       "weight": 0.35
      },
      {
-      "kind": "canopy_palm",
-      "weight": 0.15
+      "kind": "canopy_birch",
+      "weight": 0.2
      }
     ]
    },
@@ -855,23 +875,23 @@
    "siteDensity": 0.85,
    "monsterDensity": 0.45,
    "groundDecor": {
-    "density": 0.053,
+    "density": 0.075,
     "kinds": [
      {
       "kind": "lichen",
-      "weight": 0.45
-     },
-     {
-      "kind": "pebble",
       "weight": 0.4
      },
      {
-      "kind": "stick",
-      "weight": 0.15
+      "kind": "pebble",
+      "weight": 0.3
      },
      {
-      "kind": "rubble",
-      "weight": 0.1
+      "kind": "moss",
+      "weight": 0.22
+     },
+     {
+      "kind": "flower",
+      "weight": 0.16
      }
     ]
    },
@@ -889,7 +909,24 @@
      1.0
     ]
    },
-   "climateScale": "major"
+   "climateScale": "major",
+   "canopy": {
+    "density": 0.01,
+    "kinds": [
+     {
+      "kind": "canopy_snow_fir",
+      "weight": 0.45
+     },
+     {
+      "kind": "canopy_pine",
+      "weight": 0.35
+     },
+     {
+      "kind": "canopy_deadtree",
+      "weight": 0.2
+     }
+    ]
+   }
   },
   {
    "id": "jungle",
@@ -923,32 +960,23 @@
    "siteDensity": 1.15,
    "monsterDensity": 0.75,
    "groundDecor": {
-    "density": 0.123,
-    "waterDensity": 0.1,
+    "density": 0.15,
     "kinds": [
      {
       "kind": "vine",
-      "weight": 0.32
+      "weight": 0.4
      },
      {
       "kind": "fern",
-      "weight": 0.28
+      "weight": 0.3
      },
      {
       "kind": "mushroom",
-      "weight": 0.18
+      "weight": 0.22
      },
      {
       "kind": "flower",
-      "weight": 0.12
-     },
-     {
-      "kind": "stick",
-      "weight": 0.1
-     },
-     {
-      "kind": "bramble",
-      "weight": 0.12
+      "weight": 0.16
      }
     ]
    },
@@ -957,15 +985,15 @@
     "kinds": [
      {
       "kind": "canopy_palm",
-      "weight": 0.5
+      "weight": 0.4
      },
      {
       "kind": "canopy_broadleaf",
-      "weight": 0.45
+      "weight": 0.35
      },
      {
       "kind": "canopy_acacia",
-      "weight": 0.05
+      "weight": 0.25
      }
     ]
    },
@@ -1018,15 +1046,15 @@
    "siteDensity": 1.05,
    "monsterDensity": 0.55,
    "groundDecor": {
-    "density": 0.09,
+    "density": 0.12,
     "kinds": [
      {
       "kind": "moss",
-      "weight": 0.35
+      "weight": 0.4
      },
      {
       "kind": "stick",
-      "weight": 0.28
+      "weight": 0.3
      },
      {
       "kind": "shrub",
@@ -1034,23 +1062,31 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.15
+      "weight": 0.16
+     },
+     {
+      "kind": "mushroom",
+      "weight": 0.12
      }
     ]
    },
    "canopy": {
-    "density": 0.17,
+    "density": 0.175,
     "kinds": [
      {
       "kind": "canopy_fir",
-      "weight": 0.5
+      "weight": 0.45
      },
      {
       "kind": "canopy_pine",
-      "weight": 0.4
+      "weight": 0.35
      },
      {
-      "kind": "canopy_broadleaf",
+      "kind": "canopy_snow_fir",
+      "weight": 0.1
+     },
+     {
+      "kind": "canopy_birch",
       "weight": 0.1
      }
     ]
@@ -1107,11 +1143,11 @@
    "siteDensity": 0.85,
    "monsterDensity": 0.55,
    "groundDecor": {
-    "density": 0.135,
+    "density": 0.11,
     "kinds": [
      {
       "kind": "grass",
-      "weight": 0.5
+      "weight": 0.4
      },
      {
       "kind": "shrub",
@@ -1119,24 +1155,20 @@
      },
      {
       "kind": "stick",
-      "weight": 0.2
+      "weight": 0.22
      },
      {
       "kind": "flower",
-      "weight": 0.15
-     },
-     {
-      "kind": "rubble",
-      "weight": 0.1
+      "weight": 0.16
      }
     ]
    },
    "canopy": {
-    "density": 0.05,
+    "density": 0.045,
     "kinds": [
      {
       "kind": "canopy_acacia",
-      "weight": 0.7
+      "weight": 0.65
      },
      {
       "kind": "canopy_deadtree",
@@ -1144,7 +1176,7 @@
      },
      {
       "kind": "canopy_broadleaf",
-      "weight": 0.1
+      "weight": 0.15
      }
     ]
    },
@@ -1197,40 +1229,36 @@
    "siteDensity": 0.95,
    "monsterDensity": 0.65,
    "groundDecor": {
-    "density": 0.057,
+    "density": 0.055,
     "kinds": [
      {
       "kind": "bone",
-      "weight": 0.28
+      "weight": 0.4
      },
      {
       "kind": "pebble",
-      "weight": 0.45
+      "weight": 0.3
      },
      {
       "kind": "stick",
-      "weight": 0.27
-     },
-     {
-      "kind": "bramble",
-      "weight": 0.12
+      "weight": 0.22
      },
      {
       "kind": "rubble",
-      "weight": 0.1
+      "weight": 0.16
      }
     ]
    },
    "canopy": {
-    "density": 0.011,
+    "density": 0.01,
     "kinds": [
      {
       "kind": "canopy_deadtree",
-      "weight": 0.6
+      "weight": 0.7
      },
      {
       "kind": "canopy_saguaro",
-      "weight": 0.4
+      "weight": 0.3
      }
     ]
    },
@@ -1272,52 +1300,52 @@
    "siteDensity": 1.3,
    "monsterDensity": 0.7,
    "groundDecor": {
-    "density": 0.23,
+    "density": 0.17,
     "kinds": [
      {
       "kind": "fern",
-      "weight": 0.3
+      "weight": 0.4
      },
      {
-      "kind": "shrub",
-      "weight": 0.25
+      "kind": "moss",
+      "weight": 0.3
      },
      {
       "kind": "mushroom",
       "weight": 0.22
      },
      {
+      "kind": "shrub",
+      "weight": 0.16
+     },
+     {
       "kind": "stick",
-      "weight": 0.13
-     },
-     {
-      "kind": "grass",
-      "weight": 0.5
-     },
-     {
-      "kind": "bramble",
       "weight": 0.12
      }
     ]
    },
    "canopy": {
-    "density": 0.22,
+    "density": 0.185,
     "kinds": [
      {
-      "kind": "canopy_broadleaf",
-      "weight": 0.45
-     },
-     {
       "kind": "canopy_fir",
-      "weight": 0.3
+      "weight": 0.35
      },
      {
-      "kind": "canopy_maple",
-      "weight": 0.15
+      "kind": "canopy_pine",
+      "weight": 0.25
+     },
+     {
+      "kind": "canopy_broadleaf",
+      "weight": 0.2
      },
      {
       "kind": "canopy_birch",
-      "weight": 0.1
+      "weight": 0.15
+     },
+     {
+      "kind": "canopy_maple",
+      "weight": 0.05
      }
     ]
    },
@@ -1357,32 +1385,36 @@
    "siteDensity": 0.8,
    "monsterDensity": 0.35,
    "groundDecor": {
-    "density": 0.203,
+    "density": 0.22,
     "kinds": [
      {
       "kind": "flower",
-      "weight": 0.55
+      "weight": 0.4
      },
      {
       "kind": "grass",
-      "weight": 0.5
+      "weight": 0.3
      },
      {
       "kind": "shrub",
-      "weight": 0.15
+      "weight": 0.22
      }
     ]
    },
    "canopy": {
-    "density": 0.05,
+    "density": 0.025,
     "kinds": [
      {
-      "kind": "canopy_broadleaf",
-      "weight": 0.6
+      "kind": "canopy_birch",
+      "weight": 0.45
      },
      {
       "kind": "canopy_maple",
-      "weight": 0.4
+      "weight": 0.35
+     },
+     {
+      "kind": "canopy_broadleaf",
+      "weight": 0.2
      }
     ]
    }
@@ -1408,12 +1440,11 @@
    "siteDensity": 0.6,
    "monsterDensity": 0.4,
    "groundDecor": {
-    "density": 0.113,
-    "waterDensity": 0.22,
+    "density": 0.135,
     "kinds": [
      {
       "kind": "reed",
-      "weight": 0.5
+      "weight": 0.4
      },
      {
       "kind": "mushroom",
@@ -1421,24 +1452,28 @@
      },
      {
       "kind": "fern",
-      "weight": 0.2
+      "weight": 0.22
      },
      {
-      "kind": "bramble",
-      "weight": 0.12
+      "kind": "moss",
+      "weight": 0.16
      }
     ]
    },
    "canopy": {
-    "density": 0.05,
+    "density": 0.045,
     "kinds": [
      {
       "kind": "canopy_deadtree",
-      "weight": 0.6
+      "weight": 0.4
+     },
+     {
+      "kind": "canopy_birch",
+      "weight": 0.35
      },
      {
       "kind": "canopy_broadleaf",
-      "weight": 0.4
+      "weight": 0.25
      }
     ]
    }
@@ -1464,32 +1499,40 @@
    "siteDensity": 1.1,
    "monsterDensity": 0.45,
    "groundDecor": {
-    "density": 0.076,
+    "density": 0.07,
     "kinds": [
      {
       "kind": "pebble",
-      "weight": 0.85
+      "weight": 0.4
+     },
+     {
+      "kind": "grass",
+      "weight": 0.3
+     },
+     {
+      "kind": "moss",
+      "weight": 0.22
      },
      {
       "kind": "stick",
-      "weight": 0.15
-     },
-     {
-      "kind": "rubble",
-      "weight": 0.1
+      "weight": 0.16
      }
     ]
    },
    "canopy": {
-    "density": 0.03,
+    "density": 0.02,
     "kinds": [
      {
-      "kind": "canopy_broadleaf",
-      "weight": 0.5
+      "kind": "canopy_fir",
+      "weight": 0.45
      },
      {
-      "kind": "canopy_fir",
-      "weight": 0.5
+      "kind": "canopy_pine",
+      "weight": 0.3
+     },
+     {
+      "kind": "canopy_birch",
+      "weight": 0.25
      }
     ]
    }
@@ -1517,7 +1560,6 @@
    "monsterDensity": 0.2,
    "groundDecor": {
     "density": 0.135,
-    "waterDensity": 0.15,
     "kinds": [
      {
       "kind": "reed",
@@ -1525,24 +1567,32 @@
      },
      {
       "kind": "grass",
-      "weight": 0.5
+      "weight": 0.3
      },
      {
       "kind": "flower",
-      "weight": 0.25
+      "weight": 0.22
+     },
+     {
+      "kind": "pebble",
+      "weight": 0.16
      }
     ]
    },
    "canopy": {
-    "density": 0.035,
+    "density": 0.04,
     "kinds": [
      {
       "kind": "canopy_palm",
-      "weight": 0.8
+      "weight": 0.6
      },
      {
       "kind": "canopy_broadleaf",
-      "weight": 0.2
+      "weight": 0.25
+     },
+     {
+      "kind": "canopy_acacia",
+      "weight": 0.15
      }
     ]
    }
@@ -1567,7 +1617,7 @@
    "siteDensity": 0.9,
    "monsterDensity": 0.3,
    "groundDecor": {
-    "density": 0.203,
+    "density": 0.155,
     "kinds": [
      {
       "kind": "flower",
@@ -1575,32 +1625,32 @@
      },
      {
       "kind": "grass",
-      "weight": 0.55
+      "weight": 0.3
      },
      {
       "kind": "shrub",
-      "weight": 0.25
+      "weight": 0.22
      },
      {
-      "kind": "bramble",
-      "weight": 0.12
+      "kind": "mushroom",
+      "weight": 0.16
      }
     ]
    },
    "canopy": {
-    "density": 0.12,
+    "density": 0.085,
     "kinds": [
      {
       "kind": "canopy_broadleaf",
-      "weight": 0.6
-     },
-     {
-      "kind": "canopy_maple",
-      "weight": 0.3
+      "weight": 0.45
      },
      {
       "kind": "canopy_birch",
-      "weight": 0.1
+      "weight": 0.3
+     },
+     {
+      "kind": "canopy_maple",
+      "weight": 0.25
      }
     ]
    }
@@ -1625,11 +1675,11 @@
    "siteDensity": 1.0,
    "monsterDensity": 0.5,
    "groundDecor": {
-    "density": 0.132,
+    "density": 0.14,
     "kinds": [
      {
       "kind": "vine",
-      "weight": 0.45
+      "weight": 0.4
      },
      {
       "kind": "fern",
@@ -1637,24 +1687,28 @@
      },
      {
       "kind": "stick",
-      "weight": 0.25
+      "weight": 0.22
      },
      {
-      "kind": "bramble",
-      "weight": 0.12
+      "kind": "mushroom",
+      "weight": 0.16
      }
     ]
    },
    "canopy": {
-    "density": 0.17,
+    "density": 0.155,
     "kinds": [
      {
       "kind": "canopy_broadleaf",
-      "weight": 0.7
+      "weight": 0.45
      },
      {
       "kind": "canopy_palm",
-      "weight": 0.3
+      "weight": 0.35
+     },
+     {
+      "kind": "canopy_acacia",
+      "weight": 0.2
      }
     ]
    }
@@ -1679,28 +1733,32 @@
    "siteDensity": 0.5,
    "monsterDensity": 0.35,
    "groundDecor": {
-    "density": 0.028,
+    "density": 0.035,
     "kinds": [
      {
       "kind": "lichen",
-      "weight": 0.55
+      "weight": 0.4
      },
      {
       "kind": "stick",
-      "weight": 0.45
+      "weight": 0.3
+     },
+     {
+      "kind": "pebble",
+      "weight": 0.22
      }
     ]
    },
    "canopy": {
-    "density": 0.008,
+    "density": 0.01,
     "kinds": [
      {
       "kind": "canopy_snow_fir",
-      "weight": 0.7
+      "weight": 0.85
      },
      {
       "kind": "canopy_deadtree",
-      "weight": 0.3
+      "weight": 0.15
      }
     ]
    }
@@ -1725,49 +1783,49 @@
    "siteDensity": 0.55,
    "monsterDensity": 0.45,
    "groundDecor": {
-    "density": 0.066,
+    "density": 0.06,
     "kinds": [
      {
       "kind": "cactus",
-      "weight": 0.55
-     },
-     {
-      "kind": "bone",
-      "weight": 0.2
+      "weight": 0.4
      },
      {
       "kind": "pebble",
-      "weight": 0.25
+      "weight": 0.3
+     },
+     {
+      "kind": "bone",
+      "weight": 0.22
      }
     ]
    },
    "canopy": {
-    "density": 0.03,
+    "density": 0.025,
     "kinds": [
      {
       "kind": "canopy_saguaro",
-      "weight": 0.85
+      "weight": 0.8
      },
      {
       "kind": "canopy_deadtree",
-      "weight": 0.15
+      "weight": 0.2
      }
     ]
    }
   },
   {
-   "id": "salt_pan",
-   "name": "Salt Pan",
+   "id": "salt_marsh",
+   "name": "Salt Marsh",
    "priority": 30,
    "isSubBiome": true,
-   "parentBiome": "desert",
+   "parentBiome": "swamp",
    "when": {},
    "tiles": {
     "desert_dune": 0.85,
     "desert_sand": 0.15
    },
-   "tint": "e0d8c8",
-   "music": "desert",
+   "tint": "8ea890",
+   "music": "coast",
    "skillWeights": {
     "mining": 2.0,
     "foraging": 0.3
@@ -1775,17 +1833,29 @@
    "siteDensity": 0.4,
    "monsterDensity": 0.25,
    "groundDecor": {
-    "density": 0.023,
+    "density": 0.045,
     "kinds": [
      {
-      "kind": "pebble",
-      "weight": 0.7
+      "kind": "reed",
+      "weight": 0.4
      },
      {
-      "kind": "bone",
+      "kind": "pebble",
       "weight": 0.3
+     },
+     {
+      "kind": "shell",
+      "weight": 0.22
+     },
+     {
+      "kind": "driftwood",
+      "weight": 0.16
      }
     ]
+   },
+   "canopy": {
+    "density": 0,
+    "kinds": []
    }
   },
   {
@@ -1809,11 +1879,11 @@
    "siteDensity": 0.75,
    "monsterDensity": 0.4,
    "groundDecor": {
-    "density": 0.135,
+    "density": 0.16,
     "kinds": [
      {
       "kind": "flower",
-      "weight": 0.35
+      "weight": 0.4
      },
      {
       "kind": "moss",
@@ -1821,32 +1891,36 @@
      },
      {
       "kind": "shrub",
-      "weight": 0.2
+      "weight": 0.22
+     },
+     {
+      "kind": "grass",
+      "weight": 0.16
      },
      {
       "kind": "stick",
-      "weight": 0.15
-     },
-     {
-      "kind": "bramble",
       "weight": 0.12
-     },
-     {
-      "kind": "rubble",
-      "weight": 0.1
      }
     ]
    },
    "canopy": {
-    "density": 0.04,
+    "density": 0.025,
     "kinds": [
      {
       "kind": "canopy_fir",
-      "weight": 0.5
+      "weight": 0.35
+     },
+     {
+      "kind": "canopy_birch",
+      "weight": 0.25
      },
      {
       "kind": "canopy_deadtree",
-      "weight": 0.5
+      "weight": 0.25
+     },
+     {
+      "kind": "canopy_pine",
+      "weight": 0.15
      }
     ]
    }
@@ -1872,8 +1946,7 @@
    "siteDensity": 0.65,
    "monsterDensity": 0.35,
    "groundDecor": {
-    "density": 0.113,
-    "waterDensity": 0.2,
+    "density": 0.135,
     "kinds": [
      {
       "kind": "moss",
@@ -1881,28 +1954,32 @@
      },
      {
       "kind": "reed",
-      "weight": 0.35
+      "weight": 0.3
      },
      {
       "kind": "mushroom",
-      "weight": 0.25
+      "weight": 0.22
      },
      {
       "kind": "bramble",
-      "weight": 0.12
+      "weight": 0.16
      }
     ]
    },
    "canopy": {
-    "density": 0.05,
+    "density": 0.045,
     "kinds": [
      {
       "kind": "canopy_deadtree",
-      "weight": 0.7
+      "weight": 0.55
      },
      {
-      "kind": "canopy_broadleaf",
-      "weight": 0.3
+      "kind": "canopy_birch",
+      "weight": 0.25
+     },
+     {
+      "kind": "canopy_pine",
+      "weight": 0.2
      }
     ]
    }
@@ -1927,22 +2004,29 @@
    "siteDensity": 0.45,
    "monsterDensity": 0.15,
    "groundDecor": {
-    "density": 0.057,
-    "waterDensity": 0.175,
+    "density": 0.065,
     "kinds": [
      {
-      "kind": "shell",
-      "weight": 0.45
+      "kind": "reed",
+      "weight": 0.4
      },
      {
-      "kind": "driftwood",
+      "kind": "shell",
       "weight": 0.3
      },
      {
-      "kind": "reed",
-      "weight": 0.25
+      "kind": "driftwood",
+      "weight": 0.22
+     },
+     {
+      "kind": "pebble",
+      "weight": 0.16
      }
     ]
+   },
+   "canopy": {
+    "density": 0,
+    "kinds": []
    }
   },
   {
@@ -1966,32 +2050,36 @@
    "siteDensity": 0.7,
    "monsterDensity": 0.55,
    "groundDecor": {
-    "density": 0.047,
+    "density": 0.055,
     "kinds": [
      {
       "kind": "pebble",
-      "weight": 0.6
-     },
-     {
-      "kind": "bone",
-      "weight": 0.25
-     },
-     {
-      "kind": "stick",
-      "weight": 0.15
+      "weight": 0.4
      },
      {
       "kind": "rubble",
-      "weight": 0.1
+      "weight": 0.3
+     },
+     {
+      "kind": "bone",
+      "weight": 0.22
+     },
+     {
+      "kind": "moss",
+      "weight": 0.16
      }
     ]
    },
    "canopy": {
-    "density": 0.006,
+    "density": 0.008,
     "kinds": [
      {
       "kind": "canopy_deadtree",
-      "weight": 1.0
+      "weight": 0.6
+     },
+     {
+      "kind": "canopy_pine",
+      "weight": 0.4
      }
     ]
    }
@@ -2017,7 +2105,7 @@
    "siteDensity": 0.7,
    "monsterDensity": 0.5,
    "groundDecor": {
-    "density": 0.135,
+    "density": 0.105,
     "kinds": [
      {
       "kind": "shrub",
@@ -2025,28 +2113,28 @@
      },
      {
       "kind": "grass",
-      "weight": 0.45
+      "weight": 0.3
      },
      {
       "kind": "stick",
-      "weight": 0.25
+      "weight": 0.22
      },
      {
-      "kind": "bramble",
-      "weight": 0.12
+      "kind": "pebble",
+      "weight": 0.16
      }
     ]
    },
    "canopy": {
-    "density": 0.045,
+    "density": 0.04,
     "kinds": [
      {
       "kind": "canopy_acacia",
-      "weight": 0.5
+      "weight": 0.75
      },
      {
       "kind": "canopy_deadtree",
-      "weight": 0.5
+      "weight": 0.25
      }
     ]
    }
@@ -2071,40 +2159,32 @@
    "siteDensity": 0.8,
    "monsterDensity": 0.6,
    "groundDecor": {
-    "density": 0.053,
+    "density": 0.075,
     "kinds": [
      {
-      "kind": "bone",
-      "weight": 0.35
-     },
-     {
-      "kind": "pebble",
+      "kind": "bramble",
       "weight": 0.4
      },
      {
+      "kind": "bone",
+      "weight": 0.3
+     },
+     {
+      "kind": "pebble",
+      "weight": 0.22
+     },
+     {
       "kind": "stick",
-      "weight": 0.25
-     },
-     {
-      "kind": "bramble",
-      "weight": 0.12
-     },
-     {
-      "kind": "rubble",
-      "weight": 0.1
+      "weight": 0.16
      }
     ]
    },
    "canopy": {
-    "density": 0.012,
+    "density": 0.015,
     "kinds": [
      {
       "kind": "canopy_deadtree",
-      "weight": 0.7
-     },
-     {
-      "kind": "canopy_saguaro",
-      "weight": 0.3
+      "weight": 1.0
      }
     ]
    }
@@ -2130,36 +2210,40 @@
    "siteDensity": 0.6,
    "monsterDensity": 0.3,
    "groundDecor": {
-    "density": 0.076,
+    "density": 0.09,
     "kinds": [
      {
       "kind": "lichen",
-      "weight": 0.55
+      "weight": 0.4
      },
      {
       "kind": "pebble",
       "weight": 0.3
      },
      {
-      "kind": "stick",
-      "weight": 0.15
+      "kind": "moss",
+      "weight": 0.22
      },
      {
-      "kind": "rubble",
-      "weight": 0.1
+      "kind": "stick",
+      "weight": 0.16
      }
     ]
    },
    "canopy": {
-    "density": 0.008,
+    "density": 0.01,
     "kinds": [
      {
       "kind": "canopy_snow_fir",
-      "weight": 0.6
+      "weight": 0.45
      },
      {
       "kind": "canopy_deadtree",
-      "weight": 0.4
+      "weight": 0.35
+     },
+     {
+      "kind": "canopy_pine",
+      "weight": 0.2
      }
     ]
    }
@@ -2200,19 +2284,19 @@
    "siteDensity": 1.2,
    "monsterDensity": 0.55,
    "groundDecor": {
-    "density": 0.203,
+    "density": 0.15,
     "kinds": [
      {
       "kind": "fern",
-      "weight": 0.28
+      "weight": 0.4
      },
      {
       "kind": "shrub",
-      "weight": 0.24
+      "weight": 0.3
      },
      {
       "kind": "stick",
-      "weight": 0.18
+      "weight": 0.22
      },
      {
       "kind": "mushroom",
@@ -2220,31 +2304,27 @@
      },
      {
       "kind": "grass",
-      "weight": 0.55
-     },
-     {
-      "kind": "bramble",
       "weight": 0.12
-     },
-     {
-      "kind": "rubble",
-      "weight": 0.1
      }
     ]
    },
    "canopy": {
-    "density": 0.13,
+    "density": 0.115,
     "kinds": [
      {
       "kind": "canopy_broadleaf",
-      "weight": 0.6
+      "weight": 0.35
+     },
+     {
+      "kind": "canopy_birch",
+      "weight": 0.25
      },
      {
       "kind": "canopy_maple",
       "weight": 0.2
      },
      {
-      "kind": "canopy_birch",
+      "kind": "canopy_fir",
       "weight": 0.2
      }
     ]
@@ -2298,40 +2378,40 @@
    "siteDensity": 1.0,
    "monsterDensity": 0.5,
    "groundDecor": {
-    "density": 0.176,
+    "density": 0.115,
     "kinds": [
      {
       "kind": "grass",
-      "weight": 0.6
+      "weight": 0.4
      },
      {
       "kind": "flower",
-      "weight": 0.28
+      "weight": 0.3
      },
      {
       "kind": "shrub",
-      "weight": 0.2
+      "weight": 0.22
      },
      {
       "kind": "stick",
-      "weight": 0.14
-     },
-     {
-      "kind": "rubble",
-      "weight": 0.1
+      "weight": 0.16
      }
     ]
    },
    "canopy": {
-    "density": 0.05,
+    "density": 0.035,
     "kinds": [
      {
       "kind": "canopy_broadleaf",
-      "weight": 0.7
+      "weight": 0.55
+     },
+     {
+      "kind": "canopy_birch",
+      "weight": 0.25
      },
      {
       "kind": "canopy_maple",
-      "weight": 0.3
+      "weight": 0.2
      }
     ]
    },
@@ -2378,11 +2458,11 @@
    "siteDensity": 1.1,
    "monsterDensity": 0.35,
    "groundDecor": {
-    "density": 0.162,
+    "density": 0.08,
     "kinds": [
      {
       "kind": "grass",
-      "weight": 0.6
+      "weight": 0.4
      },
      {
       "kind": "flower",
@@ -2390,16 +2470,20 @@
      },
      {
       "kind": "stick",
-      "weight": 0.2
+      "weight": 0.22
      }
     ]
    },
    "canopy": {
-    "density": 0.02,
+    "density": 0.008,
     "kinds": [
      {
       "kind": "canopy_broadleaf",
-      "weight": 1.0
+      "weight": 0.7
+     },
+     {
+      "kind": "canopy_birch",
+      "weight": 0.3
      }
     ]
    },
@@ -2441,28 +2525,40 @@
    "siteDensity": 0.8,
    "monsterDensity": 0.95,
    "groundDecor": {
-    "density": 0.041,
+    "density": 0.075,
     "kinds": [
      {
       "kind": "stick",
-      "weight": 0.45
+      "weight": 0.4
      },
      {
       "kind": "bramble",
       "weight": 0.3
      },
      {
+      "kind": "mushroom",
+      "weight": 0.22
+     },
+     {
       "kind": "pebble",
-      "weight": 0.25
+      "weight": 0.16
      }
     ]
    },
    "canopy": {
-    "density": 0.05,
+    "density": 0.065,
     "kinds": [
      {
       "kind": "canopy_deadtree",
-      "weight": 1.0
+      "weight": 0.75
+     },
+     {
+      "kind": "canopy_pine",
+      "weight": 0.15
+     },
+     {
+      "kind": "canopy_fir",
+      "weight": 0.1
      }
     ]
    }
@@ -2489,24 +2585,28 @@
    "siteDensity": 0.8,
    "monsterDensity": 0.95,
    "groundDecor": {
-    "density": 0.041,
+    "density": 0.05,
     "kinds": [
      {
       "kind": "rubble",
-      "weight": 0.45
+      "weight": 0.4
      },
      {
       "kind": "pebble",
-      "weight": 0.35
+      "weight": 0.3
      },
      {
       "kind": "bone",
-      "weight": 0.2
+      "weight": 0.22
+     },
+     {
+      "kind": "bramble",
+      "weight": 0.16
      }
     ]
    },
    "canopy": {
-    "density": 0.006,
+    "density": 0.008,
     "kinds": [
      {
       "kind": "canopy_deadtree",
@@ -2537,26 +2637,21 @@
    "siteDensity": 0.8,
    "monsterDensity": 0.95,
    "groundDecor": {
-    "density": 0.034,
+    "density": 0.04,
     "kinds": [
      {
       "kind": "rubble",
-      "weight": 0.6
+      "weight": 0.4
      },
      {
       "kind": "pebble",
-      "weight": 0.4
+      "weight": 0.3
      }
     ]
    },
    "canopy": {
-    "density": 0.0,
-    "kinds": [
-     {
-      "kind": "canopy_deadtree",
-      "weight": 1.0
-     }
-    ]
+    "density": 0,
+    "kinds": []
    }
   },
   {
@@ -2581,7 +2676,684 @@
    "siteDensity": 0.8,
    "monsterDensity": 0.95,
    "groundDecor": {
-    "density": 0.041,
+    "density": 0.08,
+    "kinds": [
+     {
+      "kind": "bramble",
+      "weight": 0.4
+     },
+     {
+      "kind": "mushroom",
+      "weight": 0.3
+     },
+     {
+      "kind": "moss",
+      "weight": 0.22
+     },
+     {
+      "kind": "stick",
+      "weight": 0.16
+     }
+    ]
+   },
+   "canopy": {
+    "density": 0.035,
+    "kinds": [
+     {
+      "kind": "canopy_deadtree",
+      "weight": 0.85
+     },
+     {
+      "kind": "canopy_birch",
+      "weight": 0.15
+     }
+    ]
+   }
+  },
+  {
+   "id": "fairy_glen",
+   "name": "Fairy Glen",
+   "priority": 58,
+   "isSubBiome": true,
+   "parentBiome": "forest",
+   "when": {},
+   "tiles": {
+    "grass": 0.82,
+    "grass_dark": 0.18
+   },
+   "tint": "a8d89a",
+   "music": "forest",
+   "skillWeights": {
+    "foraging": 2.4,
+    "woodcutting": 0.6
+   },
+   "siteDensity": 0.9,
+   "monsterDensity": 0.25,
+   "canopy": {
+    "density": 0.075,
+    "kinds": [
+     {
+      "kind": "canopy_birch",
+      "weight": 0.4
+     },
+     {
+      "kind": "canopy_maple",
+      "weight": 0.35
+     },
+     {
+      "kind": "canopy_broadleaf",
+      "weight": 0.25
+     }
+    ]
+   },
+   "groundDecor": {
+    "density": 0.22,
+    "kinds": [
+     {
+      "kind": "flower",
+      "weight": 0.4
+     },
+     {
+      "kind": "mushroom",
+      "weight": 0.3
+     },
+     {
+      "kind": "moss",
+      "weight": 0.22
+     },
+     {
+      "kind": "fern",
+      "weight": 0.16
+     }
+    ]
+   }
+  },
+  {
+   "id": "bluebell_wood",
+   "name": "Bluebell Wood",
+   "priority": 56,
+   "isSubBiome": true,
+   "parentBiome": "forest",
+   "when": {},
+   "tiles": {
+    "grass": 0.82,
+    "grass_dark": 0.18
+   },
+   "tint": "9aa6d6",
+   "music": "forest",
+   "skillWeights": {
+    "foraging": 2.0,
+    "woodcutting": 1.2
+   },
+   "siteDensity": 1.0,
+   "monsterDensity": 0.3,
+   "canopy": {
+    "density": 0.11,
+    "kinds": [
+     {
+      "kind": "canopy_birch",
+      "weight": 0.45
+     },
+     {
+      "kind": "canopy_broadleaf",
+      "weight": 0.35
+     },
+     {
+      "kind": "canopy_maple",
+      "weight": 0.2
+     }
+    ]
+   },
+   "groundDecor": {
+    "density": 0.24,
+    "kinds": [
+     {
+      "kind": "flower",
+      "weight": 0.4
+     },
+     {
+      "kind": "fern",
+      "weight": 0.3
+     },
+     {
+      "kind": "moss",
+      "weight": 0.22
+     }
+    ]
+   }
+  },
+  {
+   "id": "mossy_old_growth",
+   "name": "Mossy Old-Growth",
+   "priority": 55,
+   "isSubBiome": true,
+   "parentBiome": "dense_forest",
+   "when": {},
+   "tiles": {
+    "grass": 0.6,
+    "grass_dark": 0.4
+   },
+   "tint": "6a7a4a",
+   "music": "forest",
+   "skillWeights": {
+    "woodcutting": 3.2,
+    "foraging": 1.6
+   },
+   "siteDensity": 1.3,
+   "monsterDensity": 0.5,
+   "canopy": {
+    "density": 0.185,
+    "kinds": [
+     {
+      "kind": "canopy_fir",
+      "weight": 0.4
+     },
+     {
+      "kind": "canopy_pine",
+      "weight": 0.35
+     },
+     {
+      "kind": "canopy_broadleaf",
+      "weight": 0.25
+     }
+    ]
+   },
+   "groundDecor": {
+    "density": 0.24,
+    "kinds": [
+     {
+      "kind": "moss",
+      "weight": 0.4
+     },
+     {
+      "kind": "fern",
+      "weight": 0.3
+     },
+     {
+      "kind": "mushroom",
+      "weight": 0.22
+     },
+     {
+      "kind": "stick",
+      "weight": 0.16
+     }
+    ]
+   }
+  },
+  {
+   "id": "sunlit_glade",
+   "name": "Sunlit Glade",
+   "priority": 54,
+   "isSubBiome": true,
+   "parentBiome": "forest",
+   "when": {},
+   "tiles": {
+    "grass": 0.82,
+    "grass_dark": 0.18
+   },
+   "tint": "cfe0a0",
+   "music": "forest",
+   "skillWeights": {
+    "foraging": 2.0,
+    "woodcutting": 0.4
+   },
+   "siteDensity": 0.8,
+   "monsterDensity": 0.2,
+   "canopy": {
+    "density": 0.03,
+    "kinds": [
+     {
+      "kind": "canopy_birch",
+      "weight": 0.55
+     },
+     {
+      "kind": "canopy_maple",
+      "weight": 0.45
+     }
+    ]
+   },
+   "groundDecor": {
+    "density": 0.2,
+    "kinds": [
+     {
+      "kind": "flower",
+      "weight": 0.4
+     },
+     {
+      "kind": "grass",
+      "weight": 0.3
+     },
+     {
+      "kind": "shrub",
+      "weight": 0.22
+     }
+    ]
+   }
+  },
+  {
+   "id": "crystal_spring",
+   "name": "Crystal Spring",
+   "priority": 57,
+   "isSubBiome": true,
+   "parentBiome": "forest",
+   "when": {},
+   "tiles": {
+    "grass": 0.7,
+    "dirt": 0.2,
+    "shallow": 0.1
+   },
+   "tint": "a6d8d0",
+   "music": "forest",
+   "skillWeights": {
+    "foraging": 1.8,
+    "fishing": 1.4
+   },
+   "siteDensity": 0.9,
+   "monsterDensity": 0.25,
+   "canopy": {
+    "density": 0.04,
+    "kinds": [
+     {
+      "kind": "canopy_birch",
+      "weight": 0.6
+     },
+     {
+      "kind": "canopy_fir",
+      "weight": 0.4
+     }
+    ]
+   },
+   "groundDecor": {
+    "density": 0.15,
+    "kinds": [
+     {
+      "kind": "flower",
+      "weight": 0.4
+     },
+     {
+      "kind": "moss",
+      "weight": 0.3
+     },
+     {
+      "kind": "pebble",
+      "weight": 0.22
+     },
+     {
+      "kind": "reed",
+      "weight": 0.16
+     }
+    ]
+   }
+  },
+  {
+   "id": "highland_meadow",
+   "name": "Highland Meadow",
+   "priority": 46,
+   "isSubBiome": true,
+   "parentBiome": "plains",
+   "when": {},
+   "tiles": {
+    "grass": 0.85,
+    "dirt": 0.15
+   },
+   "tint": "9ab87a",
+   "music": "hills",
+   "skillWeights": {
+    "foraging": 1.8,
+    "hunter": 1.0
+   },
+   "siteDensity": 0.9,
+   "monsterDensity": 0.35,
+   "canopy": {
+    "density": 0.025,
+    "kinds": [
+     {
+      "kind": "canopy_birch",
+      "weight": 0.5
+     },
+     {
+      "kind": "canopy_pine",
+      "weight": 0.3
+     },
+     {
+      "kind": "canopy_fir",
+      "weight": 0.2
+     }
+    ]
+   },
+   "groundDecor": {
+    "density": 0.16,
+    "kinds": [
+     {
+      "kind": "grass",
+      "weight": 0.4
+     },
+     {
+      "kind": "flower",
+      "weight": 0.3
+     },
+     {
+      "kind": "moss",
+      "weight": 0.22
+     },
+     {
+      "kind": "pebble",
+      "weight": 0.16
+     }
+    ]
+   }
+  },
+  {
+   "id": "sheep_pasture",
+   "name": "Sheep Pasture",
+   "priority": 44,
+   "isSubBiome": true,
+   "parentBiome": "plains",
+   "when": {},
+   "tiles": {
+    "grass": 0.85,
+    "dirt": 0.15
+   },
+   "tint": "aac888",
+   "music": "plains",
+   "skillWeights": {
+    "foraging": 1.6
+   },
+   "siteDensity": 0.7,
+   "monsterDensity": 0.25,
+   "canopy": {
+    "density": 0.02,
+    "kinds": [
+     {
+      "kind": "canopy_broadleaf",
+      "weight": 0.6
+     },
+     {
+      "kind": "canopy_birch",
+      "weight": 0.4
+     }
+    ]
+   },
+   "groundDecor": {
+    "density": 0.14,
+    "kinds": [
+     {
+      "kind": "grass",
+      "weight": 0.4
+     },
+     {
+      "kind": "flower",
+      "weight": 0.3
+     },
+     {
+      "kind": "shrub",
+      "weight": 0.22
+     }
+    ]
+   }
+  },
+  {
+   "id": "stone_fence_fields",
+   "name": "Stone-Fence Fields",
+   "priority": 43,
+   "isSubBiome": true,
+   "parentBiome": "plains",
+   "when": {},
+   "tiles": {
+    "grass": 0.85,
+    "dirt": 0.15
+   },
+   "tint": "a0b87a",
+   "music": "plains",
+   "skillWeights": {
+    "foraging": 1.6,
+    "mining": 0.4
+   },
+   "siteDensity": 0.8,
+   "monsterDensity": 0.3,
+   "canopy": {
+    "density": 0.03,
+    "kinds": [
+     {
+      "kind": "canopy_broadleaf",
+      "weight": 0.6
+     },
+     {
+      "kind": "canopy_birch",
+      "weight": 0.4
+     }
+    ]
+   },
+   "groundDecor": {
+    "density": 0.14,
+    "kinds": [
+     {
+      "kind": "grass",
+      "weight": 0.4
+     },
+     {
+      "kind": "flower",
+      "weight": 0.3
+     },
+     {
+      "kind": "pebble",
+      "weight": 0.22
+     },
+     {
+      "kind": "shrub",
+      "weight": 0.16
+     }
+    ]
+   }
+  },
+  {
+   "id": "alpine_flower_field",
+   "name": "Alpine Flower Field",
+   "priority": 47,
+   "isSubBiome": true,
+   "parentBiome": "alpine",
+   "when": {},
+   "tiles": {
+    "grass": 0.75,
+    "gravel": 0.25
+   },
+   "tint": "b8c8a0",
+   "music": "hills",
+   "skillWeights": {
+    "foraging": 2.0,
+    "mining": 0.6
+   },
+   "siteDensity": 0.8,
+   "monsterDensity": 0.4,
+   "canopy": {
+    "density": 0.02,
+    "kinds": [
+     {
+      "kind": "canopy_snow_fir",
+      "weight": 0.6
+     },
+     {
+      "kind": "canopy_pine",
+      "weight": 0.4
+     }
+    ]
+   },
+   "groundDecor": {
+    "density": 0.16,
+    "kinds": [
+     {
+      "kind": "flower",
+      "weight": 0.4
+     },
+     {
+      "kind": "grass",
+      "weight": 0.3
+     },
+     {
+      "kind": "lichen",
+      "weight": 0.22
+     },
+     {
+      "kind": "pebble",
+      "weight": 0.16
+     }
+    ]
+   }
+  },
+  {
+   "id": "misty_pine_woods",
+   "name": "Misty Pine Woods",
+   "priority": 52,
+   "isSubBiome": true,
+   "parentBiome": "boreal_forest",
+   "when": {},
+   "tiles": {
+    "grass": 0.6,
+    "grass_dark": 0.4
+   },
+   "tint": "6a8270",
+   "music": "forest",
+   "skillWeights": {
+    "woodcutting": 3.0,
+    "foraging": 1.2
+   },
+   "siteDensity": 1.2,
+   "monsterDensity": 0.5,
+   "canopy": {
+    "density": 0.175,
+    "kinds": [
+     {
+      "kind": "canopy_pine",
+      "weight": 0.45
+     },
+     {
+      "kind": "canopy_fir",
+      "weight": 0.35
+     },
+     {
+      "kind": "canopy_snow_fir",
+      "weight": 0.2
+     }
+    ]
+   },
+   "groundDecor": {
+    "density": 0.13,
+    "kinds": [
+     {
+      "kind": "moss",
+      "weight": 0.4
+     },
+     {
+      "kind": "fern",
+      "weight": 0.3
+     },
+     {
+      "kind": "mushroom",
+      "weight": 0.22
+     },
+     {
+      "kind": "stick",
+      "weight": 0.16
+     }
+    ]
+   }
+  },
+  {
+   "id": "witchwood",
+   "name": "Witchwood",
+   "priority": 51,
+   "isSubBiome": true,
+   "parentBiome": "forest",
+   "when": {},
+   "tiles": {
+    "grass_dark": 0.62,
+    "mud": 0.38
+   },
+   "tint": "5a6a58",
+   "music": "swamp",
+   "skillWeights": {
+    "foraging": 1.2,
+    "hunter": 1.2
+   },
+   "siteDensity": 1.0,
+   "monsterDensity": 0.85,
+   "canopy": {
+    "density": 0.13,
+    "kinds": [
+     {
+      "kind": "canopy_deadtree",
+      "weight": 0.45
+     },
+     {
+      "kind": "canopy_birch",
+      "weight": 0.3
+     },
+     {
+      "kind": "canopy_broadleaf",
+      "weight": 0.25
+     }
+    ]
+   },
+   "groundDecor": {
+    "density": 0.13,
+    "kinds": [
+     {
+      "kind": "mushroom",
+      "weight": 0.4
+     },
+     {
+      "kind": "bramble",
+      "weight": 0.3
+     },
+     {
+      "kind": "stick",
+      "weight": 0.22
+     },
+     {
+      "kind": "moss",
+      "weight": 0.16
+     }
+    ]
+   }
+  },
+  {
+   "id": "goblin_thicket",
+   "name": "Goblin Thicket",
+   "priority": 50,
+   "isSubBiome": true,
+   "parentBiome": "dense_forest",
+   "when": {},
+   "tiles": {
+    "grass_dark": 0.62,
+    "mud": 0.38
+   },
+   "tint": "6a7050",
+   "music": "forest",
+   "skillWeights": {
+    "hunter": 1.4,
+    "woodcutting": 1.4
+   },
+   "siteDensity": 1.1,
+   "monsterDensity": 1.0,
+   "canopy": {
+    "density": 0.15,
+    "kinds": [
+     {
+      "kind": "canopy_fir",
+      "weight": 0.4
+     },
+     {
+      "kind": "canopy_pine",
+      "weight": 0.35
+     },
+     {
+      "kind": "canopy_deadtree",
+      "weight": 0.25
+     }
+    ]
+   },
+   "groundDecor": {
+    "density": 0.14,
     "kinds": [
      {
       "kind": "bramble",
@@ -2589,20 +3361,350 @@
      },
      {
       "kind": "stick",
-      "weight": 0.35
+      "weight": 0.3
+     },
+     {
+      "kind": "mushroom",
+      "weight": 0.22
+     },
+     {
+      "kind": "bone",
+      "weight": 0.16
+     }
+    ]
+   }
+  },
+  {
+   "id": "haunted_moor",
+   "name": "Haunted Moor",
+   "priority": 49,
+   "isSubBiome": true,
+   "parentBiome": "rocky_hills",
+   "when": {},
+   "tiles": {
+    "grass_dark": 0.55,
+    "grass": 0.3,
+    "mud": 0.15
+   },
+   "tint": "7a7a88",
+   "music": "hills",
+   "skillWeights": {
+    "foraging": 1.2,
+    "hunter": 1.2
+   },
+   "siteDensity": 1.0,
+   "monsterDensity": 0.95,
+   "canopy": {
+    "density": 0.03,
+    "kinds": [
+     {
+      "kind": "canopy_deadtree",
+      "weight": 0.6
+     },
+     {
+      "kind": "canopy_fir",
+      "weight": 0.4
+     }
+    ]
+   },
+   "groundDecor": {
+    "density": 0.15,
+    "kinds": [
+     {
+      "kind": "moss",
+      "weight": 0.4
+     },
+     {
+      "kind": "bramble",
+      "weight": 0.3
+     },
+     {
+      "kind": "bone",
+      "weight": 0.22
      },
      {
       "kind": "pebble",
+      "weight": 0.16
+     }
+    ]
+   }
+  },
+  {
+   "id": "ancient_ruins",
+   "name": "Ancient Ruins",
+   "priority": 53,
+   "isSubBiome": true,
+   "parentBiome": "forest",
+   "when": {},
+   "tiles": {
+    "grass": 0.55,
+    "dirt": 0.3,
+    "cobble": 0.15
+   },
+   "tint": "9aa080",
+   "music": "hills",
+   "skillWeights": {
+    "mining": 1.0,
+    "foraging": 0.8
+   },
+   "siteDensity": 1.3,
+   "monsterDensity": 0.9,
+   "canopy": {
+    "density": 0.05,
+    "kinds": [
+     {
+      "kind": "canopy_birch",
+      "weight": 0.4
+     },
+     {
+      "kind": "canopy_broadleaf",
+      "weight": 0.35
+     },
+     {
+      "kind": "canopy_deadtree",
       "weight": 0.25
      }
     ]
    },
+   "groundDecor": {
+    "density": 0.11,
+    "kinds": [
+     {
+      "kind": "rubble",
+      "weight": 0.4
+     },
+     {
+      "kind": "moss",
+      "weight": 0.3
+     },
+     {
+      "kind": "flower",
+      "weight": 0.22
+     },
+     {
+      "kind": "stick",
+      "weight": 0.16
+     }
+    ]
+   }
+  },
+  {
+   "id": "graveyard",
+   "name": "Graveyard",
+   "priority": 48,
+   "isSubBiome": true,
+   "parentBiome": "forest",
+   "when": {},
+   "tiles": {
+    "grass": 0.5,
+    "dirt": 0.35,
+    "cobble": 0.15
+   },
+   "tint": "8a9088",
+   "music": "swamp",
+   "skillWeights": {
+    "foraging": 0.6,
+    "hunter": 1.0
+   },
+   "siteDensity": 1.0,
+   "monsterDensity": 1.0,
    "canopy": {
-    "density": 0.022,
+    "density": 0.05,
     "kinds": [
      {
       "kind": "canopy_deadtree",
+      "weight": 0.6
+     },
+     {
+      "kind": "canopy_birch",
+      "weight": 0.4
+     }
+    ]
+   },
+   "groundDecor": {
+    "density": 0.11,
+    "kinds": [
+     {
+      "kind": "bone",
+      "weight": 0.4
+     },
+     {
+      "kind": "bramble",
+      "weight": 0.3
+     },
+     {
+      "kind": "moss",
+      "weight": 0.22
+     },
+     {
+      "kind": "pebble",
+      "weight": 0.16
+     }
+    ]
+   }
+  },
+  {
+   "id": "palm_beach",
+   "name": "Palm Beach",
+   "priority": 45,
+   "isSubBiome": true,
+   "parentBiome": "beach",
+   "when": {},
+   "tiles": {
+    "sand": 0.8,
+    "grass": 0.2
+   },
+   "tint": "d8c890",
+   "music": "coast",
+   "skillWeights": {
+    "foraging": 1.4,
+    "fishing": 1.2
+   },
+   "siteDensity": 1.0,
+   "monsterDensity": 0.3,
+   "canopy": {
+    "density": 0.04,
+    "kinds": [
+     {
+      "kind": "canopy_palm",
       "weight": 1.0
+     }
+    ]
+   },
+   "groundDecor": {
+    "density": 0.11,
+    "kinds": [
+     {
+      "kind": "shell",
+      "weight": 0.4
+     },
+     {
+      "kind": "driftwood",
+      "weight": 0.3
+     },
+     {
+      "kind": "flower",
+      "weight": 0.22
+     },
+     {
+      "kind": "pebble",
+      "weight": 0.16
+     }
+    ]
+   }
+  },
+  {
+   "id": "rainforest_pool",
+   "name": "Rainforest Pool",
+   "priority": 42,
+   "isSubBiome": true,
+   "parentBiome": "jungle",
+   "when": {},
+   "tiles": {
+    "grass": 0.7,
+    "mud": 0.3
+   },
+   "tint": "5a8a6a",
+   "music": "forest",
+   "skillWeights": {
+    "foraging": 2.0,
+    "fishing": 1.2
+   },
+   "siteDensity": 1.2,
+   "monsterDensity": 0.6,
+   "canopy": {
+    "density": 0.2,
+    "kinds": [
+     {
+      "kind": "canopy_palm",
+      "weight": 0.45
+     },
+     {
+      "kind": "canopy_broadleaf",
+      "weight": 0.35
+     },
+     {
+      "kind": "canopy_acacia",
+      "weight": 0.2
+     }
+    ]
+   },
+   "groundDecor": {
+    "density": 0.18,
+    "kinds": [
+     {
+      "kind": "vine",
+      "weight": 0.4
+     },
+     {
+      "kind": "fern",
+      "weight": 0.3
+     },
+     {
+      "kind": "mushroom",
+      "weight": 0.22
+     },
+     {
+      "kind": "reed",
+      "weight": 0.16
+     }
+    ]
+   }
+  },
+  {
+   "id": "volcanic_jungle",
+   "name": "Volcanic Jungle",
+   "priority": 41,
+   "isSubBiome": true,
+   "parentBiome": "jungle",
+   "when": {},
+   "tiles": {
+    "grass": 0.6,
+    "ash": 0.4
+   },
+   "tint": "6a7a50",
+   "music": "forest",
+   "skillWeights": {
+    "foraging": 1.6,
+    "mining": 0.8
+   },
+   "siteDensity": 1.2,
+   "monsterDensity": 0.8,
+   "canopy": {
+    "density": 0.12,
+    "kinds": [
+     {
+      "kind": "canopy_palm",
+      "weight": 0.45
+     },
+     {
+      "kind": "canopy_deadtree",
+      "weight": 0.3
+     },
+     {
+      "kind": "canopy_broadleaf",
+      "weight": 0.25
+     }
+    ]
+   },
+   "groundDecor": {
+    "density": 0.13,
+    "kinds": [
+     {
+      "kind": "vine",
+      "weight": 0.4
+     },
+     {
+      "kind": "rubble",
+      "weight": 0.3
+     },
+     {
+      "kind": "fern",
+      "weight": 0.22
+     },
+     {
+      "kind": "pebble",
+      "weight": 0.16
      }
     ]
    }
@@ -2706,13 +3808,14 @@
    "macroSpacing": 4
   },
   {
-   "id": "salt_pan",
+   "id": "salt_marsh",
    "allowedParents": [
-    "desert"
+    "swamp",
+    "beach"
    ],
    "minSize": 12,
    "maxSize": 40,
-   "chance": 0.05,
+   "chance": 0.07,
    "macroSpacing": 6
   },
   {
@@ -2833,6 +3936,222 @@
    "maxSize": 60,
    "chance": 0.2,
    "macroSpacing": 3
+  },
+  {
+   "id": "fairy_glen",
+   "allowedParents": [
+    "forest",
+    "dense_forest"
+   ],
+   "minSize": 8,
+   "maxSize": 24,
+   "chance": 0.04,
+   "macroSpacing": 6,
+   "requiresWater": false
+  },
+  {
+   "id": "bluebell_wood",
+   "allowedParents": [
+    "forest",
+    "plains"
+   ],
+   "minSize": 18,
+   "maxSize": 60,
+   "chance": 0.06,
+   "macroSpacing": 5,
+   "requiresWater": false
+  },
+  {
+   "id": "mossy_old_growth",
+   "allowedParents": [
+    "dense_forest",
+    "boreal_forest"
+   ],
+   "minSize": 28,
+   "maxSize": 110,
+   "chance": 0.085,
+   "macroSpacing": 4,
+   "requiresWater": false
+  },
+  {
+   "id": "sunlit_glade",
+   "allowedParents": [
+    "forest",
+    "plains"
+   ],
+   "minSize": 10,
+   "maxSize": 32,
+   "chance": 0.05,
+   "macroSpacing": 5,
+   "requiresWater": false
+  },
+  {
+   "id": "crystal_spring",
+   "allowedParents": [
+    "forest",
+    "plains",
+    "rocky_hills"
+   ],
+   "minSize": 8,
+   "maxSize": 24,
+   "chance": 0.045,
+   "macroSpacing": 5,
+   "requiresWater": true
+  },
+  {
+   "id": "highland_meadow",
+   "allowedParents": [
+    "plains",
+    "rocky_hills"
+   ],
+   "minSize": 22,
+   "maxSize": 84,
+   "chance": 0.085,
+   "macroSpacing": 4,
+   "requiresWater": false
+  },
+  {
+   "id": "sheep_pasture",
+   "allowedParents": [
+    "plains"
+   ],
+   "minSize": 20,
+   "maxSize": 72,
+   "chance": 0.08,
+   "macroSpacing": 4,
+   "requiresWater": false
+  },
+  {
+   "id": "stone_fence_fields",
+   "allowedParents": [
+    "plains"
+   ],
+   "minSize": 20,
+   "maxSize": 68,
+   "chance": 0.07,
+   "macroSpacing": 4,
+   "requiresWater": false
+  },
+  {
+   "id": "alpine_flower_field",
+   "allowedParents": [
+    "alpine",
+    "rocky_hills",
+    "tundra"
+   ],
+   "minSize": 16,
+   "maxSize": 56,
+   "chance": 0.075,
+   "macroSpacing": 4,
+   "requiresWater": false
+  },
+  {
+   "id": "misty_pine_woods",
+   "allowedParents": [
+    "boreal_forest",
+    "dense_forest"
+   ],
+   "minSize": 26,
+   "maxSize": 96,
+   "chance": 0.1,
+   "macroSpacing": 3,
+   "requiresWater": false
+  },
+  {
+   "id": "witchwood",
+   "allowedParents": [
+    "forest",
+    "swamp"
+   ],
+   "minSize": 16,
+   "maxSize": 54,
+   "chance": 0.05,
+   "macroSpacing": 5,
+   "requiresWater": false
+  },
+  {
+   "id": "goblin_thicket",
+   "allowedParents": [
+    "dense_forest",
+    "boreal_forest"
+   ],
+   "minSize": 16,
+   "maxSize": 54,
+   "chance": 0.055,
+   "macroSpacing": 4,
+   "requiresWater": false
+  },
+  {
+   "id": "haunted_moor",
+   "allowedParents": [
+    "rocky_hills",
+    "plains",
+    "boreal_forest"
+   ],
+   "minSize": 24,
+   "maxSize": 84,
+   "chance": 0.05,
+   "macroSpacing": 5,
+   "requiresWater": false
+  },
+  {
+   "id": "ancient_ruins",
+   "allowedParents": [
+    "forest",
+    "plains"
+   ],
+   "minSize": 12,
+   "maxSize": 40,
+   "chance": 0.03,
+   "macroSpacing": 6,
+   "requiresWater": false
+  },
+  {
+   "id": "graveyard",
+   "allowedParents": [
+    "forest",
+    "plains",
+    "swamp"
+   ],
+   "minSize": 8,
+   "maxSize": 28,
+   "chance": 0.03,
+   "macroSpacing": 6,
+   "requiresWater": false
+  },
+  {
+   "id": "palm_beach",
+   "allowedParents": [
+    "beach"
+   ],
+   "minSize": 12,
+   "maxSize": 40,
+   "chance": 0.1,
+   "macroSpacing": 3,
+   "requiresWater": false
+  },
+  {
+   "id": "rainforest_pool",
+   "allowedParents": [
+    "jungle"
+   ],
+   "minSize": 10,
+   "maxSize": 34,
+   "chance": 0.12,
+   "macroSpacing": 3,
+   "requiresWater": true
+  },
+  {
+   "id": "volcanic_jungle",
+   "allowedParents": [
+    "jungle",
+    "volcanic"
+   ],
+   "minSize": 16,
+   "maxSize": 54,
+   "chance": 0.08,
+   "macroSpacing": 4,
+   "requiresWater": false
   }
  ]
 }

@@ -33,7 +33,7 @@ TRACE  = os.path.join(SRC, "trace-map.png")   # crisp coastline outline (preferr
 # index 0 must be ocean (land mask handles water; this is the land fallback list)
 PALETTE = ["forest","plains","boreal_forest","alpine","tundra","volcanic",
            "rocky_hills","swamp","jungle","desert","savanna","badlands",
-           "salt_pan","flower_meadow"]
+           "salt_marsh","flower_meadow"]
 PIDX = {b:i for i,b in enumerate(PALETTE)}
 
 # canonical preview colours (close to the reference, for eyeballing)
@@ -42,7 +42,7 @@ PCOL = {
  "alpine":(232,236,237),"tundra":(180,188,180),"volcanic":(60,45,42),
  "rocky_hills":(150,146,140),"swamp":(86,104,70),"jungle":(60,96,46),
  "desert":(195,150,90),"savanna":(175,160,95),"badlands":(150,95,60),
- "salt_pan":(212,210,196),"flower_meadow":(150,120,150),
+ "salt_marsh":(212,210,196),"flower_meadow":(150,120,150),
 }
 
 # Seeds: (fx, fy, biome). Placed by eye over the reference layout.
@@ -76,7 +76,7 @@ SEEDS = [
  (0.80,0.46,"savanna"),(0.83,0.42,"savanna"),(0.78,0.50,"savanna"),
  (0.87,0.55,"desert"),(0.90,0.62,"desert"),(0.84,0.58,"desert"),(0.92,0.50,"desert"),
  (0.85,0.68,"badlands"),(0.88,0.66,"badlands"),
- (0.90,0.83,"salt_pan"),(0.92,0.80,"salt_pan"),(0.88,0.86,"salt_pan"),
+ (0.90,0.83,"salt_marsh"),(0.92,0.80,"salt_marsh"),(0.88,0.86,"salt_marsh"),
 ]
 
 ALPHA = 420.0   # spatial weight: higher = trust position more vs colour

@@ -33,7 +33,7 @@ const SUB_COLORS := {
 	"bamboo_thicket": Color(0.15, 0.55, 0.22, 0.75),
 	"snowdrift": Color(0.92, 0.95, 0.98, 0.75),
 	"cactus_plain": Color(0.88, 0.72, 0.25, 0.72),
-	"salt_pan": Color(0.90, 0.88, 0.82, 0.72),
+	"salt_marsh": Color(0.90, 0.88, 0.82, 0.72),
 	"heather_moor": Color(0.62, 0.48, 0.62, 0.72),
 	"bog": Color(0.22, 0.32, 0.18, 0.75),
 	"tide_flats": Color(0.75, 0.68, 0.42, 0.72),
