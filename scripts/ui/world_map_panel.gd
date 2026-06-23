@@ -212,6 +212,12 @@ func _draw_overlays() -> void:
 			_marker(sp, Color(0.55, 0.85, 0.95), 3.0, false)
 			_label(str(f.get("label", "")), sp + Vector2(7, -5), Color(0.7, 0.9, 1.0))
 	for a: Dictionary in spec.anchors:
+		# The player-spawn anchor is just the start point (the live player marker already shows it) —
+		# it places no content in a blank world, so don't label it ("Home Camp" etc.) on the map.
+		if str(a.get("poi", "")) == "player_spawn" or str(a.get("id", "")) == "spawn":
+			continue
+		if str(a.get("label", "")).is_empty():
+			continue
 		var ch: Vector2i = a["chunk"]
 		var sp := _tile_to_screen(ch.x * WG.CHUNK_TILES + 8, ch.y * WG.CHUNK_TILES + 8)
 		var boss := not str(a.get("boss", "")).is_empty()
