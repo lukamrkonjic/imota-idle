@@ -8,6 +8,7 @@
     "stone":  { "core": "cobble",      "width": 1.9, "jitter": 0.4,  "feather": 1.1,  "decor": 0.03 },
     "gravel": { "core": "gravel",      "width": 1.5, "jitter": 0.5,  "feather": 1.1,  "decor": 0.04 },
     "desert": { "core": "sand",        "width": 1.6, "jitter": 0.8,  "feather": 1.4,  "decor": 0.03 },
-    "bridge": { "core": "plank_floor", "width": 0.6, "jitter": 0.1, "feather": 0.25, "decor": 0.0, "deck": true }
+    "bridge": { "core": "plank_floor", "width": 0.6, "jitter": 0.1, "feather": 0.25, "decor": 0.0, "deck": true },
+    "fence":  { "core": "dirt", "width": 0.4, "jitter": 0.0, "feather": 0.0, "decor": 0.0, "fence": true }
   }
 }

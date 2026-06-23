@@ -88,6 +88,11 @@ func _stamp_road(road: Dictionary) -> void:
 	if center.size() < 2:
 		return
 	var st := _style_for(road)
+	if bool(st.get("fence", false)):
+		# A fence follows the DRAWN curve (no straightening like a bridge) and paints no tiles — it
+		# drops connected post+rail segments that sit on the terrain, so it climbs hills naturally.
+		_emit_fence(center)
+		return
 	if bool(st.get("deck", false)):
 		# A bridge is a STRAIGHT floating span from the first authored point to the last — it
 		# doesn't wind. Replace the smoothed curve with a straight, per-tile-sampled line so the
@@ -111,12 +116,12 @@ func _stamp_road(road: Dictionary) -> void:
 	# visible and the deck mesh floats over it. A normal road stamps its body into the tiles.
 	var is_deck := bool(st.get("deck", false))
 	if not is_deck:
-		# Grade the road into a smooth, walkable climb where an elevation sampler is supplied.
-		var grade := _elev_at.is_valid()
-		var prof := _grade_profile(center) if grade else PackedInt32Array()
 		for i: int in center.size():
 			var w := maxf(0.6, base_w + jitter * _wnoise(arcs[i]))
-			_stamp_point(center[i], w, feather, core, (prof[i] if grade else NO_ELEV))
+			_stamp_point(center[i], w, feather, core)
+		# Grade the road into a smooth, walkable climb (beveled into the terrain) where a sampler is given.
+		if _elev_at.is_valid():
+			_bevel_road_elev(center, arcs, base_w, jitter, _grade_profile(center))
 
 	if is_deck:
 		_emit_bridge(center, base_w)
@@ -167,9 +172,7 @@ func _catmull(p0: Vector2, p1: Vector2, p2: Vector2, p3: Vector2, t: float) -> V
 
 # --- variable-width stamp with feathered stochastic rim -----------------------
 
-const NO_ELEV := -2147483648    # "no grading" sentinel for _stamp_point's elev arg
-
-func _stamp_point(c: Vector2, w: float, feather: float, core: int, elev := NO_ELEV) -> void:
+func _stamp_point(c: Vector2, w: float, feather: float, core: int) -> void:
 	var cx := int(round(c.x))
 	var cy := int(round(c.y))
 	var rr := int(ceil(w + feather + 1.0))
@@ -181,13 +184,46 @@ func _stamp_point(c: Vector2, w: float, feather: float, core: int, elev := NO_EL
 			var d := sqrt(float(dx * dx + dy * dy)) + 0.6 * _ewarp(tx, ty)
 			if d <= w:
 				road_tiles[Vector2i(tx, ty)] = core
-				if elev != NO_ELEV:
-					road_elev[Vector2i(tx, ty)] = elev
 			elif d <= w + feather:
 				if _hash01(tx, ty, 7771) < 1.0 - (d - w) / feather:
 					road_tiles[Vector2i(tx, ty)] = core
-					if elev != NO_ELEV:
-						road_elev[Vector2i(tx, ty)] = elev
+
+
+# Beveled road elevation: each tile takes the graded bed height of its NEAREST centerline point
+# (no sawtooth from overlapping stamps), held flat across the road, then ramped back up to the
+# surrounding terrain over a few shoulder tiles — so a road cut into a slope reads as a smooth
+# carved channel instead of a 1-tile wall of jagged spikes.
+const BEVEL := 3.0     # shoulder tiles over which the cut/fill blends back to terrain
+
+func _bevel_road_elev(center: Array, arcs: PackedFloat32Array, base_w: float, jitter: float, prof: PackedInt32Array) -> void:
+	var bed_dist: Dictionary = {}    # Vector2i -> nearest centerline distance
+	var bed_elev: Dictionary = {}    # Vector2i -> bed elevation of that nearest point
+	var bed_w: Dictionary = {}       # Vector2i -> that point's half-width (bevel start)
+	for i: int in center.size():
+		var w := maxf(0.6, base_w + jitter * _wnoise(arcs[i]))
+		var cx := int(round(center[i].x))
+		var cy := int(round(center[i].y))
+		var rr := int(ceil(w + BEVEL + 1.0))
+		for dy: int in range(-rr, rr + 1):
+			for dx: int in range(-rr, rr + 1):
+				var d := sqrt(float(dx * dx + dy * dy))
+				if d > w + BEVEL:
+					continue
+				var key := Vector2i(cx + dx, cy + dy)
+				if not bed_dist.has(key) or d < float(bed_dist[key]):
+					bed_dist[key] = d
+					bed_elev[key] = prof[i]
+					bed_w[key] = w
+	for key: Vector2i in bed_dist:
+		var d: float = bed_dist[key]
+		var w: float = bed_w[key]
+		var bedh := float(int(bed_elev[key]))
+		if d <= w:
+			road_elev[key] = int(round(bedh))
+		else:
+			var t := clampf((d - w) / BEVEL, 0.0, 1.0)
+			var terr := float(int(_elev_at.call(key.x, key.y)))
+			road_elev[key] = int(round(lerpf(bedh, terr, t)))
 
 
 ## Slope-limited elevation profile along the centerline: sample the terrain, smooth it, then cap
@@ -254,6 +290,20 @@ func _emit_bridge(center: Array, _hw: float) -> void:
 				var ppart := {"kind": "bridge_pole", "gx": pp.x, "gy": pp.y, "h": h}
 				ppart.merge(span)
 				_add_struct(int(round(pp.x)), int(round(pp.y)), ppart)
+
+
+# --- draggable fence (the "fence" style) --------------------------------------
+
+func _emit_fence(center: Array) -> void:
+	# One oriented post+rail segment per centerline sample; yaw aligns the rails ALONG the path so
+	# consecutive segments connect into a continuous fence. Each sits on the terrain (the renderer
+	# places structures at ground height), so the fence steps up and down hills with the land.
+	var n := center.size()
+	for i: int in n:
+		var c: Vector2 = center[i]
+		var fwd: Vector2 = center[mini(i + 1, n - 1)] - center[maxi(i - 1, 0)]
+		var yaw := atan2(fwd.x, fwd.y) if fwd.length() > 0.01 else 0.0
+		_add_struct(int(round(c.x)), int(round(c.y)), {"kind": "fence", "yaw": yaw, "gx": c.x, "gy": c.y})
 
 
 # --- roadside decor -----------------------------------------------------------

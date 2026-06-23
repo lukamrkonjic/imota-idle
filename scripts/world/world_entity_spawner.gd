@@ -317,6 +317,16 @@ func _spawn_canopy(chunk: RefCounted, container: Node2D) -> void:
 			_spawn_canopy_tile(chunk, container, seed, tx, ty)
 
 
+## Editor hook: drop this chunk's PROCEDURAL canopy (ambient trees) and reset the build flag, so a
+## biome repaint regrows the NEW biome's trees on the next load. Authored/hand-placed gather sites
+## (which have no "ambient" tag) are left untouched.
+func clear_ambient_canopy(chunk: RefCounted) -> void:
+	for i: int in range(chunk.sites.size() - 1, -1, -1):
+		if bool((chunk.sites[i] as Dictionary).get("ambient", false)):
+			chunk.sites.remove_at(i)
+	chunk.canopy_sites_built = false
+
+
 ## species (canopy_* render kind) -> woodcutting node name -> level, from tree_species.json +
 ## the woodcutting node table. Loaded once.
 var _species_node: Dictionary = {}
@@ -385,7 +395,7 @@ func _spawn_canopy_tile(chunk: RefCounted, container: Node2D, seed: int, tx: int
 		"skill": "woodcutting", "node": node_name, "level": lvl,
 		"kind": "tree", "tree_species": picked, "tx": tx, "ty": ty,
 		"resources": logs, "remaining": logs, "respawn_sec": _wc_respawn(node_name),
-		"available": true, "respawn_at": 0.0,
+		"available": true, "respawn_at": 0.0, "ambient": true,
 	})
 
 
@@ -728,6 +738,14 @@ func _spawn_poi_part(chunk: RefCounted, poi: Dictionary, part: Dictionary, conta
 				e.bridge_a = WG.grid_to_iso(Vector2(float(part["ax"]) + 0.5, float(part["ay"]) + 0.5))
 				e.bridge_b = WG.grid_to_iso(Vector2(float(part["bx"]) + 0.5, float(part["by"]) + 0.5))
 				e.bridge_t = float(part["t"])
+		"fence":
+			# A dragged fence segment: yaw orients its rails along the path; gx/gy place it on the
+			# exact smooth centerline; it rides the terrain height so the run climbs hills.
+			e.yaw = float(part.get("yaw", 0.0))
+			if part.has("gx"):
+				e.position = WG.grid_to_iso(Vector2(float(part["gx"]) + 0.5, float(part["gy"]) + 0.5))
+			e.display_size = 30.0
+			e.click_radius = 0.0
 		"fountain":
 			e.display_size = 40.0
 			e.click_radius = 30.0

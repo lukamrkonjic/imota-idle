@@ -111,6 +111,8 @@ static func entity_parts(e: Node) -> Array:
 			return _bridge_parts()
 		"bridge_pole":
 			return _bridge_pole_parts()
+		"fence":
+			return _fence_parts()
 		"city_prop":
 			return _city_prop_parts(str(e.get("prop_kind")))
 		"decor":
@@ -998,6 +1000,18 @@ static func _bridge_parts() -> Array:
 	parts.append(_part(_box("bridge_rail", Vector3(0.1, 0.26, 1.35)), gap, Vector3(-0.72, 0.24, 0)))   # side rails
 	parts.append(_part(_box("bridge_rail", Vector3(0.1, 0.26, 1.35)), gap, Vector3(0.72, 0.24, 0)))
 	return parts
+
+
+## A fence segment: a vertical post + two rails running ALONG +Z (the path direction, set by the
+## entity's yaw) so consecutive segments link into a continuous fence. The rails overrun ~1 tile
+## forward to bridge straight + diagonal post spacing.
+static func _fence_parts() -> Array:
+	var w := _mat("wood_light", "trunk_b", "cabin_trim")
+	var p := _mat("trunk_a", "trunk_b", "wood_light")
+	return [
+		_part(_box("fence_post", Vector3(0.11, 0.52, 0.11)), p, Vector3(0, 0.26, 0)),
+		_part(_box("fence_rail_top", Vector3(0.06, 0.07, 1.5)), w, Vector3(0, 0.4, 0.5)),
+		_part(_box("fence_rail_bot", Vector3(0.06, 0.07, 1.5)), w, Vector3(0, 0.2, 0.5))]
 
 
 static func _bridge_pole_parts() -> Array:

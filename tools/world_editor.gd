@@ -104,6 +104,7 @@ const STRUCTURES := [
 ]
 
 const ROOF_COLORS := ["7a3b3b", "3b5a7a", "4a6b3a", "6b5a3a", "5a3b6b", "7a6b3a"]
+const SIDEBAR_W := 240    # fixed sidebar width (items fill it)
 const STRUCT_MARK := Color(0.95, 0.85, 0.4)
 const SPAWN_MARK := Color(0.3, 1.0, 0.45)
 const TREE_MARK := Color(0.16, 0.42, 0.18, 0.92)   # ambient canopy dot on the 2D map
@@ -1617,10 +1618,12 @@ func _build_ui() -> void:
 	var left := PanelContainer.new()
 	left.add_theme_stylebox_override("panel", _panel(Color(0.13, 0.13, 0.16)))
 	left.position = Vector2(8, 50)
-	left.custom_minimum_size = Vector2(184, 0)
+	left.custom_minimum_size = Vector2(SIDEBAR_W, 0)
+	left.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN   # fixed width, never grows with content
 	_track_ui_hover(left)
 	_hud.add_child(left)
 	var lb := VBoxContainer.new()
+	lb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lb.add_theme_constant_override("separation", 3)
 	left.add_child(lb)
 
@@ -2475,10 +2478,10 @@ func _refresh_painted_entities(tiles: Array) -> void:
 		if seen.has(k):
 			continue
 		seen[k] = true
-		_refresh_3d_entities(t)
+		_refresh_3d_entities(t, true)   # biome/terrain edits → regrow native canopy for the new biome
 
 
-func _refresh_3d_entities(tile: Vector2i) -> void:
+func _refresh_3d_entities(tile: Vector2i, regen_canopy := false) -> void:
 	if _v3d_world == null:
 		return
 	var sp: Object = _v3d_world.get("_entity_spawner")
@@ -2492,6 +2495,8 @@ func _refresh_3d_entities(tile: Vector2i) -> void:
 			if chunk == null or not containers.has(chunk.key()):
 				continue
 			sp.call("on_chunk_unloaded", chunk)
+			if regen_canopy and sp.has_method("clear_ambient_canopy"):
+				sp.call("clear_ambient_canopy", chunk)   # drop old biome's trees so new ones grow
 			sp.call("on_chunk_loaded", chunk, true)
 	var rend: Node = _v3d_world.get("render_3d")
 	if rend != null:
