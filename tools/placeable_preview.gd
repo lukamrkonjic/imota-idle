@@ -1,21 +1,16 @@
 extends SubViewportContainer
 class_name PlaceablePreview
-## A small showcase for the world editor: pick a biome, micro-biome, terrain
-## tile, structure, house, prop or creature in the sidebar and this panel renders
-## ONE example of it with the real in-game pixel art, standing on a static
-## isometric tile so you can read its silhouette before placing it. Anything that
-## is randomly generated on placement (variants, roof colours, decor scatter)
-## just gets one rolled instance; the 🎲 button in the editor re-rolls it.
-##
-## It reuses the actual art path (WorldEntity / WorldDecor / IsoSprites), so the
-## preview can never drift from what the world really spawns.
+## A small showcase for the world editor: pick a biome, terrain tile, structure, prop,
+## settlement or creature and this panel renders the REAL in-game 3D model on a turntable,
+## so you can read it before placing. In the 3D pixel-art port an entity's visible body IS a
+## 3D mesh (PropMeshes.entity_parts / enemy_rig), so the preview renders those in a tiny 3D
+## SubViewport (same ortho-cam + sun + ambient recipe as the offline prop baker).
 
 const WorldEntity := preload("res://scripts/world/world_entity.gd")
-const WorldDecor := preload("res://scripts/world/world_decor.gd")
 const WorldEntitySpawner := preload("res://scripts/world/world_entity_spawner.gd")
 const IsoSprites := preload("res://scripts/world/art/iso_sprites.gd")
-const PixelDraw := preload("res://scripts/world/art/core/pixel_draw.gd")
 const StampLibrary := preload("res://scripts/worldgen/stamp_library.gd")
+const PropMeshes := preload("res://scripts/render/prop_meshes.gd")
 const WG := preload("res://scripts/worldgen/wg.gd")
 
 const VIEW := Vector2i(176, 172)
@@ -24,13 +19,12 @@ const ROOF_COLORS := ["7a3b3b", "3b5a7a", "4a6b3a", "6b5a3a", "5a3b6b", "7a6b3a"
 var reg: RefCounted
 
 var _vp: SubViewport
-var _disc: _Turntable          # spins: the ground tile + planted/orbiting decor
-var _upright: Node2D            # fixed: structures / creatures / gather nodes stand here
-var _overlay: _Caption         # fixed: caption text at the bottom
-var _origin := Vector2(float(VIEW.x) * 0.5, float(VIEW.y) * 0.60)
-var _planted: Array[Node2D] = []   # this biome's scattered ground clutter
+var _cam: Camera3D
+var _model_root: Node3D          # the spinning model
+var _ground: MeshInstance3D      # the tinted ground disc under it
+var _caption: Label
 var _variant := 0
-var _reshow := Callable()       # re-runs the current selection (for re-roll)
+var _reshow := Callable()
 
 
 func _ready() -> void:
@@ -40,28 +34,63 @@ func _ready() -> void:
 	_vp = SubViewport.new()
 	_vp.size = VIEW
 	_vp.transparent_bg = true
+	_vp.msaa_3d = Viewport.MSAA_DISABLED
 	_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	_vp.disable_3d = true
 	add_child(_vp)
 
-	_disc = _Turntable.new()
-	_disc.position = _origin
-	_vp.add_child(_disc)
+	var world := Node3D.new()
+	_vp.add_child(world)
+	_model_root = Node3D.new()
+	world.add_child(_model_root)
 
-	_upright = Node2D.new()
-	_upright.position = _origin
-	_vp.add_child(_upright)
+	_ground = MeshInstance3D.new()
+	var disc := CylinderMesh.new()
+	disc.top_radius = 1.15
+	disc.bottom_radius = 1.15
+	disc.height = 0.08
+	disc.radial_segments = 36
+	_ground.mesh = disc
+	_ground.position = Vector3(0, -0.04, 0)
+	world.add_child(_ground)
 
-	_overlay = _Caption.new()
-	_overlay.size = VIEW
-	_vp.add_child(_overlay)
+	_cam = Camera3D.new()
+	_cam.projection = Camera3D.PROJECTION_ORTHOGONAL
+	world.add_child(_cam)
+	var env := Environment.new()
+	env.background_mode = Environment.BG_CLEAR_COLOR
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(0.64, 0.70, 0.80)
+	env.ambient_light_energy = 0.6
+	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	_cam.environment = env
 
+	var sun := DirectionalLight3D.new()
+	sun.rotation_degrees = Vector3(-50.0, -125.0, 0.0)
+	sun.light_energy = 1.15
+	world.add_child(sun)
+
+	_caption = Label.new()
+	_caption.add_theme_color_override("font_color", Color(0.86, 0.89, 0.82))
+	_caption.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+	_caption.add_theme_constant_override("outline_size", 4)
+	_caption.add_theme_font_size_override("font_size", 13)
+	_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_caption.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	_caption.offset_top = -22
+	_caption.offset_bottom = -4
+	add_child(_caption)
+
+	_frame_camera(AABB(Vector3(-0.6, 0, -0.6), Vector3(1.2, 1.0, 1.2)))
 	show_empty("Pick something to preview")
+
+
+func _process(delta: float) -> void:
+	if _model_root != null:
+		_model_root.rotation.y += delta * 0.7   # gentle turntable
 
 
 # ──────────────────────────────── public API ────────────────────────────────
 
-## Re-roll the random parts (variant / colour / decor scatter) of the current item.
 func reroll() -> void:
 	_variant = (_variant + 1) % 100000
 	if _reshow.is_valid():
@@ -70,52 +99,53 @@ func reroll() -> void:
 
 func show_empty(msg: String) -> void:
 	_reshow = Callable()
-	_clear()
-	_disc.set_ground([Color(0.30, 0.34, 0.30)])
-	_overlay.set_text(msg)
+	_clear_model()
+	_tint_ground(Color(0.30, 0.40, 0.26))
+	_caption.text = msg
+	_frame_camera(AABB(Vector3(-0.6, 0, -0.6), Vector3(1.2, 0.4, 1.2)))
 
 
-## A parent or micro-biome: textured ground + a scatter of that biome's clutter.
 func show_biome(biome_id: String) -> void:
 	_reshow = func() -> void: show_biome(biome_id)
-	_clear()
+	_clear_model()
 	var idx := int(reg.biome_index.get(biome_id, -1))
-	if idx < 0:
-		show_empty("Unknown biome")
-		return
-	var name := str(reg.biomes[idx].get("name", biome_id))
-	_disc.set_ground(_biome_ground_cols(idx))
-	_scatter_biome_decor(biome_id, idx)
-	_overlay.set_text(name)
+	_tint_ground(_avg(_biome_ground_cols(idx)) if idx >= 0 else Color(0.34, 0.46, 0.28))
+	# A representative tree (the biome's dominant canopy species) so the biome reads as itself.
+	if idx >= 0:
+		var cfg: Dictionary = reg.canopy(biome_id)
+		var kinds: Array = cfg.get("kinds", [])
+		if not kinds.is_empty():
+			_add_parts(PropMeshes.decor_parts(str(kinds[0].get("kind", "canopy_broadleaf"))))
+	_caption.text = (str(reg.biomes[idx].get("name", biome_id)) if idx >= 0 else biome_id)
+	_frame_to_model(1.6)
 
 
-## A single terrain/road/wall tile — just the spinning ground surface.
 func show_terrain(tile_name: String, label: String) -> void:
 	_reshow = func() -> void: show_terrain(tile_name, label)
-	_clear()
+	_clear_model()
 	var tid := int(reg.tile_index.get(tile_name, -1))
-	if tid < 0:
-		show_empty("Unknown tile")
-		return
-	_disc.set_ground((reg.tile_def(tid)["colors"] as Array).duplicate())
-	_overlay.set_text(label)
+	var cols: Array = (reg.tile_def(tid)["colors"] as Array) if tid >= 0 else []
+	_tint_ground(_avg(cols) if not cols.is_empty() else Color(0.5, 0.45, 0.35))
+	_caption.text = label
+	_frame_camera(AABB(Vector3(-0.6, 0, -0.6), Vector3(1.2, 0.4, 1.2)))
 
 
-## A placed structure / house / prop, described by an editor STRUCTURES part dict.
+## A placed structure / house / prop / decor, described by an editor STRUCTURES part dict.
 func show_structure(part: Dictionary, label: String) -> void:
 	_reshow = func() -> void: show_structure(part, label)
-	_clear()
-	_disc.set_ground(_neutral_ground())
+	_clear_model()
+	_tint_ground(Color(0.32, 0.42, 0.27))
 	var e := _entity_from_part(part)
-	_stand(e)
-	_overlay.set_text(label)
+	_add_parts(PropMeshes.entity_parts(e))
+	e.free()
+	_caption.text = label
+	_frame_to_model(1.0)
 
 
-## A bestiary creature / NPC, by display name.
 func show_creature(name: String) -> void:
 	_reshow = func() -> void: show_creature(name)
-	_clear()
-	_disc.set_ground(_neutral_ground())
+	_clear_model()
+	_tint_ground(Color(0.32, 0.42, 0.27))
 	var e := WorldEntity.new()
 	e.kind = "enemy"
 	e.label = name
@@ -123,61 +153,116 @@ func show_creature(name: String) -> void:
 	e.display_size = 40.0
 	var enemy: Dictionary = DataRegistry.get_enemy(name)
 	e.tier_color = WorldEntitySpawner.tier_color(int(enemy.get("level", 1)))
-	_stand(e)
+	var rig: Node3D = PropMeshes.enemy_rig(e)
+	e.free()
+	if rig != null:
+		_model_root.add_child(rig)
 	var lvl := int(enemy.get("level", 0))
-	_overlay.set_text(name if lvl <= 0 else "%s  ·  Lvl %d" % [name, lvl])
+	_caption.text = name if lvl <= 0 else "%s · Lvl %d" % [name, lvl]
+	_frame_to_model(1.4)
 
 
-## A natural stamp (pond, grove, outcrop…): its dominant ground + the gather
-## nodes it plants, so you see what a placement actually drops.
+## A natural stamp (pond, grove, outcrop…): its dominant ground + a couple of the gather
+## nodes it plants, so you see what a placement drops.
 func show_stamp(stamp: Dictionary, label: String) -> void:
 	_reshow = func() -> void: show_stamp(stamp, label)
-	_clear()
+	_clear_model()
 	var built: Dictionary = StampLibrary.build(stamp, _variant, 0, false)
-	_disc.set_ground(_stamp_ground_cols(built))
+	_tint_ground(_avg(_stamp_ground_cols(built)))
 	var sites: Array = built.get("sites", [])
-	var n: int = mini(sites.size(), 5)
+	var n: int = mini(sites.size(), 3)
+	var tallest := 0.6
 	for i: int in n:
-		var s: Dictionary = sites[i]
-		var e := _gather_node_entity(str(s.get("skill", "")))
-		if e == null:
+		var ent := _gather_node_entity(str((sites[i] as Dictionary).get("skill", "")))
+		if ent == null:
 			continue
 		var ang := TAU * float(i) / float(maxi(n, 1))
-		e.position = Vector2(cos(ang), sin(ang) * 0.5) * (14.0 if n > 1 else 0.0)
-		_upright.add_child(e)
-	if _upright.get_child_count() == 0:
-		_overlay.set_text(label + "  (terrain only)")
-	else:
-		_overlay.set_text(label)
-	_fit_upright()
+		var off := Vector3(cos(ang), 0.0, sin(ang)) * (0.55 if n > 1 else 0.0)
+		tallest = maxf(tallest, _add_parts(PropMeshes.entity_parts(ent), off))
+		ent.free()
+	_caption.text = label if n > 0 else label + "  (terrain only)"
+	_frame_to_model(maxf(1.2, tallest))
 
 
 # ──────────────────────────────── internals ─────────────────────────────────
 
-func _clear() -> void:
-	for c: Node in _upright.get_children():
+func _clear_model() -> void:
+	for c: Node in _model_root.get_children():
 		c.queue_free()
-	for d: Node2D in _planted:
-		if is_instance_valid(d):
-			d.queue_free()
-	_planted.clear()
-	_upright.scale = Vector2.ONE
+	_model_root.rotation = Vector3.ZERO
 
 
-## Add an upright entity standing on the tile centre, scaled to frame nicely.
-func _stand(e: Node2D) -> void:
-	_upright.add_child(e)
-	_fit_upright()
+func _tint_ground(col: Color) -> void:
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
+	m.albedo_color = col
+	m.roughness = 1.0
+	_ground.material_override = m
 
 
-## Scale the upright holder so its tallest art fits the window with headroom.
-func _fit_upright() -> void:
-	var h := 24.0
-	for c: Node in _upright.get_children():
-		if c.has_method("icon_height"):
-			h = maxf(h, float(c.call("icon_height")))
-	var s := clampf((float(VIEW.y) * 0.56) / h, 0.45, 2.1)
-	_upright.scale = Vector2(s, s)
+## Build MeshInstance3Ds from a PropMeshes part list (skipping the blob shadow), at an optional
+## ground offset. Returns the tallest point so the camera can frame it.
+func _add_parts(parts: Array, base := Vector3.ZERO) -> float:
+	var top := 0.5
+	for p: Dictionary in parts:
+		if bool(p.get("shadow", false)):
+			continue
+		var mi := MeshInstance3D.new()
+		mi.mesh = p["mesh"]
+		mi.material_override = p["mat"]
+		mi.transform = Transform3D(Basis.from_euler(p.get("rot", Vector3.ZERO)).scaled(p["scl"]), p["off"] + base)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_model_root.add_child(mi)
+		top = maxf(top, float(p["off"].y) + float(p["scl"].y) * 0.5 + base.y)
+	return top
+
+
+## Merged world-space AABB of every MeshInstance3D under the model (recursive).
+func _model_aabb() -> AABB:
+	var box := AABB()
+	var first := true
+	var stack: Array = [_model_root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c: Node in n.get_children():
+			stack.append(c)
+		if n is MeshInstance3D and (n as MeshInstance3D).mesh != null:
+			var a: AABB = (n as MeshInstance3D).transform * (n as MeshInstance3D).get_aabb()
+			box = a if first else box.merge(a)
+			first = false
+	if first:
+		return AABB(Vector3(-0.5, 0, -0.5), Vector3(1, 1, 1))
+	return box
+
+
+func _frame_to_model(min_h: float) -> void:
+	var box := _model_aabb()
+	box = box.merge(AABB(Vector3(-1.1, -0.1, -1.1), Vector3(2.2, maxf(min_h, 0.4), 2.2)))
+	_frame_camera(box)
+
+
+func _frame_camera(box: AABB) -> void:
+	var target := box.get_center()
+	var pitch := deg_to_rad(32.0)
+	var yaw := deg_to_rad(40.0)
+	var dir := Vector3(cos(pitch) * sin(yaw), sin(pitch), cos(pitch) * cos(yaw))
+	_cam.position = target + dir * 10.0
+	_cam.look_at(target, Vector3.UP)
+	_cam.size = maxf(1.4, box.size.length() * 0.62)
+
+
+func _avg(cols: Array) -> Color:
+	if cols.is_empty():
+		return Color(0.34, 0.46, 0.28)
+	var r := 0.0
+	var g := 0.0
+	var b := 0.0
+	for c: Color in cols:
+		r += c.r
+		g += c.g
+		b += c.b
+	var n := float(cols.size())
+	return Color(r / n, g / n, b / n)
 
 
 func _entity_from_part(part: Dictionary) -> Node2D:
@@ -187,7 +272,7 @@ func _entity_from_part(part: Dictionary) -> Node2D:
 	e.label = str(part.get("label", ""))
 	e.variant = _variant
 	e.display_size = 40.0
-	e.roof_alpha = 1.0          # preview shows the full roof (no approach-fade)
+	e.roof_alpha = 1.0
 	match kind:
 		"tent":
 			e.display_size = 54.0
@@ -205,6 +290,8 @@ func _entity_from_part(part: Dictionary) -> Node2D:
 			e.variant = int(part.get("piece", 0))
 		"city_prop":
 			e.prop_kind = str(part.get("prop", "crate"))
+		"decor":
+			e.prop_kind = str(part.get("prop", "grass"))
 		"obelisk":
 			e.attuned = true
 	return e
@@ -245,6 +332,8 @@ func _neutral_ground() -> Array:
 
 
 func _biome_ground_cols(idx: int) -> Array:
+	if idx < 0:
+		return _neutral_ground()
 	var weights: Array = reg.biomes[idx].get("_tile_weights", [])
 	var cols: Array = []
 	for w: Array in weights:
@@ -253,9 +342,7 @@ func _biome_ground_cols(idx: int) -> Array:
 			cols.append(c)
 		if cols.size() >= 4:
 			break
-	if cols.is_empty():
-		return _neutral_ground()
-	return cols
+	return cols if not cols.is_empty() else _neutral_ground()
 
 
 func _stamp_ground_cols(built: Dictionary) -> Array:
@@ -273,90 +360,3 @@ func _stamp_ground_cols(built: Dictionary) -> Array:
 	if best.is_empty():
 		return _neutral_ground()
 	return (reg.tile_def(int(reg.tile_index[best]))["colors"] as Array).duplicate()
-
-
-## Scatter a handful of this biome's ground-decor clutter onto the tile so the
-## biome reads as more than a flat colour (real WorldDecor art, biome kinds).
-func _scatter_biome_decor(biome_id: String, _idx: int) -> void:
-	var cfg: Dictionary = reg.ground_decor(biome_id)
-	var kinds: Array = cfg.get("kinds", [])
-	if kinds.is_empty():
-		return
-	var rng := RandomNumberGenerator.new()
-	rng.seed = hash(biome_id) + _variant * 7919
-	var count := 7
-	for i: int in count:
-		var entry: Dictionary = kinds[rng.randi() % kinds.size()]
-		var d := WorldDecor.new()
-		d.kind = str(entry.get("kind", "grass"))
-		d.variant = rng.randi() % 10000
-		# Spread across the diamond surface (2:1 iso), upright via counter-spin.
-		var u := rng.randf_range(-1.0, 1.0)
-		var v := rng.randf_range(-1.0, 1.0)
-		if absf(u) + absf(v) > 1.0:
-			u *= 0.5
-			v *= 0.5
-		d.position = Vector2(u * 54.0, v * 27.0)
-		_disc.add_child(d)
-		_planted.append(d)
-
-
-# ─────────────────────────── spinning tile renderer ──────────────────────────
-
-class _Turntable:
-	extends Node2D
-
-	const PixelDraw := preload("res://scripts/world/art/core/pixel_draw.gd")
-	const HW := 70.0
-	const HH := 35.0
-	const DEPTH := 11.0
-
-	var cols: Array = [Color(0.34, 0.46, 0.28)]
-
-	func set_ground(p_cols: Array) -> void:
-		cols = p_cols if not p_cols.is_empty() else [Color(0.34, 0.46, 0.28)]
-		queue_redraw()
-
-	func _draw() -> void:
-		var top: Color = cols[0]
-		# Earthy side skirt gives the tile a little thickness.
-		PixelDraw.px_diamond(self, 0.0, DEPTH, HW, HH, top.darkened(0.5))
-		PixelDraw.px_diamond(self, 0.0, DEPTH * 0.5, HW, HH, top.darkened(0.28))
-		PixelDraw.px_diamond(self, 0.0, 0.0, HW, HH, top)
-		# Dither in the other ground colours so the surface isn't a flat fill.
-		var rng := RandomNumberGenerator.new()
-		rng.seed = 1337
-		for i: int in 130:
-			var u := rng.randf_range(-1.0, 1.0)
-			var v := rng.randf_range(-1.0, 1.0)
-			if absf(u) + absf(v) > 0.92:
-				continue
-			var c: Color = cols[rng.randi() % cols.size()]
-			if c == top and cols.size() > 1:
-				continue
-			PixelDraw.px_rect(self, u * HW - 1.0, v * HH - 1.0, 2.0, 2.0, c)
-
-
-# ───────────────────────────── caption renderer ──────────────────────────────
-
-class _Caption:
-	extends Control
-
-	var _text := ""
-	var _font: Font
-
-	func _ready() -> void:
-		_font = ThemeDB.fallback_font
-		mouse_filter = Control.MOUSE_FILTER_IGNORE
-
-	func set_text(t: String) -> void:
-		_text = t
-		queue_redraw()
-
-	func _draw() -> void:
-		if _text.is_empty():
-			return
-		var w := _font.get_string_size(_text, HORIZONTAL_ALIGNMENT_CENTER, -1, 11).x
-		var pos := Vector2((size.x - w) * 0.5, size.y - 8.0)
-		draw_string(_font, pos + Vector2(1, 1), _text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0, 0, 0, 0.85))
-		draw_string(_font, pos, _text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.92, 0.9, 0.72))
