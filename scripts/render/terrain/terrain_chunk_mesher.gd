@@ -320,10 +320,12 @@ func _visual_floor_height(gtx: int, gty: int, info: Dictionary) -> float:
 		h = _rolling_hill(gtx, gty) - WATER_SINK - depth
 	elif _is_path(tile):
 		# Road/path bed: FOLLOWS the (smoothed) terrain height so a road slopes up and down hills
-		# like a mountain road, but stays a smooth, slightly recessed bed — no rocky bumpiness — so
-		# it never cuts a flat shelf or vanishes into the rock. On flat ground smoothed-elev is 0,
-		# so this matches the old gentle path height.
-		h = _smoothed_elevation_height(gtx, gty) + _rolling_hill(gtx, gty) * 0.28 - 0.055
+		# like a mountain road, but stays a smooth, recessed bed — no rocky bumpiness. The recess
+		# deepens on raised ground so the road reads as CARVED into the slope (a bench cut into the
+		# mountainside); the mesher's corner smoothing then bevels the shoulders down into the bed.
+		# Subtle on flat ground (matches the old gentle path height).
+		var carve := 0.055 + clampf(float(_elev_raw(gtx, gty)), 0.0, 14.0) * 0.014
+		h = _smoothed_elevation_height(gtx, gty) + _rolling_hill(gtx, gty) * 0.28 - carve
 	elif top > 0.0:
 		# Elevation is authoritative for the mountain surface. Biome/structure passes
 		# can leave gravel, snow, or another gameplay tile on a raised cell; all of
