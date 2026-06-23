@@ -56,6 +56,19 @@ func _ready() -> void:
 	_cam = Camera3D.new()
 	_cam.projection = Camera3D.PROJECTION_ORTHOGONAL
 	world.add_child(_cam)
+	# A flat dark backdrop quad PARENTED TO THE CAMERA — always behind the model and filling the
+	# view, so the preview shows the HUD panel colour, never the world behind the viewport (the 3D
+	# environment background didn't reliably fill a transparent SubViewport).
+	var backdrop := MeshInstance3D.new()
+	var quad := QuadMesh.new()
+	quad.size = Vector2(80, 80)
+	backdrop.mesh = quad
+	var bm := StandardMaterial3D.new()
+	bm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	bm.albedo_color = Color(0.13, 0.13, 0.16)   # HUD panel colour
+	backdrop.material_override = bm
+	backdrop.position = Vector3(0, 0, -24)       # behind the model, in front of the far plane
+	_cam.add_child(backdrop)
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.13, 0.13, 0.16)   # flat HUD panel colour — never the rendered world
