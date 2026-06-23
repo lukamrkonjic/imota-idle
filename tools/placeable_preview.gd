@@ -58,10 +58,10 @@ func _ready() -> void:
 	world.add_child(_cam)
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.56, 0.63, 0.71)   # soft sky-grey backdrop (never a dark slab)
+	env.background_color = Color(0.13, 0.13, 0.16)   # flat HUD panel colour — never the rendered world
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.64, 0.70, 0.80)
-	env.ambient_light_energy = 0.6
+	env.ambient_light_color = Color(0.66, 0.72, 0.82)
+	env.ambient_light_energy = 0.65
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	_cam.environment = env
 
