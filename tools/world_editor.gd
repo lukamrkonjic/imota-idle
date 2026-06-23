@@ -128,7 +128,7 @@ var _img_dirty := false
 
 var _tool := Tool.PAN
 var _brush := 2
-var _erase_biomes := false
+var _erase_keep_terrain := false   # Erase opt-out: keep painted terrain/biome/elevation (remove placed objects only)
 var _sel_biome := ""
 var _sel_terrain := "grass"
 var _sel_struct := 0
@@ -843,12 +843,17 @@ func _erase_tile(gtx: int, gty: int) -> void:
 	_erase_from(chunk, "monsters", lx, ly, key)
 	_cut_tree(chunk, lx, ly, key)
 	FiniteWorldGenerator.apply_structure_collision(chunk)
-	if _erase_biomes:
-		# Restore the generated (procedural) terrain/biome for this tile.
-		var gtid: int = WorldGen.surface_tile_id(gtx, gty)
-		var gb: int = WorldGen.generator.classifier.biome_idx(float(gtx), float(gty))
-		var gp: int = WorldGen.generator.classifier.parent_biome_idx(float(gtx), float(gty))
-		_record_and_set(gtx, gty, [gtid, gb, gp, 255])
+	if _erase_keep_terrain:
+		return   # opt-out: only the placed objects above were removed; leave the terrain as-is
+	# Revert the tile to its ORIGINAL generated state — this wipes painted roads/terrain/biome AND
+	# any smoothen/elevate edits, restoring the procedural surface tile, biome, and authored
+	# elevation (from the elevation mask where one exists, else the procedural mountain field).
+	var cls: RefCounted = WorldGen.generator.classifier
+	var gtid: int = WorldGen.surface_tile_id(gtx, gty)
+	var gb: int = cls.biome_idx(float(gtx), float(gty))
+	var gp: int = cls.parent_biome_idx(float(gtx), float(gty))
+	var ge: int = cls.mask_elev_steps(float(gtx), float(gty)) if cls.has_elev_mask() else cls.elevation_steps(float(gtx), float(gty))
+	_record_and_set(gtx, gty, [gtid, gb, gp, 255, ge])
 
 
 func _erase_from(chunk: RefCounted, arr_name: String, lx: int, ly: int, key: String) -> void:
@@ -1670,8 +1675,8 @@ func _build_ui() -> void:
 	lb.add_child(slider)
 
 	_erase_biomes_check = CheckBox.new()
-	_erase_biomes_check.text = "Erase biomes too"
-	_erase_biomes_check.toggled.connect(func(on: bool) -> void: _erase_biomes = on)
+	_erase_biomes_check.text = "Keep painted terrain"
+	_erase_biomes_check.toggled.connect(func(on: bool) -> void: _erase_keep_terrain = on)
 	lb.add_child(_erase_biomes_check)
 
 	_header(lb, "Overlays")
@@ -2626,7 +2631,7 @@ func _refresh_palette() -> void:
 		Tool.SPAWN:
 			_note("Click a walkable tile to set the player spawn. Current: (%d, %d)" % [_spawn_tile.x, _spawn_tile.y])
 		Tool.ERASE:
-			_note("Brush to remove placed structures, monsters & ambient trees (shown as green dots — toggle the 'Trees' overlay). Tick 'Erase biomes too' to also restore generated terrain.")
+			_note("Brush to remove placed structures, monsters, ambient trees AND painted roads/terrain — reverting each tile to its original generated biome + elevation (undoes smoothen/elevate too). Tick 'Keep painted terrain' to remove only placed objects and leave the terrain as-is.")
 		Tool.ROAD:
 			_header(_palette_box, "Road style")
 			for sname: String in _road_styles().keys():
