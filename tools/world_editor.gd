@@ -802,6 +802,18 @@ func _paint_biome_tile(gtx: int, gty: int) -> void:
 	var idx := int(_reg.biome_index.get(_sel_biome, -1))
 	if idx < 0:
 		return
+	# Soft, noisy brush edge: paint solidly in the core, then dither out across the outer ring so
+	# the new biome MIXES into whatever is already there rather than stamping a hard circle. Uses
+	# two hash scales for a less regular, more organic falloff.
+	var br := float(_brush - 1)
+	if br >= 2.0:
+		var dist := Vector2(gtx - _hover_tile.x, gty - _hover_tile.y).length()
+		var edge := (dist / br - 0.45) / 0.55      # 0 at ~45% radius .. 1 at the rim
+		if edge > 0.0:
+			var sd: int = WorldGen.store.world_seed
+			var n := 0.6 * WG.r01(sd, gtx, gty, 9311) + 0.4 * WG.r01(sd, gtx >> 1, gty >> 1, 9319)
+			if n < clampf(edge, 0.0, 1.0):
+				return   # leave this tile's existing biome (dithered falloff = blend with surroundings)
 	var is_sub: bool = bool(_reg.biomes[idx].get("isSubBiome", false))
 	var parent := idx
 	var sub := 255

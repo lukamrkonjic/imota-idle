@@ -23,11 +23,35 @@ var reg: RefCounted
 var world_seed: int = 0
 var classifier: RefCounted
 
+# Biome-edge blending: the per-tile biome lookup is domain-warped by this organic multi-octave
+# noise, so each biome's blobs bleed a few tiles across their border and interleave with the
+# neighbour — soft, noisy, gradual edges. Interiors (all neighbours the same) are unchanged, so
+# biome cores stay distinct. BLEND_RADIUS is the (configurable) max bleed in tiles.
+const BLEND_RADIUS := 5
+var _blend_noise: FastNoiseLite
+
 
 func setup(p_reg: RefCounted, p_seed: int, p_classifier: RefCounted) -> void:
 	reg = p_reg
 	world_seed = p_seed
 	classifier = p_classifier
+	_blend_noise = FastNoiseLite.new()
+	_blend_noise.seed = p_seed + 7777
+	_blend_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX
+	_blend_noise.frequency = 0.18
+	_blend_noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+	_blend_noise.fractal_octaves = 3
+
+
+## Domain-warp offset (in tiles) for the biome lookup at a tile — two decorrelated noise channels
+## give an organic 2D bleed. Zero-ish in biome interiors only matters at borders (where the
+## neighbour differs), producing the mixed band.
+func _blend_offset(gtx: int, gty: int) -> Vector2i:
+	if _blend_noise == null:
+		return Vector2i.ZERO
+	var bx := _blend_noise.get_noise_2d(float(gtx), float(gty)) * BLEND_RADIUS
+	var by := _blend_noise.get_noise_2d(float(gtx) + 311.0, float(gty) + 57.0) * BLEND_RADIUS
+	return Vector2i(int(round(bx)), int(round(by)))
 
 
 func fill_chunk(chunk: RefCounted) -> void:
@@ -53,32 +77,48 @@ func fill_chunk(chunk: RefCounted) -> void:
 
 	for ty: int in n:
 		for tx: int in n:
-			var gi := (ty + pad) * w + (tx + pad)
 			var ci := Chunk.idx(tx, ty)
 			var gtx: int = ox + tx + pad
 			var gty: int = oy + ty + pad
-			var parent: int = parents[gi]
-			var sub: int = _sub_idx_for(parent, gtx, gty)
+			# Soft noisy edges: sample the (smoothed) biome field at a warped offset so borders
+			# interleave into a mixed band. The apron (SMOOTH_PAD) keeps the offset in-bounds.
+			var off := _blend_offset(gtx, gty)
+			var slx := clampi(tx + pad + off.x, 0, w - 1)
+			var sly := clampi(ty + pad + off.y, 0, h - 1)
+			var parent: int = parents[sly * w + slx]
+			# sub-biome computed at the SAMPLED tile so micro-regions blend across the seam too
+			var sub: int = _sub_idx_for(parent, ox + slx, oy + sly)
 			chunk.parent_biomes_t[ci] = parent
 			chunk.sub_biomes_t[ci] = sub
 			chunk.biomes_t[ci] = sub if sub != 255 else parent
 
 
 func parent_idx_at(tx: float, ty: float) -> int:
-	return _parent_idx(floori(tx), floori(ty))
+	var gtx := floori(tx)
+	var gty := floori(ty)
+	var off := _blend_offset(gtx, gty)   # same noisy edge-blend as the baked map
+	return _parent_idx(gtx + off.x, gty + off.y)
 
 
 func sub_idx_at(tx: float, ty: float) -> int:
 	var gtx := floori(tx)
 	var gty := floori(ty)
-	return _sub_idx_for(_parent_idx(gtx, gty), gtx, gty)
+	var off := _blend_offset(gtx, gty)
+	var px := gtx + off.x
+	var py := gty + off.y
+	return _sub_idx_for(_parent_idx(px, py), px, py)
 
 
 func effective_idx_at(tx: float, ty: float) -> int:
-	var sub: int = sub_idx_at(tx, ty)
-	if sub != 255:
-		return sub
-	return parent_idx_at(tx, ty)
+	# One warped sample shared by parent + sub, so the blended edge is self-consistent.
+	var gtx := floori(tx)
+	var gty := floori(ty)
+	var off := _blend_offset(gtx, gty)
+	var px := gtx + off.x
+	var py := gty + off.y
+	var parent := _parent_idx(px, py)
+	var sub := _sub_idx_for(parent, px, py)
+	return sub if sub != 255 else parent
 
 
 func parent_id_at(tx: float, ty: float) -> String:
