@@ -35,6 +35,12 @@ var roof_color := Color(0.5, 0.3, 0.3)     # houses
 var prop_kind := ""                         # city_prop subtype
 var yaw := 0.0                               # structures: Y-rotation (bridge decks orient along the path)
 var height_offset := 0.0                     # structures: extra 3D height (bridge decks ride above the water)
+# Bridge span: the two SOLID-GROUND endpoints (iso pos) + this segment's 0..1 position along the
+# span. The renderer lerps the deck height between the endpoints' terrain heights so the bridge
+# stays LEVEL and floats over the water/gap rather than sagging into it. bridge_t < 0 = not a span.
+var bridge_a := Vector2.ZERO
+var bridge_b := Vector2.ZERO
+var bridge_t := -1.0
 var mountain_snow := 0.0                     # mountains: 0..1 snow cap coverage
 var roof_alpha := 1.0                        # houses — fades as the player nears (read by the 3D renderer)
 

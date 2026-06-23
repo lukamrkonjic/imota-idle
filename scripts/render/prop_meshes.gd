@@ -33,6 +33,10 @@ const CANOPY := [
 static func entity_parts(e: Node) -> Array:
 	match str(e.kind):
 		"tree", "landmark_tree":
+			# A choppable canopy tree keeps its ambient species mesh (fir/oak/birch/…) via prop_kind.
+			var pk := str(e.get("prop_kind"))
+			if pk.begins_with("canopy_"):
+				return decor_parts(pk)
 			var species := TreeArt.classify(str(e.get("label")))
 			var th := absi(hash(str(e.get("label")) + str(int(e.position.x)) + "," + str(int(e.position.y))))
 			if species == "fir":
@@ -197,6 +201,10 @@ static func decor_parts(kind: String) -> Array:
 			return [_part(_sphere("d_peb", 0.16), _mat("stone_a", "stone_b", "ore"), Vector3(0, 0.06, 0), Vector3(1.3, 0.55, 1.1))]
 		"stick", "driftwood", "bone":
 			return [_part(_box("d_stick", Vector3(0.5, 0.07, 0.09)), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0, 0.05, 0))]
+		"stump", "log_stump", "tree_stump":
+			return _hike_stump_parts()
+		"dead_tree", "deadtree", "snag":
+			return _deadtree_parts()
 		_:  # grass, fern, reed, vine, moss, lichen, ... -> green tuft
 			return [_part(_sphere("d_tuft", 0.22), _mat("foliage_c", "grass_dark", "foliage_c"), Vector3(0, 0.16, 0), Vector3(1.0, 0.7, 1.0))]
 
@@ -780,9 +788,10 @@ static func _bridge_parts() -> Array:
 
 
 static func _bridge_pole_parts() -> Array:
-	# A square wooden support pillar from the deck rail down into the water (orientation-free).
+	# A UNIT piling spanning local Y 0 (top, at the deck) down to -1. The batcher scales its Y to
+	# the exact drop from the deck to the terrain/water below, so every pile reaches the ground.
 	return [
-		_part(_box("bridge_pole", Vector3(0.16, 1.3, 0.16)), _mat("trunk_b", "trunk_a", "dirt_a"), Vector3(0, -0.45, 0))]
+		_part(_box("bridge_pole_unit", Vector3(0.16, 1.0, 0.16)), _mat("trunk_b", "trunk_a", "dirt_a"), Vector3(0, -0.5, 0))]
 
 
 static func _city_prop_parts(prop: String) -> Array:
@@ -1682,12 +1691,25 @@ static func _shadow_part(radius: float, lon := 1.25, extra := Vector2.ZERO) -> D
 	return _part(_shadow_quad(), _shadow_mat(), Vector3(off.x, 0.03, off.y), Vector3(radius * 2.0, 1.0, radius * 2.0 * lon))
 
 
+## A flat round DISC on the ground (radius 0.5, so _shadow_part's diameter scaling still
+## applies). Round by geometry — not by the texture's alpha — because the shadow material's
+## MULTIPLY blend ignores alpha, which made the old square PlaneMesh darken as a hard square.
 static func _shadow_quad() -> Mesh:
-	if not _mesh_cache.has("blob_shadow"):
-		var m := PlaneMesh.new()
-		m.size = Vector2.ONE
-		_mesh_cache["blob_shadow"] = m
-	return _mesh_cache["blob_shadow"]
+	if not _mesh_cache.has("blob_shadow_disc"):
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		st.set_smooth_group(-1)
+		var n := 24
+		for i: int in n:
+			var a0 := float(i) / n * TAU
+			var a1 := float(i + 1) / n * TAU
+			# centre, then rim CCW (viewed from +Y) so the upward face shows
+			st.set_uv(Vector2(0.5, 0.5)); st.add_vertex(Vector3.ZERO)
+			st.set_uv(Vector2(0.5 + cos(a1) * 0.5, 0.5 + sin(a1) * 0.5)); st.add_vertex(Vector3(cos(a1) * 0.5, 0.0, sin(a1) * 0.5))
+			st.set_uv(Vector2(0.5 + cos(a0) * 0.5, 0.5 + sin(a0) * 0.5)); st.add_vertex(Vector3(cos(a0) * 0.5, 0.0, sin(a0) * 0.5))
+		st.generate_normals()
+		_mesh_cache["blob_shadow_disc"] = st.commit()
+	return _mesh_cache["blob_shadow_disc"]
 
 
 static func _shadow_mat() -> StandardMaterial3D:
@@ -1701,7 +1723,7 @@ static func _shadow_mat() -> StandardMaterial3D:
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		m.blend_mode = BaseMaterial3D.BLEND_MODE_MUL
 		m.albedo_texture = _shadow_texture()
-		m.albedo_color = Color(0.38, 0.4, 0.34, 1.0)   # multiply factor at the blob centre
+		m.albedo_color = Color(1, 1, 1, 1)   # darkening lives in the texture RGB (centre→rim falloff)
 		m.cull_mode = BaseMaterial3D.CULL_DISABLED
 		_shadow_material = m
 	return _shadow_material
@@ -1710,14 +1732,17 @@ static func _shadow_mat() -> StandardMaterial3D:
 ## Radial alpha falloff (opaque centre -> clear rim) so the blob has soft edges.
 static func _shadow_texture() -> ImageTexture:
 	if _shadow_tex_cache == null:
-		var n := 48
+		var n := 64
 		var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
 		var c := float(n) * 0.5
 		for y: int in n:
 			for x: int in n:
-				var d := Vector2(float(x) - c + 0.5, float(y) - c + 0.5).length() / c
-				var a := clampf(1.0 - d, 0.0, 1.0)
-				img.set_pixel(x, y, Color(1, 1, 1, a * a))
+				var d := Vector2(float(x) - c + 0.5, float(y) - c + 0.5).length() / c   # 0 centre .. ~1 rim
+				# The shadow material MULTIPLIES, and that blend ignores alpha — so the soft
+				# falloff lives in the RGB: darkest at the centre, fading to white (= no
+				# darkening) at the rim, for a soft round blob instead of a hard disc.
+				var v := lerpf(0.42, 1.0, smoothstep(0.12, 1.0, clampf(d, 0.0, 1.0)))
+				img.set_pixel(x, y, Color(v, v, v, 1.0))
 		_shadow_tex_cache = ImageTexture.create_from_image(img)
 	return _shadow_tex_cache
 

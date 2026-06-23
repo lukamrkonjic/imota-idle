@@ -83,15 +83,9 @@ func _spawn_chunk_streamed(chunk: RefCounted, container: Node2D) -> void:
 					return
 				started = _begin_stream_slice()
 
-		for ty: int in range(WG.CHUNK_TILES):
-			for tx: int in range(WG.CHUNK_TILES):
-				_spawn_canopy_tile(chunk, container, seed, tx, ty)
-			if _stream_budget_exhausted(started):
-				_finish_stream_slice(started)
-				await world.get_tree().process_frame
-				if not _still_loading(key, container):
-					return
-				started = _begin_stream_slice()
+		# Canopy -> choppable woodcutting sites (cheap dict appends, guarded once-per-chunk); the
+		# site loop below spawns the actual tree entities under the streaming budget.
+		_spawn_canopy(chunk, container)
 
 		var reg: RefCounted = WorldGen.reg
 		for ty: int in range(WG.CHUNK_TILES):
@@ -280,7 +274,7 @@ func _spawn_ground_decor_tile(chunk: RefCounted, container: Node2D, seed: int, t
 		# Medium-scale alpine clusters: sparse open slopes alternating with denser
 		# ledges/outcrop pockets. The low-frequency cell gate prevents even scatter.
 		var cluster := WG.r01(seed, floori(float(gx) / 5.0), floori(float(gy) / 5.0), 231)
-		chance = (0.12 if cluster > 0.48 else 0.025)
+		chance = (0.08 if cluster > 0.5 else 0.018)
 	if r > chance:
 		return
 	var d: Node2D = WorldDecor.new()
@@ -310,13 +304,31 @@ func _spawn_ground_decor_tile(chunk: RefCounted, container: Node2D, seed: int, t
 ## the biome's `canopy` block. Runtime + deterministic like ground decor, so tuning it
 ## needs no rebake. Trees skip water/raised rock/path and self-space on a coarse grid so
 ## a forest reads as clumps and clearings rather than one tree per tile.
+## Turn the biome's ambient canopy into choppable woodcutting SITES (once per chunk — the chunk
+## is cached, so guard against re-appending). The site loop then renders + makes them choppable.
 func _spawn_canopy(chunk: RefCounted, container: Node2D) -> void:
-	if chunk.layer != 0:
+	if chunk.layer != 0 or chunk.canopy_sites_built:
 		return
+	chunk.canopy_sites_built = true
+	_load_tree_species()
 	var seed: int = WorldGen.store.world_seed
 	for ty: int in range(WG.CHUNK_TILES):
 		for tx: int in range(WG.CHUNK_TILES):
 			_spawn_canopy_tile(chunk, container, seed, tx, ty)
+
+
+## species (canopy_* render kind) -> woodcutting node name -> level, from tree_species.json +
+## the woodcutting node table. Loaded once.
+var _species_node: Dictionary = {}
+var _wc_level: Dictionary = {}
+func _load_tree_species() -> void:
+	if not _species_node.is_empty():
+		return
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://data/world/tree_species.json"))
+	if parsed is Dictionary:
+		_species_node = (parsed as Dictionary).get("speciesToNode", {})
+	for e: Dictionary in WorldGen.reg.node_table.get("woodcutting", []):
+		_wc_level[str(e.get("node", ""))] = int(e.get("level", 1))
 
 
 func _spawn_canopy_tile(chunk: RefCounted, container: Node2D, seed: int, tx: int, ty: int) -> void:
@@ -361,28 +373,27 @@ func _spawn_canopy_tile(chunk: RefCounted, container: Node2D, seed: int, tx: int
 		if target <= 0.0:
 			picked = str(entry.get("kind", "canopy_broadleaf"))
 			break
-	var d: Node2D = WorldDecor.new()
-	d.kind = picked
-	d.variant = int(WG.hash_i(seed, chunk.cx * 149 + tx, chunk.cy * 151 + ty, 214) % 1000)
-	var jitter := Vector2(
-		(WG.r01(seed, tx, ty, 215) - 0.5) * WG.TILE * 0.5,
-		(WG.r01(seed, tx, ty, 216) - 0.5) * WG.TILE * 0.3)
-	d.position = chunk.tile_world(tx, ty) + jitter
-	d.visible = false
-	container.add_child(d)
-	world._decor_nodes.append(d)
+	# Register this canopy tree as a CHOPPABLE woodcutting site, its species mapped to the OSRS
+	# table (data/world/tree_species.json). The site loop renders it (keeping the visual species)
+	# and makes it interactable; no separate decor node, so there's exactly one tree per tile.
+	var node_name := str(_species_node.get(picked, "Regular Tree"))
+	chunk.sites.append({
+		"skill": "woodcutting", "node": node_name, "level": int(_wc_level.get(node_name, 1)),
+		"kind": "tree", "tree_species": picked, "tx": tx, "ty": ty,
+		"resources": 5, "remaining": 5, "respawn_sec": 22.0, "available": true, "respawn_at": 0.0,
+	})
 
 
 func _pick_alpine_decor(elev: int, roll: float, variant: int) -> String:
-	# Pine groups hold lower/mid shelves, chunky outcrops mark cliff feet, and
-	# high shelves thin into lichen/stone so the summit silhouette stays clear.
-	if elev < 28 and roll < 0.10 and variant % 3 != 0:
+	# Mostly hardy grass + lichen with the OCCASIONAL boulder. Alpine shelves already read as
+	# rock through the terrain itself, so decor stays sparse — not a field of boulders.
+	if elev < 28 and roll < 0.08 and variant % 3 != 0:
 		return "alpine_pine"
-	if roll < 0.42:
-		return "alpine_boulder" + str(variant % 3)   # 3 irregular boulder shapes
-	if roll < 0.64:
-		return "rubble"
-	if roll < 0.82 and elev < 30:
+	if roll < 0.08:
+		return "alpine_boulder" + str(variant % 3)   # ~8% boulders (was 42%)
+	if roll < 0.13:
+		return "pebble"
+	if roll < 0.66 and elev < 32:
 		return "grass"
 	return "lichen"
 
@@ -551,14 +562,22 @@ func _spawn_site(chunk: RefCounted, i: int, container: Node2D) -> void:
 	e.label = str(s["node"])
 	e.sub_label = "Lvl %d" % int(s["level"])
 	e.tier_color = tier_color(int(s["level"]))
-	e.variant = absi(hash(str(s["node"]) + chunk.key())) % 1000
+	e.variant = absi(hash(str(s["node"]) + chunk.key() + str(s.get("tx")) + ":" + str(s.get("ty")))) % 1000
 	if e.kind == "tree":
 		e.display_size = TreeArt.tree_size(int(s["level"]), e.label)
-		e.click_radius = maxf(e.display_size * 0.5, 30.0)
+		# The WHOLE tree is clickable (canopy + trunk), not just a point at the base.
+		e.click_radius = maxf(e.display_size * 1.15, 52.0)
+		if s.has("tree_species"):
+			e.prop_kind = str(s["tree_species"])   # keep its ambient canopy look (fir/oak/…)
 	else:
 		e.display_size = IsoSprites.node_size(e.kind)
 		e.click_radius = maxf(e.display_size * 0.8, 26.0)
 	e.position = chunk.tile_world(int(s["tx"]), int(s["ty"]))
+	if e.kind == "tree" and s.has("tree_species"):
+		# A little off-grid jitter so the converted canopy reads as a natural forest, not rows.
+		var jx := WG.r01(WorldGen.store.world_seed, int(s["tx"]), int(s["ty"]), 215) - 0.5
+		var jy := WG.r01(WorldGen.store.world_seed, int(s["tx"]), int(s["ty"]), 216) - 0.5
+		e.position += Vector2(jx * WG.TILE * 0.5, jy * WG.TILE * 0.3)
 	e.dimmed = not bool(s["available"])
 	e.action = {
 		"type": "gather", "skill": str(s["skill"]), "node": str(s["node"]),
@@ -671,12 +690,16 @@ func _spawn_poi_part(chunk: RefCounted, poi: Dictionary, part: Dictionary, conta
 				e.display_size = 90.0
 		"bridge", "bridge_pole":
 			# Plank-bridge meshes: an oriented deck segment (deck + planks + side rails) or a support
-			# pillar. yaw lays the deck ALONG the path, height_offset rides it above the water (gentle
-			# arch), and gx/gy place it at the exact smooth centerline (not the rounded tile centre).
+			# pillar. yaw lays the deck ALONG the path; gx/gy place it at the exact smooth centerline.
+			# The span endpoints + t let the renderer keep the deck LEVEL, floating over the water/gap.
 			e.yaw = float(part.get("yaw", 0.0))
 			e.height_offset = float(part.get("h", 0.0))
 			if part.has("gx"):
 				e.position = WG.grid_to_iso(Vector2(float(part["gx"]) + 0.5, float(part["gy"]) + 0.5))
+			if part.has("t"):
+				e.bridge_a = WG.grid_to_iso(Vector2(float(part["ax"]) + 0.5, float(part["ay"]) + 0.5))
+				e.bridge_b = WG.grid_to_iso(Vector2(float(part["bx"]) + 0.5, float(part["by"]) + 0.5))
+				e.bridge_t = float(part["t"])
 		"fountain":
 			e.display_size = 40.0
 			e.click_radius = 30.0

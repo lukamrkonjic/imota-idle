@@ -94,7 +94,7 @@ var _tiles_per_mask_px := 1.0
 # elevation and rivers/lakes traced from the reference art (tools/trace_world.py).
 # When present they DRIVE biome/elevation/water directly — the procedural
 # climate/orography/hydrology models are bypassed.
-const _ELEV_MAX := 44            # mirrors MountainField.ELEV_MAX_STEPS
+const _ELEV_MAX := 64            # mirrors MountainField.ELEV_MAX_STEPS (tall, dramatic peaks)
 var _has_biome_mask := false
 var _has_elev_mask := false
 var _has_river_mask := false
@@ -459,7 +459,9 @@ func mask_elev_steps(tx: float, ty: float) -> int:
 	if pi < 0:
 		return 0
 	var v := float(_elev_data[pi]) / 255.0
-	return clampi(int(round(pow(v, 1.4) * float(_ELEV_MAX))), 0, _ELEV_MAX)
+	# Steeper gamma (1.8) keeps lowland + mid elevation where it was while letting the high
+	# painted areas soar toward the raised ceiling — so peaks get huge without lifting valleys.
+	return clampi(int(round(pow(v, 1.8) * float(_ELEV_MAX))), 0, _ELEV_MAX)
 
 
 func has_river_mask() -> bool:

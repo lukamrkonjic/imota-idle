@@ -26,6 +26,7 @@ var elev := PackedByteArray()      # terraced terrain elevation in steps, 0 = fl
                                    # are blocked by tile flags / reachability limits.
 var zone: Dictionary = {}
 var safe := false                 # campsite/village chunk: no monster spawns
+var canopy_sites_built := false   # ambient canopy already converted to choppable tree sites
 var sites: Array = []
 var pois: Array = []
 var monsters: Array = []

@@ -115,7 +115,32 @@ func _advance_staged_rebuild() -> void:
 				if pl == _IDENTITY_XF:
 					# Most structures sit axis-aligned (yaw 0); bridge deck segments carry a yaw
 					# so they lay along the path they were drawn over.
-					pl = Transform3D(Basis(Vector3.UP, float(d.yaw)), _iso_to_3d.call(d.position, _height.call(d.position) + float(d.height_offset)))
+					var base_h: float = _height.call(d.position)
+					var basis := Basis(Vector3.UP, float(d.yaw))
+					if float(d.bridge_t) >= 0.0:
+						# Bridge: height LERPS between the two solid-ground endpoints so the span
+						# stays level and floats over the water/gap instead of sagging per-tile.
+						var h_a: float = _height.call(d.bridge_a)
+						var h_b: float = _height.call(d.bridge_b)
+						base_h = lerpf(h_a, h_b, float(d.bridge_t))
+						if str(d.kind) == "bridge_pole":
+							# Piling: stretch the unit mesh (Y 0..-1) DOWN from the deck to the actual
+							# terrain/water below this pole, so every pile reaches the ground.
+							var ground: float = _height.call(d.position)
+							var drop: float = maxf(0.2, base_h + float(d.height_offset) - ground)
+							basis = Basis(Vector3.UP, float(d.yaw)).scaled(Vector3(1.0, drop, 1.0))
+						else:
+							# Orient the DECK along the straight 3D line A->B (yaw + pitch) so the
+							# whole span is ONE clean ramp — no bends, no steps.
+							var a3: Vector3 = _iso_to_3d.call(d.bridge_a, h_a)
+							var b3: Vector3 = _iso_to_3d.call(d.bridge_b, h_b)
+							var fwd: Vector3 = b3 - a3
+							if fwd.length() > 0.001:
+								fwd = fwd.normalized()
+								var rx: Vector3 = Vector3.UP.cross(fwd)
+								rx = rx.normalized() if rx.length() > 0.001 else Vector3.RIGHT
+								basis = Basis(rx, fwd.cross(rx).normalized(), fwd)
+					pl = Transform3D(basis, _iso_to_3d.call(d.position, base_h + float(d.height_offset)))
 				_rb_xf[id] = pl
 				_collect(parts, pl, _rb_groups)
 		if _rb_i >= _rb_list.size():

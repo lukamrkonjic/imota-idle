@@ -78,6 +78,11 @@ func _stamp_road(road: Dictionary) -> void:
 	if center.size() < 2:
 		return
 	var st := _style_for(road)
+	if bool(st.get("deck", false)):
+		# A bridge is a STRAIGHT floating span from the first authored point to the last — it
+		# doesn't wind. Replace the smoothed curve with a straight, per-tile-sampled line so the
+		# deck goes cleanly A->B (the renderer also tilts it to one ramp between the endpoints).
+		center = _straight_line(center[0], center[center.size() - 1])
 	var core := _tile(str(st.get("core", "dirt")), "dirt")
 	var base_w := float(st.get("width", 2.0))
 	# An authored per-road width acts as a minimum (lets one road be wider).
@@ -92,14 +97,27 @@ func _stamp_road(road: Dictionary) -> void:
 			acc += center[i].distance_to(center[i - 1])
 		arcs.append(acc)
 
-	for i: int in center.size():
-		var w := maxf(0.6, base_w + jitter * _wnoise(arcs[i]))
-		_stamp_point(center[i], w, feather, core)
+	# A "deck" road (bridge) paints NO ground tiles — the water/river/terrain underneath stays
+	# visible and the deck mesh floats over it. A normal road stamps its body into the tiles.
+	var is_deck := bool(st.get("deck", false))
+	if not is_deck:
+		for i: int in center.size():
+			var w := maxf(0.6, base_w + jitter * _wnoise(arcs[i]))
+			_stamp_point(center[i], w, feather, core)
 
-	if bool(st.get("deck", false)):
+	if is_deck:
 		_emit_bridge(center, base_w)
 	else:
 		_emit_decor(center, base_w, float(st.get("decor", 0.0)))
+
+
+# A straight, per-tile-sampled line from a to b (for bridges, which don't wind).
+func _straight_line(a: Vector2, b: Vector2) -> Array:
+	var out: Array = []
+	var steps := maxi(1, int(ceil(a.distance_to(b))))
+	for i: int in steps + 1:
+		out.append(a.lerp(b, float(i) / float(steps)))
+	return out
 
 
 # --- smoothing (Catmull-Rom, ~1 sample / tile) --------------------------------
@@ -159,26 +177,35 @@ func _emit_bridge(center: Array, _hw: float) -> void:
 	# One ORIENTED deck segment per bridge tile (yaw along the path -> a clean boardwalk ribbon,
 	# the mesh provides the deck width), plus support pillars at the edges every few tiles. The
 	# narrow plank_floor strip painted underneath stays walkable.
-	var seen: Dictionary = {}
 	var n := center.size()
+	# The span's two SOLID-GROUND ends. The renderer lerps each segment's height between the
+	# terrain heights here, so the deck stays LEVEL and floats over the water/gap (instead of
+	# sagging tile-by-tile into the water bed or staircasing down a canyon). A small lift keeps
+	# the boards just clear of that line. Smooth (linear) -> no notches, traversable.
+	var a: Vector2 = center[0]
+	var b: Vector2 = center[n - 1]
+	var h := 0.05
 	for i: int in n:
 		var c: Vector2 = center[i]
 		var fwd: Vector2 = center[mini(i + 1, n - 1)] - center[maxi(i - 1, 0)]
 		var yaw := atan2(fwd.x, fwd.y) if fwd.length() > 0.01 else 0.0
-		# raise the deck above the water with a gentle arch (highest mid-span)
-		var prog := float(i) / float(maxi(1, n - 1))
-		var h := 0.34 + 0.20 * sin(prog * PI)
+		var t := float(i) / float(maxi(1, n - 1))
+		var span := {"ax": a.x, "ay": a.y, "bx": b.x, "by": b.y, "t": t}
 		var key := Vector2i(int(round(c.x)), int(round(c.y)))
-		if not seen.has(key):
-			seen[key] = true
-			# gx/gy = the exact smooth centerline so segments line up instead of staircasing
-			_add_struct(key.x, key.y, {"kind": "bridge", "yaw": yaw, "gx": c.x, "gy": c.y, "h": h})
-		# support pillars just off each deck edge, every few tiles
+		# ONE deck segment per sample point at its exact gx/gy — NO tile dedup. Dedup left holes
+		# on diagonals (two samples round to one tile, or to tiles sqrt(2)~1.41 apart while the
+		# deck is only 1.35 long). At ~1u spacing the 1.35u decks overlap into a seamless ribbon.
+		var part := {"kind": "bridge", "yaw": yaw, "gx": c.x, "gy": c.y, "h": h}
+		part.merge(span)
+		_add_struct(key.x, key.y, part)
+		# support pillars just off each deck edge, every few tiles (they hang from the deck line)
 		if i % 4 == 0 and fwd.length() > 0.01:
 			var perp := Vector2(-fwd.y, fwd.x).normalized()
 			for side: float in [-1.0, 1.0]:
 				var pp := c + perp * side * 0.85
-				_add_struct(int(round(pp.x)), int(round(pp.y)), {"kind": "bridge_pole", "gx": pp.x, "gy": pp.y, "h": h})
+				var ppart := {"kind": "bridge_pole", "gx": pp.x, "gy": pp.y, "h": h}
+				ppart.merge(span)
+				_add_struct(int(round(pp.x)), int(round(pp.y)), ppart)
 
 
 # --- roadside decor -----------------------------------------------------------

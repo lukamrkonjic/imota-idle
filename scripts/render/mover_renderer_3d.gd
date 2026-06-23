@@ -17,6 +17,7 @@ const TURN_STIFFNESS := 62.0
 const TURN_DAMPING := 14.0
 const HURT_DUR := 0.2               # how long the take-a-hit red flash + shake lasts
 const ATTACK_DUR := 0.42            # seconds one swing lunge plays over
+const CHOP_RATE := 1.3              # woodcutting swings/sec — continuous overhead axe chop
 const DEATH_DUR := 0.65             # seconds a death topple settles over
 const BAR_CLEARANCE := 0.30         # constant world-unit gap a floating HP bar sits above every head
 
@@ -30,6 +31,7 @@ var _sun: DirectionalLight3D
 var editor_hide_player := false
 
 var _player_node: Node3D
+var _chopping := false                # player is mid-woodcutting (drives the chop swing + axe-in-hand)
 var _mover_nodes: Dictionary = {}    # moving entity id -> Node3D (player/enemies)
 var _mover_prev: Dictionary = {}     # key -> last 3D pos (for walk detection)
 var _mover_yaw: Dictionary = {}      # key -> facing yaw (turned with spring inertia)
@@ -81,6 +83,7 @@ func update(delta: float) -> void:
 			_prep_mover(_player_node, "player")
 			_apply_player_equipment()
 			EventBus.equipment_changed.connect(_apply_player_equipment)
+		_refresh_chop_weapon()
 		_animate_mover(_player_node, "player", world.player.position, t, dt)
 	var live := {}
 	for e: Node in world.entities:
@@ -130,6 +133,41 @@ func _apply_player_equipment(_a := "", _b := "") -> void:
 	var mainhand: Dictionary = loadout.get("mainhand", {})
 	_player_node.set_meta("pose", "staff" if str(mainhand.get("kind", "")) in ["staff", "raven_staff", "wand"] else "")
 	_disable_cast_shadows(_player_node)
+
+
+## The player is mid-woodcutting. (An axe is required to start a chop, so this also implies one
+## is equipped.) Drives the continuous chop swing + the axe-in-hand swap.
+func _is_chopping() -> bool:
+	return TickSim.active and TickSim.skill == "woodcutting"
+
+
+## While chopping, show the equipped AXE in hand (not the player's sword/staff); restore the
+## normal loadout when they stop. Only re-applies on the start/stop transition.
+func _refresh_chop_weapon() -> void:
+	if _player_node == null:
+		return
+	var now := _is_chopping()
+	if now == _chopping:
+		return
+	_chopping = now
+	if now:
+		var axe := _axe_loadout()
+		if not axe.is_empty():
+			PropMeshes.apply_equipment(_player_node, axe)
+			_disable_cast_shadows(_player_node)
+			return
+	_apply_player_equipment()   # stopped chopping (or no axe slot) -> back to normal gear
+
+
+## The player's loadout with the mainhand forced to the equipped axe (its own tier/material).
+func _axe_loadout() -> Dictionary:
+	var axe_id := str(GameState.equipment.get("Axe", ""))
+	if axe_id.is_empty():
+		return {}
+	var ld := EquipLoadout.for_player(GameState.equipment)
+	var def = DataRegistry.item_def(axe_id)
+	ld["mainhand"] = {"kind": "axe", "material": EquipLoadout._material(def, DataRegistry.item_display_name(axe_id))}
+	return ld
 
 
 func _disable_cast_shadows(node: Node) -> void:
@@ -190,6 +228,10 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 	var phase := float(absi(hash(key)) % 1000) * 0.006283
 	var base: float = float(node.get_meta("base_scale", 1.0))
 	var atk := _attack_progress(key, t)
+	# Woodcutting: a continuous overhead axe chop (the pose's atk drive already swings the lead
+	# arm overarm), so the player visibly hacks at the tree while the gather ticks run.
+	if key == "player" and _chopping:
+		atk = fmod(t * CHOP_RATE, 1.0)
 	var btype := str(node.get_meta("body3d", "humanoid"))
 	match btype:
 		"bird":

@@ -1,0 +1,21 @@
+{
+ "_doc": "Maps a world canopy species (prop_meshes canopy_* kind) to a woodcutting gather node in gather_nodes.json. Used to make ambient trees choppable, gated by level.",
+ "speciesToNode": {
+  "canopy_fir": "Regular Tree",
+  "canopy_spruce": "Regular Tree",
+  "canopy_pine": "Regular Tree",
+  "canopy_snow_fir": "Regular Tree",
+  "canopy_snow_spruce": "Regular Tree",
+  "canopy_birch": "Regular Tree",
+  "canopy_broadleaf": "Regular Tree",
+  "canopy_deadtree": "Regular Tree",
+  "canopy_oak": "Oak Tree",
+  "canopy_maple": "Maple Tree",
+  "canopy_acacia": "Acadia Tree",
+  "canopy_palm": "Teak Tree",
+  "canopy_willow": "Willow Tree",
+  "canopy_yew": "Yew Tree",
+  "canopy_magic": "Magic Tree",
+  "canopy_elven": "Elven Tree"
+ }
+}

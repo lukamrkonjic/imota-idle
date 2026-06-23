@@ -11,6 +11,7 @@ const SmithyProp := preload("res://scripts/render/smithy_prop.gd")
 const FOREST_PREVIEW_ARG := "--forest-preview"
 const WATER_PREVIEW_ARG := "--water-preview"   # verification: teleport to a deterministic ocean coast
 const FX_PREVIEW_ARG := "--fx-preview"         # verification: light the fire + emit prayer bursts at spawn
+const SMITHY_PREVIEW_ARG := "--smithy-preview" # verification: drop the smithy model at the spawn camp
 
 var world: Node2D
 var render: Node                  # the WorldRender3D coordinator (iso_to_3d/height_at/props_root)
@@ -48,6 +49,9 @@ func update_if_enabled() -> void:
 ## loaded so the ground height is real), then teleport the player there to see it.
 func _maybe_place_smithy() -> void:
 	if _smithy_done:
+		return
+	# Debug-only preview model — gated behind a flag so it never appears in normal play.
+	if not (SMITHY_PREVIEW_ARG in OS.get_cmdline_args() or SMITHY_PREVIEW_ARG in OS.get_cmdline_user_args()):
 		return
 	var spawn := WorldGen.spawn_position()
 	var st := WG.world_to_tile(spawn)

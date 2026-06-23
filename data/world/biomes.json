@@ -402,7 +402,7 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.22
+      "weight": 0.088
      },
      {
       "kind": "reed",
@@ -455,15 +455,15 @@
    "siteDensity": 0.8,
    "monsterDensity": 0.8,
    "groundDecor": {
-    "density": 0.045,
+    "density": 0.022,
     "kinds": [
      {
       "kind": "rubble",
-      "weight": 0.4
+      "weight": 0.16
      },
      {
       "kind": "pebble",
-      "weight": 0.3
+      "weight": 0.12
      },
      {
       "kind": "bone",
@@ -533,7 +533,7 @@
     "kinds": [
      {
       "kind": "pebble",
-      "weight": 0.4
+      "weight": 0.16
      },
      {
       "kind": "grass",
@@ -627,7 +627,7 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.3
+      "weight": 0.12
      },
      {
       "kind": "stick",
@@ -711,7 +711,7 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.3
+      "weight": 0.12
      },
      {
       "kind": "bone",
@@ -809,6 +809,10 @@
      {
       "kind": "stick",
       "weight": 0.12
+     },
+     {
+      "kind": "stump",
+      "weight": 0.05
      }
     ]
    },
@@ -883,7 +887,7 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.3
+      "weight": 0.12
      },
      {
       "kind": "moss",
@@ -1062,11 +1066,15 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.16
+      "weight": 0.064
      },
      {
       "kind": "mushroom",
       "weight": 0.12
+     },
+     {
+      "kind": "stump",
+      "weight": 0.05
      }
     ]
    },
@@ -1084,6 +1092,10 @@
      {
       "kind": "canopy_birch",
       "weight": 0.15
+     },
+     {
+      "kind": "canopy_deadtree",
+      "weight": 0.05
      }
     ]
    },
@@ -1233,7 +1245,7 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.3
+      "weight": 0.12
      },
      {
       "kind": "stick",
@@ -1241,7 +1253,11 @@
      },
      {
       "kind": "rubble",
-      "weight": 0.16
+      "weight": 0.064
+     },
+     {
+      "kind": "stump",
+      "weight": 0.05
      }
     ]
    },
@@ -1317,6 +1333,10 @@
      {
       "kind": "stick",
       "weight": 0.12
+     },
+     {
+      "kind": "stump",
+      "weight": 0.05
      }
     ]
    },
@@ -1499,7 +1519,7 @@
     "kinds": [
      {
       "kind": "pebble",
-      "weight": 0.4
+      "weight": 0.16
      },
      {
       "kind": "grass",
@@ -1571,7 +1591,7 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.16
+      "weight": 0.064
      }
     ]
    },
@@ -1741,7 +1761,7 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.22
+      "weight": 0.088
      }
     ]
    },
@@ -1787,7 +1807,7 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.3
+      "weight": 0.12
      },
      {
       "kind": "bone",
@@ -1837,7 +1857,7 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.3
+      "weight": 0.12
      },
      {
       "kind": "shell",
@@ -2016,7 +2036,7 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.16
+      "weight": 0.064
      }
     ]
    },
@@ -2050,11 +2070,11 @@
     "kinds": [
      {
       "kind": "pebble",
-      "weight": 0.4
+      "weight": 0.16
      },
      {
       "kind": "rubble",
-      "weight": 0.3
+      "weight": 0.12
      },
      {
       "kind": "bone",
@@ -2117,7 +2137,7 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.16
+      "weight": 0.064
      }
     ]
    },
@@ -2167,11 +2187,15 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.22
+      "weight": 0.088
      },
      {
       "kind": "stick",
       "weight": 0.16
+     },
+     {
+      "kind": "stump",
+      "weight": 0.05
      }
     ]
    },
@@ -2214,7 +2238,7 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.3
+      "weight": 0.12
      },
      {
       "kind": "moss",
@@ -2301,6 +2325,10 @@
      {
       "kind": "grass",
       "weight": 0.12
+     },
+     {
+      "kind": "stump",
+      "weight": 0.05
      }
     ]
    },
@@ -2322,6 +2350,10 @@
      {
       "kind": "canopy_fir",
       "weight": 0.2
+     },
+     {
+      "kind": "canopy_deadtree",
+      "weight": 0.03
      }
     ]
    },
@@ -2537,7 +2569,11 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.16
+      "weight": 0.064
+     },
+     {
+      "kind": "stump",
+      "weight": 0.05
      }
     ]
    },
@@ -2585,11 +2621,11 @@
     "kinds": [
      {
       "kind": "rubble",
-      "weight": 0.4
+      "weight": 0.16
      },
      {
       "kind": "pebble",
-      "weight": 0.3
+      "weight": 0.12
      },
      {
       "kind": "bone",
@@ -2633,15 +2669,15 @@
    "siteDensity": 0.8,
    "monsterDensity": 0.95,
    "groundDecor": {
-    "density": 0.04,
+    "density": 0.02,
     "kinds": [
      {
       "kind": "rubble",
-      "weight": 0.4
+      "weight": 0.16
      },
      {
       "kind": "pebble",
-      "weight": 0.3
+      "weight": 0.12
      }
     ]
    },
@@ -2922,6 +2958,10 @@
      {
       "kind": "shrub",
       "weight": 0.22
+     },
+     {
+      "kind": "stump",
+      "weight": 0.05
      }
     ]
    }
@@ -2972,7 +3012,7 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.22
+      "weight": 0.088
      },
      {
       "kind": "reed",
@@ -3034,7 +3074,11 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.16
+      "weight": 0.064
+     },
+     {
+      "kind": "stump",
+      "weight": 0.05
      }
     ]
    }
@@ -3133,7 +3177,7 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.22
+      "weight": 0.088
      },
      {
       "kind": "shrub",
@@ -3191,7 +3235,7 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.16
+      "weight": 0.064
      }
     ]
    }
@@ -3229,6 +3273,10 @@
      {
       "kind": "canopy_birch",
       "weight": 0.15
+     },
+     {
+      "kind": "canopy_deadtree",
+      "weight": 0.05
      }
     ]
    },
@@ -3250,6 +3298,10 @@
      {
       "kind": "stick",
       "weight": 0.16
+     },
+     {
+      "kind": "stump",
+      "weight": 0.05
      }
     ]
    }
@@ -3420,7 +3472,11 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.16
+      "weight": 0.064
+     },
+     {
+      "kind": "stump",
+      "weight": 0.05
      }
     ]
    }
@@ -3467,7 +3523,7 @@
     "kinds": [
      {
       "kind": "rubble",
-      "weight": 0.4
+      "weight": 0.16
      },
      {
       "kind": "moss",
@@ -3480,6 +3536,10 @@
      {
       "kind": "stick",
       "weight": 0.16
+     },
+     {
+      "kind": "stump",
+      "weight": 0.05
      }
     ]
    }
@@ -3534,7 +3594,11 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.16
+      "weight": 0.064
+     },
+     {
+      "kind": "stump",
+      "weight": 0.05
      }
     ]
    }
@@ -3584,7 +3648,7 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.16
+      "weight": 0.064
      }
     ]
    }
@@ -3692,7 +3756,7 @@
      },
      {
       "kind": "rubble",
-      "weight": 0.3
+      "weight": 0.12
      },
      {
       "kind": "fern",
@@ -3700,7 +3764,7 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.16
+      "weight": 0.064
      }
     ]
    }
@@ -3779,7 +3843,7 @@
      },
      {
       "kind": "pebble",
-      "weight": 0.04
+      "weight": 0.016
      }
     ]
    }
