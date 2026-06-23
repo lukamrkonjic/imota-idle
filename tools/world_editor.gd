@@ -105,6 +105,7 @@ const STRUCTURES := [
 
 const ROOF_COLORS := ["7a3b3b", "3b5a7a", "4a6b3a", "6b5a3a", "5a3b6b", "7a6b3a"]
 const SIDEBAR_W := 240    # fixed sidebar width (items fill it)
+const HUD_SCALE := 1.25   # editor chrome (tool panels / preview / minimap) is drawn 1.25× larger
 const STRUCT_MARK := Color(0.95, 0.85, 0.4)
 const SPAWN_MARK := Color(0.3, 1.0, 0.45)
 const TREE_MARK := Color(0.16, 0.42, 0.18, 0.92)   # ambient canopy dot on the 2D map
@@ -230,6 +231,7 @@ var _v3d_view_label: Label
 var _minimap_panel: PanelContainer
 var _minimap_tex: TextureRect
 var _minimap_marker: ColorRect
+var _minimap_check: CheckBox   # Overlays > "World map" — kept in sync with the M key
 var _show_minimap := true   # Overlays > "World map" toggle (hide the bottom-right map)
 
 
@@ -505,7 +507,7 @@ func _handle_key(event: InputEventKey) -> void:
 			elif _v3d_on:
 				_focus_3d(_hover_tile)
 				_status.text = "3D camera → tile (%d, %d)" % [_hover_tile.x, _hover_tile.y]
-		KEY_M: _toggle_3d_maximize()
+		KEY_M: _toggle_minimap()
 		KEY_1: _set_tool(Tool.PAN)
 		KEY_2: _set_tool(Tool.BIOME)
 		KEY_3: _set_tool(Tool.TERRAIN)
@@ -562,9 +564,9 @@ func _process(_delta: float) -> void:
 func _position_preview_panel() -> void:
 	if _preview_panel == null:
 		return
-	# FIXED spot just right of the sidebar — never tracks the selected row (that made it jump
-	# up/down). Always in the same place so it's easy to glance at.
-	_preview_panel.position = Vector2(8 + SIDEBAR_W + 12, 58)
+	# FIXED spot just right of the (1.25×-scaled) sidebar — never tracks the selected row (that made
+	# it jump up/down). Always in the same place so it's easy to glance at.
+	_preview_panel.position = Vector2(8 + SIDEBAR_W * HUD_SCALE + 12, 58)
 
 
 func _tile_under_mouse() -> Vector2i:
@@ -1606,6 +1608,7 @@ func _build_ui() -> void:
 	var top := PanelContainer.new()
 	top.add_theme_stylebox_override("panel", _panel(Color(0.13, 0.13, 0.16)))
 	top.position = Vector2(8, 8)
+	top.scale = Vector2(HUD_SCALE, HUD_SCALE)
 	_track_ui_hover(top)
 	_hud.add_child(top)
 	var tb := HBoxContainer.new()
@@ -1632,7 +1635,8 @@ func _build_ui() -> void:
 	# Left panel: tools + brush + palette (one connected column)
 	var left := PanelContainer.new()
 	left.add_theme_stylebox_override("panel", _panel(Color(0.13, 0.13, 0.16)))
-	left.position = Vector2(8, 50)
+	left.position = Vector2(8, 58)   # clears the now-taller (1.25×) top bar
+	left.scale = Vector2(HUD_SCALE, HUD_SCALE)
 	left.custom_minimum_size = Vector2(SIDEBAR_W, 0)
 	left.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN   # fixed width, never grows with content
 	_track_ui_hover(left)
@@ -1682,7 +1686,7 @@ func _build_ui() -> void:
 	_overlay_check(lb, "Danger/level", _show_danger, func(on: bool) -> void: _show_danger = on)
 	_overlay_check(lb, "Walkability", _show_walk, func(on: bool) -> void: _show_walk = on)
 	_elev_check = _overlay_check(lb, "Elevation", _show_elevation, func(on: bool) -> void: _show_elevation = on)
-	_overlay_check(lb, "World map", _show_minimap, _set_show_minimap)
+	_minimap_check = _overlay_check(lb, "World map (M)", _show_minimap, _set_show_minimap)
 
 	var sep := HSeparator.new()
 	lb.add_child(sep)
@@ -1715,6 +1719,7 @@ func _build_preview_panel() -> void:
 	_preview_panel = PanelContainer.new()
 	_preview_panel.add_theme_stylebox_override("panel", _panel(Color(0.13, 0.13, 0.16)))
 	_preview_panel.position = Vector2(200, 60)
+	_preview_panel.scale = Vector2(HUD_SCALE, HUD_SCALE)
 	_preview_panel.top_level = true   # position is in screen space, not the HUD layout
 	_track_ui_hover(_preview_panel)
 	_hud.add_child(_preview_panel)
@@ -1795,6 +1800,7 @@ func _build_world_minimap() -> void:
 	_minimap_panel = PanelContainer.new()
 	_minimap_panel.add_theme_stylebox_override("panel", _panel(Color(0.06, 0.07, 0.09)))
 	_minimap_panel.top_level = true
+	_minimap_panel.scale = Vector2(HUD_SCALE, HUD_SCALE)
 	_minimap_panel.visible = false
 	_hud.add_child(_minimap_panel)
 	var box := VBoxContainer.new()
@@ -1841,6 +1847,15 @@ func _set_show_minimap(on: bool) -> void:
 	_apply_minimap_visibility()
 
 
+## M key — show/hide the world-map overlay (mirrors the Overlays > "World map" checkbox).
+func _toggle_minimap() -> void:
+	_show_minimap = not _show_minimap
+	if _minimap_check != null:
+		_minimap_check.set_pressed_no_signal(_show_minimap)
+	_apply_minimap_visibility()
+	_status.text = "World map: %s" % ("on" if _show_minimap else "off")
+
+
 ## The minimap shows only in 3D view AND when the user hasn't toggled it off.
 func _apply_minimap_visibility() -> void:
 	if _minimap_panel == null:
@@ -1856,7 +1871,8 @@ func _position_minimap() -> void:
 		return
 	var vp := get_viewport().get_visible_rect().size
 	_minimap_panel.reset_size()
-	_minimap_panel.position = vp - _minimap_panel.size - Vector2(16, 16)
+	# size is the logical (unscaled) size; the panel renders at HUD_SCALE, so anchor by the scaled size.
+	_minimap_panel.position = vp - _minimap_panel.size * HUD_SCALE - Vector2(16, 16)
 
 
 ## Click on the minimap -> jump the aerial camera to that world position.
@@ -2658,10 +2674,10 @@ func _refresh_palette() -> void:
 			_note("Click to stamp a placeholder settlement (R rotates). Buildings drop as normal structures - edit each placement with the Structure/Erase tools.")
 		Tool.SMOOTHEN:
 			_header(_palette_box, "Smoothen / flatten")
-			_note("Drag the brush over raised ground to lower and smooth it back toward the surroundings. Each pass steps the height down, so sweep (or hold) to melt a bump — or a whole mountain — down to flat. Never raises terrain. Works in both the 2D map and the maximized 3D view (M). The 'Elevation' overlay turns on automatically so you can watch height drop. Ctrl+S saves directly to the world (no re-bake).")
+			_note("Drag the brush over raised ground to lower and smooth it back toward the surroundings. Each pass steps the height down, so sweep (or hold) to melt a bump — or a whole mountain — down to flat. Never raises terrain. Works in both the 2D map and the 3D view. The 'Elevation' overlay turns on automatically so you can watch height drop. Ctrl+S saves directly to the world (no re-bake).")
 		Tool.ELEVATE:
 			_header(_palette_box, "Elevate / raise")
-			_note("Drag (or hold) the brush to raise terrain into hills and mountains. A soft dome falloff means the brush centre rises fastest and the edges feather, building natural peaks — height shades grass→rock→snow on its own. Bigger brush = broader massif. Caps at the alpine summit height. Works in the 2D map and the maximized 3D view (M). Ctrl+S saves directly (no re-bake).")
+			_note("Drag (or hold) the brush to raise terrain into hills and mountains. A soft dome falloff means the brush centre rises fastest and the edges feather, building natural peaks — height shades grass→rock→snow on its own. Bigger brush = broader massif. Caps at the alpine summit height. Works in the 2D map and the 3D view. Ctrl+S saves directly (no re-bake).")
 		_:
 			_note("Right-drag to pan, wheel to zoom. Pick a tool to edit.")
 	_update_preview()
