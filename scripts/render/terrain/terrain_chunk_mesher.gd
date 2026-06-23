@@ -318,13 +318,17 @@ func _visual_floor_height(gtx: int, gty: int, info: Dictionary) -> float:
 		elif tile == "deep_water":
 			depth += WATER_DEEP_DROP
 		h = _rolling_hill(gtx, gty) - WATER_SINK - depth
+	elif _is_path(tile):
+		# Road/path bed: FOLLOWS the (smoothed) terrain height so a road slopes up and down hills
+		# like a mountain road, but stays a smooth, slightly recessed bed — no rocky bumpiness — so
+		# it never cuts a flat shelf or vanishes into the rock. On flat ground smoothed-elev is 0,
+		# so this matches the old gentle path height.
+		h = _smoothed_elevation_height(gtx, gty) + _rolling_hill(gtx, gty) * 0.28 - 0.055
 	elif top > 0.0:
 		# Elevation is authoritative for the mountain surface. Biome/structure passes
 		# can leave gravel, snow, or another gameplay tile on a raised cell; all of
 		# them must share the same smoothed geometry or visible seams reappear.
 		h = _smoothed_elevation_height(gtx, gty) + _rolling_hill(gtx, gty) * 0.42 + _rocky_lift(gtx, gty) * 0.35
-	elif _is_path(tile):
-		h = top + _rolling_hill(gtx, gty) * 0.28 - 0.055
 	elif _is_rock(tile):
 		h = _smoothed_elevation_height(gtx, gty) + _rolling_hill(gtx, gty) * 0.42 + _rocky_lift(gtx, gty) * 0.35
 	else:

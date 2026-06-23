@@ -163,7 +163,9 @@ static func grade(col: Color, tile: String, gtx: int, gty: int, elev: int = 0, s
 		var snow := SNOW_SHADE.lerp(SNOW_LIT, snow_light)
 		var lavender_patch := 0.5 + 0.5 * sin(fx * 0.045 - fz * 0.038 + 0.7)
 		return snow.lerp(Color(0.70, 0.68, 0.91), lavender_patch * 0.10)
-	if is_path(tile) and elev <= 0:
+	if is_path(tile):
+		# Roads/paths keep their road surface colour at ANY elevation, so a road drawn up a hill
+		# reads as a mountain road instead of vanishing into the rock/snow shading.
 		if tile == "cobble" or tile == "gravel":
 			# Stone / gravel roads keep their cool grey base — only broad lighting, never the
 			# warm dirt tint, so a paved road reads as stone instead of orange earth.
