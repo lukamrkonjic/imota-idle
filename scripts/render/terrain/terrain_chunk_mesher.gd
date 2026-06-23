@@ -15,6 +15,12 @@ const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 
 const TILE_S := 1.0                 # 3D units per tile
 const ELEV_H := WG.ELEV_H           # height per elevation step (single source in wg.gd)
+# Biome ground-colour blend: each tile's biome tint is averaged over a disc of this radius (tiles),
+# so the COLOUR fades smoothly across a biome border into a long gradient instead of a hard line.
+# Bigger = longer fade. Sampled at STEP to keep the per-tile cost down (a blur tolerates it).
+const TINT_BLEND_R := 9
+const TINT_BLEND_STEP := 2
+const _TINT_INVALID := Color(-1.0, -1.0, -1.0)
 
 # Water basin model. The surface rides the LOCAL sea-level rolling baseline minus
 # WATER_SINK, so it follows the meadow swells and is always WATER_SINK below the dry
@@ -283,9 +289,11 @@ func _tile_info_compute(gtx: int, gty: int) -> Dictionary:
 	var col: Color = SHORE if water else TerrainStyle.grade(tdef["colors"][0], tile_name, gtx, gty, elev, slope, curve)
 	if not water:
 		# Shift toward the effective (sub-)biome's tint so biomes read distinctly; lighter on
-		# raised ground so mountains keep their alpine look.
+		# raised ground so mountains keep their alpine look. The tint is BLURRED across a disc so
+		# the colour fades smoothly between biomes (long gradient) instead of a hard ground-colour line.
 		var eff: int = chunk.biome_at(lx, ly)
-		col = TerrainStyle.biome_tinted(col, tile_name, WorldGen.reg.biome_tint(eff), 0.10 if elev > 0 else 0.34)
+		var tint := _blended_tint(gtx, gty, WorldGen.reg.biome_tint(eff))
+		col = TerrainStyle.biome_tinted(col, tile_name, tint, 0.10 if elev > 0 else 0.34)
 		# A Short Hike-style painterly patches: soft broad blobs of lighter/darker shades + a
 		# rare biome accent, so the ground isn't one flat colour.
 		col = TerrainStyle.terrain_patch(col, tile_name, biome_id, gtx, gty)
@@ -494,6 +502,54 @@ func _is_rock(tile: String) -> bool:
 
 func _is_snow(tile: String) -> bool:
 	return TerrainStyle.is_snow(tile)
+
+
+## Biome tint at a global land tile, or _TINT_INVALID for water / ocean / apron-not-loaded (those
+## are excluded from the colour blur so it never pulls sea-blue into the land gradient).
+func _biome_tint_at(gtx: int, gty: int) -> Color:
+	var ck := WG.tile_to_chunk(Vector2i(gtx, gty))
+	var chunk: RefCounted = _chunk_by_key.get(WG.key(world.current_layer, ck.x, ck.y))
+	if chunk == null:
+		return _TINT_INVALID
+	var lx: int = gtx - ck.x * WG.CHUNK_TILES
+	var ly: int = gty - ck.y * WG.CHUNK_TILES
+	var tid: int = chunk.tile_id(lx, ly)
+	if bool(WorldGen.reg.tile_def(tid).get("water", false)):
+		return _TINT_INVALID
+	var b: int = chunk.biome_at(lx, ly)
+	if b == 255 or b >= WorldGen.reg.biomes.size():
+		return _TINT_INVALID
+	return WorldGen.reg.biome_tint(b)
+
+
+## Distance-weighted average of nearby biome tints — a soft blur of the tint field that turns a
+## hard biome colour boundary into a long, smooth gradient (radius TINT_BLEND_R). Falls back to the
+## tile's own tint where there are no valid land neighbours (coasts).
+func _blended_tint(gtx: int, gty: int, fallback: Color) -> Color:
+	var r := TINT_BLEND_R
+	var r2 := float(r * r)
+	var rr := 0.0
+	var gg := 0.0
+	var bb := 0.0
+	var wsum := 0.0
+	var dy := -r
+	while dy <= r:
+		var dx := -r
+		while dx <= r:
+			var d2 := float(dx * dx + dy * dy)
+			if d2 <= r2:
+				var t := _biome_tint_at(gtx + dx, gty + dy)
+				if t.r >= 0.0:
+					var w := 1.0 - sqrt(d2) / float(r + 1)
+					rr += t.r * w
+					gg += t.g * w
+					bb += t.b * w
+					wsum += w
+			dx += TINT_BLEND_STEP
+		dy += TINT_BLEND_STEP
+	if wsum <= 0.0:
+		return fallback
+	return Color(rr / wsum, gg / wsum, bb / wsum)
 
 
 ## Raw baked elevation step at a global tile (0 if the chunk/apron isn't loaded). Cheap
