@@ -325,6 +325,14 @@ func invalidate_static_batches() -> void:
 		static_prop_batcher.invalidate()
 
 
+## Editor: after an elevation/terrain edit, drop cached prop transforms in the edited world-space rect
+## so the next batch re-samples their terrain height — otherwise the clutter floats above (or sinks
+## into) the lowered/raised ground.
+func reset_prop_transforms_in_rect(world_rect: Rect2) -> void:
+	if static_prop_batcher != null:
+		static_prop_batcher.reset_transforms_in_rect(world_rect)
+
+
 ## Rebuild the static-prop batch IMMEDIATELY (a tree felled to a stump / regrown) so the swap is
 ## instant — no momentary double of the old and new prop.
 func force_static_batches() -> void:

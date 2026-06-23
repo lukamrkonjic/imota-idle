@@ -2016,6 +2016,25 @@ func _resync_3d_instant(tile: Vector2i) -> void:
 		return
 	rend.call("rebuild_chunk_instant", floori(float(tile.x) / float(WG.CHUNK_TILES)),
 		floori(float(tile.y) / float(WG.CHUNK_TILES)))
+	# Live-drop the clutter onto the sculpted ground as you drag the brush (commit does the rest).
+	if rend.has_method("reset_prop_transforms_in_rect"):
+		rend.call("reset_prop_transforms_in_rect", _tiles_world_rect(
+			[Vector2i(tile.x - _brush, tile.y - _brush), Vector2i(tile.x + _brush, tile.y + _brush)]))
+
+
+## Padded world-space AABB covering a set of edited tiles. tile_to_world is isometric, so a tile
+## range is a diamond in world space — we bound its corners and grow by a tile so props standing on
+## any edited tile fall inside (over-inclusion just re-samples a few extra props, which is harmless).
+func _tiles_world_rect(tiles: Array) -> Rect2:
+	var tmin := Vector2i(2147483647, 2147483647)
+	var tmax := Vector2i(-2147483648, -2147483648)
+	for t: Vector2i in tiles:
+		tmin.x = mini(tmin.x, t.x); tmin.y = mini(tmin.y, t.y)
+		tmax.x = maxi(tmax.x, t.x); tmax.y = maxi(tmax.y, t.y)
+	var r := Rect2(WG.tile_to_world(tmin.x, tmin.y), Vector2.ZERO)
+	for c: Vector2i in [Vector2i(tmax.x, tmin.y), Vector2i(tmin.x, tmax.y), tmax]:
+		r = r.expand(WG.tile_to_world(c.x, c.y))
+	return r.grow(WG.TILE * 1.5)
 
 
 # ───────────────────────────── hover cursor (3D) ────────────────────────────
@@ -2376,6 +2395,10 @@ func _resync_3d_tiles(tiles: Array) -> void:
 			continue
 		seen[k] = true
 		rend.call("rebuild_chunk", cx, cy)
+	# Elevation/terrain edits move the ground under static clutter — drop those props' cached height
+	# so the batch re-samples them (otherwise trees/rocks float above the lowered/raised surface).
+	if rend.has_method("reset_prop_transforms_in_rect") and not tiles.is_empty():
+		rend.call("reset_prop_transforms_in_rect", _tiles_world_rect(tiles))
 
 
 ## Put the embedded camera into the aerial "satellite" framing: steep top-down-ish

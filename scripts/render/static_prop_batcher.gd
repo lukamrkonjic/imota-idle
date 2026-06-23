@@ -47,6 +47,28 @@ func invalidate() -> void:
 	_static_sig = ""
 
 
+## Drop cached transforms for static props standing inside `world_rect` (iso/world 2D space) so the
+## next rebuild RE-SAMPLES their terrain height. Use after an elevation edit (smoothen / raise): the
+## ground under those props moved, but the per-prop height sample is cached — without this they keep
+## their old Y and float above (or sink into) the new surface. Re-batches only if something matched.
+func reset_transforms_in_rect(world_rect: Rect2) -> void:
+	var hit := false
+	for d: Node in world._decor_nodes:
+		if is_instance_valid(d) and world_rect.has_point(d.position):
+			_batch_xf.erase(d.get_instance_id())
+			hit = true
+	for d: Node in world._water_decor_nodes:
+		if is_instance_valid(d) and world_rect.has_point(d.position):
+			_batch_xf.erase(d.get_instance_id())
+			hit = true
+	for e: Node in world.entities:
+		if is_instance_valid(e) and not PropMeshes.is_moving(e) and world_rect.has_point(e.position):
+			_batch_xf.erase(e.get_instance_id())
+			hit = true
+	if hit:
+		_static_sig = ""   # force a staged re-batch; the cleared props re-sample their height
+
+
 ## Batch all static decor + props into per-(mesh,material) MultiMeshes, merged across the whole
 ## visible set. TIME-SLICED across frames (see RB_* state); the old batch stays visible until the
 ## new one is fully built, then swaps in. terrain_built = a chunk mesh built this frame.
