@@ -218,6 +218,7 @@ var _v3d_painting := false      # brush/sculpt drag in progress over the maximiz
 var _gizmo_root: Node3D         # hover cursor in the 3D world (brush ring / placement footprint)
 var _gizmo_disc: MeshInstance3D
 var _gizmo_foot: MeshInstance3D
+var _spawn_marker3d: Node3D     # persistent green beacon at the player spawn in the 3D view
 var _last_instant_ms := 0       # throttle for live-drag chunk remeshes
 var _ghost_root: Node3D         # translucent 3D model of the structure about to be placed
 var _ghost_variant := 0         # reroll seed for the ghost's look (roof colour / model variant)
@@ -535,6 +536,7 @@ func _process(_delta: float) -> void:
 		_v3d_wasd(_delta)
 		_update_minimap_marker()
 		_update_hover_gizmo()
+		_update_spawn_marker3d()
 	elif _gizmo_root != null and is_instance_valid(_gizmo_root):
 		_gizmo_root.visible = false
 	# Pointer is "over UI" whenever any editor Control is under the cursor — used
@@ -1042,6 +1044,7 @@ func _set_spawn(t: Vector2i) -> void:
 	_stroke["spawn"] = [_spawn_tile, t]
 	_spawn_tile = t
 	_status.text = "Player spawn set to (%d, %d)" % [t.x, t.y]
+	_update_spawn_marker3d()   # snap the 3D beacon to the new spot right away
 
 
 func _set_px(gtx: int, gty: int, col: Color) -> void:
@@ -2044,10 +2047,11 @@ func _update_hover_gizmo() -> void:
 	var ghost_settle: bool = _tool == Tool.SETTLEMENT  # whole building cluster
 	var square: bool = _tool == Tool.STAMP             # terrain stamp: just a footprint
 	var road_disc: bool = _tool == Tool.ROAD           # show the road thickness as a disc
+	var spawn_cursor: bool = _tool == Tool.SPAWN       # single-tile target where the click sets spawn
 	# Show only while hovering the 3D view itself. In the maximized view that container is the
 	# hovered control; over the sidebar it isn't — so this hides the cursor over the panels
 	# (the blanket _ui_hover check was wrong here: the 3D container always counts as "UI").
-	if not (ring or ghost_struct or ghost_settle or square or road_disc) or get_viewport().gui_get_hovered_control() != _v3d_container:
+	if not (ring or ghost_struct or ghost_settle or square or road_disc or spawn_cursor) or get_viewport().gui_get_hovered_control() != _v3d_container:
 		_hide_hover_gizmo()
 		return
 	var iso := _v3d_screen_iso(_v3d_container.get_local_mouse_position())
@@ -2079,14 +2083,15 @@ func _update_hover_gizmo() -> void:
 	_ensure_hover_gizmo(rend)
 	if _gizmo_root == null:
 		return
-	var tiles: float = float(_brush) if ring else (float(_road_width) * 0.5 if road_disc else _half_footprint_tiles())
+	var disc_tiles := float(_brush) if ring else (float(_road_width) * 0.5 if road_disc else 0.6)
+	var tiles: float = disc_tiles if (ring or road_disc or spawn_cursor) else _half_footprint_tiles()
 	var edge: Vector3 = rend.call("iso_to_3d", iso + Vector2(tiles * WG.TILE, 0.0), h)
 	var radius := maxf(0.4, center.distance_to(edge))
 	_gizmo_root.visible = true
 	_gizmo_root.global_position = center + Vector3(0.0, 0.08, 0.0)
-	_gizmo_disc.visible = ring or road_disc
+	_gizmo_disc.visible = ring or road_disc or spawn_cursor
 	_gizmo_foot.visible = square
-	if ring or road_disc:
+	if ring or road_disc or spawn_cursor:
 		_gizmo_disc.scale = Vector3(radius, 1.0, radius)
 	else:
 		_gizmo_foot.scale = Vector3(radius, 1.0, radius)
@@ -2271,6 +2276,74 @@ func _gizmo_mat(col: Color) -> StandardMaterial3D:
 	mat.no_depth_test = true              # always visible over the terrain
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return mat
+
+
+## Persistent green beacon marking the player spawn in the 3D view: a ground ring, a vertical
+## beam and a floating diamond head, built once per embedded world (child of the terrain root)
+## and sized in tile-units so it scales with the iso→3D mapping. Repositioned each frame so it
+## stays glued to the spawn tile as you elevate terrain or move the spawn point.
+func _ensure_spawn_marker3d(rend: Node) -> void:
+	if _spawn_marker3d != null and is_instance_valid(_spawn_marker3d):
+		return
+	var root: Node = rend.get("terrain_root")
+	if root == null:
+		return
+	_spawn_marker3d = Node3D.new()
+	_spawn_marker3d.top_level = true   # we drive global_position + scale directly
+	root.add_child(_spawn_marker3d)
+	var ring := MeshInstance3D.new()
+	var rc := CylinderMesh.new()
+	rc.top_radius = 1.05
+	rc.bottom_radius = 1.05
+	rc.height = 0.05
+	rc.radial_segments = 40
+	ring.mesh = rc
+	ring.material_override = _gizmo_mat(SPAWN_MARK * Color(1, 1, 1, 0.30))
+	_spawn_marker3d.add_child(ring)
+	var pole := MeshInstance3D.new()
+	var pc := CylinderMesh.new()
+	pc.top_radius = 0.09
+	pc.bottom_radius = 0.09
+	pc.height = 3.2
+	pole.mesh = pc
+	pole.position = Vector3(0.0, 1.6, 0.0)
+	pole.material_override = _gizmo_mat(SPAWN_MARK * Color(1, 1, 1, 0.55))
+	_spawn_marker3d.add_child(pole)
+	var head := MeshInstance3D.new()
+	var hc := SphereMesh.new()           # low-segment sphere reads as a faceted gem from the air
+	hc.radius = 0.5
+	hc.height = 1.1
+	hc.radial_segments = 6
+	hc.rings = 3
+	head.mesh = hc
+	head.position = Vector3(0.0, 3.5, 0.0)
+	head.material_override = _gizmo_mat(SPAWN_MARK)
+	_spawn_marker3d.add_child(head)
+
+
+## Reposition + show/hide the 3D spawn beacon. Cheap enough to run every frame in 3D; also
+## called right after _set_spawn so the marker snaps to a freshly-placed spawn immediately.
+func _update_spawn_marker3d() -> void:
+	if not _v3d_on or _v3d_world == null:
+		if _spawn_marker3d != null and is_instance_valid(_spawn_marker3d):
+			_spawn_marker3d.visible = false
+		return
+	var rend: Node = _v3d_world.get("render_3d")
+	if rend == null or not rend.has_method("iso_to_3d"):
+		return
+	_ensure_spawn_marker3d(rend)
+	if _spawn_marker3d == null:
+		return
+	_spawn_marker3d.visible = _show_spawn
+	if not _show_spawn:
+		return
+	var iso := WG.tile_to_world(_spawn_tile.x, _spawn_tile.y)
+	var h: float = rend.call("height_at", iso)
+	var center: Vector3 = rend.call("iso_to_3d", iso, h)
+	var edge: Vector3 = rend.call("iso_to_3d", iso + Vector2(WG.TILE, 0.0), h)
+	var s := maxf(0.4, center.distance_to(edge))   # one tile → world units, keeps the beacon scaled
+	_spawn_marker3d.scale = Vector3(s, s, s)
+	_spawn_marker3d.global_position = center
 
 
 func _hide_hover_gizmo() -> void:
