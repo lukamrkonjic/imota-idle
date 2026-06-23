@@ -170,9 +170,12 @@ func _entity_at_screen(cursor_iso: Vector2) -> Node2D:
 			continue
 		if e.position.distance_squared_to(cursor_iso) > PREFILTER_ISO_SQ:
 			continue
-		var lift: float = clampf(e.icon_height() * ISO_PX_TO_WORLD * 0.5, 0.35, 1.6)
+		# Trees are tall: lift the pick centre up onto the CANOPY (not the trunk base) and keep the
+		# radius tight to it, so hovering matches the tree's visible mass instead of a wide ground ring.
+		var tree := str(e.get("kind")) == "tree"
+		var lift: float = clampf(e.icon_height() * ISO_PX_TO_WORLD * (0.62 if tree else 0.5), 0.35, 2.8 if tree else 1.6)
 		var center: Vector2 = r3.iso_to_screen(e.position, lift)
-		var radius_px: float = maxf(18.0, e.click_radius * ISO_PX_TO_WORLD * ppu)
+		var radius_px: float = maxf(16.0, e.click_radius * ISO_PX_TO_WORLD * ppu)
 		var d := center.distance_to(mouse)
 		if d < radius_px and d < best_d:
 			best_d = d

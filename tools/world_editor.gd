@@ -35,12 +35,14 @@ const FiniteWorldGenerator := preload("res://scripts/worldgen/finite_world_gener
 const RoadBrush := preload("res://scripts/worldgen/road_brush.gd")
 const TerrainStyle := preload("res://scripts/render/terrain_style.gd")
 const StampLibrary := preload("res://scripts/worldgen/stamp_library.gd")
+const PropMeshes := preload("res://scripts/render/prop_meshes.gd")
+const WorldEntity := preload("res://scripts/world/world_entity.gd")
 const PlaceablePreview := preload("res://tools/placeable_preview.gd")
 const MountainField := preload("res://scripts/worldgen/mountain_field.gd")
 
 const OUT_DIR := "res://data/world/baked/"
 
-enum Tool { PAN, BIOME, TERRAIN, STAMP, STRUCTURE, ERASE, SPAWN, CREATURE, ROAD, SETTLEMENT }
+enum Tool { PAN, BIOME, TERRAIN, STAMP, STRUCTURE, ERASE, SPAWN, CREATURE, ROAD, SETTLEMENT, SMOOTHEN, ELEVATE }
 
 const TERRAIN := [
 	["grass", "Grass"], ["grass_dark", "Dark grass"], ["dirt", "Dirt path"],
@@ -79,6 +81,26 @@ const STRUCTURES := [
 	["Fern", {"kind": "decor", "prop": "fern"}], ["Reeds", {"kind": "decor", "prop": "reed"}],
 	["Shrub", {"kind": "decor", "prop": "shrub"}], ["Grass tuft", {"kind": "decor", "prop": "grass"}],
 	["Pebbles", {"kind": "decor", "prop": "pebble"}],
+	# ── added clutter (assign to biomes as you like) ──
+	["Boulder", {"kind": "decor", "prop": "boulder"}], ["Rock pile", {"kind": "decor", "prop": "rock_pile"}],
+	["Cairn", {"kind": "decor", "prop": "cairn"}], ["Standing stone", {"kind": "decor", "prop": "standing_stone"}],
+	["Crystal", {"kind": "decor", "prop": "crystal"}], ["Geode", {"kind": "decor", "prop": "geode"}],
+	["Log", {"kind": "decor", "prop": "log"}], ["Log pile", {"kind": "decor", "prop": "log_pile"}],
+	["Branch", {"kind": "decor", "prop": "branch"}], ["Tree roots", {"kind": "decor", "prop": "tree_roots"}],
+	["Mossy log", {"kind": "decor", "prop": "mossy_log"}], ["Cattails", {"kind": "decor", "prop": "cattail"}],
+	["Thistle", {"kind": "decor", "prop": "thistle"}], ["Berry bush", {"kind": "decor", "prop": "berry_bush"}],
+	["Clover", {"kind": "decor", "prop": "clover"}], ["Lily pad", {"kind": "decor", "prop": "lily_pad"}],
+	["Dandelion", {"kind": "decor", "prop": "dandelion"}], ["Agave", {"kind": "decor", "prop": "agave"}],
+	["Tumbleweed", {"kind": "decor", "prop": "tumbleweed"}], ["Sagebrush", {"kind": "decor", "prop": "sagebrush"}],
+	["Animal skull", {"kind": "decor", "prop": "animal_skull"}], ["Toadstool", {"kind": "decor", "prop": "toadstool"}],
+	["Mushroom cluster", {"kind": "decor", "prop": "mushroom_cluster"}], ["Bracket fungus", {"kind": "decor", "prop": "bracket_fungus"}],
+	["Snow patch", {"kind": "decor", "prop": "snow_patch"}], ["Ice shard", {"kind": "decor", "prop": "ice_shard"}],
+	["Frozen shrub", {"kind": "decor", "prop": "frozen_shrub"}], ["Seashell", {"kind": "decor", "prop": "seashell"}],
+	["Starfish", {"kind": "decor", "prop": "starfish"}], ["Coral", {"kind": "decor", "prop": "coral"}],
+	["Barrel", {"kind": "decor", "prop": "barrel"}], ["Crate", {"kind": "decor", "prop": "crate"}],
+	["Sack", {"kind": "decor", "prop": "sack"}], ["Hay bale", {"kind": "decor", "prop": "hay_bale"}],
+	["Bucket", {"kind": "decor", "prop": "bucket"}], ["Signpost", {"kind": "decor", "prop": "signpost"}],
+	["Fence post", {"kind": "decor", "prop": "fence_post"}], ["Anthill", {"kind": "decor", "prop": "anthill"}],
 ]
 
 const ROOF_COLORS := ["7a3b3b", "3b5a7a", "4a6b3a", "6b5a3a", "5a3b6b", "7a6b3a"]
@@ -129,6 +151,7 @@ var _show_biomes := false
 var _show_danger := false
 var _show_walk := false
 var _show_elevation := false
+var _elev_check: CheckBox      # the Elevation overlay toggle, auto-ticked by the Smoothen tool
 var _show_trees := true   # draw the procedural ambient canopy as dots (and what the eraser cut)
 # Per-chunk canopy cache: chunk key -> PackedInt32Array of local tile indices that grow an
 # ambient tree (deterministic, so computed once). Cuts are filtered at draw; a chunk's entry
@@ -185,6 +208,15 @@ const _V3D_SAT_PITCH := 1.16      # near top-down aerial (CAM_PITCH_MAX is 1.40)
 var _v3d_zoom := 0.45             # lower = wider aerial view (cam ortho size grows)
 var _v3d_panning := false
 var _v3d_pan_prev := Vector2.ZERO
+var _v3d_painting := false      # brush/sculpt drag in progress over the maximized 3D view
+var _gizmo_root: Node3D         # hover cursor in the 3D world (brush ring / placement footprint)
+var _gizmo_disc: MeshInstance3D
+var _gizmo_foot: MeshInstance3D
+var _last_instant_ms := 0       # throttle for live-drag chunk remeshes
+var _ghost_root: Node3D         # translucent 3D model of the structure about to be placed
+var _ghost_variant := 0         # reroll seed for the ghost's look (roof colour / model variant)
+var _ghost_sig := ""            # rebuild key: rebuild ghost meshes only when selection/variant changes
+var _ghost_mat_cache: Dictionary = {}   # source material id → cached translucent ghost material
 var _v3d_focus_pos := Vector2.ZERO   # float world-space camera focus (WASD/pan move it)
 var _v3d_view_cap := 8               # aerial terrain radius (chunks); the View slider drives it
 var _v3d_view_slider: HSlider
@@ -414,9 +446,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP and not _ui_hover:
-			_zoom_at(1.15)
+			if _is_rotatable_tool(): _rotate_placement(1)
+			else: _zoom_at(1.15)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and not _ui_hover:
-			_zoom_at(1.0 / 1.15)
+			if _is_rotatable_tool(): _rotate_placement(-1)
+			else: _zoom_at(1.0 / 1.15)
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
 			_panning = event.pressed
 		elif event.button_index == MOUSE_BUTTON_LEFT and not _ui_hover:
@@ -457,12 +491,8 @@ func _handle_key(event: InputEventKey) -> void:
 		KEY_BRACKETLEFT: _set_brush(_brush - 1)
 		KEY_BRACKETRIGHT: _set_brush(_brush + 1)
 		KEY_R:
-			if _tool == Tool.STAMP:
-				_stamp_rot = (_stamp_rot + 1) % 4
-				_status.text = "Stamp rotation: %d°" % (_stamp_rot * 90)
-			elif _tool == Tool.SETTLEMENT:
-				_settlement_rot = (_settlement_rot + 1) % 4
-				_status.text = "Settlement rotation: %d°" % (_settlement_rot * 90)
+			if _is_rotatable_tool():
+				_rotate_placement(1)   # one 90° step — Stamp / Settlement / Structure
 		KEY_F:
 			if _tool == Tool.STAMP:
 				_stamp_flip = not _stamp_flip
@@ -481,6 +511,8 @@ func _handle_key(event: InputEventKey) -> void:
 		KEY_8: _set_tool(Tool.CREATURE)
 		KEY_9: _set_tool(Tool.ROAD)
 		KEY_0: _set_tool(Tool.SETTLEMENT)
+		KEY_H: _set_tool(Tool.SMOOTHEN)   # smootHen / flatten elevation
+		KEY_E: _set_tool(Tool.ELEVATE)    # Elevate / raise into hills & mountains
 
 
 func _zoom_at(factor: float) -> void:
@@ -495,6 +527,9 @@ func _process(_delta: float) -> void:
 	if _v3d_on:
 		_v3d_wasd(_delta)
 		_update_minimap_marker()
+		_update_hover_gizmo()
+	elif _gizmo_root != null and is_instance_valid(_gizmo_root):
+		_gizmo_root.visible = false
 	# Pointer is "over UI" whenever any editor Control is under the cursor — used
 	# to keep the mouse wheel scrolling lists instead of zooming the map.
 	_ui_hover = get_viewport().gui_get_hovered_control() != null
@@ -504,7 +539,7 @@ func _process(_delta: float) -> void:
 	if t.x != -2147483648 and t != _hover_tile:
 		_hover_tile = t
 		_update_coords()
-	if _painting and not _ui_hover and _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE]:
+	if _painting and not _ui_hover and _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE, Tool.SMOOTHEN, Tool.ELEVATE]:
 		_apply_tool(false)
 	if _painting and not _ui_hover and _tool == Tool.ROAD and _road_drawing:
 		if _road_pts.is_empty() or _road_pts[_road_pts.size() - 1] != _hover_tile:
@@ -545,6 +580,8 @@ func _apply_tool(just_pressed: bool) -> void:
 		Tool.BIOME: _paint(_paint_biome_tile)
 		Tool.TERRAIN: _paint(_paint_terrain_tile)
 		Tool.ERASE: _paint(_erase_tile)
+		Tool.SMOOTHEN: _smoothen_brush()
+		Tool.ELEVATE: _elevate_brush()
 		Tool.STAMP:
 			if just_pressed:
 				_place_stamp(_hover_tile)
@@ -578,6 +615,110 @@ func _paint(fn: Callable) -> void:
 			fn.call(_hover_tile.x + dx, _hover_tile.y + dy)
 
 
+# ─────────────────────────────── smoothen tool ──────────────────────────────
+# Brush that REMOVES elevation: every brushed tile is pulled toward the average of
+# its 3×3 neighbourhood and eroded a notch, never raised. Repeated strokes melt a
+# raised bump back to ground level and feather its edges. Elevation is part of the
+# baked chunk (chunk.elev) — Save writes it straight back, no re-bake needed.
+
+func _elev_at(gtx: int, gty: int) -> int:
+	var chunk: RefCounted = _chunk_at_tile(gtx, gty)
+	if chunk == null or chunk.elev.size() == 0:
+		return 0
+	var ci: int = Chunk.idx(gtx - chunk.cx * WG.CHUNK_TILES, gty - chunk.cy * WG.CHUNK_TILES)
+	return int(chunk.elev[ci]) if chunk.elev.size() > ci else 0
+
+
+# Compute the smoothed/lowered elevation for one tile from the CURRENT terrain (all
+# neighbour reads happen before any write, so a stroke is order-independent).
+# Returns -1 to leave the tile alone (off-map, already flat).
+func _smoothen_value(gtx: int, gty: int) -> int:
+	var e := _elev_at(gtx, gty)
+	if e <= 0:
+		return -1   # already ground — nothing to remove
+	var sum := 0
+	var cnt := 0
+	for dy: int in range(-1, 2):
+		for dx: int in range(-1, 2):
+			sum += _elev_at(gtx + dx, gty + dy)
+			cnt += 1
+	var avg := float(sum) / float(cnt)
+	# Feather toward the neighbourhood (never above current height) and then take a firm
+	# step DOWN. A broad uniform plateau or mountain has avg ≈ e, so a pure blend would
+	# stall — the explicit −1 floor guarantees every pass actually removes elevation, so
+	# the brush bites into mountains too, not just isolated spikes.
+	var lowered := lerpf(float(e), minf(float(e), avg), 0.5) - 1.0
+	var ne := clampi(int(round(lowered)), 0, e)
+	if ne >= e:
+		ne = e - 1   # always make progress while there is height to remove
+	return ne
+
+
+func _smoothen_brush() -> void:
+	var r := _brush - 1
+	var edits: Array = []
+	for dy: int in range(-r, r + 1):
+		for dx: int in range(-r, r + 1):
+			if dx * dx + dy * dy > r * r + r:
+				continue
+			var gx := _hover_tile.x + dx
+			var gy := _hover_tile.y + dy
+			var ne := _smoothen_value(gx, gy)
+			if ne >= 0 and ne != _elev_at(gx, gy):
+				edits.append([gx, gy, ne])
+	for e: Array in edits:
+		_record_elev(int(e[0]), int(e[1]), int(e[2]))
+
+
+func _record_elev(gtx: int, gty: int, new_elev: int) -> void:
+	var chunk: RefCounted = _chunk_at_tile(gtx, gty)
+	if chunk == null:
+		return
+	if chunk.elev.size() == 0:
+		# A fully-flat baked chunk may ship with no elevation array — allocate a zeroed
+		# one so the Elevate brush can raise mountains out of previously flat ground.
+		chunk.elev.resize(WG.CHUNK_TILES * WG.CHUNK_TILES)
+	var ci: int = Chunk.idx(gtx - chunk.cx * WG.CHUNK_TILES, gty - chunk.cy * WG.CHUNK_TILES)
+	if ci >= chunk.elev.size():
+		return
+	var new_state: Array = _tile_state(chunk, ci)
+	new_state[4] = new_elev
+	_record_and_set(gtx, gty, new_state)
+
+
+# ─────────────────────────────── elevate tool ───────────────────────────────
+# Brush that RAISES terrain into hills and mountains. A dome falloff makes the brush
+# centre rise fastest and the rim feather to nothing, so repeated passes build a smooth
+# natural peak (with grass→rock→snow shading driven by height) rather than a flat mesa.
+# Elevation is the single source of truth for mountains, so raising it is all we need —
+# the mesher, colouring and in-game climb/cliff rules follow from chunk.elev.
+
+func _elevate_brush() -> void:
+	var r := _brush - 1
+	var edits: Array = []
+	for dy: int in range(-r, r + 1):
+		for dx: int in range(-r, r + 1):
+			var d2 := dx * dx + dy * dy
+			if d2 > r * r + r:
+				continue
+			var gx := _hover_tile.x + dx
+			var gy := _hover_tile.y + dy
+			var ne := _elevate_value(gx, gy, d2, r)
+			if ne >= 0 and ne != _elev_at(gx, gy):
+				edits.append([gx, gy, ne])
+	for e: Array in edits:
+		_record_elev(int(e[0]), int(e[1]), int(e[2]))
+
+
+func _elevate_value(gtx: int, gty: int, d2: int, r: int) -> int:
+	var falloff := 1.0 - sqrt(float(d2)) / float(maxi(r, 1) + 1)   # 1 centre .. ~0 rim
+	if falloff <= 0.0:
+		return -1
+	var cur := _elev_at(gtx, gty)
+	var rise := 1 + int(round(falloff * 2.0))   # +1 at the rim .. +3 at the centre per pass
+	return clampi(cur + rise, 0, MountainField.ELEV_MAX_STEPS)
+
+
 func _chunk_at_tile(gtx: int, gty: int) -> RefCounted:
 	var c := WG.tile_to_chunk(Vector2i(gtx, gty))
 	return _chunks.get("%d:%d" % [c.x, c.y], null)
@@ -600,7 +741,10 @@ func _is_walkable_tile(gtx: int, gty: int) -> bool:
 
 
 func _tile_state(chunk: RefCounted, ci: int) -> Array:
-	return [chunk.tiles[ci], chunk.biomes_t[ci], chunk.parent_biomes_t[ci], chunk.sub_biomes_t[ci]]
+	# 5th element is elevation so the Smoothen tool's lowering is captured for undo.
+	# Terrain/biome paints pass 4-element states and leave elevation untouched.
+	return [chunk.tiles[ci], chunk.biomes_t[ci], chunk.parent_biomes_t[ci], chunk.sub_biomes_t[ci],
+		(int(chunk.elev[ci]) if chunk.elev.size() > ci else 0)]
 
 
 func _apply_state(gtx: int, gty: int, state: Array) -> void:
@@ -614,7 +758,9 @@ func _apply_state(gtx: int, gty: int, state: Array) -> void:
 	chunk.biomes_t[ci] = int(state[1])
 	chunk.parent_biomes_t[ci] = int(state[2])
 	chunk.sub_biomes_t[ci] = int(state[3])
-	_canopy_cache.erase(chunk.key())   # tile/biome change can add/remove this chunk's trees
+	if state.size() > 4 and chunk.elev.size() > ci:
+		chunk.elev[ci] = int(state[4])   # Smoothen tool edits elevation; flattening can free a canopy tile
+	_canopy_cache.erase(chunk.key())   # tile/biome/elevation change can add/remove this chunk's trees
 	_set_px(gtx, gty, _tile_color(int(state[0])))
 
 
@@ -828,8 +974,11 @@ func _place_structure(t: Vector2i) -> void:
 	part["ty"] = t.y - chunk.cy * WG.CHUNK_TILES
 	if not part.has("label"):
 		part["label"] = ""
+	# Match what the hover ghost showed: the rerolled roof colour and the scroll/R rotation.
 	if part["kind"] in ["house", "building", "tent"]:
-		part["color"] = ROOF_COLORS[(t.x + t.y) % ROOF_COLORS.size()]
+		part["color"] = ROOF_COLORS[_ghost_variant % ROOF_COLORS.size()]
+	part["yaw"] = float(_stamp_rot) * (PI * 0.5)
+	part["variant"] = _ghost_variant   # spawn the exact model the ghost previewed
 	chunk.structures.append(part)
 	_stroke["added"].append({"key": "%d:%d" % [chunk.cx, chunk.cy], "arr": "structures", "item": part})
 	# Buildings/walls collide via non-walkable wall tiles (same as the baked city),
@@ -908,6 +1057,11 @@ func _commit_stroke() -> void:
 	if _history.size() > 200:
 		_history.pop_front()
 	_resync_3d_tiles(_stroke["tiles"].keys())
+	# Biome/terrain edits change which NATIVE trees + clutter a tile grows, so respawn the touched
+	# chunks' procedural decor to match the new biome. Editor-placed structures/trees/roads live in
+	# chunk data and are re-emitted unchanged, so only the biome's own scatter is swapped.
+	if _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE]:
+		_refresh_painted_entities(_stroke["tiles"].keys())
 	_refresh_history_buttons()
 
 
@@ -1143,6 +1297,7 @@ func _place_settlement(center: Vector2i) -> void:
 		var lp := part.duplicate()
 		lp["tx"] = tx - chunk.cx * WG.CHUNK_TILES
 		lp["ty"] = ty - chunk.cy * WG.CHUNK_TILES
+		lp["variant"] = _part_variant(tx, ty)   # match the model the settlement ghost previewed
 		chunk.structures.append(lp)
 		var ckey := "%d:%d" % [chunk.cx, chunk.cy]
 		touched[ckey] = true
@@ -1284,6 +1439,16 @@ func _draw_overlay(c: CanvasItem) -> void:
 			var cur := Vector2(_road_pts[i]) - off + Vector2(0.5, 0.5)
 			c.draw_line(prev, cur, Color(0.95, 0.6, 0.2, 0.9), maxf(0.6, 2.0 / zoom))
 			prev = cur
+	# Brush / placement footprint cursor on the 2D map: a ring sized to the brush for the
+	# sculpt/paint tools, a square for placement tools — so you see size + where it lands.
+	if not _v3d_on and _hover_tile.x != -2147483648:
+		var ctr := Vector2(_hover_tile) - Vector2(_min_tx, _min_ty) + Vector2(0.5, 0.5)
+		var lw := maxf(0.5, 1.5 / zoom)
+		if _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE, Tool.SMOOTHEN, Tool.ELEVATE]:
+			c.draw_arc(ctr, float(_brush), 0.0, TAU, 48, Color(1.0, 0.92, 0.3, 0.9), lw)
+		elif _tool in [Tool.STAMP, Tool.STRUCTURE, Tool.SETTLEMENT]:
+			var fr := _half_footprint_tiles()
+			c.draw_rect(Rect2(ctr - Vector2(fr, fr), Vector2(fr, fr) * 2.0), Color(0.4, 0.85, 1.0, 0.9), false, lw)
 	if _show_collision or _show_biomes or _show_danger or _show_walk or _show_elevation:
 		var view := _view_rect_tiles()
 		var classifier: RefCounted = WorldGen.generator.classifier
@@ -1455,7 +1620,7 @@ func _build_ui() -> void:
 	for ts: Array in [[Tool.PAN, "1 Pan/View"], [Tool.BIOME, "2 Biome"], [Tool.TERRAIN, "3 Terrain"],
 			[Tool.STAMP, "4 Stamp"], [Tool.STRUCTURE, "5 Structure"], [Tool.ERASE, "6 Erase"],
 			[Tool.SPAWN, "7 Set Spawn"], [Tool.CREATURE, "8 Creatures"], [Tool.ROAD, "9 Roads"],
-			[Tool.SETTLEMENT, "0 Settlements"]]:
+			[Tool.SETTLEMENT, "0 Settlements"], [Tool.SMOOTHEN, "H Smoothen"], [Tool.ELEVATE, "E Elevate"]]:
 		var b := Button.new()
 		b.text = str(ts[1])
 		b.toggle_mode = true
@@ -1490,7 +1655,7 @@ func _build_ui() -> void:
 	_overlay_check(lb, "Biome tint", _show_biomes, func(on: bool) -> void: _show_biomes = on)
 	_overlay_check(lb, "Danger/level", _show_danger, func(on: bool) -> void: _show_danger = on)
 	_overlay_check(lb, "Walkability", _show_walk, func(on: bool) -> void: _show_walk = on)
-	_overlay_check(lb, "Elevation", _show_elevation, func(on: bool) -> void: _show_elevation = on)
+	_elev_check = _overlay_check(lb, "Elevation", _show_elevation, func(on: bool) -> void: _show_elevation = on)
 	_overlay_check(lb, "World map", _show_minimap, _set_show_minimap)
 
 	var sep := HSeparator.new()
@@ -1536,7 +1701,7 @@ func _build_preview_panel() -> void:
 	box.add_child(_preview)
 	_reroll_btn = Button.new()
 	_reroll_btn.text = "🎲 Re-roll variant"
-	_reroll_btn.pressed.connect(func() -> void: _preview.reroll())
+	_reroll_btn.pressed.connect(_reroll_variant)
 	box.add_child(_reroll_btn)
 
 
@@ -1789,6 +1954,301 @@ func _focus_3d(tile: Vector2i) -> void:
 ## Re-mesh the chunks a stroke (or undo/redo) touched so terrain/biome/water edits show
 ## up in the 3D view. (Structure entities placed via the 3D view are refreshed separately
 ## by _refresh_3d_entities.)
+## Live-drag remesh: re-mesh ONLY the hovered chunk in place (fast, no flicker). Neighbour
+## seams are reconciled by _resync_3d_tiles() on stroke commit.
+func _resync_3d_instant(tile: Vector2i) -> void:
+	if not _v3d_on or _v3d_world == null:
+		return
+	# Throttle the live remesh: the brush still EDITS every motion event, but rebuilding the
+	# chunk mesh ~30×/s instead of on every motion keeps a fast drag smooth. The final state is
+	# always correct — _commit_stroke does a full neighbour-seam rebuild on release.
+	var now := Time.get_ticks_msec()
+	if now - _last_instant_ms < 33:
+		return
+	_last_instant_ms = now
+	var rend: Node = _v3d_world.get("render_3d")
+	if rend == null or not rend.has_method("rebuild_chunk_instant"):
+		return
+	rend.call("rebuild_chunk_instant", floori(float(tile.x) / float(WG.CHUNK_TILES)),
+		floori(float(tile.y) / float(WG.CHUNK_TILES)))
+
+
+# ───────────────────────────── hover cursor (3D) ────────────────────────────
+# A ground-hugging gizmo under the 3D cursor: a translucent disc sized to the brush for
+# the sculpt/paint tools, or a square footprint for placement tools — so you can see the
+# brush size and exactly where the next stroke / drop lands before committing.
+
+func _half_footprint_tiles() -> float:
+	match _tool:
+		Tool.STAMP:
+			var stamps: Array = StampLibrary.all()
+			if _sel_stamp < stamps.size():
+				return maxf(1.0, float(int(stamps[_sel_stamp].get("radius", 3))))
+			return 3.0
+		Tool.SETTLEMENT:
+			return 6.0
+		_:
+			return 1.0
+
+
+func _update_hover_gizmo() -> void:
+	if _v3d_world == null:
+		return
+	var rend: Node = _v3d_world.get("render_3d")
+	if rend == null or not rend.has_method("iso_to_3d"):
+		return
+	var ring: bool = _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE, Tool.SMOOTHEN, Tool.ELEVATE]
+	var ghost_struct: bool = _tool == Tool.STRUCTURE   # single model at the cursor
+	var ghost_settle: bool = _tool == Tool.SETTLEMENT  # whole building cluster
+	var square: bool = _tool == Tool.STAMP             # terrain stamp: just a footprint
+	# Show only while hovering the 3D view itself. In the maximized view that container is the
+	# hovered control; over the sidebar it isn't — so this hides the cursor over the panels
+	# (the blanket _ui_hover check was wrong here: the 3D container always counts as "UI").
+	if not (ring or ghost_struct or ghost_settle or square) or get_viewport().gui_get_hovered_control() != _v3d_container:
+		_hide_hover_gizmo()
+		return
+	var iso := _v3d_screen_iso(_v3d_container.get_local_mouse_position())
+	if iso == Vector2.INF:
+		_hide_hover_gizmo()
+		return
+	var h: float = rend.call("height_at", iso)
+	var center: Vector3 = rend.call("iso_to_3d", iso, h)
+	if ghost_struct:
+		# A translucent copy of the structure, rotated by the current placement yaw, so you
+		# preview exactly what (and which way) the next click drops.
+		_hide_flat_gizmo()
+		_ensure_ghost(rend)
+		if _ghost_root != null and is_instance_valid(_ghost_root):
+			# Snap to the hovered tile's CENTRE (where the click actually drops it), not the
+			# sub-tile cursor point — so the ghost sits exactly where the structure will spawn.
+			var tile := WG.world_to_tile(iso)
+			var tiso := WG.tile_to_world(tile.x, tile.y)
+			var tc: Vector3 = rend.call("iso_to_3d", tiso, rend.call("height_at", tiso))
+			_ghost_root.visible = true
+			_ghost_root.global_transform = Transform3D(Basis(Vector3.UP, float(_stamp_rot) * (PI * 0.5)), tc)
+		return
+	if ghost_settle:
+		# The whole settlement cluster at the hovered tile (buildings are placed absolutely, so
+		# the root stays at the origin). Rebuilds as you cross tiles / rotate the layout.
+		_hide_flat_gizmo()
+		_ensure_settlement_ghost(rend, WG.world_to_tile(iso))
+		if _ghost_root != null and is_instance_valid(_ghost_root):
+			_ghost_root.visible = true
+			_ghost_root.global_transform = Transform3D.IDENTITY
+		return
+	_hide_ghost()
+	_ensure_hover_gizmo(rend)
+	if _gizmo_root == null:
+		return
+	var tiles := float(_brush) if ring else _half_footprint_tiles()
+	var edge: Vector3 = rend.call("iso_to_3d", iso + Vector2(tiles * WG.TILE, 0.0), h)
+	var radius := maxf(0.4, center.distance_to(edge))
+	_gizmo_root.visible = true
+	_gizmo_root.global_position = center + Vector3(0.0, 0.08, 0.0)
+	_gizmo_disc.visible = ring
+	_gizmo_foot.visible = square
+	if ring:
+		_gizmo_disc.scale = Vector3(radius, 1.0, radius)
+	else:
+		_gizmo_foot.scale = Vector3(radius, 1.0, radius)
+
+
+## STRUCTURE ghost: a single translucent model, rebuilt only when the selection / rerolled
+## look changes (its world position + yaw are a cheap per-frame transform on the root).
+func _ensure_ghost(rend: Node) -> void:
+	var sig := "T|%d|%d" % [_sel_struct, _ghost_variant]
+	if sig == _ghost_sig and _ghost_root != null and is_instance_valid(_ghost_root):
+		return
+	var root := _new_ghost_root(rend)
+	if root == null:
+		_ghost_sig = ""
+		return
+	_ghost_sig = sig
+	if _sel_struct >= 0 and _sel_struct < STRUCTURES.size():
+		_add_ghost_building(STRUCTURES[_sel_struct][1], Transform3D.IDENTITY, root, _ghost_variant)
+
+
+## SETTLEMENT ghost: the whole building cluster, each model at its absolute tile. Rebuilt when
+## the template / rotation / hovered tile changes (the layout is seeded by the centre tile, so
+## it must match the tile the click will use). Buildings carry the layout's baked positions.
+func _ensure_settlement_ghost(rend: Node, tile: Vector2i) -> void:
+	var sig := "S|%s|%d|%d,%d" % [_sel_settlement, _settlement_rot, tile.x, tile.y]
+	if sig == _ghost_sig and _ghost_root != null and is_instance_valid(_ghost_root):
+		return
+	var root := _new_ghost_root(rend)
+	if root == null:
+		_ghost_sig = ""
+		return
+	_ghost_sig = sig
+	var def: Dictionary = (_settlement_templates().get("templates", {}) as Dictionary).get(_sel_settlement, {})
+	if def.is_empty():
+		return
+	for part: Dictionary in _build_settlement(def, tile, _settlement_rot):
+		var tx := int(part["tx"])
+		var ty := int(part["ty"])
+		var tiso := WG.tile_to_world(tx, ty)
+		var wp: Vector3 = rend.call("iso_to_3d", tiso, rend.call("height_at", tiso))
+		_add_ghost_building(part, Transform3D(Basis.IDENTITY, wp), root, _part_variant(tx, ty))
+
+
+func _new_ghost_root(rend: Node) -> Node3D:
+	if _ghost_root != null and is_instance_valid(_ghost_root):
+		_ghost_root.queue_free()
+	_ghost_root = null
+	var root: Node = rend.get("terrain_root")
+	if root == null:
+		return null
+	_ghost_root = Node3D.new()
+	_ghost_root.top_level = true
+	root.add_child(_ghost_root)
+	return _ghost_root
+
+
+## Add one structure's translucent model to the ghost root at `local` (root-space).
+func _add_ghost_building(part: Dictionary, local: Transform3D, root: Node3D, variant: int) -> void:
+	var ent := _ghost_entity_for(part, variant)
+	if ent == null:
+		return
+	var parts: Array = PropMeshes.entity_parts(ent)
+	ent.free()
+	if parts.is_empty():
+		return
+	var bnode := Node3D.new()
+	bnode.transform = local
+	root.add_child(bnode)
+	for p: Dictionary in parts:
+		var mi := MeshInstance3D.new()
+		mi.mesh = p["mesh"]
+		mi.transform = Transform3D(Basis.from_euler(p.get("rot", Vector3.ZERO)).scaled(p["scl"]), p["off"])
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.material_override = _ghost_material(p["mat"])
+		bnode.add_child(mi)
+
+
+## A translucent copy of a part's material (cached per source so big settlements don't
+## re-duplicate the same handful of shared materials on every rebuild).
+func _ghost_material(src: Variant) -> Material:
+	if src == null or not (src is StandardMaterial3D):
+		return src
+	var id := (src as Resource).get_instance_id()
+	if _ghost_mat_cache.has(id):
+		return _ghost_mat_cache[id]
+	var gm: StandardMaterial3D = (src as StandardMaterial3D).duplicate()
+	gm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var col: Color = gm.albedo_color
+	col.a = 0.6
+	gm.albedo_color = col
+	_ghost_mat_cache[id] = gm
+	return gm
+
+
+## A throwaway WorldEntity for a structure part, so PropMeshes.entity_parts() yields the same
+## model the placed structure will use. Mirrors the spawner's part→entity mapping.
+func _ghost_entity_for(part: Dictionary, variant: int) -> Node2D:
+	var kind := str(part.get("kind", ""))
+	var e := WorldEntity.new()
+	e.kind = kind
+	e.label = str(part.get("label", ""))
+	e.variant = variant
+	e.display_size = 40.0
+	e.roof_alpha = 1.0
+	var roof := _roof_color_for(part, variant)
+	match kind:
+		"tent":
+			e.display_size = 54.0
+			e.tent_color = roof
+			e.glow_color = roof
+		"house":
+			e.roof_color = roof
+		"building":
+			e.display_size = float(part.get("foot", 6))
+			e.roof_color = roof
+		"mountain":
+			e.display_size = float(part.get("foot", 3))
+			e.mountain_snow = float(part.get("snow", 0.4))
+		"city_wall":
+			e.variant = int(part.get("piece", 0))
+		"city_prop":
+			e.prop_kind = str(part.get("prop", "crate"))
+		"decor":
+			e.prop_kind = str(part.get("prop", "grass"))
+		"obelisk":
+			e.attuned = true
+	return e
+
+
+func _roof_color_for(part: Dictionary, variant: int) -> Color:
+	if part.has("color"):
+		return Color.from_string("#" + str(part["color"]), Color(0.5, 0.3, 0.3))
+	return Color.from_string("#" + str(ROOF_COLORS[variant % ROOF_COLORS.size()]), Color(0.5, 0.3, 0.3))
+
+
+## Deterministic per-tile model variant — used for both the settlement ghost and the placed
+## parts (stored on each), so the spawned cluster matches what the ghost showed.
+func _part_variant(tx: int, ty: int) -> int:
+	return absi(hash(str(tx) + ":" + str(ty))) % 1000
+
+
+## Re-roll the look of both the sidebar preview and the in-world ghost (and so the next
+## structure placed, which adopts the ghost's variant/roof).
+func _reroll_variant() -> void:
+	_ghost_variant = (_ghost_variant + 1) % 9973
+	_ghost_sig = ""   # force the ghost meshes to rebuild with the new look
+	if _preview != null:
+		_preview.reroll()
+
+
+func _ensure_hover_gizmo(rend: Node) -> void:
+	if _gizmo_root != null and is_instance_valid(_gizmo_root):
+		return
+	var root: Node = rend.get("terrain_root")
+	if root == null:
+		return
+	_gizmo_root = Node3D.new()
+	_gizmo_root.top_level = true   # we drive global_position directly
+	root.add_child(_gizmo_root)
+	_gizmo_disc = MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 1.0
+	cyl.bottom_radius = 1.0
+	cyl.height = 0.06
+	cyl.radial_segments = 40
+	_gizmo_disc.mesh = cyl
+	_gizmo_disc.material_override = _gizmo_mat(Color(1.0, 0.92, 0.3, 0.22))
+	_gizmo_root.add_child(_gizmo_disc)
+	_gizmo_foot = MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(2.0, 0.06, 2.0)   # ±1 unit square → ±radius once scaled
+	_gizmo_foot.mesh = box
+	_gizmo_foot.material_override = _gizmo_mat(Color(0.4, 0.85, 1.0, 0.28))
+	_gizmo_root.add_child(_gizmo_foot)
+
+
+func _gizmo_mat(col: Color) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = col
+	mat.no_depth_test = true              # always visible over the terrain
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return mat
+
+
+func _hide_hover_gizmo() -> void:
+	_hide_flat_gizmo()
+	_hide_ghost()
+
+
+func _hide_flat_gizmo() -> void:
+	if _gizmo_root != null and is_instance_valid(_gizmo_root):
+		_gizmo_root.visible = false
+
+
+func _hide_ghost() -> void:
+	if _ghost_root != null and is_instance_valid(_ghost_root):
+		_ghost_root.visible = false
+
+
 func _resync_3d_tiles(tiles: Array) -> void:
 	if not _v3d_on or _v3d_world == null:
 		return
@@ -1828,9 +2288,11 @@ func _on_v3d_gui_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
-			_v3d_zoom_by(1.12)
+			if _is_rotatable_tool(): _rotate_placement(1)
+			else: _v3d_zoom_by(1.12)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
-			_v3d_zoom_by(1.0 / 1.12)
+			if _is_rotatable_tool(): _rotate_placement(-1)
+			else: _v3d_zoom_by(1.0 / 1.12)
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
 			_v3d_panning = event.pressed
 			_v3d_pan_prev = _v3d_container.get_local_mouse_position()
@@ -1838,6 +2300,16 @@ func _on_v3d_gui_input(event: InputEvent) -> void:
 			if _tool == Tool.ROAD:
 				if event.pressed: _v3d_road_begin()
 				else: _v3d_road_end()
+			elif _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE, Tool.SMOOTHEN, Tool.ELEVATE]:
+				# Brush + terrain-sculpt tools paint directly in the 3D view where the
+				# height is visible. _process keeps _hover_tile under the 3D cursor.
+				_v3d_painting = event.pressed
+				if event.pressed:
+					_begin_stroke()
+					_apply_tool(true)
+					_resync_3d_instant(_hover_tile)   # live, flicker-free feedback as you sculpt
+				else:
+					_commit_stroke()                  # full neighbour-seam reconcile (also in-place)
 			elif event.pressed:
 				_v3d_place_at_cursor()
 		_v3d_container.accept_event()
@@ -1846,6 +2318,13 @@ func _on_v3d_gui_input(event: InputEvent) -> void:
 		_v3d_container.accept_event()
 	elif event is InputEventMouseMotion and _v3d_panning:
 		_v3d_pan_drag()
+		_v3d_container.accept_event()
+	elif event is InputEventMouseMotion and _v3d_painting:
+		var pt := _v3d_tile_under_mouse()
+		if pt.x != -2147483648:
+			_hover_tile = pt
+			_apply_tool(false)
+			_resync_3d_instant(_hover_tile)    # remesh just the touched chunk live (no flicker)
 		_v3d_container.accept_event()
 	elif event is InputEventMouseMotion and _road_drawing:
 		var tl := _v3d_tile_under_mouse()
@@ -1978,6 +2457,19 @@ func _v3d_tile_under_mouse() -> Vector2i:
 ## Respawn the embedded world's entities for the placed tile's chunk (+ neighbours, so
 ## footprints that cross a chunk border show), then force a static-batch rebuild so the
 ## new structure appears in the 3D view without a reload.
+## Respawn native decor/canopy for every chunk a paint stroke touched (deduped), so repainting a
+## biome swaps its scatter. Editor-placed structures persist (they're stored on the chunk).
+func _refresh_painted_entities(tiles: Array) -> void:
+	var seen := {}
+	for t: Vector2i in tiles:
+		var c := WG.tile_to_chunk(t)
+		var k := "%d:%d" % [c.x, c.y]
+		if seen.has(k):
+			continue
+		seen[k] = true
+		_refresh_3d_entities(t)
+
+
 func _refresh_3d_entities(tile: Vector2i) -> void:
 	if _v3d_world == null:
 		return
@@ -2010,12 +2502,13 @@ func _toolbar_button(parent: Control, text: String, cb: Callable) -> Button:
 	return b
 
 
-func _overlay_check(parent: Control, text: String, on: bool, cb: Callable) -> void:
+func _overlay_check(parent: Control, text: String, on: bool, cb: Callable) -> CheckBox:
 	var cb_box := CheckBox.new()
 	cb_box.text = text
 	cb_box.button_pressed = on
 	cb_box.toggled.connect(cb)
 	parent.add_child(cb_box)
+	return cb_box
 
 
 func _track_ui_hover(_ctrl: Node) -> void:
@@ -2029,6 +2522,10 @@ func _set_tool(t: int) -> void:
 	_tool = t
 	for k: int in _tool_buttons:
 		(_tool_buttons[k] as Button).button_pressed = (k == t)
+	if t == Tool.SMOOTHEN or t == Tool.ELEVATE:
+		_show_elevation = true   # so you can see height change live as you brush
+		if _elev_check != null:
+			_elev_check.button_pressed = true
 	_refresh_palette()
 
 
@@ -2036,6 +2533,22 @@ func _set_brush(v: int) -> void:
 	_brush = clampi(v, 1, 24)
 	if _brush_label != null:
 		_brush_label.text = "Brush size: %d" % _brush
+
+
+## Stamps and settlements rotate in 90° steps; the scroll wheel turns them (when one of
+## those tools is selected) instead of zooming. Structures have no rotation field yet.
+func _is_rotatable_tool() -> bool:
+	return _tool == Tool.STAMP or _tool == Tool.SETTLEMENT or _tool == Tool.STRUCTURE
+
+
+func _rotate_placement(dir: int) -> void:
+	if _tool == Tool.SETTLEMENT:
+		_settlement_rot = (_settlement_rot + dir + 4) % 4
+		_status.text = "Settlement rotation: %d° (scroll / R to turn)" % (_settlement_rot * 90)
+	else:
+		_stamp_rot = (_stamp_rot + dir + 4) % 4
+		var what := "Structure" if _tool == Tool.STRUCTURE else "Stamp"
+		_status.text = "%s rotation: %d° (scroll / R to turn)" % [what, _stamp_rot * 90]
 
 
 func _refresh_palette() -> void:
@@ -2104,6 +2617,12 @@ func _refresh_palette() -> void:
 				_choice(lbl, str(sid), _sel_settlement == str(sid),
 					func(id: String) -> void: _sel_settlement = id)
 			_note("Click to stamp a placeholder settlement (R rotates). Buildings drop as normal structures - edit each placement with the Structure/Erase tools.")
+		Tool.SMOOTHEN:
+			_header(_palette_box, "Smoothen / flatten")
+			_note("Drag the brush over raised ground to lower and smooth it back toward the surroundings. Each pass steps the height down, so sweep (or hold) to melt a bump — or a whole mountain — down to flat. Never raises terrain. Works in both the 2D map and the maximized 3D view (M). The 'Elevation' overlay turns on automatically so you can watch height drop. Ctrl+S saves directly to the world (no re-bake).")
+		Tool.ELEVATE:
+			_header(_palette_box, "Elevate / raise")
+			_note("Drag (or hold) the brush to raise terrain into hills and mountains. A soft dome falloff means the brush centre rises fastest and the edges feather, building natural peaks — height shades grass→rock→snow on its own. Bigger brush = broader massif. Caps at the alpine summit height. Works in the 2D map and the maximized 3D view (M). Ctrl+S saves directly (no re-bake).")
 		_:
 			_note("Right-drag to pan, wheel to zoom. Pick a tool to edit.")
 	_update_preview()
@@ -2141,6 +2660,12 @@ func _update_preview() -> void:
 			var stamps: Array = StampLibrary.all()
 			if _sel_stamp < stamps.size():
 				_preview.show_stamp(stamps[_sel_stamp], str(stamps[_sel_stamp]["name"]))
+		Tool.SETTLEMENT:
+			var sdoc := _settlement_templates()
+			var sdef: Dictionary = (sdoc.get("templates", {}) as Dictionary).get(_sel_settlement, {})
+			var slbl := str(sdef.get("label", _sel_settlement.capitalize()))
+			# Side panel shows a representative dwelling; the in-world ghost shows the full cluster.
+			_preview.show_structure({"kind": "house", "label": slbl}, slbl)
 		Tool.CREATURE:
 			if _sel_creature.is_empty():
 				_preview.show_empty("No creatures in the bestiary")

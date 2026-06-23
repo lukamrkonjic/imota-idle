@@ -128,17 +128,45 @@ func _build_into(key: String) -> void:
 ## 8 neighbours, so the per-frame update build loop re-meshes them from the now-edited (shared)
 ## chunk data — borders re-stitch because the neighbours rebuild too.
 func rebuild_chunk(cx: int, cy: int) -> void:
+	# Re-mesh the edited chunk AND its 8 neighbours so shared borders re-stitch. Each is an
+	# IN-PLACE swap (build new mesh → add → free old), so a chunk is never missing for a frame.
+	# The old code freed all 9 and let the one-per-frame streamer rebuild them, which flashed the
+	# terrain as "loading" while brushing — this version stays flicker-free.
+	_reindex_data()
 	var layer: int = world.current_layer
 	for dy: int in range(-1, 2):
 		for dx: int in range(-1, 2):
-			var k := WG.key(layer, cx + dx, cy + dy)
-			if _chunk_meshes.has(k):
-				var n: Node = _chunk_meshes[k]
-				if is_instance_valid(n):
-					n.queue_free()
-				_chunk_meshes.erase(k)
-				_chunk_nbr.erase(k)
-				_chunk_wait.erase(k)
+			_swap_chunk_mesh(WG.key(layer, cx + dx, cy + dy))
+
+
+## Fast editor live-brush hook: re-mesh ONLY this chunk in place (no neighbours), so a drag
+## updates at interactive rates. Border seams with neighbours are reconciled by the full
+## rebuild_chunk() that runs once on stroke commit.
+func rebuild_chunk_instant(cx: int, cy: int) -> void:
+	_reindex_data()
+	_swap_chunk_mesh(WG.key(world.current_layer, cx, cy))
+
+
+## Refresh the data index so the mesher samples the just-edited tiles (plus the apron ring).
+func _reindex_data() -> void:
+	_chunk_by_key.clear()
+	for chunk: RefCounted in world.chunk_manager.data_chunks():
+		_chunk_by_key[chunk.key()] = chunk
+
+
+## Build a fresh mesh for one already-meshed chunk and swap it in without ever leaving a gap.
+func _swap_chunk_mesh(k: String) -> void:
+	if not _chunk_meshes.has(k) or not _chunk_by_key.has(k):
+		return
+	var old: Node = _chunk_meshes[k]
+	var node := mesher.build_chunk_terrain(_chunk_by_key[k])
+	node.visible = (not is_instance_valid(old)) or old.visible
+	terrain_root.add_child(node)
+	_chunk_meshes[k] = node
+	_chunk_nbr[k] = _data_nbr_count(k)
+	_chunk_wait.erase(k)
+	if is_instance_valid(old):
+		old.queue_free()
 
 
 # How many of a chunk's 8 neighbours currently have their DATA loaded (indexed in the apron).

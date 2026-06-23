@@ -588,8 +588,9 @@ func _spawn_site(chunk: RefCounted, i: int, container: Node2D) -> void:
 	e.variant = absi(hash(str(s["node"]) + chunk.key() + str(s.get("tx")) + ":" + str(s.get("ty")))) % 1000
 	if e.kind == "tree":
 		e.display_size = TreeArt.tree_size(int(s["level"]), e.label)
-		# The WHOLE tree is clickable (canopy + trunk), not just a point at the base.
-		e.click_radius = maxf(e.display_size * 1.15, 52.0)
+		# Hover/click area tight to the CANOPY (its big visible mass) — the screen pick also lifts
+		# onto the canopy (world_input_controller), so the area hugs the tree, not a wide ground ring.
+		e.click_radius = maxf(e.display_size * 0.5, 30.0)
 		if s.has("tree_species"):
 			e.prop_kind = str(s["tree_species"])   # keep its ambient canopy look (fir/oak/…)
 	else:
@@ -621,6 +622,8 @@ func _spawn_poi_part(chunk: RefCounted, poi: Dictionary, part: Dictionary, conta
 	e.position = chunk.tile_world(int(part["tx"]), int(part["ty"]))
 	e.display_size = 54.0 if kind == "tent" else 40.0
 	e.click_radius = 38.0
+	if part.has("yaw"):
+		e.yaw = float(part["yaw"])   # editor-placed structures keep their chosen facing
 	if part.has("color"):
 		e.tent_color = Color.from_string("#" + str(part["color"]), e.tent_color)
 		e.glow_color = e.tent_color
@@ -743,6 +746,10 @@ func _spawn_poi_part(chunk: RefCounted, poi: Dictionary, part: Dictionary, conta
 				e.action = {"type": "hook", "message": str(part.get("hookMessage", "Coming soon."))}
 			else:
 				e.action = {"type": "landmark", "label": e.label}
+	# Editor-placed structures pin an explicit variant so the spawned model matches the look
+	# previewed by the hover ghost (otherwise the per-tile hash above would pick a different one).
+	if part.has("variant"):
+		e.variant = int(part["variant"])
 	container.add_child(e)
 	world.entities.append(e)
 	if kind == "house" or kind == "building":

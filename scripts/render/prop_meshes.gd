@@ -68,7 +68,7 @@ static func entity_parts(e: Node) -> Array:
 		"tent":
 			return _tent_parts(e)
 		"campfire":
-			return _campfire_parts()
+			return _hike_campfire_parts()   # full ring-of-stones + logs + flames, matching the firemaking fire
 		"chest":
 			return _chest_parts()
 		"sign":
@@ -208,6 +208,215 @@ static func decor_parts(kind: String) -> Array:
 			return _hike_stump_parts()
 		"dead_tree", "deadtree", "snag":
 			return _deadtree_parts()
+		# ── added clutter: rocks & minerals ─────────────────────────────────
+		"boulder", "big_rock":
+			return [_part(_sphere("d_bldr", 0.3), _mat("stone_a", "stone_b", "cliff_light"), Vector3(0, 0.17, 0), Vector3(1.2, 0.85, 1.1))]
+		"rock_pile", "stones", "rubble_rocks":
+			var rs := _mat("stone_a", "stone_b", "cliff_light")
+			return [
+				_part(_sphere("d_rp0", 0.16), rs, Vector3(0.0, 0.09, 0.0), Vector3(1.3, 0.75, 1.1)),
+				_part(_sphere("d_rp1", 0.12), rs, Vector3(0.16, 0.07, 0.08), Vector3(1.1, 0.7, 1.0), Vector3(0, 0.6, 0)),
+				_part(_sphere("d_rp2", 0.1), rs, Vector3(-0.12, 0.06, -0.1), Vector3(1.0, 0.7, 1.0))]
+		"cairn":
+			var cs := _mat("stone_a", "stone_b", "cliff_light")
+			return [
+				_part(_cyl("d_cairn0", 0.15, 0.17, 0.08), cs, Vector3(0.0, 0.04, 0.0)),
+				_part(_cyl("d_cairn1", 0.12, 0.14, 0.07), cs, Vector3(0.02, 0.12, 0.0)),
+				_part(_cyl("d_cairn2", 0.09, 0.11, 0.06), cs, Vector3(-0.01, 0.19, 0.01)),
+				_part(_cyl("d_cairn3", 0.06, 0.08, 0.05), cs, Vector3(0.01, 0.25, 0.0))]
+		"standing_stone", "menhir":
+			return [_part(_box("d_menhir", Vector3(0.18, 0.72, 0.13)), _mat("stone_a", "stone_b", "cliff_light"), Vector3(0, 0.36, 0), Vector3.ONE, Vector3(0.06, 0.2, 0.04))]
+		"crystal", "crystal_cluster":
+			var cry := _mat_from(Color(0.45, 0.6, 0.9), Color(0.28, 0.38, 0.66), Color(0.78, 0.9, 1.0))
+			return [
+				_part(_cone("d_cry0", 0.06, 0.0, 0.42), cry, Vector3(0.0, 0.21, 0.0), Vector3.ONE, Vector3(0.08, 0, 0.05)),
+				_part(_cone("d_cry1", 0.045, 0.0, 0.3), cry, Vector3(0.1, 0.15, 0.04), Vector3.ONE, Vector3(0, 0, -0.45)),
+				_part(_cone("d_cry2", 0.04, 0.0, 0.24), cry, Vector3(-0.09, 0.12, -0.05), Vector3.ONE, Vector3(0.4, 0, 0.25))]
+		"geode":
+			return [
+				_part(_sphere("d_geo", 0.18), _mat("stone_a", "stone_b", "cliff_light"), Vector3(0, 0.13, 0), Vector3(1.1, 0.9, 1.1)),
+				_part(_sphere("d_geo_in", 0.1), _mat_from(Color(0.6, 0.5, 0.85), Color(0.4, 0.32, 0.6), Color(0.85, 0.78, 1.0)), Vector3(0.04, 0.16, 0.06), Vector3(0.9, 0.9, 0.9))]
+		# ── added clutter: wood & timber ────────────────────────────────────
+		"log", "fallen_log":
+			var bark := _mat("trunk_a", "trunk_b", "wood_light")
+			var ring := _mat("dirt_a", "trunk_b", "cabin_trim")
+			return [
+				_part(_cyl("d_log", 0.12, 0.13, 0.82), bark, Vector3(0, 0.12, 0), Vector3.ONE, Vector3(0, 0, PI * 0.5)),
+				_part(_cyl("d_log_r", 0.125, 0.125, 0.02), ring, Vector3(0.41, 0.12, 0), Vector3.ONE, Vector3(0, 0, PI * 0.5))]
+		"log_pile", "woodpile", "firewood":
+			var lw := _mat("trunk_a", "trunk_b", "wood_light")
+			var lr := _mat("dirt_a", "trunk_b", "cabin_trim")
+			return [
+				_part(_cyl("d_wp0", 0.09, 0.09, 0.6), lw, Vector3(0, 0.1, -0.1), Vector3.ONE, Vector3(0, 0, PI * 0.5)),
+				_part(_cyl("d_wp1", 0.09, 0.09, 0.6), lw, Vector3(0, 0.1, 0.1), Vector3.ONE, Vector3(0, 0, PI * 0.5)),
+				_part(_cyl("d_wp2", 0.09, 0.09, 0.6), lw, Vector3(0, 0.28, 0.0), Vector3.ONE, Vector3(0, 0, PI * 0.5)),
+				_part(_cyl("d_wpr", 0.095, 0.095, 0.02), lr, Vector3(0.3, 0.28, 0.0), Vector3.ONE, Vector3(0, 0, PI * 0.5))]
+		"branch", "twigs", "sticks":
+			var bw := _mat("trunk_a", "trunk_b", "wood_light")
+			return [
+				_part(_box("d_br0", Vector3(0.5, 0.05, 0.06)), bw, Vector3(0, 0.04, 0), Vector3.ONE, Vector3(0, 0.3, 0)),
+				_part(_box("d_br1", Vector3(0.42, 0.05, 0.06)), bw, Vector3(0.02, 0.07, 0.04), Vector3.ONE, Vector3(0, -0.5, 0.1))]
+		"tree_roots", "roots":
+			var rw := _mat("trunk_a", "trunk_b", "wood_light")
+			return [
+				_part(_cyl("d_rt_c", 0.14, 0.18, 0.18), rw, Vector3(0, 0.08, 0)),
+				_part(_cone("d_rt0", 0.06, 0.02, 0.3), rw, Vector3(0.16, 0.06, 0.0), Vector3.ONE, Vector3(0, 0, 1.2)),
+				_part(_cone("d_rt1", 0.06, 0.02, 0.28), rw, Vector3(-0.15, 0.06, 0.05), Vector3.ONE, Vector3(0, 0, -1.2)),
+				_part(_cone("d_rt2", 0.05, 0.02, 0.26), rw, Vector3(0.04, 0.06, 0.16), Vector3.ONE, Vector3(-1.2, 0, 0))]
+		"mossy_log":
+			var mbark := _mat("trunk_a", "trunk_b", "wood_light")
+			var mmoss := _mat("foliage_b", "grass_dark", "foliage_c")
+			return [
+				_part(_cyl("d_mlog", 0.13, 0.14, 0.82), mbark, Vector3(0, 0.13, 0), Vector3.ONE, Vector3(0, 0, PI * 0.5)),
+				_part(_sphere("d_mlog_m0", 0.1), mmoss, Vector3(0.1, 0.24, 0.02), Vector3(1.4, 0.5, 1.0)),
+				_part(_sphere("d_mlog_m1", 0.09), mmoss, Vector3(-0.16, 0.23, -0.03), Vector3(1.3, 0.5, 1.0))]
+		# ── added clutter: plants & flora ───────────────────────────────────
+		"cattail", "cattails", "bulrush":
+			var ct_s := _mat("foliage_c", "grass_dark", "moss_hi")
+			var ct_h := _mat("trunk_a", "trunk_b", "dirt_a")
+			return [
+				_part(_cyl("d_ct0", 0.012, 0.012, 0.72), ct_s, Vector3(0, 0.36, 0)),
+				_part(_cyl("d_cth0", 0.03, 0.03, 0.16), ct_h, Vector3(0, 0.68, 0)),
+				_part(_cyl("d_ct1", 0.012, 0.012, 0.62), ct_s, Vector3(0.09, 0.31, 0.05), Vector3.ONE, Vector3(0, 0, -0.1)),
+				_part(_cyl("d_cth1", 0.028, 0.028, 0.14), ct_h, Vector3(0.1, 0.59, 0.06))]
+		"thistle":
+			var ti_s := _mat("foliage_b", "grass_dark", "foliage_c")
+			var ti_b := _mat_from(Color(0.6, 0.35, 0.72), Color(0.4, 0.22, 0.5), Color(0.8, 0.56, 0.92))
+			return [
+				_part(_cyl("d_ti_s", 0.02, 0.03, 0.42), ti_s, Vector3(0, 0.21, 0)),
+				_part(_sphere("d_ti_b", 0.09), ti_b, Vector3(0, 0.46, 0), Vector3(1.0, 1.25, 1.0))]
+		"berry_bush":
+			var be_l := _mat("foliage_b", "grass_dark", "foliage_a")
+			var be_b := _mat_from(Color(0.66, 0.16, 0.2), Color(0.42, 0.1, 0.14), Color(0.85, 0.3, 0.32))
+			return [
+				_part(_sphere("d_bb", 0.28), be_l, Vector3(0, 0.22, 0), Vector3(1.1, 0.9, 1.1)),
+				_part(_sphere("d_bb0", 0.04), be_b, Vector3(0.14, 0.28, 0.1)),
+				_part(_sphere("d_bb1", 0.04), be_b, Vector3(-0.1, 0.31, 0.12)),
+				_part(_sphere("d_bb2", 0.04), be_b, Vector3(0.05, 0.34, -0.14))]
+		"clover", "clover_patch":
+			var cl := _mat("moss_hi", "leaf_green", "sunlit_grass")
+			return [
+				_part(_sphere("d_cl0", 0.08), cl, Vector3(0, 0.05, 0), Vector3(1.2, 0.5, 1.2)),
+				_part(_sphere("d_cl1", 0.07), cl, Vector3(0.12, 0.04, 0.06), Vector3(1.1, 0.5, 1.1)),
+				_part(_sphere("d_cl2", 0.06), cl, Vector3(-0.1, 0.04, -0.08), Vector3(1.1, 0.5, 1.1))]
+		"lily_pad", "lilypad":
+			var lp_p := _mat("foliage_c", "foliage_b", "moss_hi")
+			var lp_f := _mat_from(Color(0.96, 0.82, 0.86), Color(0.8, 0.6, 0.68), Color(1.0, 0.96, 0.98))
+			return [
+				_part(_cyl("d_lp", 0.22, 0.22, 0.02), lp_p, Vector3(0, 0.01, 0)),
+				_part(_sphere("d_lpf", 0.05), lp_f, Vector3(0.06, 0.04, 0.0))]
+		"dandelion":
+			return [
+				_part(_cyl("d_dl_s", 0.012, 0.012, 0.28), _mat("foliage_c", "grass_dark", "moss_hi"), Vector3(0, 0.14, 0)),
+				_part(_sphere("d_dl_p", 0.07), _mat_from(Color(0.93, 0.95, 0.93), Color(0.78, 0.8, 0.78), Color(1, 1, 1)), Vector3(0, 0.32, 0))]
+		# ── added clutter: desert / arid ────────────────────────────────────
+		"agave", "aloe":
+			var ag := _mat_from(Color(0.42, 0.55, 0.4), Color(0.28, 0.38, 0.28), Color(0.62, 0.74, 0.5))
+			return [
+				_part(_cone("d_ag0", 0.05, 0.0, 0.5), ag, Vector3(0, 0.24, 0), Vector3.ONE, Vector3(0.15, 0, 0.0)),
+				_part(_cone("d_ag1", 0.05, 0.0, 0.46), ag, Vector3(0.13, 0.2, 0), Vector3.ONE, Vector3(0, 0, -0.7)),
+				_part(_cone("d_ag2", 0.05, 0.0, 0.46), ag, Vector3(-0.13, 0.2, 0), Vector3.ONE, Vector3(0, 0, 0.7)),
+				_part(_cone("d_ag3", 0.05, 0.0, 0.44), ag, Vector3(0, 0.2, 0.13), Vector3.ONE, Vector3(-0.7, 0, 0)),
+				_part(_cone("d_ag4", 0.05, 0.0, 0.44), ag, Vector3(0, 0.2, -0.13), Vector3.ONE, Vector3(0.7, 0, 0))]
+		"tumbleweed":
+			return [_part(_sphere("d_tw", 0.24), _mat_from(Color(0.62, 0.5, 0.32), Color(0.45, 0.36, 0.22), Color(0.78, 0.66, 0.44)), Vector3(0, 0.23, 0), Vector3(1.1, 1.0, 1.1))]
+		"sagebrush", "dry_bush":
+			return [_part(_sphere("d_sage", 0.26), _mat_from(Color(0.55, 0.6, 0.46), Color(0.4, 0.45, 0.34), Color(0.72, 0.76, 0.58)), Vector3(0, 0.2, 0), Vector3(1.1, 0.75, 1.1))]
+		"animal_skull", "skull", "bone_pile":
+			var bo := _mat_from(Color(0.86, 0.84, 0.76), Color(0.66, 0.64, 0.56), Color(0.97, 0.95, 0.88))
+			return [
+				_part(_sphere("d_skull", 0.12), bo, Vector3(0, 0.1, 0), Vector3(1.0, 1.0, 1.15)),
+				_part(_box("d_bone0", Vector3(0.42, 0.045, 0.05)), bo, Vector3(0.05, 0.03, 0.1), Vector3.ONE, Vector3(0, 0.4, 0)),
+				_part(_box("d_bone1", Vector3(0.34, 0.045, 0.05)), bo, Vector3(-0.03, 0.03, -0.09), Vector3.ONE, Vector3(0, -0.5, 0))]
+		# ── added clutter: fungi ────────────────────────────────────────────
+		"toadstool":
+			return [
+				_part(_cyl("d_ts_s", 0.05, 0.07, 0.2), _mat("snow_a", "stone_b", "snow_a"), Vector3(0, 0.1, 0)),
+				_part(_sphere("d_ts_c", 0.15), _mat_from(Color(0.78, 0.2, 0.18), Color(0.55, 0.12, 0.12), Color(0.92, 0.4, 0.34)), Vector3(0, 0.24, 0), Vector3(1.0, 0.6, 1.0))]
+		"mushroom_cluster", "mushrooms":
+			var mc_s := _mat("snow_a", "stone_b", "snow_a")
+			var mc_c := _mat("dirt_a", "trunk_b", "gold")
+			return [
+				_part(_cyl("d_mc_s0", 0.04, 0.06, 0.18), mc_s, Vector3(0, 0.09, 0)),
+				_part(_sphere("d_mc_c0", 0.11), mc_c, Vector3(0, 0.21, 0), Vector3(1.0, 0.6, 1.0)),
+				_part(_cyl("d_mc_s1", 0.03, 0.05, 0.13), mc_s, Vector3(0.13, 0.065, 0.05)),
+				_part(_sphere("d_mc_c1", 0.08), mc_c, Vector3(0.13, 0.16, 0.05), Vector3(1.0, 0.6, 1.0)),
+				_part(_cyl("d_mc_s2", 0.03, 0.05, 0.1), mc_s, Vector3(-0.1, 0.05, -0.06)),
+				_part(_sphere("d_mc_c2", 0.07), mc_c, Vector3(-0.1, 0.13, -0.06), Vector3(1.0, 0.6, 1.0))]
+		"bracket_fungus", "shelf_fungus":
+			var bf_w := _mat("trunk_a", "trunk_b", "wood_light")
+			var bf_c := _mat("dirt_a", "trunk_b", "cabin_trim")
+			return [
+				_part(_cyl("d_bf_s", 0.05, 0.06, 0.22), bf_w, Vector3(0, 0.11, 0)),
+				_part(_cyl("d_bf0", 0.12, 0.12, 0.025), bf_c, Vector3(0.08, 0.14, 0), Vector3(1, 1, 1.4)),
+				_part(_cyl("d_bf1", 0.1, 0.1, 0.02), bf_c, Vector3(-0.06, 0.2, 0.02), Vector3(1, 1, 1.3))]
+		# ── added clutter: snow / ice ───────────────────────────────────────
+		"snow_patch", "snow_mound":
+			return [_part(_sphere("d_snowp", 0.28), _mat("snow_a", "stone_b", "snow_a"), Vector3(0, 0.04, 0), Vector3(1.3, 0.3, 1.2))]
+		"ice_shard", "ice_crystal":
+			var ic := _mat_from(Color(0.7, 0.85, 0.95), Color(0.5, 0.66, 0.8), Color(0.88, 0.96, 1.0))
+			return [
+				_part(_cone("d_ice0", 0.05, 0.0, 0.4), ic, Vector3(0, 0.2, 0)),
+				_part(_cone("d_ice1", 0.04, 0.0, 0.28), ic, Vector3(0.08, 0.14, 0.04), Vector3.ONE, Vector3(0, 0, -0.3)),
+				_part(_cone("d_ice2", 0.035, 0.0, 0.22), ic, Vector3(-0.07, 0.11, -0.04), Vector3.ONE, Vector3(0.3, 0, 0.2))]
+		"frozen_shrub":
+			return [
+				_part(_sphere("d_fsh", 0.28), _mat("foliage_b", "grass_dark", "foliage_a"), Vector3(0, 0.22, 0), Vector3(1.1, 0.8, 1.1)),
+				_part(_sphere("d_fsh_s", 0.2), _mat("snow_a", "stone_b", "snow_a"), Vector3(0, 0.33, 0), Vector3(1.0, 0.5, 1.0))]
+		# ── added clutter: coastal ──────────────────────────────────────────
+		"seashell", "shells":
+			var sh := _mat_from(Color(0.92, 0.86, 0.78), Color(0.74, 0.66, 0.58), Color(1.0, 0.96, 0.9))
+			return [
+				_part(_cone("d_sh0", 0.1, 0.02, 0.12), sh, Vector3(0, 0.06, 0), Vector3(1, 0.85, 1), Vector3(1.2, 0, 0)),
+				_part(_sphere("d_sh1", 0.06), sh, Vector3(0.13, 0.04, 0.06), Vector3(1, 0.6, 1))]
+		"starfish":
+			var sf := _mat_from(Color(0.85, 0.45, 0.3), Color(0.66, 0.32, 0.22), Color(0.95, 0.6, 0.42))
+			var arms: Array = []
+			for k: int in 5:
+				var a := (float(k) / 5.0) * TAU
+				arms.append(_part(_cone("d_sf" + str(k), 0.05, 0.0, 0.2), sf,
+					Vector3(cos(a) * 0.1, 0.03, sin(a) * 0.1), Vector3.ONE, Vector3(PI * 0.5, -a, 0)))
+			return arms
+		"coral":
+			var co := _mat_from(Color(0.9, 0.5, 0.5), Color(0.7, 0.36, 0.4), Color(1.0, 0.66, 0.62))
+			return [
+				_part(_cone("d_co0", 0.05, 0.025, 0.32), co, Vector3(0, 0.16, 0)),
+				_part(_cone("d_co1", 0.04, 0.02, 0.24), co, Vector3(0.1, 0.12, 0.04), Vector3.ONE, Vector3(0, 0, -0.5)),
+				_part(_cone("d_co2", 0.04, 0.02, 0.22), co, Vector3(-0.09, 0.11, -0.05), Vector3.ONE, Vector3(0.4, 0, 0.2))]
+		# ── added clutter: settlement / camp props ──────────────────────────
+		"barrel":
+			var ba_w := _mat("wood_light", "trunk_b", "cabin_trim")
+			var ba_b := _mat("trunk_b", "shadow", "trunk_a")
+			return [
+				_part(_cyl("d_barrel", 0.17, 0.19, 0.42), ba_w, Vector3(0, 0.21, 0)),
+				_part(_cyl("d_barrel_t", 0.18, 0.18, 0.04), ba_b, Vector3(0, 0.33, 0)),
+				_part(_cyl("d_barrel_b", 0.2, 0.2, 0.04), ba_b, Vector3(0, 0.09, 0))]
+		"crate", "box":
+			return [
+				_part(_box("d_crate", Vector3(0.34, 0.34, 0.34)), _mat("wood_light", "trunk_b", "cabin_trim"), Vector3(0, 0.17, 0)),
+				_part(_box("d_crate_x", Vector3(0.36, 0.05, 0.05)), _mat("trunk_a", "trunk_b", "wood_light"), Vector3(0, 0.17, 0.18))]
+		"sack":
+			return [
+				_part(_sphere("d_sack", 0.18), _mat("ore", "dirt_b", "cabin_trim"), Vector3(0, 0.17, 0), Vector3(0.9, 1.2, 0.9)),
+				_part(_sphere("d_sack_t", 0.08), _mat("dirt_b", "trunk_b", "ore"), Vector3(0, 0.32, 0))]
+		"hay_bale", "haystack":
+			return [_part(_cyl("d_hay", 0.22, 0.22, 0.5), _mat("leaf_gold", "dirt_b", "cabin_trim"), Vector3(0, 0.22, 0), Vector3.ONE, Vector3(0, 0, PI * 0.5))]
+		"bucket":
+			return [
+				_part(_cyl("d_bk", 0.12, 0.1, 0.2), _mat("trunk_b", "shadow", "trunk_a"), Vector3(0, 0.1, 0)),
+				_part(_box("d_bk_h", Vector3(0.24, 0.02, 0.02)), _mat("stone_b", "shadow", "stone_a"), Vector3(0, 0.22, 0), Vector3.ONE, Vector3(PI * 0.5, 0, 0))]
+		"signpost", "sign":
+			var sp_p := _mat("trunk_a", "trunk_b", "wood_light")
+			return [
+				_part(_box("d_sp_p", Vector3(0.06, 0.6, 0.06)), sp_p, Vector3(0, 0.3, 0)),
+				_part(_box("d_sp_b", Vector3(0.34, 0.16, 0.04)), _mat("wood_light", "trunk_b", "cabin_trim"), Vector3(0.1, 0.5, 0))]
+		"fence_post", "post":
+			var fp := _mat("trunk_a", "trunk_b", "wood_light")
+			return [
+				_part(_box("d_fp", Vector3(0.08, 0.5, 0.08)), fp, Vector3(0, 0.25, 0)),
+				_part(_box("d_fp_r", Vector3(0.5, 0.05, 0.04)), fp, Vector3(0.2, 0.32, 0))]
+		"anthill", "dirt_mound":
+			return [_part(_cone("d_ah", 0.2, 0.06, 0.24), _mat("dirt_a", "dirt_b", "path_light"), Vector3(0, 0.12, 0))]
 		_:  # grass, fern, reed, vine, moss, lichen, ... -> green tuft
 			return [_part(_sphere("d_tuft", 0.22), _mat("foliage_c", "grass_dark", "foliage_c"), Vector3(0, 0.16, 0), Vector3(1.0, 0.7, 1.0))]
 
@@ -780,8 +989,9 @@ static func _bridge_parts() -> Array:
 	# An ORIENTED plank-deck segment (one per bridge tile, yaw-aligned + raised by the entity's
 	# height_offset so it rides above the water). Local +Z runs ALONG the path, +X across. A solid
 	# light deck with dark flush gap-lines reads as laid boards; a railing runs down each side.
-	var deck := _mat("trunk_a", "trunk_b", "dirt_a")
-	var gap := _mat("trunk_b", "trunk_b", "trunk_a")
+	# Warm light planks (A Short Hike's bridge), with darker plank-gap lines for definition.
+	var deck := _mat("wood_light", "path_orange", "cabin_trim")
+	var gap := _mat("path_orange", "trunk_b", "wood_light")
 	var parts: Array = [_part(_box("bridge_deck", Vector3(1.5, 0.14, 1.35)), deck, Vector3(0, 0.07, 0))]
 	for z: float in [-0.45, 0.0, 0.45]:                            # dark plank gaps, flush on the deck
 		parts.append(_part(_box("bridge_gap", Vector3(1.5, 0.04, 0.06)), gap, Vector3(0, 0.145, z)))
@@ -794,7 +1004,7 @@ static func _bridge_pole_parts() -> Array:
 	# A UNIT piling spanning local Y 0 (top, at the deck) down to -1. The batcher scales its Y to
 	# the exact drop from the deck to the terrain/water below, so every pile reaches the ground.
 	return [
-		_part(_box("bridge_pole_unit", Vector3(0.16, 1.0, 0.16)), _mat("trunk_b", "trunk_a", "dirt_a"), Vector3(0, -0.5, 0))]
+		_part(_box("bridge_pole_unit", Vector3(0.16, 1.0, 0.16)), _mat("path_orange", "trunk_b", "wood_light"), Vector3(0, -0.5, 0))]
 
 
 static func _city_prop_parts(prop: String) -> Array:
@@ -1307,7 +1517,9 @@ static func equip_profile(rig: Node3D) -> Array:
 ## support are skipped.
 static func apply_equipment(rig: Node3D, loadout: Dictionary) -> void:
 	for s: String in EQUIP_SLOTS:
-		var sock: Node = rig.get_node_or_null(NodePath(s))
+		# Weapon sockets are NESTED on the forearm (rig -> arm_r -> elbow_r -> socket_mainhand),
+		# so look them up recursively — a direct child lookup misses them and weapons never attach.
+		var sock: Node = rig.find_child(s, true, false)
 		if sock == null:
 			continue
 		var old: Node = sock.get_node_or_null(^"equip")
@@ -1331,7 +1543,7 @@ static func apply_equipment(rig: Node3D, loadout: Dictionary) -> void:
 			(hp as Node3D).visible = not hide_hair
 	var profile: Dictionary = rig.get_meta("body_profile", {})
 	for slot: String in loadout:
-		var sock2: Node3D = rig.get_node_or_null(NodePath("socket_" + slot))
+		var sock2: Node3D = rig.find_child("socket_" + slot, true, false)   # nested forearm sockets too
 		if sock2 == null:
 			continue
 		var spec: Dictionary = loadout[slot]
@@ -1371,7 +1583,7 @@ static func _weapon_grip(kind: String) -> Vector3:
 		"greatsword", "twohand", "2h", "battleaxe", "warhammer", "halberd":
 			return Vector3(2.35, 0.0, -0.95)          # carried diagonally across the body
 		_:                                            # sword / scimitar / dagger / axe / mace (1H)
-			return Vector3(2.95, 0.0, 0.28)           # hangs down + angled out from the leg
+			return Vector3(0.22, 0.0, -0.18)          # held UPRIGHT in the hand, blade up, tilted just off the body
 
 
 ## Palette for an equipment material tier; `tint` overrides cloth/gem colour.

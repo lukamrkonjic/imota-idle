@@ -312,6 +312,13 @@ func rebuild_chunk(cx: int, cy: int) -> void:
 	mesh_manager.rebuild_chunk(cx, cy)
 
 
+## Editor live-brush hook: re-mesh just this chunk in place (fast, flicker-free) while dragging.
+func rebuild_chunk_instant(cx: int, cy: int) -> void:
+	if not _active:
+		return
+	mesh_manager.rebuild_chunk_instant(cx, cy)
+
+
 ## Force the static-prop batch to rebuild (preview teleports / placed props / editor edits).
 func invalidate_static_batches() -> void:
 	if static_prop_batcher != null:
