@@ -42,6 +42,19 @@ func _ready() -> void:
 			if done % 256 == 0 or done == total:
 				print("  %d/%d chunks" % [done, total]))
 
+	# Preserve hand-authored placements (structures / decor / fences / settlement buildings) + cut
+	# trees from the PREVIOUS bake through this regeneration, and write them to <id>_overlay.json so
+	# the authored layer survives generation changes, world expansion, and model swaps.
+	var world_path: String = OUT_DIR + str(spec.id) + ".world"
+	DirAccess.make_dir_recursive_absolute(OUT_DIR)
+	var overlay := AuthoredOverlay.merge_existing(world_path, chunks)
+	var ofile := FileAccess.open(OUT_DIR + str(spec.id) + "_overlay.json", FileAccess.WRITE)
+	if ofile != null:
+		ofile.store_string(JSON.stringify(overlay, "  "))
+		ofile.close()
+	print("  preserved %d authored structures across %d chunks-with-cuts" % [
+		(overlay["structures"] as Array).size(), (overlay["cuts"] as Dictionary).size()])
+
 	# Assemble: encode the fixed chunks, render the overview map.
 	var tile_w: int = b.size.x * WG.CHUNK_TILES
 	var tile_h: int = b.size.y * WG.CHUNK_TILES
@@ -74,7 +87,6 @@ func _ready() -> void:
 		"tileIds": Array(reg.tile_order),
 		"chunks": chunks_doc,
 	}
-	var world_path: String = OUT_DIR + str(spec.id) + ".world"
 	var f := FileAccess.open(world_path, FileAccess.WRITE)
 	f.store_string(var_to_str(doc))
 	f.close()
