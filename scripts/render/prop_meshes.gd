@@ -1943,7 +1943,9 @@ const SHADOW_DROP := Vector2(-0.28, -0.34)
 ## along the shadow's fall for a longer afternoon cast.
 static func _shadow_part(radius: float, lon := 1.25, extra := Vector2.ZERO) -> Dictionary:
 	var off := SHADOW_DROP + extra
-	return _part(_shadow_quad(), _shadow_mat(), Vector3(off.x, 0.03, off.y), Vector3(radius * 2.0, 1.0, radius * 2.0 * lon))
+	var p := _part(_shadow_quad(), _shadow_mat(), Vector3(off.x, 0.03, off.y), Vector3(radius * 2.0, 1.0, radius * 2.0 * lon))
+	p["shadow"] = true   # so the hover OUTLINE builder can skip it (no white ground disc)
+	return p
 
 
 ## A flat round DISC on the ground (radius 0.5, so _shadow_part's diameter scaling still

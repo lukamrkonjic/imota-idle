@@ -474,6 +474,8 @@ func _build_outline_node(e: Node2D) -> Node3D:
 		return null
 	var node := Node3D.new()
 	for p: Dictionary in parts:
+		if bool(p.get("shadow", false)):
+			continue   # don't outline the ground blob shadow — that drew a white disc under the entity
 		var mi := MeshInstance3D.new()
 		mi.mesh = p["mesh"]
 		mi.material_override = _outline_mat
