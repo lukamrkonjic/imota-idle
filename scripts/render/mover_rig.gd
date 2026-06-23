@@ -138,20 +138,22 @@ static func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float,
 		var sd := clampf(s, 0.0, 1.0)
 		var sh := _pivot(node, "arm_r")
 		if sh != null:
-			# (pitch, yaw, roll): wound up high-right (roll out, yaw back) -> across to a chest-
-			# height hit in front (roll in, yaw forward, pitch down a touch).
-			var ar := Vector3(-0.25, 0.5, 1.25).lerp(Vector3(0.35, -0.55, 0.3), sd)
+			# (pitch, yaw, roll). ROLL stays high the whole time so the arm is STRETCHED OUT to the
+			# side (horizontal), never dropping down (that drop was the "chicken" bob). The swing is
+			# all YAW: wound up back-right (+y) → swung across to the front (−y), a flat horizontal
+			# cut into the trunk, with a touch of down-pitch on the hit.
+			var ar := Vector3(-0.05, 0.9, 1.3).lerp(Vector3(0.22, -0.9, 1.18), sd)
 			if s < 0.0:
-				ar += Vector3(-0.12, 0.14, 0.16) * (-s)    # reach further back-right on the windup
+				ar += Vector3(0.0, 0.25, 0.05) * (-s)        # wind back further right before the swing
 			sh.rotation = ar
 		var sp := _pivot(node, "spine")
 		if sp != null:
-			# torso twists right on the windup, then rotates forward/left through the swing
-			sp.rotation = Vector3(-0.04, 0.34, 0.0).lerp(Vector3(0.12, -0.24, 0.0), sd)
-		_set_pivot(node, "arm_r/elbow_r", -0.95)             # forearm bent, holding the axe across
-		_set_pivot(node, "arm_l", lerpf(0.28, 0.52, sd))     # off hand braces + follows the swing
-		_set_pivot(node, "arm_l/elbow_l", lerpf(-0.5, -0.9, sd))
-		node.position.y -= 0.05 * sd                         # small body compression on impact
+			# torso twists right on the windup then rotates through to the front to drive the cut
+			sp.rotation = Vector3(-0.02, 0.4, 0.0).lerp(Vector3(0.08, -0.3, 0.0), sd)
+		# Elbow EXTENDS into the hit (reaches the axe out into the trunk), coiled a little on windup.
+		_set_pivot(node, "arm_r/elbow_r", lerpf(-0.6, -0.18, sd))
+		_set_pivot(node, "arm_l", lerpf(0.25, 0.5, sd))      # off hand follows the swing across
+		_set_pivot(node, "arm_l/elbow_l", lerpf(-0.55, -0.95, sd))
 		return
 	if atk > 0.0:
 		var strike := sin(atk * PI)
