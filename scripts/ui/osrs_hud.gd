@@ -610,12 +610,9 @@ func _build_minimap_cluster() -> void:
 	run_orb.position = UiScale.v2(Vector2(6, 94))
 	run_orb.tooltip_text = "Run energy — click to toggle run, right-click to rest"
 	# Right-clicking rest halts the player so it engages from any state (running/walking/still).
+	# Emit an intent; world.halt_player() handles it (no reach into world's private controllers).
 	run_orb.on_rest = func() -> void:
-		if world != null:
-			world._path_ctrl.stop_walking()
-			world._activity_ctrl.stop_all_sims()
-			world.pending_action = {}
-			world.auto_task = {}
+		EventBus.rest_requested.emit()
 	cluster.add_child(run_orb)
 
 	coins_label = Label.new()

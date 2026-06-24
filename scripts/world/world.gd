@@ -217,6 +217,7 @@ func _connect_events() -> void:
 	EventBus.station_requested.connect(auto_station)
 	EventBus.teleport_requested.connect(teleport_to)
 	EventBus.navigate_requested.connect(func(p: Vector2) -> void: navigate_to(p))
+	EventBus.rest_requested.connect(halt_player)
 
 
 func _process(delta: float) -> void:
@@ -350,6 +351,15 @@ func begin_action(entity: Node2D) -> void:
 
 func walk_to_pos(target: Vector2) -> bool:
 	return _path_ctrl.walk_to_pos(target)
+
+
+## Fully halt the player: stop walking, stop every activity sim, and clear any queued/auto
+## action. Driven by the HUD rest orb via EventBus.rest_requested (no direct UI→world reach).
+func halt_player() -> void:
+	_path_ctrl.stop_walking()
+	_activity_ctrl.stop_all_sims()
+	pending_action = {}
+	auto_task = {}
 
 
 ## Navigate to a map/minimap-picked world position: clear any pending action / auto-task

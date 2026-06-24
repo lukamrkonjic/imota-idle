@@ -50,6 +50,7 @@ signal gather_requested(skill: String, node_name: String)
 signal station_requested(skill: String, recipe_name: String)
 signal teleport_requested(pos: Vector2)
 signal navigate_requested(pos: Vector2)   # minimap click → walk-route to a world position
+signal rest_requested                     # rest orb → fully halt the player (stop walk/sims/queued action)
 
 # --- woodcutting feedback (render FX: shake/leaves on a log, fall+pop on depletion) -----
 signal wc_log_chopped(pos: Vector2, species: String)   # one log obtained — small leaves puff
