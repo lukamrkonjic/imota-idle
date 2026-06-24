@@ -172,7 +172,19 @@ func sync_camera(delta: float) -> void:
 	# Orbit direction from the arrow-key yaw/pitch (default = the original iso angle). The camera
 	# always looks straight at the player so the player stays centred at every tilt/zoom.
 	var dir := Vector3(cos(_cam_pitch) * sin(_cam_yaw), sin(_cam_pitch), cos(_cam_pitch) * cos(_cam_yaw))
-	cam.position = c + dir * CAM_DIST
+	# A wide editor view spans more ground than the fixed [near, far] frustum can hold at CAM_DIST,
+	# so the foreground (near plane) and the distance (far plane) get clipped to beige. Pull the ORTHO
+	# camera back + deepen the far plane: ortho projection is invariant to position along the view
+	# axis, so this changes ONLY the clip range, not the image (and the editor runs fog-free, so the
+	# depth shift is harmless). Gameplay (editor_footprint_chunks == 0) keeps the original 31 / 400.
+	var cam_dist := CAM_DIST
+	if editor_footprint_chunks > 0:
+		# Pull back ≥ the view's ground reach so the foreground never falls behind the near plane at
+		# any pitch (the ground's depth half-extent is ≤ reach/2), and deepen far past the distance.
+		var reach := _footprint_cap()
+		cam_dist = maxf(CAM_DIST, reach * 1.5)
+		cam.far = maxf(400.0, cam_dist + reach * 2.0)
+	cam.position = c + dir * cam_dist
 	cam.look_at(c + Vector3(0, 0.75, 0), Vector3.UP)
 	# Coverage auto-zoom: tighten the view so its ground footprint never reaches past loaded
 	# terrain (the world edge / a streaming area) — the user sees the camera zoom in instead of a
