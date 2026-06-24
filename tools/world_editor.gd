@@ -2123,9 +2123,10 @@ func _draw_map_markers(c: CanvasItem) -> void:
 	for ch: RefCounted in _chunks.values():
 		var bx: int = ch.cx * WG.CHUNK_TILES
 		var by: int = ch.cy * WG.CHUNK_TILES
-		# Buildings & structures (skip ambient trees — scenery, and there can be thousands).
+		# Buildings & structures only — skip ambient trees + clutter decor (both are just FX scenery).
 		for s: Dictionary in ch.structures:
-			if str(s.get("kind", "")) == "tree":
+			var skind := str(s.get("kind", ""))
+			if skind == "tree" or skind == "decor":
 				continue
 			var sp := px.call(float(bx + int(s.get("tx", 0))), float(by + int(s.get("ty", 0))))
 			c.draw_rect(Rect2(sp - Vector2(2.5, 2.5), Vector2(5, 5)), Color(0.95, 0.78, 0.32, 0.95))
