@@ -104,3 +104,13 @@ static func expected_dps(hit_chance_value: float, max_hit_value: int, attack_tic
 	if interval <= 0.0:
 		return 0.0
 	return expected_damage_per_attack(hit_chance_value, max_hit_value, avg_crit_mult) / interval
+
+
+## OSRS combat level from the seven combat skill levels (pure formula; GameState.combat_level()
+## gathers the player's levels and delegates here).
+static func combat_level(att: int, strength: int, def: int, hp: int, ranged: int, magic: int, prayer: int) -> int:
+	var base := 0.25 * (float(def) + float(hp) + floorf(float(prayer) / 2.0))
+	var melee := 0.325 * (float(att) + float(strength))
+	var ranged_score := 0.325 * (floorf(float(ranged) / 2.0) + float(ranged))
+	var magic_score := 0.325 * (floorf(float(magic) / 2.0) + float(magic))
+	return int(floorf(base + maxf(melee, maxf(ranged_score, magic_score))))

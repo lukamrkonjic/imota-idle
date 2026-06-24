@@ -456,18 +456,9 @@ func set_hp(value: int) -> void:
 ## OSRS combat-level formula over att/str/def/hp/range/magic/prayer. Derived
 ## display stat used for area/monster soft-gating (spec §12).
 func combat_level() -> int:
-	var att := float(level("attack"))
-	var stg := float(level("strength"))
-	var def := float(level("defence"))
-	var hp := float(level("hitpoints"))
-	var rng := float(level("ranged"))
-	var mag := float(level("magic"))
-	var pray := float(level("prayer"))
-	var base := 0.25 * (def + hp + floorf(pray / 2.0))
-	var melee := 0.325 * (att + stg)
-	var ranged := 0.325 * (floorf(rng / 2.0) + rng)
-	var magic := 0.325 * (floorf(mag / 2.0) + mag)
-	return int(floorf(base + maxf(melee, maxf(ranged, magic))))
+	# Pure formula lives in CombatCalc (testable alongside the other combat math).
+	return CombatCalc.combat_level(level("attack"), level("strength"), level("defence"),
+		level("hitpoints"), level("ranged"), level("magic"), level("prayer"))
 
 
 # OSRS-style timing: the game runs on 0.6s ticks and every action's speed is a
