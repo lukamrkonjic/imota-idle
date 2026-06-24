@@ -255,6 +255,7 @@ const _V3D_VIEW_CAP := 40            # aerial terrain CEILING (chunks); data aut
 var _minimap_panel: PanelContainer
 var _minimap_tex: TextureRect
 var _minimap_marker: ColorRect
+var _map_overlay: Control       # draws placed content (spawn / creatures / buildings / pois / roads) over the map
 var _minimap_check: CheckBox   # Overlays > "World map" — kept in sync with the M key
 var _show_minimap := true   # Overlays > "World map" toggle (hide the bottom-right map)
 
@@ -1212,6 +1213,8 @@ func _commit_stroke() -> void:
 	# chunks so the new trees/clutter/enemies appear in the 3D view immediately.
 	if _tool in [Tool.FOREST, Tool.CLUTTER, Tool.CREATURE]:
 		_refresh_struct_chunks(_stroke["added"])
+	if _map_overlay != null:
+		_map_overlay.queue_redraw()   # keep the world-map markers in sync with the edit (no-op when hidden)
 	_refresh_history_buttons()
 
 
@@ -1237,6 +1240,8 @@ func _do_undo() -> void:
 	_refresh_struct_chunks(s["removed"])
 	_redo.append(s)
 	_status.text = "Undid 1 action (%d left)" % _history.size()
+	if _map_overlay != null:
+		_map_overlay.queue_redraw()
 	_refresh_history_buttons()
 
 
@@ -1262,6 +1267,8 @@ func _do_redo() -> void:
 	_refresh_struct_chunks(s["removed"])
 	_history.append(s)
 	_status.text = "Redid 1 action"
+	if _map_overlay != null:
+		_map_overlay.queue_redraw()
 	_refresh_history_buttons()
 
 
@@ -1910,7 +1917,10 @@ func _build_opts_panel() -> void:
 
 	ob.add_child(HSeparator.new())
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(198, 330)
+	# Fill the height available below the panel so long lists (creatures, terrain, biomes) show many
+	# rows at once instead of a short 330px window.
+	var avail := (get_viewport().get_visible_rect().size.y - 58.0) / HUD_SCALE - 240.0
+	scroll.custom_minimum_size = Vector2(198, maxf(360.0, avail))
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	ob.add_child(scroll)
 	_palette_box = VBoxContainer.new()
@@ -2075,11 +2085,66 @@ func _build_world_minimap() -> void:
 	_minimap_tex.mouse_filter = Control.MOUSE_FILTER_STOP
 	_minimap_tex.gui_input.connect(_on_minimap_input)
 	box.add_child(_minimap_tex)
+	# Content overlay: player spawn, creature spawns, buildings, POIs/cities, roads — a world overview.
+	_map_overlay = Control.new()
+	_map_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_map_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_map_overlay.draw.connect(_draw_map_markers.bind(_map_overlay))
+	_minimap_tex.add_child(_map_overlay)
 	_minimap_marker = ColorRect.new()
 	_minimap_marker.color = Color(1.0, 1.0, 1.0, 0.95)
 	_minimap_marker.size = Vector2(8, 8)
 	_minimap_marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_minimap_tex.add_child(_minimap_marker)
+
+
+## Overview markers drawn over the world map: roads, buildings/POIs (with city names), creature
+## spawns and the player spawn — so the map reads as a real world overview. NPCs/shops will anchor
+## to their POI here too once placed. Coordinates: global tile -> map fraction -> overlay pixel.
+func _draw_map_markers(c: CanvasItem) -> void:
+	if _minimap_tex == null or _w <= 0 or _h <= 0:
+		return
+	var sz := _minimap_tex.size
+	var sx := sz.x / float(_w)
+	var sy := sz.y / float(_h)
+	var px := func(gtx: float, gty: float) -> Vector2:
+		return Vector2((gtx - float(_min_tx)) * sx, (gty - float(_min_ty)) * sy)
+
+	# Roads (the future network) — tan polylines.
+	for road: Dictionary in _spec.roads:
+		var rpts: Array = road.get("points", [])
+		if rpts.size() >= 2:
+			var line := PackedVector2Array()
+			for p: Variant in rpts:
+				line.append(px.call(float(p.x), float(p.y)))
+			c.draw_polyline(line, Color(0.85, 0.72, 0.45, 0.85), 1.5)
+
+	var font := ThemeDB.fallback_font
+	for ch: RefCounted in _chunks.values():
+		var bx: int = ch.cx * WG.CHUNK_TILES
+		var by: int = ch.cy * WG.CHUNK_TILES
+		# Buildings & structures (skip ambient trees — scenery, and there can be thousands).
+		for s: Dictionary in ch.structures:
+			if str(s.get("kind", "")) == "tree":
+				continue
+			var sp := px.call(float(bx + int(s.get("tx", 0))), float(by + int(s.get("ty", 0))))
+			c.draw_rect(Rect2(sp - Vector2(2.5, 2.5), Vector2(5, 5)), Color(0.95, 0.78, 0.32, 0.95))
+		# Creature spawns — red dots.
+		for m: Dictionary in ch.monsters:
+			c.draw_circle(px.call(float(bx + int(m.get("tx", 0))), float(by + int(m.get("ty", 0)))), 2.6, Color(0.92, 0.26, 0.22, 0.95))
+		# POIs / settlements / cities — hollow gold square + name (future NPCs/shops anchor here too).
+		for poi: Dictionary in ch.pois:
+			var anc = poi.get("anchor", Vector2i.ZERO)
+			var pp := px.call(float(bx + anc.x), float(by + anc.y))
+			c.draw_rect(Rect2(pp - Vector2(4, 4), Vector2(8, 8)), Color(1.0, 0.88, 0.4, 1.0), false, 1.5)
+			var nm := str(poi.get("name", poi.get("label", "")))
+			if not nm.is_empty() and font != null:
+				c.draw_string(font, pp + Vector2(6, 4), nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(1, 0.97, 0.78))
+
+	# Player spawn — green beacon, drawn last (on top).
+	var spx := px.call(float(_spawn_tile.x), float(_spawn_tile.y))
+	c.draw_circle(spx, 5.0, Color(0.18, 0.85, 0.32, 0.95))
+	c.draw_arc(spx, 6.5, 0.0, TAU, 20, Color(1, 1, 1, 0.95), 1.5)
 
 
 ## Read the baked overview PNG straight off disk so we never display a stale import-cached
@@ -2116,6 +2181,8 @@ func _apply_minimap_visibility() -> void:
 	_minimap_panel.visible = _v3d_on and _show_minimap
 	if _minimap_panel.visible:
 		_position_minimap.call_deferred()
+		if _map_overlay != null:
+			_map_overlay.queue_redraw()   # refresh the placed-content markers each time the map opens
 
 
 ## Park the minimap in the bottom-right corner.
