@@ -229,7 +229,6 @@ var _v3d_world: Node2D            # the embedded world.tscn instance (its render
 var _v3d_on := false
 var _v3d_max := false             # large/navigable mode vs the small docked corner panel
 var _v3d_btn: Button
-var _v3d_max_btn: Button
 var _v3d_focus_tile := Vector2i(-2147483648, 0)   # last tile the 3D camera was sent to
 const _V3D_SIZE := Vector2i(540, 380)
 const _V3D_LEFT := 192      # 3D canvas starts right of the tool column
@@ -251,9 +250,7 @@ var _ghost_variant := 0         # reroll seed for the ghost's look (roof colour 
 var _ghost_sig := ""            # rebuild key: rebuild ghost meshes only when selection/variant changes
 var _ghost_mat_cache: Dictionary = {}   # source material id → cached translucent ghost material
 var _v3d_focus_pos := Vector2.ZERO   # float world-space camera focus (WASD/pan move it)
-var _v3d_view_cap := 18              # aerial terrain radius (chunks); the View slider drives it (fills the view by default)
-var _v3d_view_slider: HSlider
-var _v3d_view_label: Label
+const _V3D_VIEW_CAP := 40            # aerial terrain CEILING (chunks); data auto-follows the zoom up to this (world.gd mini)
 # World minimap (bottom-right): whole-world baked map; click to jump the aerial camera.
 var _minimap_panel: PanelContainer
 var _minimap_tex: TextureRect
@@ -1757,8 +1754,7 @@ func _build_ui() -> void:
 	_redo_btn = _toolbar_button(tb, "↷ Redo", _do_redo)
 	_toolbar_button(tb, "💾 Save (Ctrl+S)", _save)
 	_toolbar_button(tb, "✓ Validate", _validate)
-	_toolbar_button(tb, "🌿 Generate Natural", _confirm_generate_natural)
-	_toolbar_button(tb, "⟳ Generate Full", _confirm_generate)
+	_toolbar_button(tb, "⟳ New World (Full)", _confirm_generate)
 	_v3d_btn = _toolbar_button(tb, "🧊 3D View", _toggle_3d_view)
 	_v3d_btn.toggle_mode = true
 	_toolbar_button(tb, "🗑 Wipe Save", _confirm_wipe_save)
@@ -1941,8 +1937,7 @@ func _build_editor_menu() -> void:
 	mb.add_child(HSeparator.new())
 	_menu_item(mb, "💾   Save   (Ctrl+S)", func() -> void: _editor_menu.hide(); _save())
 	_menu_item(mb, "✓   Validate", func() -> void: _editor_menu.hide(); _validate())
-	_menu_item(mb, "🌿   Generate Natural", func() -> void: _editor_menu.hide(); _confirm_generate_natural())
-	_menu_item(mb, "⟳   Generate Full", func() -> void: _editor_menu.hide(); _confirm_generate())
+	_menu_item(mb, "⟳   New World (Full)", func() -> void: _editor_menu.hide(); _confirm_generate())
 	_menu_item(mb, "🗑   Wipe Save", func() -> void: _editor_menu.hide(); _confirm_wipe_save())
 	_menu_item(mb, "⌨   Keyboard Shortcuts", _show_shortcuts)
 	mb.add_child(HSeparator.new())
@@ -2036,25 +2031,6 @@ func _build_3d_view_panel() -> void:
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bar.add_child(spacer)
-	_v3d_view_label = Label.new()
-	_v3d_view_label.add_theme_font_size_override("font_size", 10)
-	_v3d_view_label.add_theme_color_override("font_color", Color(0.7, 0.78, 0.7))
-	bar.add_child(_v3d_view_label)
-	_v3d_view_slider = HSlider.new()
-	_v3d_view_slider.min_value = 4
-	_v3d_view_slider.max_value = 40
-	_v3d_view_slider.step = 1
-	_v3d_view_slider.value = _v3d_view_cap
-	_v3d_view_slider.custom_minimum_size = Vector2(130, 0)
-	_v3d_view_slider.tooltip_text = "View distance — how far the aerial view streams (more = see further, but heavier)."
-	_v3d_view_slider.value_changed.connect(_on_v3d_view_changed)
-	bar.add_child(_v3d_view_slider)
-	_update_v3d_view_label()
-	_v3d_max_btn = Button.new()
-	_v3d_max_btn.text = "✕ 2D Map"
-	_v3d_max_btn.tooltip_text = "Back to the flat 2D map editor (M toggles)."
-	_v3d_max_btn.pressed.connect(_toggle_3d_view)
-	bar.add_child(_v3d_max_btn)
 	var hint := Label.new()
 	hint.text = "WASD / R-drag move · wheel / pinch zoom · L-click place"
 	hint.add_theme_font_size_override("font_size", 10)
@@ -2246,11 +2222,11 @@ func _spawn_embedded_world() -> void:
 	var rend: Node = _v3d_world.get("render_3d")
 	if rend != null:
 		rend.set("editor_hide_player", true)
-		rend.set("editor_no_fog", true)               # no distance fog in the editor
-		rend.set("editor_view_radius", _v3d_view_cap)  # mesh terrain all the way to the view edge
-	# Cap terrain streaming so zooming way out can't try to mesh the whole continent;
-	# the View-distance slider tunes both the data ring and the meshed radius.
-	_v3d_world.set("editor_stream_cap", _v3d_view_cap)
+		rend.set("editor_no_fog", true)                 # no distance fog in the editor
+		rend.set("editor_view_radius", _V3D_VIEW_CAP)   # footprint/visual ceiling; the actual view auto-fills under it
+	# Terrain auto-follows the zoom (world.gd loads min(zoom-radius, ceiling)) — no manual view-distance
+	# control; the ceiling just bounds an extreme zoom-out so it can't try to mesh the whole continent.
+	_v3d_world.set("editor_stream_cap", _V3D_VIEW_CAP)
 
 
 ## Aim the 3D camera at a world tile by teleporting the embedded player there (the
@@ -2787,22 +2763,6 @@ func _v3d_place_at_cursor() -> void:
 			_begin_stroke(); _place_creature(tile); _commit_stroke()
 		_:
 			_status.text = "Pick a Structure/Stamp/Road/Settlement/Creature tool, then click to place. (%d, %d)" % [tile.x, tile.y]
-
-
-## View-distance slider: drive the aerial terrain streaming radius live.
-func _on_v3d_view_changed(v: float) -> void:
-	_v3d_view_cap = int(v)
-	if _v3d_world != null:
-		_v3d_world.set("editor_stream_cap", _v3d_view_cap)
-		var rend: Node = _v3d_world.get("render_3d")
-		if rend != null:
-			rend.set("editor_view_radius", _v3d_view_cap)
-	_update_v3d_view_label()
-
-
-func _update_v3d_view_label() -> void:
-	if _v3d_view_label != null:
-		_v3d_view_label.text = "View %d" % _v3d_view_cap
 
 
 func _v3d_zoom_by(factor: float) -> void:
@@ -3344,14 +3304,6 @@ func _confirm_generate() -> void:
 		"This rebuilds the ENTIRE finite world (terrain + cities, ruins, roads…)\n"
 		+ "and REPLACES all current edits. Unsaved work is lost (Save first).\n"
 		+ "This clears the undo history.\n\nProceed?")
-
-
-func _confirm_generate_natural() -> void:
-	_confirm_generate_mode(true, "Generate a natural world draft?",
-		"This rebuilds the finite world with NATURAL terrain + life only —\n"
-		+ "grass, forests, water, hills, resources, wildlife. NO cities, roads,\n"
-		+ "walls or man-made content (you add those by hand afterwards).\n\n"
-		+ "REPLACES current edits and clears undo. Save first to keep them.\n\nProceed?")
 
 
 ## Wipe the player's game save so the next launch is a fresh new game at the authored world spawn.

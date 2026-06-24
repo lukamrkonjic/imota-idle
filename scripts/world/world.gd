@@ -261,8 +261,8 @@ func _update_stream_radius() -> void:
 	# both load more (see further) and stay bounded when zoomed way out (no OOM). It
 	# overrides the zoom-derived radius entirely — the slider is the authority.
 	if editor_stream_cap > 0:
-		r = editor_stream_cap
-		chunk_manager.editor_view_cap = editor_stream_cap   # let DATA load out to the editor's view radius
+		r = mini(r, editor_stream_cap)   # auto-follow the zoom-derived radius, bounded by the editor ceiling
+		chunk_manager.editor_view_cap = editor_stream_cap   # raise the DATA hard cap so the ceiling is reachable
 	# Terrain must fill the whole zoomed-out view, but interactive/entity chunks
 	# only need a modest buffer around the player. Expanding both was flooding the
 	# moving camera with hundreds of extra CanvasItems.
