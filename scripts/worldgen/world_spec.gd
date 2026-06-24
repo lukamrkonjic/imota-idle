@@ -79,10 +79,7 @@ func _read_active_id() -> String:
 
 
 func _read_json(path: String) -> Dictionary:
-	if not FileAccess.file_exists(path):
-		return {}
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
-	return parsed if parsed is Dictionary else {}
+	return JsonIO.read_dict(path)
 
 
 func _ingest(doc: Dictionary) -> void:

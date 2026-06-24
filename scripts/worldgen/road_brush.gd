@@ -64,10 +64,7 @@ func _load_styles() -> void:
 
 
 func _read_json(path: String) -> Dictionary:
-	if not FileAccess.file_exists(path):
-		return {}
-	var p: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
-	return p if p is Dictionary else {}
+	return JsonIO.read_dict(path)
 
 
 func _style_for(road: Dictionary) -> Dictionary:

@@ -67,16 +67,9 @@ func _ready() -> void:
 
 func load_settings() -> void:
 	keybinds = _default_keybinds()
-	if not FileAccess.file_exists(SETTINGS_PATH):
+	var data := JsonIO.read_dict(SETTINGS_PATH)
+	if data.is_empty():
 		return
-	var f := FileAccess.open(SETTINGS_PATH, FileAccess.READ)
-	if f == null:
-		return
-	var parsed: Variant = JSON.parse_string(f.get_as_text())
-	f.close()
-	if typeof(parsed) != TYPE_DICTIONARY:
-		return
-	var data: Dictionary = parsed
 	ui_scale = clampf(float(data.get("ui_scale", DEFAULT_UI_SCALE)), UI_SCALE_MIN, UI_SCALE_MAX)
 	master_volume = clampf(float(data.get("master_volume", DEFAULT_MASTER_VOLUME)), 0.0, 1.0)
 	fullscreen = bool(data.get("fullscreen", true))

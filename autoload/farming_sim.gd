@@ -33,11 +33,9 @@ func _process(delta: float) -> void:
 
 
 func _load_crops() -> void:
-	if not FileAccess.file_exists(DATA_PATH):
-		return
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(DATA_PATH))
-	if parsed is Dictionary:
-		crops = parsed.get("crops", {})
+	var data := JsonIO.read_dict(DATA_PATH)
+	if not data.is_empty():
+		crops = data.get("crops", {})
 
 
 func _resize_plots(n: int) -> void:

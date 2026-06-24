@@ -25,9 +25,7 @@ func _ready() -> void:
 
 
 func _load() -> void:
-	var path := "res://data/skills.json"
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path)) if FileAccess.file_exists(path) else null
-	_meta = parsed if parsed is Dictionary else {}
+	_meta = JsonIO.read_dict("res://data/skills.json")
 	_ids = _meta.keys()
 	_ids.sort_custom(func(a, b): return int(_meta[a].get("order", 0)) < int(_meta[b].get("order", 0)))
 

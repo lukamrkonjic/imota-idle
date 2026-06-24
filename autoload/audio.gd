@@ -179,14 +179,11 @@ func _vol_db(channel: float) -> float:
 
 
 func _load_config() -> void:
-	if not FileAccess.file_exists(CONFIG):
-		return
-	var doc: Variant = JSON.parse_string(FileAccess.get_file_as_string(CONFIG))
-	if doc is Dictionary:
-		_music = (doc as Dictionary).get("music", {})
-		_sfx = (doc as Dictionary).get("sfx", {})
-		_footsteps = (doc as Dictionary).get("footsteps", {})
-		_ambient = (doc as Dictionary).get("ambient", {})
+	var doc := JsonIO.read_dict(CONFIG)
+	_music = doc.get("music", {})
+	_sfx = doc.get("sfx", {})
+	_footsteps = doc.get("footsteps", {})
+	_ambient = doc.get("ambient", {})
 
 
 func _stream(path: String) -> AudioStream:

@@ -8,16 +8,12 @@ const MAP_PATH := "res://data/rename_map.json"
 
 
 static func load_map() -> Dictionary:
-	if not FileAccess.file_exists(MAP_PATH):
-		return {"tokens": {}, "exact": {}}
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(MAP_PATH))
-	if parsed is Dictionary:
-		if not parsed.has("tokens"):
-			parsed["tokens"] = {}
-		if not parsed.has("exact"):
-			parsed["exact"] = {}
-		return parsed
-	return {"tokens": {}, "exact": {}}
+	var parsed := JsonIO.read_dict(MAP_PATH)
+	if not parsed.has("tokens"):
+		parsed["tokens"] = {}
+	if not parsed.has("exact"):
+		parsed["exact"] = {}
+	return parsed
 
 
 ## Returns the renamed display name for `original`. Exact full-name overrides win;

@@ -25,8 +25,8 @@ func load_file(default_seed: int) -> void:
 	world_seed = default_seed
 	if suppress or not FileAccess.file_exists(SAVE_PATH):
 		return
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(SAVE_PATH))
-	if not parsed is Dictionary:
+	var parsed := JsonIO.read_dict(SAVE_PATH)
+	if parsed.is_empty():
 		push_error("Corrupt world save ignored")
 		return
 	parsed = SaveMigration.migrate_world_save(parsed)

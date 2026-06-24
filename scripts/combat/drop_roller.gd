@@ -46,8 +46,7 @@ static var _rare_loaded := false
 static func _rare_table() -> Dictionary:
 	if not _rare_loaded:
 		_rare_loaded = true
-		if FileAccess.file_exists(RARE_TABLE_PATH):
-			var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(RARE_TABLE_PATH))
-			if parsed is Dictionary:
-				_rare_cache = parsed
+		var parsed := JsonIO.read_dict(RARE_TABLE_PATH)
+		if not parsed.is_empty():
+			_rare_cache = parsed
 	return _rare_cache

@@ -338,9 +338,7 @@ var _wc_level: Dictionary = {}
 func _load_tree_species() -> void:
 	if not _species_node.is_empty():
 		return
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://data/world/tree_species.json"))
-	if parsed is Dictionary:
-		_species_node = (parsed as Dictionary).get("speciesToNode", {})
+	_species_node = JsonIO.read_dict("res://data/world/tree_species.json").get("speciesToNode", {})
 	for e: Dictionary in WorldGen.reg.node_table.get("woodcutting", []):
 		_wc_level[str(e.get("node", ""))] = int(e.get("level", 1))
 

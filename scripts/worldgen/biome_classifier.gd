@@ -425,13 +425,10 @@ func _load_mask_bytes(path: String) -> PackedByteArray:
 ## biome indices, so a pixel value resolves to a reg biome.
 func _build_biome_lut(id: String) -> void:
 	_biome_lut = PackedInt32Array()
-	var path := _MASK_DIR + id + "_mask.json"
-	if not FileAccess.file_exists(path):
+	var parsed := JsonIO.read_dict(_MASK_DIR + id + "_mask.json")
+	if parsed.is_empty():
 		return
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
-	if not parsed is Dictionary:
-		return
-	var palette: Array = (parsed as Dictionary).get("biomePalette", [])
+	var palette: Array = parsed.get("biomePalette", [])
 	var fallback := int(reg.biome_index.get("forest", 0))
 	for entry: Variant in palette:
 		_biome_lut.append(int(reg.biome_index.get(str(entry), fallback)))

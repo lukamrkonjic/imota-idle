@@ -25,12 +25,7 @@ static func get_stamp(id: String) -> Dictionary:
 
 
 static func _load() -> void:
-	_stamps = []
-	if not FileAccess.file_exists(PATH):
-		return
-	var doc: Variant = JSON.parse_string(FileAccess.get_file_as_string(PATH))
-	if doc is Dictionary:
-		_stamps = (doc as Dictionary).get("stamps", [])
+	_stamps = JsonIO.read_dict(PATH).get("stamps", [])
 
 
 ## Returns { "cells": [ {dx,dy, tile:String, biome:String} ], "sites": [ {dx,dy, skill:String} ] }.

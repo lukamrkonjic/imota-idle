@@ -31,10 +31,9 @@ var data: Dictionary = {}
 static func load_or_new(p: String = "res://data/id_registry.json") -> IdRegistry:
 	var reg := IdRegistry.new()
 	reg.path = p
-	if FileAccess.file_exists(p):
-		var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(p))
-		if parsed is Dictionary:
-			reg.data = parsed
+	var parsed := JsonIO.read_dict(p)
+	if not parsed.is_empty():
+		reg.data = parsed
 	reg._ensure_shape()
 	return reg
 
