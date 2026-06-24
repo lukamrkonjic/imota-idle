@@ -241,7 +241,7 @@ func on_chunk_unloaded(chunk: RefCounted) -> void:
 
 
 func _spawn_ground_decor(chunk: RefCounted, container: Node2D) -> void:
-	if chunk.layer != 0:
+	if chunk.layer != 0 or WorldGen.reg.spec.is_blank():
 		return
 	var seed: int = WorldGen.store.world_seed
 	for ty: int in range(WG.CHUNK_TILES):
@@ -250,8 +250,10 @@ func _spawn_ground_decor(chunk: RefCounted, container: Node2D) -> void:
 
 
 func _spawn_ground_decor_tile(chunk: RefCounted, container: Node2D, seed: int, tx: int, ty: int) -> void:
-	# Decorative ground flora scatters even on "blank" authored worlds — only harvestable
-	# nodes (gather sites/ores) are hand-placed; the cosmetic clutter stays procedural.
+	# Blank-canvas worlds are "terrain + biomes only": no auto clutter — it's hand-placed via the
+	# biome-aware clutter brush. Procedural worlds still scatter cosmetic flora.
+	if WorldGen.reg.spec.is_blank():
+		return
 	var tile: Dictionary = WorldGen.reg.tile_def(chunk.tile_id(tx, ty))
 	var tname: String = WorldGen.reg.tile_order[chunk.tile_id(tx, ty)]
 	var elev := int(chunk.elev[ty * WG.CHUNK_TILES + tx]) if chunk.elev.size() > 0 else 0
@@ -307,7 +309,9 @@ func _spawn_ground_decor_tile(chunk: RefCounted, container: Node2D, seed: int, t
 ## Turn the biome's ambient canopy into choppable woodcutting SITES (once per chunk — the chunk
 ## is cached, so guard against re-appending). The site loop then renders + makes them choppable.
 func _spawn_canopy(chunk: RefCounted, container: Node2D) -> void:
-	if chunk.layer != 0 or chunk.canopy_sites_built:
+	# Blank-canvas worlds get NO auto trees — the biome-smart pipeline hand-places tree nodes via
+	# biome-aware brushes. Procedural worlds keep their ambient canopy.
+	if chunk.layer != 0 or chunk.canopy_sites_built or WorldGen.reg.spec.is_blank():
 		return
 	chunk.canopy_sites_built = true
 	_load_tree_species()
