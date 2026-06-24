@@ -179,6 +179,7 @@ const SIDEBAR_W := 240    # fixed sidebar width (items fill it)
 const HUD_SCALE := 1.25   # editor chrome (tool panels / preview / minimap) is drawn 1.25× larger
 const STRUCT_MARK := Color(0.95, 0.85, 0.4)
 const SPAWN_MARK := Color(0.3, 1.0, 0.45)
+const TEST_SPAWN_MARK := Color(1.0, 0.6, 0.15)   # orange beacon for the (ephemeral) Test Level spawn
 const TREE_MARK := Color(0.16, 0.42, 0.18, 0.92)   # ambient canopy dot on the 2D map
 const TREE_DRAW_ZOOM := 1.2   # px/tile below which canopy dots are sub-pixel — skip (perf)
 
@@ -288,7 +289,17 @@ var _v3d_panel: PanelContainer
 var _v3d_container: SubViewportContainer
 var _v3d_vp: SubViewport
 var _v3d_world: Node2D            # the embedded world.tscn instance (its render_3d does the 3D)
+var _ehud: CanvasLayer            # the embedded world's HUD (hidden in editing, shown in Test Level)
 var _v3d_on := false
+# Test Level — flips the embedded world from view-only to fully playable at a chosen spawn, hands it
+# input + the follow camera + its HUD, and hides the editor chrome. Esc / the Back button returns.
+var _testing := false
+var _back_btn: Button
+var _chrome_prev_vis: Dictionary = {}   # editor HUD child -> visibility saved while testing
+# Set Test Spawn: pick the tile Test Level drops the player on (else it uses the camera focus).
+var _picking_test_spawn := false
+var _test_spawn_tile := Vector2i(-2147483648, 0)   # unset sentinel
+var _test_spawn_marker3d: Node3D
 var _v3d_max := false             # large/navigable mode vs the small docked corner panel
 var _v3d_btn: Button
 var _v3d_focus_tile := Vector2i(-2147483648, 0)   # last tile the 3D camera was sent to
@@ -540,12 +551,15 @@ func _build_view() -> void:
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and (event as InputEventKey).keycode == KEY_ESCAPE:
 		get_viewport().set_input_as_handled()
-		_toggle_editor_menu()
+		if _testing:
+			_exit_test_mode()     # while playtesting, Esc returns to the editor (not the editor menu)
+		else:
+			_toggle_editor_menu()
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _busy:
-		return
+	if _busy or _testing:
+		return   # playtesting: the embedded world owns input; the editor stops intercepting
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP and not _ui_hover:
 			if _is_rotatable_tool(): _rotate_placement(1)
@@ -571,7 +585,7 @@ func _unhandled_input(event: InputEvent) -> void:
 ## App shortcuts live here (not _handle_key) so undo/redo/save fire even when a
 ## toolbar button or the docked 3D view currently holds keyboard focus.
 func _shortcut_input(event: InputEvent) -> void:
-	if _busy or not (event is InputEventKey) or not event.pressed or event.echo or not event.ctrl_pressed:
+	if _busy or _testing or not (event is InputEventKey) or not event.pressed or event.echo or not event.ctrl_pressed:
 		return
 	match event.keycode:
 		KEY_Z:
@@ -627,12 +641,15 @@ func _zoom_at(factor: float) -> void:
 
 
 func _process(_delta: float) -> void:
+	if _testing:
+		return   # playtesting: the embedded world drives itself; the editor does nothing
 	# 3D world canvas: WASD flies the aerial camera over the map.
 	if _v3d_on:
 		_v3d_wasd(_delta)
 		_update_minimap_marker()
 		_update_hover_gizmo()
 		_update_spawn_marker3d()
+		_update_test_spawn_marker3d()
 	elif _gizmo_root != null and is_instance_valid(_gizmo_root):
 		_gizmo_root.visible = false
 	# Pointer is "over UI" whenever any editor Control is under the cursor — used
@@ -1826,6 +1843,8 @@ func _build_ui() -> void:
 	_toolbar_button(tb, "⟳ New World (Full)", _confirm_generate)
 	_v3d_btn = _toolbar_button(tb, "🧊 3D View", _toggle_3d_view)
 	_v3d_btn.toggle_mode = true
+	_toolbar_button(tb, "📍 Set Test Spawn", _begin_pick_test_spawn)
+	_toolbar_button(tb, "▶ Test Level", _enter_test_mode)
 	_toolbar_button(tb, "🗑 Wipe Save", _confirm_wipe_save)
 	_status = Label.new()
 	_status.text = "Loaded %d chunks" % _chunks.size()
@@ -2038,6 +2057,136 @@ func _toggle_editor_menu() -> void:
 		_editor_menu.hide()
 	else:
 		_editor_menu.popup_centered()
+
+
+# ───────────────────────────── Test Level (play the world) ──────────────────
+# Spawn the player where the aerial camera is looking and hand the embedded world FULL gameplay: it
+# becomes the real game (sim-players, enemy AI, movement, HUD) running on the SAME world you're
+# editing — no second instance, no save changes. Esc or the Back button returns to the editor.
+
+func _enter_test_mode() -> void:
+	if _testing:
+		return
+	if not _v3d_on or _v3d_world == null:
+		_toggle_3d_view()        # ensure the embedded world exists + is shown
+	if _v3d_world == null:
+		return
+	_testing = true
+	_picking_test_spawn = false   # cancel any half-started spawn pick
+	if _editor_menu != null:
+		_editor_menu.hide()
+	# Sandbox: a fresh throwaway character each time (full HP + the starter kit), with no stale
+	# activity carried over from a previous test. The real save is never loaded (SaveManager.suppress)
+	# nor written (save_game() respects suppress), so this whole session is temporary — edit the world,
+	# test pathing, leave; nothing persists.
+	GameState.reset_state()
+	_v3d_world.call("halt_player")
+	# Spawn at the picked Test Spawn tile if set, else where the aerial camera is looking — both
+	# snapped to walkable ground.
+	var spawn_src: Vector2 = WG.tile_to_world(_test_spawn_tile.x, _test_spawn_tile.y) if _test_spawn_tile.x != -2147483648 else _v3d_focus_pos
+	var spawn: Vector2 = WorldGen.nearest_walkable_world(spawn_src)
+	if _test_spawn_marker3d != null and is_instance_valid(_test_spawn_marker3d):
+		_test_spawn_marker3d.visible = false
+	var pl: Node2D = _v3d_world.get("player")
+	if pl != null:
+		pl.position = spawn
+	var cm: Node = _v3d_world.get("chunk_manager")
+	if cm != null:
+		cm.call("update_center", spawn)
+	# Hand the world full gameplay + the follow camera + normal (uncapped) streaming.
+	_v3d_world.set("gameplay_active", true)
+	_v3d_world.set("editor_stream_cap", 0)
+	var rend: Node = _v3d_world.get("render_3d")
+	if rend != null:
+		rend.set("editor_cam_target", null)    # follow the player, not the pinned aerial focus
+		rend.set("editor_hide_player", false)
+		rend.set("editor_no_fog", false)
+		rend.set("editor_view_radius", 0)
+		rend.set("_cam_pitch", 0.413)          # drop the aerial satellite tilt back to the gameplay angle
+	# Restore the normal gameplay zoom (the 3D ortho mirrors the 2D camera) — the editor left it wide.
+	var cam2d: Node = _v3d_world.get("_camera")
+	if cam2d != null:
+		cam2d.set("zoom", Vector2(1.65, 1.65))
+	if _ehud != null:
+		_ehud.visible = true
+	# The embedded world now OWNS input (clicks → walk/attack); the editor stops intercepting.
+	if _v3d_vp != null:
+		_v3d_vp.handle_input_locally = true
+	if _gizmo_root != null and is_instance_valid(_gizmo_root):
+		_gizmo_root.visible = false
+	if _spawn_marker3d != null and is_instance_valid(_spawn_marker3d):
+		_spawn_marker3d.visible = false
+	# Fill the screen with the game view and hide the editor chrome (keep only the Back button).
+	_set_editor_chrome_visible(false)
+	_v3d_panel.position = Vector2.ZERO
+	_v3d_container.custom_minimum_size = get_viewport().get_visible_rect().size
+	_ensure_back_button()
+	_back_btn.visible = true
+	_back_btn.move_to_front()
+	_status.text = "Testing level — Esc to return to the editor"
+
+
+func _exit_test_mode() -> void:
+	if not _testing:
+		return
+	_testing = false
+	# Freeze the world again and return to the pinned aerial editor camera.
+	_v3d_world.set("gameplay_active", false)
+	_v3d_world.set("editor_stream_cap", _V3D_VIEW_CAP)
+	var rend: Node = _v3d_world.get("render_3d")
+	if rend != null:
+		rend.set("editor_hide_player", true)
+		rend.set("editor_no_fog", true)
+		rend.set("editor_view_radius", _V3D_VIEW_CAP)
+		rend.set("editor_cam_target", _v3d_focus_pos)
+	if _ehud != null:
+		_ehud.visible = false
+	if _v3d_vp != null:
+		_v3d_vp.handle_input_locally = false
+	if _back_btn != null:
+		_back_btn.visible = false
+	_set_editor_chrome_visible(true)
+	_apply_v3d_layout()      # restore the editor's docked/maximized 3D layout + re-pin the camera
+
+
+## Hide every editor HUD panel (keeping the 3D world view + the Back button) so Test Level fills the
+## screen like the real game; on return, restore exactly what was visible before.
+func _set_editor_chrome_visible(vis: bool) -> void:
+	if vis:
+		for c: Node in _chrome_prev_vis:
+			if is_instance_valid(c):
+				(c as CanvasItem).visible = _chrome_prev_vis[c]
+		_chrome_prev_vis.clear()
+		return
+	_chrome_prev_vis.clear()
+	for c: Node in _hud.get_children():
+		if c == _v3d_panel or c == _back_btn or c == _editor_menu:
+			continue
+		if c is CanvasItem:
+			_chrome_prev_vis[c] = (c as CanvasItem).visible
+			(c as CanvasItem).visible = false
+
+
+func _ensure_back_button() -> void:
+	if _back_btn != null:
+		return
+	_back_btn = Button.new()
+	_back_btn.text = "◀ Back to Editor (Esc)"
+	_back_btn.top_level = true
+	_back_btn.position = Vector2(12, 10)
+	_back_btn.add_theme_font_size_override("font_size", 16)
+	_back_btn.add_theme_stylebox_override("normal", _panel(Color(0.13, 0.13, 0.16)))
+	_back_btn.pressed.connect(_exit_test_mode)
+	_track_ui_hover(_back_btn)
+	_hud.add_child(_back_btn)
+
+
+## Arm the Test Spawn picker: the next left-click in the 3D view sets where Test Level drops the player.
+func _begin_pick_test_spawn() -> void:
+	if not _v3d_on:
+		_toggle_3d_view()
+	_picking_test_spawn = true
+	_status.text = "Click in the 3D view to set the Test Level spawn point."
 
 
 func _show_shortcuts() -> void:
@@ -2343,17 +2492,23 @@ func _spawn_embedded_world() -> void:
 	_v3d_vp.handle_input_locally = false   # editor owns input; this is a viewer
 	_v3d_container.add_child(_v3d_vp)
 	_v3d_world = _GAME_SCENE.instantiate()
+	# DECOUPLE: the editor's embedded world is a VIEW-ONLY instance — it streams + renders the real
+	# world (so you see the 3D result of your edits) but runs NONE of the gameplay simulation (no
+	# sim-players, no enemy AI, no collision). "Test Level" flips gameplay_active true to play it.
+	_v3d_world.set("gameplay_active", false)
+	_v3d_world.set("sims_enabled", false)   # the editor never wants the sim-player crowd, not even in Test Level
 	_v3d_vp.add_child(_v3d_world)
-	# Hide the embedded game's own HUD — we only want the 3D world image.
-	var ehud: Node = _v3d_world.get_node_or_null("HUD")
-	if ehud != null:
-		(ehud as CanvasLayer).visible = false
+	# Hide the embedded game's own HUD — we only want the 3D world image (it returns in Test Level).
+	_ehud = _v3d_world.get_node_or_null("HUD") as CanvasLayer
+	if _ehud != null:
+		_ehud.visible = false
 	# World-building canvas: no player avatar, just the rendered world.
 	var rend: Node = _v3d_world.get("render_3d")
 	if rend != null:
 		rend.set("editor_hide_player", true)
 		rend.set("editor_no_fog", true)                 # no distance fog in the editor
 		rend.set("editor_view_radius", _V3D_VIEW_CAP)   # footprint/visual ceiling; the actual view auto-fills under it
+		rend.set("editor_plain_player", true)           # Test Level character wears plain clothes, not showcase armour
 	# Terrain auto-follows the zoom (world.gd loads min(zoom-radius, ceiling)) — no manual view-distance
 	# control; the ceiling just bounds an extreme zoom-out so it can't try to mesh the whole continent.
 	_v3d_world.set("editor_stream_cap", _V3D_VIEW_CAP)
@@ -2722,6 +2877,68 @@ func _ensure_spawn_marker3d(rend: Node) -> void:
 	_spawn_marker3d.add_child(head)
 
 
+## Orange beacon at the picked Test Level spawn (mirrors the green game-spawn beacon, distinct colour).
+func _update_test_spawn_marker3d() -> void:
+	var unset := _test_spawn_tile.x == -2147483648
+	if not _v3d_on or _v3d_world == null or unset:
+		if _test_spawn_marker3d != null and is_instance_valid(_test_spawn_marker3d):
+			_test_spawn_marker3d.visible = false
+		return
+	var rend: Node = _v3d_world.get("render_3d")
+	if rend == null or not rend.has_method("iso_to_3d"):
+		return
+	_ensure_test_marker3d(rend)
+	if _test_spawn_marker3d == null:
+		return
+	_test_spawn_marker3d.visible = true
+	var iso := WG.tile_to_world(_test_spawn_tile.x, _test_spawn_tile.y)
+	var h: float = rend.call("height_at", iso)
+	var center: Vector3 = rend.call("iso_to_3d", iso, h)
+	var edge: Vector3 = rend.call("iso_to_3d", iso + Vector2(WG.TILE, 0.0), h)
+	var s := maxf(0.4, center.distance_to(edge))
+	_test_spawn_marker3d.scale = Vector3(s, s, s)
+	_test_spawn_marker3d.global_position = center
+
+
+func _ensure_test_marker3d(rend: Node) -> void:
+	if _test_spawn_marker3d != null and is_instance_valid(_test_spawn_marker3d):
+		return
+	var root: Node = rend.get("terrain_root")
+	if root == null:
+		return
+	_test_spawn_marker3d = Node3D.new()
+	_test_spawn_marker3d.top_level = true
+	root.add_child(_test_spawn_marker3d)
+	var ring := MeshInstance3D.new()
+	var rc := CylinderMesh.new()
+	rc.top_radius = 1.05
+	rc.bottom_radius = 1.05
+	rc.height = 0.05
+	rc.radial_segments = 40
+	ring.mesh = rc
+	ring.material_override = _gizmo_mat(TEST_SPAWN_MARK * Color(1, 1, 1, 0.35))
+	_test_spawn_marker3d.add_child(ring)
+	var pole := MeshInstance3D.new()
+	var pc := CylinderMesh.new()
+	pc.top_radius = 0.08
+	pc.bottom_radius = 0.08
+	pc.height = 2.6
+	pole.mesh = pc
+	pole.position = Vector3(0.0, 1.3, 0.0)
+	pole.material_override = _gizmo_mat(TEST_SPAWN_MARK * Color(1, 1, 1, 0.7))
+	_test_spawn_marker3d.add_child(pole)
+	var head := MeshInstance3D.new()
+	var hc := SphereMesh.new()
+	hc.radius = 0.42
+	hc.height = 0.9
+	hc.radial_segments = 6
+	hc.rings = 3
+	head.mesh = hc
+	head.position = Vector3(0.0, 2.7, 0.0)
+	head.material_override = _gizmo_mat(TEST_SPAWN_MARK)
+	_test_spawn_marker3d.add_child(head)
+
+
 ## Reposition + show/hide the 3D spawn beacon. Cheap enough to run every frame in 3D; also
 ## called right after _set_spawn so the marker snaps to a freshly-placed spawn immediately.
 func _update_spawn_marker3d() -> void:
@@ -2801,7 +3018,18 @@ func _apply_v3d_satellite_camera() -> void:
 ##   right-drag  -> pan the aerial camera across the map
 ##   wheel       -> zoom the aerial view in/out
 func _on_v3d_gui_input(event: InputEvent) -> void:
+	if _testing:
+		return   # don't accept_event() — let clicks fall through to the embedded (playing) world
 	if not _v3d_on or _busy:
+		return
+	# Set Test Spawn: the next left-click in the 3D view picks the Test Level spawn tile.
+	if _picking_test_spawn and event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		var st := _v3d_tile_under_mouse()
+		if st.x != -2147483648 and _in_bounds_tile(st):
+			_test_spawn_tile = st
+			_status.text = "Test Level spawn set to (%d, %d)." % [st.x, st.y]
+		_picking_test_spawn = false
+		_v3d_container.accept_event()
 		return
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:

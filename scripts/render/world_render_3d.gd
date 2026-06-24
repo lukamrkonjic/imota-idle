@@ -75,6 +75,13 @@ var editor_hide_player := false:
 		if mover_renderer != null:
 			mover_renderer.set_editor_hide_player(value)
 
+var editor_plain_player := false:
+	get:
+		return mover_renderer.editor_plain_player if mover_renderer != null else false
+	set(value):
+		if mover_renderer != null:
+			mover_renderer.set_editor_plain_player(value)
+
 var editor_no_fog := false:
 	get:
 		return atmosphere.editor_no_fog if atmosphere != null else false

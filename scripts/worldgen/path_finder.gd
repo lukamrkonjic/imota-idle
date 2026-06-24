@@ -22,6 +22,7 @@ var locked_chunks: Dictionary = {}  # "cx:cy" -> level requirement
 
 var _ids: Dictionary = {}   # Vector2i tile -> AStar point id
 var _elev: Dictionary = {}  # Vector2i tile -> elevation step
+var _bridge: Dictionary = {}  # Vector2i tile -> true for forced-walkable bridge-deck tiles
 var _next_id := 0
 
 
@@ -29,10 +30,15 @@ var _next_id := 0
 ## blocked: optional set of global tile coords (Vector2i -> true) to treat as impassable on top of
 ## the terrain rules — fed by the world from solid entities (trees, rocks, props) so paths route
 ## AROUND them instead of straight through. Movers keep a node-free tile from ever being walked onto.
-func rebuild(chunks: Array, reg: RefCounted, entry_level: int, blocked: Dictionary = {}) -> void:
+## bridges: optional set of global tile coords (Vector2i -> elevation step) for bridge-DECK tiles.
+## A built bridge is a floating deck over water (which carries no node), so its tiles are added here
+## as forced-walkable and linked as a CONTINUOUS surface (diagonal steps allowed without the cliff-
+## corner rule) — otherwise a diagonal plank ribbon over water would be impassable.
+func rebuild(chunks: Array, reg: RefCounted, entry_level: int, blocked: Dictionary = {}, bridges: Dictionary = {}) -> void:
 	astar.clear()
 	_ids.clear()
 	_elev.clear()
+	_bridge.clear()
 	locked_chunks.clear()
 	_next_id = 0
 	if chunks.is_empty():
@@ -73,16 +79,35 @@ func rebuild(chunks: Array, reg: RefCounted, entry_level: int, blocked: Dictiona
 				astar.add_point(_next_id, Vector2(gt))
 				_next_id += 1
 
+	# 1b) Forced bridge-deck nodes. A built bridge floats over water (no node from the pass above),
+	#     so add a node at the deck's elevation for each deck tile in range — keeping it out of any
+	#     blocked set. Remembered in _bridge so the link pass treats the deck as a continuous walkway.
+	for gt: Vector2i in bridges:
+		if _ids.has(gt) or blocked.has(gt) or not region.has_point(gt):
+			continue
+		_ids[gt] = _next_id
+		_elev[gt] = int(bridges[gt])
+		_bridge[gt] = true
+		astar.add_point(_next_id, Vector2(gt))
+		_next_id += 1
+
 	# 2) Link neighbours only where the elevation step is climbable. Diagonals also
-	#    require both orthogonal corners open and climbable (no cutting cliff corners).
+	#    require both orthogonal corners open and climbable (no cutting cliff corners) — EXCEPT on a
+	#    bridge deck, which is a solid continuous surface, so a diagonal plank-to-plank (or plank-to-
+	#    bank) step is allowed without the corner rule.
 	for gt: Vector2i in _ids:
 		var id: int = _ids[gt]
 		var e: int = _elev[gt]
+		var on_bridge: bool = _bridge.has(gt)
 		for off: Vector2i in ORTHO:
 			_try_link(id, e, gt + off)
 		for d: Vector2i in DIAG:
 			var n := gt + d
 			if not _ids.has(n) or absi(_elev[n] - e) > WG.MAX_CLIMB_STEP:
+				continue
+			if on_bridge or _bridge.has(n):
+				if not astar.are_points_connected(id, _ids[n]):
+					astar.connect_points(id, _ids[n])
 				continue
 			var a := gt + Vector2i(d.x, 0)
 			var b := gt + Vector2i(0, d.y)

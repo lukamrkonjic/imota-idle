@@ -30,6 +30,9 @@ var _iso_to_3d: Callable     # iso_to_3d(iso: Vector2, y: float) -> Vector3
 var _sun: DirectionalLight3D
 
 var editor_hide_player := false
+# World editor: render the player in PLAIN clothes (the bare adventurer body) instead of the default
+# showcase armour, so the Test Level character reads as a neutral test dummy, not a geared save.
+var editor_plain_player := false
 
 var _player_node: Node3D
 var _chopping := false                # player is mid-woodcutting (drives the chop swing + axe-in-hand)
@@ -68,6 +71,11 @@ func set_editor_hide_player(v: bool) -> void:
 	editor_hide_player = v
 
 
+func set_editor_plain_player(v: bool) -> void:
+	editor_plain_player = v
+	_apply_player_equipment()   # re-dress the player (no-op if the rig isn't built yet)
+
+
 ## Movers (player + enemies) stay individual nodes — few of them, and they move.
 func update(delta: float) -> void:
 	var dt := delta
@@ -84,6 +92,12 @@ func update(delta: float) -> void:
 			_prep_mover(_player_node, "player")
 			_apply_player_equipment()
 			EventBus.equipment_changed.connect(_apply_player_equipment)
+		# Re-show the player (and its shadow) every frame we're not hiding — otherwise a body hidden
+		# once by editor_hide_player (e.g. leaving the editor's Test Level) stays invisible on return.
+		_player_node.visible = true
+		var psh: Node3D = _shadow_nodes.get("player")
+		if psh != null:
+			psh.visible = true
 		_refresh_chop_weapon()
 		_animate_mover(_player_node, "player", world.player.position, t, dt)
 	var live := {}
@@ -137,7 +151,9 @@ func _prep_mover(node: Node3D, key: String) -> void:
 func _apply_player_equipment(_a := "", _b := "") -> void:
 	if _player_node == null:
 		return
-	var loadout := EquipLoadout.for_player(GameState.equipment)
+	# Editor Test Level: an empty loadout strips all gear so the rig shows its built-in normal clothes
+	# (linen shirt + breeches), independent of GameState / the showcase default.
+	var loadout := {} if editor_plain_player else EquipLoadout.for_player(GameState.equipment)
 	MoverMeshes.apply_equipment(_player_node, loadout)
 	# Grip a planted staff when one is wielded (else stand normally).
 	var mainhand: Dictionary = loadout.get("mainhand", {})

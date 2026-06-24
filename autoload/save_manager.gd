@@ -35,6 +35,12 @@ func _notification(what: int) -> void:
 
 
 func save_game() -> void:
+	# `suppress` is the authoritative no-persistence gate (headless tests + the world editor's
+	# Test Level sandbox set it). Guard HERE, not just at the autosave/quit call sites, so NO caller
+	# — including the HUD's manual "Save Game" button shown while playtesting — can ever overwrite the
+	# real user://save.json or the baked world. Test Level stays fully temporary.
+	if suppress:
+		return
 	var data := GameState.to_save_dict()
 	data["schemaVersion"] = SaveMigration.CURRENT_SCHEMA
 	data["gameVersion"] = SaveMigration.CURRENT_GAME_VERSION

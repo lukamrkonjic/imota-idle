@@ -59,7 +59,7 @@ const SOLID_BLOCKER_KINDS := {
 
 func rebuild() -> void:
 	_needs_rebuild = false
-	path_finder.rebuild(world.chunk_manager.call("loaded_chunks"), WorldGen.reg, UNRESTRICTED_ENTRY_LEVEL, _solid_blockers())
+	path_finder.rebuild(world.chunk_manager.call("loaded_chunks"), WorldGen.reg, UNRESTRICTED_ENTRY_LEVEL, _solid_blockers(), _bridge_tiles())
 
 
 ## Global tile coords occupied by solid props, so the nav graph drops those tiles. A felled tree is
@@ -72,6 +72,17 @@ func _solid_blockers() -> Dictionary:
 		if str(e.kind) == "tree" and e.has_meta("felled"):
 			continue
 		out[WG.world_to_tile(e.position)] = true
+	return out
+
+
+## Bridge-deck tiles (Vector2i -> elevation step) so the nav graph makes a built bridge walkable
+## across the water it spans. Only the deck ("bridge") counts — support poles aren't walkable.
+func _bridge_tiles() -> Dictionary:
+	var out: Dictionary = {}
+	for e: Node2D in world.entities:
+		if not is_instance_valid(e) or str(e.kind) != "bridge":
+			continue
+		out[WG.world_to_tile(e.position)] = WorldGen.elevation_at(e.position)
 	return out
 
 

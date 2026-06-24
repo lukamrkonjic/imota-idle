@@ -26,6 +26,16 @@ const BakeQueue := preload("res://scripts/world/bake_queue.gd")
 # WorldRender3D is a global class_name (scripts/render/world_render_3d.gd) — no preload needed.
 
 # --- public state (tests, HUD) ---
+# The single switch that decouples the live game from the world editor. When false, this World
+# instance still STREAMS and RENDERS the world (so the editor sees the real 3D result of its edits)
+# but runs NONE of the gameplay simulation — no player pathing, no enemy AI, no sim-players, no
+# creature collision. The editor embeds this scene with gameplay_active = false; "Test Level" flips
+# it true. One gate here means zero `if editor` checks scattered through the gameplay systems.
+var gameplay_active := true
+# Sim-players are a populated-MMO flourish for the real game; the world editor's Test Level turns
+# them OFF (it's for testing the LEVEL — pathing/terrain — not the crowd). Independent of
+# gameplay_active so the rest of the game still runs in a test.
+var sims_enabled := true
 var entities: Array = []
 var player: Node2D
 var hud: CanvasLayer
@@ -232,21 +242,29 @@ func _connect_events() -> void:
 
 func _process(delta: float) -> void:
 	var t0 := Time.get_ticks_usec()
-	GameState.player_pos = player.position   # kept current so saves capture where you are
+	if gameplay_active:
+		GameState.player_pos = player.position   # kept current so saves capture where you are
 	chunk_manager.update_center(player.position)
 	var t1 := Time.get_ticks_usec()
 	_update_stream_radius()
 	var t2 := Time.get_ticks_usec()
-	_path_ctrl.process_tick()
+	# Gameplay simulation — gated so the editor's view-only instance never runs the game (see
+	# gameplay_active). Streaming + the visual pass below always run so the world still looks right.
+	if gameplay_active:
+		_path_ctrl.process_tick()
 	var t3 := Time.get_ticks_usec()
 	_visual_ctrl.process_tick(delta)
 	var t4 := Time.get_ticks_usec()
-	_input_ctrl.update_hover()
-	var t5 := Time.get_ticks_usec()
-	_activity_ctrl.process_tick(delta)
-	var t6 := Time.get_ticks_usec()
-	_sim_director.process_tick(delta)
-	_collision_ctrl.process_tick(delta)
+	var t5 := t4
+	var t6 := t4
+	if gameplay_active:
+		_input_ctrl.update_hover()
+		t5 = Time.get_ticks_usec()
+		_activity_ctrl.process_tick(delta)
+		t6 = Time.get_ticks_usec()
+		if sims_enabled:
+			_sim_director.process_tick(delta)
+		_collision_ctrl.process_tick(delta)
 	var t7 := Time.get_ticks_usec()
 	if _perf_logger != null:
 		_perf_logger.record(delta, {
