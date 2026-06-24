@@ -33,6 +33,8 @@ var path_i := 0
 var gather_skill := ""                # which skill it's pretending to train while GATHER
 var target: Node2D = null             # gather node / follow buddy
 var fake_xp := 0.0                    # theatrical XP toward the current gather skill's next "level"
+var commanded := false                # player right-clicked Follow — track the player (RS-style) until told to stop
+var follow_repath_t := 0.0            # cooldown between repaths toward the moving player while following
 
 # Dialogue pacing (so chatter is contextual, not constant).
 var chat_cd := 0.0                    # seconds until this sim may speak again

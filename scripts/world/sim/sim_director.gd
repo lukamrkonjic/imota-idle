@@ -91,6 +91,10 @@ func _step(sim: SimPlayer, delta: float) -> void:
 	var e: Node2D = sim.entity
 	if not is_instance_valid(e):
 		return
+	# A right-click "Follow" overrides the brain: shadow the player at their own pace until told to stop.
+	if sim.commanded:
+		_step_commanded_follow(sim, delta)
+		return
 	match sim.state:
 		SimPlayer.WALK:
 			if _advance_path(sim, delta):
@@ -116,20 +120,47 @@ func _step(sim: SimPlayer, delta: float) -> void:
 
 
 ## Move the entity toward its current waypoint; returns true when the whole path is consumed.
-func _advance_path(sim: SimPlayer, delta: float) -> bool:
+## speed < 0 uses the sim's own walk pace; a follower passes the player's current pace to keep up.
+func _advance_path(sim: SimPlayer, delta: float, speed := -1.0) -> bool:
 	var e: Node2D = sim.entity
 	if sim.path_i >= sim.path.size():
 		return true
 	var dest: Vector2 = sim.path[sim.path_i]
 	var to := dest - e.position
 	var d := to.length()
-	var step := sim.walk_speed * delta
+	var step := (sim.walk_speed if speed < 0.0 else speed) * delta
 	if d <= maxf(step, 2.5):
 		e.position = dest
 		sim.path_i += 1
 		return sim.path_i >= sim.path.size()
 	e.position += to / d * step
 	return false
+
+
+## RuneScape-style Follow: keep pace a tile behind the player, repathing as they move, matching their
+## walk/run speed (sprint when they sprint). Separation keeps the follower from standing on the player.
+const FOLLOW_GAP := WG.TILE * 1.15
+const FOLLOW_LEASH := WG.TILE * 24.0   # give up if somehow dragged this far from the player
+
+func _step_commanded_follow(sim: SimPlayer, delta: float) -> void:
+	if not is_instance_valid(world.player):
+		_clear_follow(sim)
+		return
+	sim.state = SimPlayer.FOLLOW
+	var pp: Vector2 = world.player.position
+	var dist: float = sim.entity.position.distance_to(pp)
+	if dist > FOLLOW_LEASH:
+		_clear_follow(sim)
+		return
+	sim.follow_repath_t -= delta
+	if dist > FOLLOW_GAP and (sim.follow_repath_t <= 0.0 or sim.path_i >= sim.path.size()) and _thinks_left > 0:
+		_thinks_left -= 1
+		sim.follow_repath_t = 0.3
+		lay_path(sim, pp)
+	if dist > FOLLOW_GAP:
+		# Match the player's pace, with a small catch-up boost when lagging so they don't trail off.
+		var spd: float = float(world.player.move_speed()) * (1.18 if dist > WG.TILE * 3.0 else 1.0)
+		_advance_path(sim, delta, spd)
 
 
 # ----------------------------------------------------------------- spawn / cull ----
@@ -142,6 +173,8 @@ func _rescan() -> void:
 		if not is_instance_valid(sim.entity):
 			_remove(key)
 			continue
+		if sim.commanded:
+			continue   # a follower travels with the player — don't cull it by its (now-distant) home chunk
 		var hc := WG.world_to_chunk(sim.home)
 		if maxi(absi(hc.x - center.x), absi(hc.y - center.y)) > DESPAWN_RADIUS_CHUNKS:
 			_remove(key)
@@ -185,8 +218,8 @@ func _spawn(cx: int, cy: int, slot: int) -> void:
 	e.label = sim.pname
 	e.sub_label = "Lvl %d" % sim.combat_level
 	e.display_size = 40.0
-	e.click_radius = 0.0          # ambient: not a hover/click target
-	e.action = {}                 # empty -> ignored by aggro / targeting / interaction
+	e.click_radius = 30.0         # picked by the RIGHT-click Follow menu; left-click still ignores it
+	e.action = {}                 # empty -> ignored by aggro / targeting / left-click interaction
 	e.position = home
 	e.set_meta("sim_skin", sim.skin)
 	e.set_meta("sim_loadout", sim.loadout)
@@ -319,6 +352,61 @@ func set_gather_pose(sim: SimPlayer, on: bool) -> void:
 
 func sims() -> Array:
 	return _sims.values()
+
+
+# ----------------------------------------------------------------- follow command (right-click) ----
+
+func sim_for_entity(e: Node2D) -> SimPlayer:
+	return _by_id.get(e.get_instance_id())
+
+
+func is_following(e: Node2D) -> bool:
+	var sim := sim_for_entity(e)
+	return sim != null and sim.commanded
+
+
+## Right-click "Follow": the sim shadows the player (RuneScape-style) until told to stop.
+func command_follow(e: Node2D) -> void:
+	var sim := sim_for_entity(e)
+	if sim == null:
+		return
+	sim.commanded = true
+	sim.state = SimPlayer.FOLLOW
+	sim.follow_repath_t = 0.0
+	sim.path = PackedVector2Array()
+	sim.path_i = 0
+	set_gather_pose(sim, false)
+	var dia := SimIdentity.dialogue()
+	_say_raw(sim, _pick(dia.get("group", ["Lead the way!"]), sim).replace("@name", "traveller"), FEED_CHATTER)
+
+
+func stop_follow(e: Node2D) -> void:
+	var sim := sim_for_entity(e)
+	if sim != null:
+		_clear_follow(sim)
+		_say_raw(sim, "See you around!", false)
+
+
+func _clear_follow(sim: SimPlayer) -> void:
+	sim.commanded = false
+	sim.state = SimPlayer.IDLE
+	sim.state_t = 0.6
+	sim.path = PackedVector2Array()
+	sim.path_i = 0
+
+
+## Right-click "Examine": a flavour line about the sim (its name + what it's up to).
+func examine(e: Node2D) -> void:
+	var sim := sim_for_entity(e)
+	if sim == null:
+		return
+	var doing := "wandering the world"
+	match sim.state:
+		SimPlayer.GATHER:
+			doing = "training %s" % sim.gather_skill.capitalize()
+		SimPlayer.FOLLOW:
+			doing = "following you"
+	EventBus.combat_log.emit("[color=#7c89a8]%s — combat level %d, %s.[/color]" % [sim.pname, sim.combat_level, doing])
 
 
 ## Periodic social pass (every game tick): smalltalk, skill chatter, level-up flavour, and greeting

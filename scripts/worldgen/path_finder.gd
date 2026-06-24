@@ -26,7 +26,10 @@ var _next_id := 0
 
 
 ## chunks: Array of Chunk (one layer). entry_level: zone_map.player_entry_level().
-func rebuild(chunks: Array, reg: RefCounted, entry_level: int) -> void:
+## blocked: optional set of global tile coords (Vector2i -> true) to treat as impassable on top of
+## the terrain rules — fed by the world from solid entities (trees, rocks, props) so paths route
+## AROUND them instead of straight through. Movers keep a node-free tile from ever being walked onto.
+func rebuild(chunks: Array, reg: RefCounted, entry_level: int, blocked: Dictionary = {}) -> void:
 	astar.clear()
 	_ids.clear()
 	_elev.clear()
@@ -63,6 +66,8 @@ func rebuild(chunks: Array, reg: RefCounted, entry_level: int) -> void:
 				if e > WG.MAX_REACHABLE_ELEV:
 					continue
 				var gt := base + Vector2i(tx, ty)
+				if blocked.has(gt):
+					continue   # a solid entity (tree/rock/prop) sits here — no node, so paths route around
 				_ids[gt] = _next_id
 				_elev[gt] = e
 				astar.add_point(_next_id, Vector2(gt))

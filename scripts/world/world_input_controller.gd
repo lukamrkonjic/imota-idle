@@ -13,6 +13,10 @@ var world: Node2D
 ## True while the middle mouse button is held — drag then orbits the 3D camera.
 var _orbiting := false
 
+## Right-click context menu for sim-players (Follow / Examine). Built lazily on the HUD layer.
+var _ctx_menu: PopupMenu
+var _ctx_target: Node2D
+
 
 func setup(w: Node2D) -> void:
 	world = w
@@ -94,6 +98,13 @@ func handle_input(event: InputEvent) -> void:
 				# (mouse_world_pos), so walk straight there — no 2D elevation re-pick.
 				world.walk_to_pos(click_pos)
 			world.get_viewport().set_input_as_handled()
+		elif event.button_index == MOUSE_BUTTON_RIGHT:
+			if _over_ui():
+				return   # right-click is on the HUD, not the world
+			var rsim := _sim_at(world.mouse_world_pos())
+			if rsim != null:
+				_show_sim_menu(rsim)
+				world.get_viewport().set_input_as_handled()
 
 
 func update_hover() -> void:
@@ -196,3 +207,77 @@ static func hover_text(e: Node2D) -> String:
 func _set_zoom(z: float) -> void:
 	var c := clampf(z, ZOOM_MIN, ZOOM_MAX)
 	world._camera.zoom = Vector2(c, c)
+
+
+# ------------------------------------------------------------ sim-player right-click menu ----
+
+## Nearest sim-player under the cursor (sims carry an empty action so the normal entity pick skips
+## them — this dedicated pick powers the right-click Follow menu). Screen-space under the 3D camera.
+func _sim_at(cursor_iso: Vector2) -> Node2D:
+	if world.render_3d != null and world.render_3d.is_active():
+		var r3: Node = world.render_3d
+		var mouse: Vector2 = world.get_viewport().get_mouse_position()
+		var ppu: float = r3.world_px_per_unit()
+		var best: Node2D = null
+		var best_d := INF
+		for e: Node2D in world.entities:
+			if str(e.get("kind")) != "sim":
+				continue
+			if e.position.distance_squared_to(cursor_iso) > PREFILTER_ISO_SQ:
+				continue
+			var center: Vector2 = r3.iso_to_screen(e.position, 1.0)   # ~mid-body
+			var radius_px: float = maxf(18.0, float(e.get("click_radius")) * ISO_PX_TO_WORLD * ppu)
+			var d := center.distance_to(mouse)
+			if d < radius_px and d < best_d:
+				best_d = d
+				best = e
+		return best
+	# 2D fallback (headless / no 3D): iso-space proximity.
+	var best2: Node2D = null
+	var best2_d := INF
+	for e: Node2D in world.entities:
+		if str(e.get("kind")) != "sim":
+			continue
+		var c: Vector2 = e.position - Vector2(0, e.icon_height() * 0.5)
+		var d := c.distance_to(cursor_iso)
+		if d < maxf(float(e.get("click_radius")), 28.0) and d < best2_d:
+			best2_d = d
+			best2 = e
+	return best2
+
+
+func _ensure_ctx_menu() -> void:
+	if _ctx_menu != null:
+		return
+	_ctx_menu = PopupMenu.new()
+	world.hud.add_child(_ctx_menu)
+	_ctx_menu.id_pressed.connect(_on_ctx_id)
+
+
+func _show_sim_menu(e: Node2D) -> void:
+	_ensure_ctx_menu()
+	_ctx_target = e
+	_ctx_menu.clear()
+	var nm := str(e.get("label"))
+	if world._sim_director.is_following(e):
+		_ctx_menu.add_item("Stop following %s" % nm, 2)
+	else:
+		_ctx_menu.add_item("Follow %s" % nm, 1)
+	_ctx_menu.add_item("Examine %s" % nm, 3)
+	_ctx_menu.add_separator()
+	_ctx_menu.add_item("Cancel", 0)
+	_ctx_menu.reset_size()
+	_ctx_menu.position = Vector2i(world.get_viewport().get_mouse_position()) + Vector2i(4, 2)
+	_ctx_menu.popup()
+
+
+func _on_ctx_id(id: int) -> void:
+	if not is_instance_valid(_ctx_target):
+		return
+	match id:
+		1:
+			world._sim_director.command_follow(_ctx_target)
+		2:
+			world._sim_director.stop_follow(_ctx_target)
+		3:
+			world._sim_director.examine(_ctx_target)

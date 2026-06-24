@@ -46,9 +46,33 @@ func process_tick() -> void:
 const UNRESTRICTED_ENTRY_LEVEL := 0x7FFFFFFF
 
 
+# Solid world props whose tile blocks movement, so the player + sims path AROUND them instead of
+# walking through (trees, rocks, big ruins/landmarks). Gather nodes stay interactable — you stop a
+# tile short and chop/mine from beside them, exactly as before. Houses/buildings/mountains already
+# block via their multi-tile chunk footprints (is_blocked), so they're not repeated here.
+const SOLID_BLOCKER_KINDS := {
+	"tree": true, "landmark_tree": true, "rock": true,
+	"ruin_arch": true, "ruin_pillar": true, "broken_statue": true,
+	"fountain": true, "mammoth": true, "meteor": true,
+}
+
+
 func rebuild() -> void:
 	_needs_rebuild = false
-	path_finder.rebuild(world.chunk_manager.call("loaded_chunks"), WorldGen.reg, UNRESTRICTED_ENTRY_LEVEL)
+	path_finder.rebuild(world.chunk_manager.call("loaded_chunks"), WorldGen.reg, UNRESTRICTED_ENTRY_LEVEL, _solid_blockers())
+
+
+## Global tile coords occupied by solid props, so the nav graph drops those tiles. A felled tree is
+## a walkable stump, so it's excluded.
+func _solid_blockers() -> Dictionary:
+	var out: Dictionary = {}
+	for e: Node2D in world.entities:
+		if not is_instance_valid(e) or not SOLID_BLOCKER_KINDS.has(str(e.kind)):
+			continue
+		if str(e.kind) == "tree" and e.has_meta("felled"):
+			continue
+		out[WG.world_to_tile(e.position)] = true
+	return out
 
 
 func on_waypoint_reached() -> void:

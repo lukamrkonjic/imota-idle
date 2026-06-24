@@ -19,6 +19,16 @@ func _target_speed() -> float:
 		return RUN_SPEED
 	return WALK_SPEED
 
+
+## The player's current walk/run pace — read by sim-player followers so they sprint when you sprint
+## (RuneScape-style Follow).
+func move_speed() -> float:
+	return _target_speed()
+
+
+func is_running() -> bool:
+	return GameState.run_enabled and GameState.run_energy > 0.0
+
 var walk_target := Vector2.ZERO
 var walking := false
 var progress := -1.0

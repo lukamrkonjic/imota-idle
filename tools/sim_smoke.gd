@@ -8,6 +8,7 @@ extends Node
 const MoverMeshes := preload("res://scripts/render/mover_meshes.gd")
 const SimIdentity := preload("res://scripts/world/sim/sim_identity.gd")
 const SimPlayer := preload("res://scripts/world/sim/sim_player.gd")
+const WG := preload("res://scripts/worldgen/wg.gd")
 
 var _fails: Array = []
 
@@ -111,4 +112,77 @@ func _test_live_spawn() -> void:
 	elif not moved:
 		_fails.append("sims spawned (%d) but none moved" % n)
 	print("  live world: %d sims spawned, movement observed=%s" % [n, str(moved)])
+
+	await _test_tree_collision(world)
+	_test_separation(world, dir2)
+	await _test_follow(world, dir2)
 	world.queue_free()
+
+
+## Creature separation: two movers stacked on the same spot must be pushed apart (and off the player).
+func _test_separation(world: Node, dir: RefCounted) -> void:
+	var arr: Array = dir.sims()
+	if arr.size() < 2:
+		print("  separation: <2 sims (skipped)")
+		return
+	var a: Node2D = arr[0].entity
+	var b: Node2D = arr[1].entity
+	var p: Vector2 = world.player.position
+	a.position = p
+	b.position = p
+	for _i: int in 24:
+		world._collision_ctrl.process_tick(0.016)
+	var dab: float = a.position.distance_to(b.position)
+	var dap: float = a.position.distance_to(p)
+	if dab < 8.0 and dap < 8.0:
+		_fails.append("separation did not unstack movers (a-b=%.1f a-player=%.1f px)" % [dab, dap])
+	else:
+		print("  separation: stacked movers pushed apart (a-b=%.0f, a-player=%.0f px)" % [dab, dap])
+
+
+## Static collision mechanism: a blocked tile must drop out of the nav graph (so paths route around
+## it). Tested directly on the live path graph — block the player's own (definitely-walkable) tile
+## and confirm it disappears, which is exactly what _solid_blockers() does for every tree/rock tile.
+func _test_tree_collision(world: Node) -> void:
+	const PathFinder := preload("res://scripts/worldgen/path_finder.gd")
+	const BIG := 0x7FFFFFFF
+	var chunks: Array = world.chunk_manager.call("loaded_chunks")
+	if chunks.is_empty():
+		print("  collision: no loaded chunks (skipped)")
+		return
+	var sample := WG.world_to_tile(world.player.position)
+	var pf := PathFinder.new()
+	pf.rebuild(chunks, WorldGen.reg, BIG)
+	if not pf.has_reachable_tile(sample):
+		print("  collision: player tile has no node (skipped)")
+		return
+	pf.rebuild(chunks, WorldGen.reg, BIG, {sample: true})
+	if pf.has_reachable_tile(sample):
+		_fails.append("blocked tile is still in the nav graph (collision mechanism broken)")
+	else:
+		print("  collision: a blocked tile is correctly removed from the nav graph (paths route around)")
+
+
+## RuneScape Follow: a commanded sim closes the gap to a (re)positioned player and matches pace.
+func _test_follow(world: Node, dir: RefCounted) -> void:
+	var arr: Array = dir.sims()
+	if arr.is_empty():
+		return
+	var sim = arr[0]
+	var e: Node2D = sim.entity
+	dir.command_follow(e)
+	# Drop the player a few tiles away on walkable ground; the follower should path over and close in.
+	var away: Vector2 = WorldGen.nearest_walkable_world(e.position + Vector2(WG.TILE * 5.0, 0))
+	world.player.position = away
+	world._path_ctrl.mark_path_dirty()
+	world._path_ctrl.rebuild()
+	var d0: float = e.position.distance_to(world.player.position)
+	for _f: int in 200:
+		await get_tree().process_frame
+	var d1: float = e.position.distance_to(world.player.position)
+	if not sim.commanded:
+		_fails.append("follower dropped its Follow command unexpectedly")
+	elif d1 > maxf(d0 - WG.TILE * 1.5, WG.TILE * 2.0):
+		_fails.append("commanded follower did not close on the player (d0=%.0f d1=%.0f px)" % [d0, d1])
+	else:
+		print("  follow: commanded sim closed %.0f -> %.0f px on the player" % [d0, d1])

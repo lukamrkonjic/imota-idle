@@ -15,6 +15,7 @@ const WorldAutoTaskController := preload("res://scripts/world/world_auto_task_co
 const WorldLayerController := preload("res://scripts/world/world_layer_controller.gd")
 const WorldVisualController := preload("res://scripts/world/world_visual_controller.gd")
 const SimDirector := preload("res://scripts/world/sim/sim_director.gd")
+const WorldCollisionController := preload("res://scripts/world/world_collision_controller.gd")
 const WorldAmbience := preload("res://scripts/world/world_ambience.gd")
 const BiomeDebugOverlay := preload("res://scripts/world/biome_debug_overlay.gd")
 const ClickMarkerNode := preload("res://scripts/ui/click_marker_node.gd")
@@ -63,6 +64,7 @@ var _auto_task_ctrl: RefCounted
 var _layer_ctrl: RefCounted
 var _visual_ctrl: RefCounted
 var _sim_director: RefCounted
+var _collision_ctrl: RefCounted
 
 
 func _ready() -> void:
@@ -100,7 +102,8 @@ func _init_controllers() -> void:
 	_layer_ctrl = WorldLayerController.new()
 	_visual_ctrl = WorldVisualController.new()
 	_sim_director = SimDirector.new()
-	for ctrl: RefCounted in [_entity_spawner, _path_ctrl, _input_ctrl, _activity_ctrl, _auto_task_ctrl, _layer_ctrl, _visual_ctrl, _sim_director]:
+	_collision_ctrl = WorldCollisionController.new()
+	for ctrl: RefCounted in [_entity_spawner, _path_ctrl, _input_ctrl, _activity_ctrl, _auto_task_ctrl, _layer_ctrl, _visual_ctrl, _sim_director, _collision_ctrl]:
 		ctrl.setup(self)
 
 
@@ -212,6 +215,10 @@ func _connect_events() -> void:
 		_layer_ctrl.on_player_died())
 	EventBus.level_up.connect(func(_s: String, _l: int) -> void: _path_ctrl.on_level_up())
 	EventBus.site_respawned.connect(_auto_task_ctrl.on_site_respawned)
+	# Felling/regrowing a tree changes whether its tile blocks movement — refresh the nav graph so
+	# the cleared stump becomes walkable (and a regrown trunk blocks again).
+	EventBus.wc_tree_felled.connect(func(_e: Node, _s: String) -> void: _path_ctrl.mark_path_dirty())
+	EventBus.wc_tree_grew.connect(func(_e: Node, _s: String) -> void: _path_ctrl.mark_path_dirty())
 	EventBus.combat_hit_splat.connect(_spawn_hit_splat)
 	EventBus.combat_ranged_shot.connect(_spawn_arrow)
 	# UI → world intents (replaces UI calling world.call("...") directly).
@@ -239,6 +246,7 @@ func _process(delta: float) -> void:
 	_activity_ctrl.process_tick(delta)
 	var t6 := Time.get_ticks_usec()
 	_sim_director.process_tick(delta)
+	_collision_ctrl.process_tick(delta)
 	var t7 := Time.get_ticks_usec()
 	if _perf_logger != null:
 		_perf_logger.record(delta, {
