@@ -435,6 +435,10 @@ func _spawn_water_decor(chunk: RefCounted, container: Node2D) -> void:
 
 
 func _spawn_water_decor_tile(chunk: RefCounted, container: Node2D, seed: int, reg: RefCounted, tx: int, ty: int) -> void:
+	# Blank-canvas worlds carry no auto water decor (lilies/fish). The streamed spawn path calls this
+	# per-tile fn directly, so the guard must live here, not just in the _spawn_water_decor wrapper.
+	if reg.spec.is_blank():
+		return
 	var tid: int = chunk.tile_id(tx, ty)
 	if tid < 0 or tid >= reg.tile_order.size():
 		return
