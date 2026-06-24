@@ -1,0 +1,47 @@
+{
+ "_comment": "Appearance source for sim-players. Skin/hair are picked by hashed slot; the outfit TIER is chosen by the sim's level so a lvl-3 bot and a lvl-90 bot read differently at a glance. Each tier is a partial equipment loadout (PropMeshes.apply_equipment shape): {slot:{kind,material,tint?}}. Slots: head/body/legs/back/mainhand/offhand.",
+ "skins": ["#f1c9a5", "#e6b78c", "#d49a6a", "#b87c4c", "#9a5f34", "#7a4424", "#5d3320"],
+ "capeTints": ["#9e2620", "#264f9e", "#2b7d3a", "#6a2b8a", "#b5892a", "#2a7d7d", "#444a55"],
+ "robeTints": ["#5a3f7a", "#3a5a7a", "#2f6a4a", "#7a3a4a", "#444455"],
+ "tiers": [
+  {
+   "maxLevel": 8,
+   "outfits": [
+    { "body": {"kind": "jerkin", "material": "leather"} },
+    { "body": {"kind": "jerkin", "material": "leather"}, "head": {"kind": "hood", "material": "leather"} }
+   ]
+  },
+  {
+   "maxLevel": 25,
+   "outfits": [
+    { "body": {"kind": "chest", "material": "bronze"}, "mainhand": {"kind": "sword", "material": "bronze"} },
+    { "body": {"kind": "jerkin", "material": "leather"}, "mainhand": {"kind": "axe", "material": "bronze"} },
+    { "body": {"kind": "robe_top", "material": "cloth"}, "legs": {"kind": "robe_bottom", "material": "cloth"}, "head": {"kind": "wizard_hat", "material": "cloth"} }
+   ]
+  },
+  {
+   "maxLevel": 50,
+   "outfits": [
+    { "head": {"kind": "helm", "material": "iron"}, "body": {"kind": "chest", "material": "iron"}, "mainhand": {"kind": "sword", "material": "iron"}, "offhand": {"kind": "shield", "material": "iron"} },
+    { "body": {"kind": "chest", "material": "steel"}, "mainhand": {"kind": "mace", "material": "steel"}, "back": {"kind": "cape", "material": "cloth"} },
+    { "body": {"kind": "robe_top", "material": "cloth"}, "legs": {"kind": "robe_bottom", "material": "cloth"}, "mainhand": {"kind": "staff", "material": "wood"} }
+   ]
+  },
+  {
+   "maxLevel": 75,
+   "outfits": [
+    { "head": {"kind": "helm", "material": "mithril"}, "body": {"kind": "chest", "material": "mithril"}, "mainhand": {"kind": "sword", "material": "mithril"}, "offhand": {"kind": "shield", "material": "mithril"}, "back": {"kind": "cape", "material": "cloth"} },
+    { "head": {"kind": "helm", "material": "adamant"}, "body": {"kind": "chest", "material": "adamant"}, "mainhand": {"kind": "spear", "material": "adamant"} },
+    { "body": {"kind": "robe_top", "material": "cloth"}, "legs": {"kind": "robe_bottom", "material": "cloth"}, "head": {"kind": "wizard_hat", "material": "cloth"}, "mainhand": {"kind": "raven_staff", "material": "wood"} }
+   ]
+  },
+  {
+   "maxLevel": 999,
+   "outfits": [
+    { "head": {"kind": "helm", "material": "rune"}, "body": {"kind": "chest", "material": "rune"}, "mainhand": {"kind": "sword", "material": "rune"}, "offhand": {"kind": "shield", "material": "rune"}, "back": {"kind": "cape", "material": "gold"} },
+    { "head": {"kind": "helm", "material": "gold"}, "body": {"kind": "chest", "material": "gold"}, "mainhand": {"kind": "greatsword", "material": "rune"}, "back": {"kind": "cape", "material": "gold"} },
+    { "body": {"kind": "robe_top", "material": "cloth"}, "legs": {"kind": "robe_bottom", "material": "cloth"}, "head": {"kind": "wizard_hat", "material": "cloth"}, "mainhand": {"kind": "raven_staff", "material": "wood"}, "back": {"kind": "cape", "material": "gold"} }
+   ]
+  }
+ ]
+}

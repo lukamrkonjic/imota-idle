@@ -1,0 +1,20 @@
+{
+ "_comment": "Deterministic sim-player name pool. Identity picks a base name by hashed slot; a fraction get a numeric/clan suffix for that lived-in MMO roster feel. Never edited at runtime; safe to extend.",
+ "names": [
+  "Aldwin", "Bryn", "Cael", "Dara", "Edrin", "Fenwick", "Gwyn", "Hale",
+  "Isolde", "Jory", "Kerrin", "Lysa", "Maeve", "Nolan", "Orin", "Perrin",
+  "Quill", "Rowan", "Sable", "Thane", "Ulric", "Vesna", "Wren", "Xander",
+  "Yorick", "Zia", "Brannoc", "Corwin", "Delwyn", "Esmae", "Garrick",
+  "Halia", "Ivo", "Linnea", "Merrick", "Norah", "Osric", "Petra", "Riona",
+  "Selby", "Tamsin", "Berengar", "Cassia", "Doran", "Elspeth", "Faelan",
+  "Greer", "Hadwin", "Ingrid", "Joran", "Kestrel", "Lorcan", "Maddox",
+  "Niamh", "Oswin", "Pell", "Rhett", "Sorcha", "Torin", "Una", "Vaughn",
+  "Wynne", "Yara", "Zephyr"
+ ],
+ "leet": [
+  "Xx_Slayer_xX", "DragonW4rrior", "PkMaster99", "L33tMiner", "NoobSlayer",
+  "ChopChop", "AfkFisher", "GrindLord", "IronManIke", "Lumberjackk",
+  "OreHoarder", "Skiller4Life", "Maxed_Out", "RngJesus", "Quester88"
+ ],
+ "suffixes": ["", "", "", "", "", "II", "the Bold", "99", "XCII", "_", "x", "the Wanderer"]
+}

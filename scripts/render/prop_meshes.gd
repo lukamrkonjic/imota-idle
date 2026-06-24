@@ -127,7 +127,9 @@ static func entity_parts(e: Node) -> Array:
 
 
 static func is_moving(e: Node) -> bool:
-	return str(e.kind) == "enemy"
+	# Sim-players ride the same per-mover rig pipeline as enemies (built from the PLAYER rig with
+	# their own look) — see MoverRenderer3D.update / MoverMeshes.sim_rig.
+	return str(e.kind) == "enemy" or str(e.kind) == "sim"
 
 
 static func decor_parts(kind: String) -> Array:

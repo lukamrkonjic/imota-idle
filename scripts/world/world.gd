@@ -14,6 +14,7 @@ const WorldActivityController := preload("res://scripts/world/world_activity_con
 const WorldAutoTaskController := preload("res://scripts/world/world_auto_task_controller.gd")
 const WorldLayerController := preload("res://scripts/world/world_layer_controller.gd")
 const WorldVisualController := preload("res://scripts/world/world_visual_controller.gd")
+const SimDirector := preload("res://scripts/world/sim/sim_director.gd")
 const WorldAmbience := preload("res://scripts/world/world_ambience.gd")
 const BiomeDebugOverlay := preload("res://scripts/world/biome_debug_overlay.gd")
 const ClickMarkerNode := preload("res://scripts/ui/click_marker_node.gd")
@@ -61,6 +62,7 @@ var _activity_ctrl: RefCounted
 var _auto_task_ctrl: RefCounted
 var _layer_ctrl: RefCounted
 var _visual_ctrl: RefCounted
+var _sim_director: RefCounted
 
 
 func _ready() -> void:
@@ -97,7 +99,8 @@ func _init_controllers() -> void:
 	_auto_task_ctrl = WorldAutoTaskController.new()
 	_layer_ctrl = WorldLayerController.new()
 	_visual_ctrl = WorldVisualController.new()
-	for ctrl: RefCounted in [_entity_spawner, _path_ctrl, _input_ctrl, _activity_ctrl, _auto_task_ctrl, _layer_ctrl, _visual_ctrl]:
+	_sim_director = SimDirector.new()
+	for ctrl: RefCounted in [_entity_spawner, _path_ctrl, _input_ctrl, _activity_ctrl, _auto_task_ctrl, _layer_ctrl, _visual_ctrl, _sim_director]:
 		ctrl.setup(self)
 
 
@@ -235,10 +238,13 @@ func _process(delta: float) -> void:
 	var t5 := Time.get_ticks_usec()
 	_activity_ctrl.process_tick(delta)
 	var t6 := Time.get_ticks_usec()
+	_sim_director.process_tick(delta)
+	var t7 := Time.get_ticks_usec()
 	if _perf_logger != null:
 		_perf_logger.record(delta, {
 			"chunk": t1 - t0, "stream": t2 - t1, "path": t3 - t2,
 			"visual": t4 - t3, "hover": t5 - t4, "activity": t6 - t5,
+			"sims": t7 - t6,
 		})
 
 

@@ -94,11 +94,12 @@ func update(delta: float) -> void:
 		live[id] = true
 		var n: Node3D = _mover_nodes.get(id)
 		if n == null:
-			n = MoverMeshes.enemy_rig(e)
+			n = _build_mover_rig(e)
 			_prep_mover(n, str(id))
 			_mover_nodes[id] = n
-		# A defeated enemy (dimmed) plays its death topple instead of the normal gait.
-		_animate_mover(n, str(id), e.position, t, dt, bool(e.get("dimmed")))
+		# A defeated enemy (dimmed) plays its death topple instead of the normal gait. A sim-player
+		# flagged mid-skill by its director plays the "working" swing while it stands at the node.
+		_animate_mover(n, str(id), e.position, t, dt, bool(e.get("dimmed")), bool(e.get_meta("sim_gathering", false)))
 	for id: int in _mover_nodes.keys():
 		if not live.has(id):
 			var n: Node = _mover_nodes[id]
@@ -108,6 +109,14 @@ func update(delta: float) -> void:
 			_mover_prev.erase(id); _mover_yaw.erase(id); _mover_yaw_vel.erase(id); _mover_walk.erase(id)
 			_mover_death.erase(str(id)); _hurt_t.erase(str(id))
 			_free_shadow(str(id))
+
+
+## Build the right rig for a mover entity: sim-players get the PLAYER body wearing their own
+## deterministic look (so they read as other players); everything else is an enemy archetype rig.
+func _build_mover_rig(e: Node) -> Node3D:
+	if str(e.kind) == "sim":
+		return MoverMeshes.sim_rig(e.get_meta("sim_skin", PixelPalette.pal("skin_a")), e.get_meta("sim_loadout", {}))
+	return MoverMeshes.enemy_rig(e)
 
 
 ## Add a mover rig to the scene, drop a blob shadow under it, and turn off its
@@ -187,7 +196,7 @@ func _free_shadow(key: String) -> void:
 
 ## A Short Hike-style walk feel: gentle bob + squash-stretch while moving, body turns to face
 ## travel. The pose itself is per body template (humanoid stride, quadruped trot, bird waddle).
-func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: float, dying := false) -> void:
+func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: float, dying := false, gathering := false) -> void:
 	var pos3: Vector3 = _iso_to_3d.call(pos2d, _height.call(pos2d))
 	var btype0 := str(node.get_meta("body3d", "humanoid"))
 	# A defeated enemy topples and settles where it fell (its own death per body type),
@@ -250,9 +259,9 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 	# recovery), driven separately from the combat lunge so the feet stay planted while the player
 	# hacks at the tree.
 	var chop := 0.0
-	if key == "player" and _chopping:
+	if (key == "player" and _chopping) or gathering:
 		chop = fmod(t * CHOP_RATE, 1.0)
-		atk = 0.0   # no combat step-in; the chop pose moves the body
+		atk = 0.0   # no combat step-in; the chop/work pose moves the body
 	var btype := str(node.get_meta("body3d", "humanoid"))
 	match btype:
 		"bird":

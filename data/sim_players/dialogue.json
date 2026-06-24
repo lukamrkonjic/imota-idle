@@ -1,0 +1,89 @@
+{
+ "_comment": "Sim-player chatter. Templates: @name (the other party — a nearby sim, or the player rendered as @you), @skill, @level. Lines surface as speech bubbles above the rig and (optionally) in the chat feed.",
+ "greetings": [
+  "Hey @name!",
+  "Well met, traveller.",
+  "Hi there :)",
+  "Good to see you, @name.",
+  "Watch yourself out here.",
+  "Howdy.",
+  "Oh hey, didn't see you.",
+  "Safe travels!"
+ ],
+ "player_greetings": [
+  "Hey there, new face!",
+  "Welcome to the wilds.",
+  "Need a hand with anything?",
+  "You look lost, friend.",
+  "Careful out here, adventurer.",
+  "Nice cape.",
+  "Hello! Lovely day for it."
+ ],
+ "smalltalk": [
+  "Lovely weather today.",
+  "Anyone selling logs?",
+  "Big grind ahead.",
+  "I should bank soon...",
+  "So close to my next level.",
+  "Wish I'd brought more food.",
+  "This spot's always busy.",
+  "brb, afk",
+  "Anyone seen the boss spawn?",
+  "Gonna be a long day.",
+  "My inventory's nearly full.",
+  "Buying yew logs, paying well!"
+ ],
+ "skill": {
+  "woodcutting": [
+   "These logs add up.",
+   "Need more yews...",
+   "Chop chop.",
+   "My axe is getting dull.",
+   "Best tree spot around here."
+  ],
+  "mining": [
+   "Rocks for days.",
+   "Powermining, don't mind me.",
+   "Found a nice ore vein.",
+   "My pickaxe has seen better days.",
+   "Just one more rock."
+  ],
+  "fishing": [
+   "Fishing is so relaxing.",
+   "Got any bait?",
+   "The fish are biting today.",
+   "Almost a full net.",
+   "Nothing beats a quiet shore."
+  ],
+  "generic": [
+   "Almost levelled!",
+   "Grindin' away.",
+   "This XP is slow today.",
+   "Worth it in the end.",
+   "Just a few more."
+  ]
+ },
+ "reactions": {
+  "levelup": [
+   "Ding! @skill level @level!",
+   "Finally, @level @skill!",
+   "Yes! @skill up to @level.",
+   "@level @skill, let's go!"
+  ],
+  "idle": [
+   "*stretches*",
+   "Phew.",
+   "Hm.",
+   "*checks map*",
+   "Right, where to next..."
+  ]
+ },
+ "group": [
+  "Wanna team up?",
+  "I'll follow you, @name.",
+  "Let's go together!",
+  "Stick close, @name.",
+  "Two's safer than one.",
+  "Lead the way!"
+ ]
+}

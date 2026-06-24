@@ -144,6 +144,16 @@ static func player_rig(skin_col: Color) -> Node3D:
 	return root
 
 
+## A sim-player rig: the same adventurer body the real player uses (so a sim reads as "another
+## player", not a monster), wearing its own deterministic look. body3d/base_scale default to the
+## humanoid/1.0 the pose code expects (no metas needed — MoverRenderer3D animates it like the player).
+static func sim_rig(skin: Color, loadout: Dictionary) -> Node3D:
+	var node := player_rig(skin)
+	if not loadout.is_empty():
+		apply_equipment(node, loadout)
+	return node
+
+
 ## A static attachment point (worn gear / held weapons) — a named empty the
 ## renderer parents equipment meshes under. See apply_equipment / equip_profile.
 static func _socket(parent: Node3D, sname: String, pos: Vector3, rot := Vector3.ZERO) -> Node3D:
