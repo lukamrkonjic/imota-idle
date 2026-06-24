@@ -1,14 +1,11 @@
 extends Node2D
 ## Clickable world entity: a Node2D that carries an entity's position, interaction
 ## data, and size — the LOGIC substrate. The visible body is a 3D mesh rig built by
-## the 3D renderer; this node is never drawn. These art modules are retained only to
-## MEASURE entity heights (icon_height) for click-picking, hover tooltips and 3D
-## HP-bar placement.
+## the 3D renderer; this node is never drawn. Height measurement (for click-picking,
+## hover tooltips and 3D HP-bar placement) lives in EntityDimensions, so this logic
+## node no longer imports any art module.
 ## Origin (0,0) is the object's foot on the ground.
 
-const IsoSprites := preload("res://scripts/world/art/iso_sprites.gd")
-const TreeArt := preload("res://scripts/world/art/trees/tree_art.gd")
-const EnemyArt := preload("res://scripts/world/art/characters/enemy_art.gd")
 const STATION_LABELS := {
 	"bank": "Bank chest",
 	"shop": "General store",
@@ -60,70 +57,7 @@ func set_hp_fraction(f: float) -> void:
 
 
 func icon_height() -> float:
-	match kind:
-		"tree":
-			return TreeArt.estimated_height(TreeArt.classify(label), display_size) + 10.0
-		"rock":
-			return display_size * 0.38
-		"bush":
-			return display_size * 0.34
-		"fish":
-			return display_size * 0.24
-		"enemy":
-			var sp := EnemyArt.shape_for_name(label if not label.is_empty() else str(action.get("name", "")))
-			var tall := sp in ["cow", "pig", "sheep", "wolf", "goat", "brainbasher", "goblin"]
-			return display_size * (1.35 if is_boss else (0.92 if tall else 0.8))
-		"tent":
-			return display_size * 0.95
-		"chest":
-			return display_size * 0.5
-		"campfire", "anvil", "sign":
-			return 26.0
-		"altar":
-			return 32.0
-		"obelisk":
-			return 60.0
-		"cave":
-			return 32.0
-		"burrow":
-			return 32.0
-		"ladder_up":
-			return 34.0
-		"ladder_down":
-			return 12.0
-		"stall":
-			return 28.0
-		"landmark_tree":
-			return TreeArt.estimated_height("magic", display_size) + 10.0
-		"meteor":
-			return 16.0
-		"mammoth":
-			return 40.0
-		"ruin_arch":
-			return 104.0
-		"ruin_pillar":
-			return 82.0
-		"broken_wall":
-			return 38.0
-		"rubble_pile":
-			return 22.0
-		"broken_statue":
-			return 70.0
-		"house":
-			return IsoSprites.house_height(variant)
-		"building":
-			return IsoSprites.building_height(display_size, variant)
-		"mountain":
-			return IsoSprites.mountain_height(display_size, variant)
-		"fountain":
-			return 40.0
-		"city_wall":
-			return 82.0
-		"bridge":
-			return 10.0
-		"city_prop":
-			return 30.0
-	return display_size * 0.5
+	return EntityDimensions.icon_height(self)
 
 
 ## The on-screen name, resolved to the renamed displayName for Bloobs content

@@ -1,5 +1,20 @@
 {
- "_doc": "Maps a world canopy species (prop_meshes canopy_* kind) to a woodcutting gather node in gather_nodes.json. Used to make ambient trees choppable, gated by level.",
+ "_doc": "Maps a world canopy species (prop_meshes canopy_* kind) to a woodcutting gather node in gather_nodes.json (speciesToNode), and gives each gather node its chop respawn time in seconds (respawnSeconds). Used to make ambient trees choppable, gated by level. Unlisted nodes fall back to 30s.",
+ "respawnSeconds": {
+  "Regular Tree": 8.0,
+  "Oak Tree": 27.0,
+  "Willow Tree": 30.0,
+  "Teak Tree": 30.0,
+  "Maple Tree": 60.0,
+  "Acadia Tree": 60.0,
+  "Eucalyptus Tree": 84.0,
+  "Yew Tree": 114.0,
+  "Elven Tree": 180.0,
+  "Red Maple Tree": 200.0,
+  "Magic Tree": 234.0,
+  "Rubra Tree": 264.0,
+  "Lunarwood Tree": 300.0
+ },
  "speciesToNode": {
   "canopy_fir": "Regular Tree",
   "canopy_spruce": "Regular Tree",

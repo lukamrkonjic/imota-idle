@@ -335,10 +335,13 @@ func clear_ambient_canopy(chunk: RefCounted) -> void:
 ## the woodcutting node table. Loaded once.
 var _species_node: Dictionary = {}
 var _wc_level: Dictionary = {}
+var _wc_respawn_sec: Dictionary = {}    # gather-node name -> chop respawn seconds (tree_species.json)
 func _load_tree_species() -> void:
 	if not _species_node.is_empty():
 		return
-	_species_node = JsonIO.read_dict("res://data/world/tree_species.json").get("speciesToNode", {})
+	var doc := JsonIO.read_dict("res://data/world/tree_species.json")
+	_species_node = doc.get("speciesToNode", {})
+	_wc_respawn_sec = doc.get("respawnSeconds", {})
 	for e: Dictionary in WorldGen.reg.node_table.get("woodcutting", []):
 		_wc_level[str(e.get("node", ""))] = int(e.get("level", 1))
 
@@ -404,19 +407,7 @@ func _spawn_canopy_tile(chunk: RefCounted, container: Node2D, seed: int, tx: int
 ## Stump respawn time (seconds) per tree, mapped from OSRS Forestry depletion timers. Higher-tier
 ## trees take much longer to regrow; tweak here to rebalance the woodcutting economy.
 func _wc_respawn(node: String) -> float:
-	match node:
-		"Regular Tree": return 8.0
-		"Oak Tree": return 27.0
-		"Willow Tree", "Teak Tree": return 30.0
-		"Maple Tree", "Acadia Tree": return 60.0
-		"Eucalyptus Tree": return 84.0
-		"Yew Tree": return 114.0
-		"Elven Tree": return 180.0
-		"Red Maple Tree": return 200.0
-		"Magic Tree": return 234.0
-		"Rubra Tree": return 264.0
-		"Lunarwood Tree": return 300.0
-	return 30.0
+	return float(_wc_respawn_sec.get(node, 30.0))
 
 
 func _pick_alpine_decor(elev: int, roll: float, variant: int) -> String:
