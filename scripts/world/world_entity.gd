@@ -34,6 +34,7 @@ var attuned := false                       # obelisks
 var roof_color := Color(0.5, 0.3, 0.3)     # houses
 var prop_kind := ""                         # city_prop subtype
 var yaw := 0.0                               # structures: Y-rotation (bridge decks orient along the path)
+var prop_scale := 1.0                        # structures/decor: uniform size multiplier (editor Scale slider)
 var height_offset := 0.0                     # structures: extra 3D height (bridge decks ride above the water)
 # Bridge span: the two SOLID-GROUND endpoints (iso pos) + this segment's 0..1 position along the
 # span. The renderer lerps the deck height between the endpoints' terrain heights so the bridge

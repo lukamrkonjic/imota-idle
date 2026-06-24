@@ -151,7 +151,9 @@ func _advance_staged_rebuild() -> void:
 					# Most structures sit axis-aligned (yaw 0); bridge deck segments carry a yaw
 					# so they lay along the path they were drawn over.
 					var base_h: float = _height.call(d.position)
-					var basis := Basis(Vector3.UP, float(d.yaw))
+					# Editor Scale slider: a uniform size multiplier on the placed prop (bridges below
+					# rebuild the basis themselves, so they're unaffected).
+					var basis := Basis(Vector3.UP, float(d.yaw)).scaled(Vector3.ONE * maxf(float(d.prop_scale), 0.05))
 					if float(d.bridge_t) >= 0.0:
 						# Bridge: height LERPS between the two solid-ground endpoints so the span
 						# stays level and floats over the water/gap instead of sagging per-tile.

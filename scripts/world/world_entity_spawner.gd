@@ -640,6 +640,7 @@ func _spawn_poi_part(chunk: RefCounted, poi: Dictionary, part: Dictionary, conta
 	e.click_radius = 38.0
 	if part.has("yaw"):
 		e.yaw = float(part["yaw"])   # editor-placed structures keep their chosen facing
+	e.prop_scale = float(part.get("scale", 1.0))   # editor Scale slider
 	if part.has("color"):
 		e.tent_color = Color.from_string("#" + str(part["color"]), e.tent_color)
 		e.glow_color = e.tent_color

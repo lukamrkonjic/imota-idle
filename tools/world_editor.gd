@@ -151,6 +151,7 @@ var _road_width_label: Label
 var _decor_density := 0.25        # Trees/Clutter brush: per-tile place chance (the Density slider)
 var _density_slider: HSlider
 var _decor_placed := {}           # tiles painted this stroke, so a drag doesn't double-place
+var _place_scale := 1.0           # uniform size for placed structures/trees/clutter (the Scale slider)
 var _road_pts: Array[Vector2i] = []
 var _road_drawing := false
 var _road_styles_cache: Dictionary = {}
@@ -674,6 +675,8 @@ func _place_decor(gtx: int, gty: int, is_tree: bool) -> void:
 		"yaw": randf() * TAU, "variant": randi() % 9973,
 		"ox": randf_range(-9.0, 9.0), "oy": randf_range(-9.0, 9.0),   # sub-tile jitter so they don't grid-align
 	}
+	if not is_equal_approx(_place_scale, 1.0):
+		part["scale"] = _place_scale
 	chunk.structures.append(part)
 	_stroke["added"].append({"key": "%d:%d" % [chunk.cx, chunk.cy], "arr": "structures", "item": part})
 
@@ -1095,6 +1098,8 @@ func _place_structure(t: Vector2i) -> void:
 	if _place_off != Vector2.ZERO:
 		part["ox"] = _place_off.x       # free placement: sub-tile iso offset from the tile centre
 		part["oy"] = _place_off.y
+	if not is_equal_approx(_place_scale, 1.0):
+		part["scale"] = _place_scale
 	chunk.structures.append(part)
 	_stroke["added"].append({"key": "%d:%d" % [chunk.cx, chunk.cy], "arr": "structures", "item": part})
 	# Buildings/walls collide via non-walkable wall tiles (same as the baked city),
@@ -1792,6 +1797,20 @@ func _build_ui() -> void:
 		dlabel.text = "Density: %d%%" % int(v))
 	lb.add_child(_density_slider)
 
+	# Uniform size for placed structures / houses / trees / clutter (NOT monsters/traders).
+	var slabel := Label.new()
+	slabel.text = "Scale: %d%%" % int(_place_scale * 100.0)
+	lb.add_child(slabel)
+	var sscale := HSlider.new()
+	sscale.min_value = 25
+	sscale.max_value = 300
+	sscale.value = _place_scale * 100.0
+	sscale.custom_minimum_size = Vector2(176, 0)
+	sscale.value_changed.connect(func(v: float) -> void:
+		_place_scale = v / 100.0
+		slabel.text = "Scale: %d%%" % int(v))
+	lb.add_child(sscale)
+
 	_erase_biomes_check = CheckBox.new()
 	_erase_biomes_check.text = "Keep painted terrain"
 	_erase_biomes_check.toggled.connect(func(on: bool) -> void: _erase_keep_terrain = on)
@@ -2204,7 +2223,7 @@ func _update_hover_gizmo() -> void:
 		if _ghost_root != null and is_instance_valid(_ghost_root):
 			# Follow the exact cursor point (free placement drops it there, no grid snap).
 			_ghost_root.visible = true
-			_ghost_root.global_transform = Transform3D(Basis(Vector3.UP, float(_stamp_rot) * (PI * 0.5)), center)
+			_ghost_root.global_transform = Transform3D(Basis(Vector3.UP, float(_stamp_rot) * (PI * 0.5)).scaled(Vector3.ONE * _place_scale), center)
 		return
 	if ghost_settle:
 		# The whole settlement cluster at the hovered tile (buildings are placed absolutely, so
