@@ -1,6 +1,6 @@
 extends Control
 ## Procedural inventory icon: a 16x16 chunky-pixel shape per item TYPE, recolored
-## by material tier. No sprite assets — mirrors node_icon.gd. The type is inferred
+## by material tier. No sprite assets. The type is inferred
 ## from the item name/stats (classify()). First pass: one shape per type, recolored
 ## per material; refine to per-item art later.
 
