@@ -16,7 +16,8 @@
   "densityPerChunk": 2.2,
   "levelBandLow": 0.45,
   "levelBandHigh": 2.6,
-  "aggroRadiusTiles": 3.2,
+  "aggroRadiusTiles": 5.0,
+  "leashRadiusTiles": 14.0,
   "aggroLevelFactor": 2.0,
   "defaultBiomes": ["plains", "forest"],
   "passive": "(?i)chicken|cow|sheep|pig|goat|rabbit|bunny|crab",
@@ -35,6 +36,6 @@
     { "match": "(?i)wolf|wolves|bear|shadowfang", "biomes": ["forest", "dense_forest", "tundra"] },
     { "match": "(?i)crab|aqua|water elemental|nessy", "biomes": ["beach", "ocean"] },
     { "match": "(?i)banana", "biomes": ["beach", "dense_forest"] },
-    { "match": "(?i)chicken|cow|sheep|pig|goat", "biomes": ["plains", "flower_meadow"], "forbiddenBiomes": ["desert", "tundra", "volcanic", "ocean", "beach", "swamp"] },
+    { "match": "(?i)chicken|cow|sheep|pig|goat", "biomes": ["plains", "flower_meadow"], "forbiddenBiomes": ["desert", "tundra", "volcanic", "ocean", "beach", "swamp"] }
   ]
 }

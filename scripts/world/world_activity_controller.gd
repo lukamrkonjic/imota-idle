@@ -15,9 +15,11 @@ const STATION_OPEN := {
 
 const AGGRO_INTERVAL := 0.5
 const AGGRO_GRACE := 4.0
-const LEASH_RADIUS_TILES := 8.0  # player gets this far from the mob's spawn -> it gives up
+const LEASH_RADIUS_TILES := 14.0 # OSRS-style single disengage distance: get this far from a mob's
+                                 # spawn and it gives up + walks home. One consistent value for all
+                                 # mobs (incl. bosses for now); per-spawn `leash` can override.
 const CHASE_SPEED := 24.0         # px/s the mob chases — slower than the player's walk (34) so you can step away (running easily escapes)
-const RETURN_SPEED := 30.0        # px/s it walks back to spawn after de-aggro
+const RETURN_SPEED := 51.0        # px/s walking home after de-aggro — ~1.5× the player walk (34) so it resets cleanly
 const ATTACK_GAP_TILES := 0.7     # how close beside you the chaser stops
 const RANGED_RANGE_TILES := 11.0  # a bow can fire from this far; closer than this you don't move
 const WANDER_SPEED := 11.0        # px/s slow idle amble around the spawn point
@@ -419,7 +421,7 @@ func _check_aggro() -> void:
 			continue
 		# Per-spawn aggro distance (0 = fall back to the global default).
 		var aggro_t := float(a.get("aggro", 0.0))
-		var radius := (aggro_t if aggro_t > 0.0 else float(WorldGen.reg.monster_cfg.get("aggroRadiusTiles", 3.2))) * WG.TILE
+		var radius := (aggro_t if aggro_t > 0.0 else float(WorldGen.reg.monster_cfg.get("aggroRadiusTiles", 5.0))) * WG.TILE
 		if e.position.distance_to(world.player.position) > radius:
 			continue
 		world._path_ctrl.stop_walking()
