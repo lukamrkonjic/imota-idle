@@ -35,6 +35,10 @@ wind_mul={
 "type": "float",
 "value": 1.0
 }
+dawn_mist={
+"type": "float",
+"value": 0.0
+}
 
 [debug]
 

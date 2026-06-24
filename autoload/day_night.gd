@@ -49,6 +49,18 @@ func horizon_glow() -> float:
 	return clampf(1.0 - clampf(sun_elevation() / 16.0, 0.0, 1.0), 0.0, 1.0)
 
 
+## 0..1, peaks at sunrise — drives the misty-morning shader. Morning half only (never dusk).
+func dawn() -> float:
+	var morning := 1.0 - smoothstep(0.40, 0.54, time01)   # 1 before sunrise-ish .. 0 by mid-morning
+	return horizon_glow() * morning
+
+
+## 0..1, peaks at sunset — drives the extra colour saturation at dusk. Evening half only (never dawn).
+func dusk() -> float:
+	var evening := smoothstep(0.50, 0.66, time01)          # 0 midday .. 1 toward sunset
+	return horizon_glow() * evening
+
+
 func is_night() -> bool:
 	return daylight() < 0.05
 

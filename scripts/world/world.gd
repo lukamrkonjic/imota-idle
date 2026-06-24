@@ -158,6 +158,20 @@ func _build_scene() -> void:
 	add_child(_ambience)
 	_ambience.setup(self)
 
+	# Dawn-mist overlay: a full-screen shader haze above the 3D present (layer 3), under the weather
+	# particles (layer 4). Strength is driven by the global `dawn_mist` from the DayNight cycle.
+	var mist_layer := CanvasLayer.new()
+	mist_layer.name = "DawnMist"
+	mist_layer.layer = 3
+	add_child(mist_layer)
+	var mist := ColorRect.new()
+	mist.set_anchors_preset(Control.PRESET_FULL_RECT)
+	mist.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mist_mat := ShaderMaterial.new()
+	mist_mat.shader = load("res://shaders/dawn_mist.gdshader")
+	mist.material = mist_mat
+	mist_layer.add_child(mist)
+
 	# Weather overlay on its OWN CanvasLayer above the 3D present (layer 0) and below the HUD, so the
 	# snow/rain/wind particles always composite over the rendered world in screen space.
 	var weather_layer := CanvasLayer.new()

@@ -63,6 +63,8 @@ func process_tick(delta: float) -> void:
 	Weather.update(delta, climate)
 	# Bend the 3D canopy/grass (toon_world wind) harder when it's windy: 1.0 calm baseline .. ~4 in a gale.
 	RenderingServer.global_shader_parameter_set("wind_mul", 1.0 + Weather.wind * 3.2)
+	# Thicken the dawn-mist shader at sunrise (0 by mid-morning).
+	RenderingServer.global_shader_parameter_set("dawn_mist", DayNight.dawn())
 	_cached_visible_rect = _visible_world_rect()
 	# Cheap (a handful of AABB tests) and done every frame so terrain shows/hides
 	# right at the view edge with no late pop when panning or walking fast.

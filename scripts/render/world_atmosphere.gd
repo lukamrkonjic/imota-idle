@@ -71,6 +71,9 @@ func _setup_environment() -> void:
 	env.fog_depth_curve = 2.0     # > 1 = hold the mid distance clear, then ramp hard at the end
 	env.fog_sky_affect = 0.5
 	env.fog_aerial_perspective = 0.0
+	# Colour-grade post pass (used by the day/night grade to richen dusk; 1.0 = neutral otherwise).
+	env.adjustment_enabled = true
+	env.adjustment_saturation = 1.0
 	var we := WorldEnvironment.new()
 	we.environment = env
 	world3d.add_child(we)
@@ -173,6 +176,11 @@ func _apply_grade() -> void:
 	if _sun != null:
 		_sun.light_color = sun_color
 		_sun.light_energy = sun_energy
+	# Dusk: richer, warmer colour. A little extra saturation + contrast as the sun sets (not at dawn —
+	# dawn instead gets the misty haze). Rain/snow desaturate slightly so storms read cooler/flatter.
+	var dusk := DayNight.dusk()
+	_env.adjustment_saturation = clampf(1.0 + dusk * 0.55 - (Weather.rain + Weather.snow) * 0.18, 0.6, 1.7)
+	_env.adjustment_contrast = 1.0 + dusk * 0.10
 
 
 ## View-distance slider hook. The per-frame update() is the actual driver (it reads the live
