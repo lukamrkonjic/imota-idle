@@ -730,6 +730,9 @@ func _spawn_poi_part(chunk: RefCounted, poi: Dictionary, part: Dictionary, conta
 			e.variant = absi(hash(kind + str(e.label) + chunk.key() + str(part["tx"]) + ":" + str(part["ty"]))) % 1000
 			if kind == "tree":
 				e.display_size = 90.0
+				# Biome-aware Trees brush: the species comes from prop (canopy_fir/birch/deadtree/…).
+				if part.has("prop"):
+					e.prop_kind = str(part["prop"])
 		"bridge", "bridge_pole":
 			# Plank-bridge meshes: an oriented deck segment (deck + planks + side rails) or a support
 			# pillar. yaw lays the deck ALONG the path; gx/gy place it at the exact smooth centerline.

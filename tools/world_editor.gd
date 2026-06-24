@@ -42,7 +42,7 @@ const MountainField := preload("res://scripts/worldgen/mountain_field.gd")
 
 const OUT_DIR := "res://data/world/baked/"
 
-enum Tool { PAN, BIOME, TERRAIN, STAMP, STRUCTURE, ERASE, SPAWN, CREATURE, ROAD, SETTLEMENT, SMOOTHEN, ELEVATE }
+enum Tool { PAN, BIOME, TERRAIN, STAMP, STRUCTURE, ERASE, SPAWN, CREATURE, ROAD, SETTLEMENT, SMOOTHEN, ELEVATE, FOREST, CLUTTER }
 
 const TERRAIN := [
 	["grass", "Grass"], ["grass_dark", "Dark grass"], ["dirt", "Dirt path"],
@@ -143,6 +143,9 @@ var _stamp_flip := false
 var _sel_road_style := "road"
 var _road_width := 3              # road width in tiles (diameter); the Road tool's slider sets it
 var _road_width_label: Label
+var _decor_density := 0.25        # Trees/Clutter brush: per-tile place chance (the Density slider)
+var _density_slider: HSlider
+var _decor_placed := {}           # tiles painted this stroke, so a drag doesn't double-place
 var _road_pts: Array[Vector2i] = []
 var _road_drawing := false
 var _road_styles_cache: Dictionary = {}
@@ -521,6 +524,8 @@ func _handle_key(event: InputEventKey) -> void:
 		KEY_0: _set_tool(Tool.SETTLEMENT)
 		KEY_H: _set_tool(Tool.SMOOTHEN)   # smootHen / flatten elevation
 		KEY_E: _set_tool(Tool.ELEVATE)    # Elevate / raise into hills & mountains
+		KEY_T: _set_tool(Tool.FOREST)     # Trees brush (biome-aware species)
+		KEY_C: _set_tool(Tool.CLUTTER)    # Clutter brush (biome-aware ground detail)
 
 
 func _zoom_at(factor: float) -> void:
@@ -548,7 +553,7 @@ func _process(_delta: float) -> void:
 	if t.x != -2147483648 and t != _hover_tile:
 		_hover_tile = t
 		_update_coords()
-	if _painting and not _ui_hover and _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE, Tool.SMOOTHEN, Tool.ELEVATE]:
+	if _painting and not _ui_hover and _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE, Tool.SMOOTHEN, Tool.ELEVATE, Tool.FOREST, Tool.CLUTTER]:
 		_apply_tool(false)
 	if _painting and not _ui_hover and _tool == Tool.ROAD and _road_drawing:
 		if _road_pts.is_empty() or _road_pts[_road_pts.size() - 1] != _hover_tile:
@@ -585,6 +590,8 @@ func _apply_tool(just_pressed: bool) -> void:
 		Tool.ERASE: _paint(_erase_tile)
 		Tool.SMOOTHEN: _smoothen_brush()
 		Tool.ELEVATE: _elevate_brush()
+		Tool.FOREST: _paint(func(x: int, y: int) -> void: _place_decor(x, y, true))
+		Tool.CLUTTER: _paint(func(x: int, y: int) -> void: _place_decor(x, y, false))
 		Tool.STAMP:
 			if just_pressed:
 				_place_stamp(_hover_tile)
@@ -617,6 +624,56 @@ func _paint(fn: Callable) -> void:
 			if dx * dx + dy * dy > r * r + r:
 				continue
 			fn.call(_hover_tile.x + dx, _hover_tile.y + dy)
+
+
+## Trees / Clutter brush: at each brushed tile (gated by the Density slider) drop a BIOME-RESOLVED
+## decoration — a tree species from that biome's canopy palette, or a ground-clutter kind from its
+## groundDecor palette. Biomes with no canopy (desert/ocean) simply grow no trees, so the brush is
+## biome-appropriate by construction. Placed as a `decor` structure → persists in chunk.structures
+## (saved to the .world, carried through re-bakes by the authored overlay) and renders via the 3D
+## prop batcher, exactly like a hand-placed Structure.
+func _place_decor(gtx: int, gty: int, is_tree: bool) -> void:
+	var chunk: RefCounted = _chunk_at_tile(gtx, gty)
+	if chunk == null:
+		return
+	var tkey := "%d:%d" % [gtx, gty]
+	if _decor_placed.has(tkey):
+		return                                   # already visited this tile this stroke
+	_decor_placed[tkey] = true
+	var lx: int = gtx - chunk.cx * WG.CHUNK_TILES
+	var ly: int = gty - chunk.cy * WG.CHUNK_TILES
+	var tile: Dictionary = _reg.tile_def(chunk.tile_id(lx, ly))
+	if bool(tile.get("water", false)):
+		return                                   # never on water
+	# Trees are sparser than clutter at the same Density setting.
+	if randf() > _decor_density * (0.55 if is_tree else 1.0):
+		return
+	var bid: String = str(_reg.biomes[chunk.biome_at(lx, ly)]["id"])
+	var kinds: Array = (_reg.canopy(bid) if is_tree else _reg.groundDecor(bid)).get("kinds", [])
+	if kinds.is_empty():
+		return                                   # this biome grows no trees/clutter
+	# Trees render as `tree` entities (full size, species from prop_kind); clutter as `decor`.
+	var part := {
+		"kind": ("tree" if is_tree else "decor"), "prop": _weighted_kind(kinds),
+		"tx": lx, "ty": ly, "label": "",
+		"yaw": randf() * TAU, "variant": randi() % 9973,
+		"ox": randf_range(-9.0, 9.0), "oy": randf_range(-9.0, 9.0),   # sub-tile jitter so they don't grid-align
+	}
+	chunk.structures.append(part)
+	_stroke["added"].append({"key": "%d:%d" % [chunk.cx, chunk.cy], "arr": "structures", "item": part})
+
+
+## Weighted random pick of a `kind` string from a [{kind, weight}] palette (biome canopy/groundDecor).
+func _weighted_kind(kinds: Array) -> String:
+	var total := 0.0
+	for k: Dictionary in kinds:
+		total += float(k.get("weight", 1.0))
+	var roll := randf() * maxf(total, 0.0001)
+	for k: Dictionary in kinds:
+		roll -= float(k.get("weight", 1.0))
+		if roll <= 0.0:
+			return str(k["kind"])
+	return str(kinds[0]["kind"])
 
 
 # ─────────────────────────────── smoothen tool ──────────────────────────────
@@ -1060,6 +1117,7 @@ func _set_px(gtx: int, gty: int, col: Color) -> void:
 
 func _begin_stroke() -> void:
 	_stroke = {"tiles": {}, "added": [], "removed": [], "cuts": [], "spawn": null, "road": null}
+	_decor_placed.clear()
 	_stroke_active = true
 
 
@@ -1087,6 +1145,9 @@ func _commit_stroke() -> void:
 	# chunk data and are re-emitted unchanged, so only the biome's own scatter is swapped.
 	if _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE]:
 		_refresh_painted_entities(_stroke["tiles"].keys())
+	# Trees/Clutter brushes add `decor` structures — respawn the touched chunks so they appear in 3D.
+	if _tool in [Tool.FOREST, Tool.CLUTTER]:
+		_refresh_struct_chunks(_stroke["added"])
 	_refresh_history_buttons()
 
 
@@ -1108,6 +1169,8 @@ func _do_undo() -> void:
 		_spec.roads.erase(s["road"])
 	_refresh_stroke_collision(s)
 	_resync_3d_tiles(s["tiles"].keys())
+	_refresh_struct_chunks(s["added"])     # show added/removed decor (trees, clutter, structures)
+	_refresh_struct_chunks(s["removed"])
 	_redo.append(s)
 	_status.text = "Undid 1 action (%d left)" % _history.size()
 	_refresh_history_buttons()
@@ -1131,6 +1194,8 @@ func _do_redo() -> void:
 		_spec.roads.append(s["road"])
 	_refresh_stroke_collision(s)
 	_resync_3d_tiles(s["tiles"].keys())
+	_refresh_struct_chunks(s["added"])
+	_refresh_struct_chunks(s["removed"])
 	_history.append(s)
 	_status.text = "Redid 1 action"
 	_refresh_history_buttons()
@@ -1473,7 +1538,7 @@ func _draw_overlay(c: CanvasItem) -> void:
 	if not _v3d_on and _hover_tile.x != -2147483648:
 		var ctr := Vector2(_hover_tile) - Vector2(_min_tx, _min_ty) + Vector2(0.5, 0.5)
 		var lw := maxf(0.5, 1.5 / zoom)
-		if _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE, Tool.SMOOTHEN, Tool.ELEVATE]:
+		if _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE, Tool.SMOOTHEN, Tool.ELEVATE, Tool.FOREST, Tool.CLUTTER]:
 			c.draw_arc(ctr, float(_brush), 0.0, TAU, 48, Color(1.0, 0.92, 0.3, 0.9), lw)
 		elif _tool in [Tool.STAMP, Tool.STRUCTURE, Tool.SETTLEMENT]:
 			var fr := _half_footprint_tiles()
@@ -1654,7 +1719,8 @@ func _build_ui() -> void:
 	for ts: Array in [[Tool.PAN, "1 Pan/View"], [Tool.BIOME, "2 Biome"], [Tool.TERRAIN, "3 Terrain"],
 			[Tool.STAMP, "4 Stamp"], [Tool.STRUCTURE, "5 Structure"], [Tool.ERASE, "6 Erase"],
 			[Tool.SPAWN, "7 Set Spawn"], [Tool.CREATURE, "8 Creatures"], [Tool.ROAD, "9 Roads"],
-			[Tool.SETTLEMENT, "0 Settlements"], [Tool.SMOOTHEN, "H Smoothen"], [Tool.ELEVATE, "E Elevate"]]:
+			[Tool.SETTLEMENT, "0 Settlements"], [Tool.SMOOTHEN, "H Smoothen"], [Tool.ELEVATE, "E Elevate"],
+			[Tool.FOREST, "T Trees (biome)"], [Tool.CLUTTER, "C Clutter (biome)"]]:
 		var b := Button.new()
 		b.text = str(ts[1])
 		b.toggle_mode = true
@@ -1675,6 +1741,20 @@ func _build_ui() -> void:
 	slider.custom_minimum_size = Vector2(176, 0)
 	slider.value_changed.connect(func(v: float) -> void: _set_brush(int(v)))
 	lb.add_child(slider)
+
+	# Density of the Trees / Clutter brushes (per-tile place chance).
+	var dlabel := Label.new()
+	dlabel.text = "Density: %d%%" % int(_decor_density * 100.0)
+	lb.add_child(dlabel)
+	_density_slider = HSlider.new()
+	_density_slider.min_value = 2
+	_density_slider.max_value = 100
+	_density_slider.value = _decor_density * 100.0
+	_density_slider.custom_minimum_size = Vector2(176, 0)
+	_density_slider.value_changed.connect(func(v: float) -> void:
+		_decor_density = v / 100.0
+		dlabel.text = "Density: %d%%" % int(v))
+	lb.add_child(_density_slider)
 
 	_erase_biomes_check = CheckBox.new()
 	_erase_biomes_check.text = "Keep painted terrain"
@@ -2062,7 +2142,7 @@ func _update_hover_gizmo() -> void:
 	var rend: Node = _v3d_world.get("render_3d")
 	if rend == null or not rend.has_method("iso_to_3d"):
 		return
-	var ring: bool = _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE, Tool.SMOOTHEN, Tool.ELEVATE]
+	var ring: bool = _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE, Tool.SMOOTHEN, Tool.ELEVATE, Tool.FOREST, Tool.CLUTTER]
 	var ghost_struct: bool = _tool == Tool.STRUCTURE   # single model at the cursor
 	var ghost_settle: bool = _tool == Tool.SETTLEMENT  # whole building cluster
 	var square: bool = _tool == Tool.STAMP             # terrain stamp: just a footprint
@@ -2436,7 +2516,7 @@ func _on_v3d_gui_input(event: InputEvent) -> void:
 			if _tool == Tool.ROAD:
 				if event.pressed: _v3d_road_begin()
 				else: _v3d_road_end()
-			elif _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE, Tool.SMOOTHEN, Tool.ELEVATE]:
+			elif _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE, Tool.SMOOTHEN, Tool.ELEVATE, Tool.FOREST, Tool.CLUTTER]:
 				# Brush + terrain-sculpt tools paint directly in the 3D view where the
 				# height is visible. _process keeps _hover_tile under the 3D cursor.
 				_v3d_painting = event.pressed
@@ -2608,6 +2688,19 @@ func _refresh_painted_entities(tiles: Array) -> void:
 			continue
 		seen[k] = true
 		_refresh_3d_entities(t, true)   # biome/terrain edits → regrow native canopy for the new biome
+
+
+## Respawn 3D entities for every chunk named in a list of structure records ({key:"cx:cy",...}), so
+## brush-placed trees/clutter — and undo/redo of them — show up in the 3D view immediately.
+func _refresh_struct_chunks(items: Array) -> void:
+	var seen := {}
+	for a: Dictionary in items:
+		var k: String = a["key"]
+		if seen.has(k):
+			continue
+		seen[k] = true
+		var p := k.split(":")
+		_refresh_3d_entities(Vector2i(int(p[0]) * WG.CHUNK_TILES + 8, int(p[1]) * WG.CHUNK_TILES + 8), false)
 
 
 func _refresh_3d_entities(tile: Vector2i, regen_canopy := false) -> void:
