@@ -27,8 +27,9 @@ const SHORE := Color(0.80, 0.75, 0.58)  # sandy shore tone under/at water edges
 const WATER_PLANE_MARGIN := 3
 const WATER_SUBDIV := 5            # sub-quads per tile edge (25 quads / tile near the coast)
 const WATER_BED_CLEARANCE := 0.07  # how far submerged ground sits below the sheet
-const SHORE_SMOOTH := 4
-const SHORE_RADIUS := 4.0       # kernel reach in cells (round, Euclidean — NOT square)
+const SHORE_SMOOTH := 3
+const SHORE_RADIUS := 2.4       # kernel reach in cells (round, Euclidean). Smaller = the smooth
+								# bicubic coastline hugs crevices tighter (was 4.0 — rounded bays off).
 const SHORE_SD_SCALE := 5.2     # maps (wf - 0.5) -> signed distance to coast, in cells
 const SHORE_RAMP_LO := 0.12     # coast-field value where the shore ramp starts easing land down to the water surface
 
