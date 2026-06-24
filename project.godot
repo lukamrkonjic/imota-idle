@@ -28,6 +28,7 @@ SaveManager="*res://autoload/save_manager.gd"
 GameSettings="*res://autoload/game_settings.gd"
 Weather="*res://autoload/weather.gd"
 DayNight="*res://autoload/day_night.gd"
+Audio="*res://autoload/audio.gd"
 
 [shader_globals]
 

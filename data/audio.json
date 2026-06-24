@@ -1,0 +1,51 @@
+{
+  "_doc": [
+    "Audio mapping consumed by autoload/audio.gd. GROUNDWORK ONLY — no audio ships yet.",
+    "Every path is empty, so the game is silent but every hook is live. To add sound:",
+    "  1. drop a file under res://assets/audio/  (e.g. music/forest.ogg, sfx/chop.ogg)",
+    "  2. put its res:// path in the matching key below.",
+    "It then plays automatically. SFX retrigger on the wired events; music cross-fades on",
+    "biome change. Call Audio.play(\"<event>\") from code to add a brand-new action sound,",
+    "or Audio.play_music(\"<tag>\") to drive music from somewhere else (e.g. a zone)."
+  ],
+  "music": {
+    "_doc": "Music tag -> stream path. Tags = each biome's 'music' field (biomes.json); zone names can be added too and driven via Audio.play_music(zone).",
+    "ocean": "",
+    "coast": "",
+    "plains": "",
+    "forest": "",
+    "deep_forest": "",
+    "hills": "",
+    "swamp": "",
+    "desert": "",
+    "tundra": "",
+    "volcanic": "",
+    "combat": "",
+    "town": ""
+  },
+  "sfx": {
+    "_doc": "Action event id -> stream path. These ids are fired by audio.gd's event hooks; add your own and call Audio.play(id).",
+    "level_up": "",
+    "enemy_hit": "",
+    "player_hurt": "",
+    "attack_miss": "",
+    "enemy_killed": "",
+    "player_death": "",
+    "chop_hit": "",
+    "mine_hit": "",
+    "fish_hit": "",
+    "forage_hit": "",
+    "cook": "",
+    "smith": "",
+    "firemaking": "",
+    "craft": "",
+    "coins": "",
+    "sell": "",
+    "buy": "",
+    "loot": "",
+    "prayer": "",
+    "ui_click": "",
+    "bank": "",
+    "teleport": ""
+  }
+}
