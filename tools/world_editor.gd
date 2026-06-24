@@ -673,11 +673,11 @@ func _place_decor(gtx: int, gty: int, is_tree: bool) -> void:
 ## palette when a sub-biome defines none — so the brush still grows the region's trees/clutter there.
 func _decor_kinds(bidx: int, is_tree: bool) -> Array:
 	var bid := str(_reg.biomes[bidx]["id"])
-	var kinds: Array = (_reg.canopy(bid) if is_tree else _reg.groundDecor(bid)).get("kinds", [])
+	var kinds: Array = (_reg.canopy(bid) if is_tree else _reg.ground_decor(bid)).get("kinds", [])
 	if kinds.is_empty():
-		var pid := _reg.parent_biome_id(bidx)
+		var pid: String = _reg.parent_biome_id(bidx)
 		if pid != bid and not pid.is_empty():
-			kinds = (_reg.canopy(pid) if is_tree else _reg.groundDecor(pid)).get("kinds", [])
+			kinds = (_reg.canopy(pid) if is_tree else _reg.ground_decor(pid)).get("kinds", [])
 	return kinds
 
 
