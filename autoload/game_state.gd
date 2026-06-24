@@ -45,14 +45,34 @@ var equipment: Dictionary = {}   # slot -> item id
 var coins: int = 0
 var current_hp: int = 10
 var combat_style: String = "attack"   # trained combat skill (persisted, spec §12)
-var active_prayers: Array = []         # names of prayers toggled on (combat hooks)
-var devotion: float = -1.0             # current Devotion points (-1 = uninit -> full on first use)
-var slayer_task: Dictionary = {}       # {monster, required, done} or {} when none
-var slayer_points: int = 0             # currency earned from completing slayer tasks
-var _slayer_rng := RandomNumberGenerator.new()
-var run_energy: float = 100.0          # Agility meta-stat (spec §16); speeds auto-nav
-var run_enabled := false               # OSRS run toggle (minimap run orb, left-click)
-var resting := false                   # sitting to recharge faster (run orb, right-click)
+# Prayer / Slayer / Run-energy each live in a focused component (scripts/state/*). These forwarding
+# properties + the forwarding methods further down keep GameState's public API and the save format
+# byte-identical, so external callers, reset_state and to/from_save_dict are untouched.
+var prayer := PrayerState.new()
+var slayer := SlayerState.new()
+var run := RunEnergyState.new()
+
+var active_prayers: Array:
+	get: return prayer.active_prayers
+	set(v): prayer.active_prayers = v
+var devotion: float:
+	get: return prayer.devotion
+	set(v): prayer.devotion = v
+var slayer_task: Dictionary:
+	get: return slayer.task
+	set(v): slayer.task = v
+var slayer_points: int:
+	get: return slayer.points
+	set(v): slayer.points = v
+var run_energy: float:
+	get: return run.energy
+	set(v): run.energy = v
+var run_enabled: bool:
+	get: return run.enabled
+	set(v): run.enabled = v
+var resting: bool:
+	get: return run.resting
+	set(v): run.resting = v
 var is_moving := false                 # set each frame by the player avatar
 var player_pos: Vector2 = Vector2.INF  # last world position; Vector2.INF = "use spawn" (new game)
 var _death_rng := RandomNumberGenerator.new()
@@ -61,7 +81,6 @@ var _death_rng := RandomNumberGenerator.new()
 const HIGH_ALCH_LEVEL := 55
 const HIGH_ALCH_RATE := 0.6
 const HIGH_ALCH_XP := 65.0
-const REST_REGEN_MULT := 2.6           # sitting (rest) recharges this much faster than walking
 
 var _hp_regen_timer := 0.0
 
@@ -474,146 +493,26 @@ func attack_interval() -> float:
 	return float(attack_ticks()) * TICK
 
 
-func is_prayer_active(prayer_name: String) -> bool:
-	return active_prayers.has(prayer_name)
-
-
 # ----------------------------------------------------------------- Prayer ----
-## Devotion points: max = Prayer level (1/level). Drained while prayers are active
-## (PrayerSim), restored to full at an altar or on respawn.
-func devotion_max() -> int:
-	return maxi(1, level("prayer"))
-
-
-## Lazily fill on first read so a fresh/legacy save starts with full Devotion.
-func devotion_points() -> float:
-	if devotion < 0.0:
-		devotion = float(devotion_max())
-	return devotion
-
-
-## Toggle a prayer on/off. Off-on requires the level + some Devotion left, and turns
-## off any already-active prayer in the same exclusivity group. Returns the new state.
-func toggle_prayer(prayer_name: String) -> bool:
-	var def: Dictionary = DataRegistry.prayers.get(prayer_name, {})
-	if def.is_empty():
-		return false
-	if active_prayers.has(prayer_name):
-		active_prayers.erase(prayer_name)
-		EventBus.prayer_changed.emit()
-		return false
-	if level("prayer") < int(def.get("levelReq", 1)):
-		EventBus.combat_log.emit("[color=#a01010]Prayer level %d required for %s.[/color]" % [int(def.get("levelReq", 1)), prayer_name])
-		return false
-	if devotion_points() <= 0.0:
-		EventBus.combat_log.emit("[color=#a01010]You have no prayer points left — recharge at an altar.[/color]")
-		return false
-	var group := str(def.get("group", ""))
-	if group != "":
-		for other: String in active_prayers.duplicate():
-			if str(DataRegistry.prayers.get(other, {}).get("group", "")) == group:
-				active_prayers.erase(other)
-	active_prayers.append(prayer_name)
-	EventBus.prayer_changed.emit()
-	EventBus.prayer_activated.emit(prayer_name)   # world activation FX
-	return true
-
-
-## Drain Devotion by the active prayers' total per-second cost; deactivate all at empty.
-func drain_devotion(delta: float) -> void:
-	if active_prayers.is_empty():
-		return
-	var rate := 0.0
-	for n: String in active_prayers:
-		rate += float(DataRegistry.prayers.get(n, {}).get("drain", 0.2))
-	devotion = maxf(devotion_points() - rate * delta, 0.0)
-	if devotion <= 0.0 and not active_prayers.is_empty():
-		active_prayers.clear()
-		EventBus.combat_log.emit("[color=#a01010]Your prayer points run out; your prayers fade.[/color]")
-		EventBus.prayer_changed.emit()
-
-
-## Passive regen toward max while no prayer is active, so points reflect your Prayer level
-## instead of getting stuck at 0 after a drain. (Altars still snap to full instantly.)
-const DEVOTION_REGEN_PER_SEC := 2.0
-func regen_devotion(delta: float) -> void:
-	var mx := float(devotion_max())
-	if devotion_points() < mx:
-		devotion = minf(devotion + DEVOTION_REGEN_PER_SEC * delta, mx)
-
-
-func recharge_devotion() -> void:
-	devotion = float(devotion_max())
-	EventBus.prayer_changed.emit()
-
-
-## Combined multiplier/bonus from active prayers for a given combat style.
-func _prayer_field(field: String, style: String, base: float) -> float:
-	var v := base
-	for n: String in active_prayers:
-		var def: Dictionary = DataRegistry.prayers.get(n, {})
-		var ps := str(def.get("style", "any"))
-		if ps != "any" and ps != style:
-			continue
-		if field == "dr":
-			v += float(def.get("dr", 0.0))
-		elif def.has(field):
-			v *= float(def[field])
-	return v
-
-
-func prayer_accuracy_mult(style: String) -> float: return _prayer_field("accuracy", style, 1.0)
-func prayer_damage_mult(style: String) -> float: return _prayer_field("damage", style, 1.0)
-func prayer_dr_bonus() -> float: return _prayer_field("dr", "any", 0.0)
-func prayer_melee_protect() -> float:
-	for n: String in active_prayers:
-		var m := float(DataRegistry.prayers.get(n, {}).get("meleeProtect", 0.0))
-		if m > 0.0:
-			return m
-	return 1.0
+# Logic lives in PrayerState (scripts/state/prayer_state.gd); these forward GameState's public API.
+func is_prayer_active(prayer_name: String) -> bool: return prayer.is_active(prayer_name)
+func devotion_max() -> int: return prayer.devotion_max()
+func devotion_points() -> float: return prayer.devotion_points()
+func toggle_prayer(prayer_name: String) -> bool: return prayer.toggle(prayer_name)
+func drain_devotion(delta: float) -> void: prayer.drain(delta)
+func regen_devotion(delta: float) -> void: prayer.regen(delta)
+func recharge_devotion() -> void: prayer.recharge()
+func prayer_accuracy_mult(style: String) -> float: return prayer.accuracy_mult(style)
+func prayer_damage_mult(style: String) -> float: return prayer.damage_mult(style)
+func prayer_dr_bonus() -> float: return prayer.dr_bonus()
+func prayer_melee_protect() -> float: return prayer.melee_protect()
 
 
 # ----------------------------------------------------------------- Slayer ----
-## Assign a new slayer task: a random eligible monster (within Slayer level, non-boss) and a
-## kill count scaled by level. No-op (returns the current task) if one is already active.
-func assign_slayer_task() -> Dictionary:
-	if not slayer_task.is_empty():
-		return slayer_task
-	var slvl := level("slayer")
-	var pool: Array = []
-	for e: Dictionary in DataRegistry.enemies.values():
-		if bool(e.get("isBoss", false)):
-			continue
-		if int(e.get("beastMasteryReq", 0)) > slvl:
-			continue
-		# Store the DISPLAY name — that's what EventBus.enemy_killed emits, so kills match.
-		pool.append(str(e.get("displayName", e.get("name", ""))))
-	if pool.is_empty():
-		return {}
-	var monster: String = pool[_slayer_rng.randi() % pool.size()]
-	var required := 15 + slvl / 2 + _slayer_rng.randi() % 10
-	slayer_task = {"monster": monster, "required": required, "done": 0}
-	EventBus.slayer_changed.emit()
-	return slayer_task
-
-
-## A kill toward the active task. On completion: a Slayer XP bonus + Slayer points, task cleared.
-func slayer_kill(enemy_name: String) -> void:
-	if slayer_task.is_empty() or str(slayer_task.get("monster", "")) != enemy_name:
-		return
-	slayer_task["done"] = int(slayer_task["done"]) + 1
-	if int(slayer_task["done"]) >= int(slayer_task["required"]):
-		var pts := 8 + level("slayer") / 4
-		slayer_points += pts
-		add_xp("slayer", float(int(slayer_task["required"]) * 12))   # completion bonus
-		EventBus.combat_log.emit("[color=#9ad29a]Slayer task complete! +%d Slayer points.[/color]" % pts)
-		slayer_task = {}
-	EventBus.slayer_changed.emit()
-
-
-func cancel_slayer_task() -> void:
-	slayer_task = {}
-	EventBus.slayer_changed.emit()
+# Logic lives in SlayerState (scripts/state/slayer_state.gd); these forward GameState's public API.
+func assign_slayer_task() -> Dictionary: return slayer.assign()
+func slayer_kill(enemy_name: String) -> void: slayer.kill(enemy_name)
+func cancel_slayer_task() -> void: slayer.cancel()
 
 
 # --------------------------------------------------------- skill loops (§16) ----
@@ -650,54 +549,14 @@ func high_alch(item_name_or_id: String) -> bool:
 	return true
 
 
-## Agility meta-stat: run energy drains while auto-navigating and regenerates
-## otherwise; higher Agility makes it last longer (wired into nav later).
-func use_run_energy(amount: float) -> void:
-	run_energy = clampf(run_energy - amount, 0.0, 100.0)
-	EventBus.run_energy_changed.emit(run_energy)
-
-
-## Per-frame running cost. OSRS: units/tick = ⌊60 + 67·clamp(weight,0,64)/64⌋·(1 − Agility/300),
-## of 10000 units = 100%. No weight system yet → weight 0 → 60 units/tick = 0.6%/tick.
-## Ticks are 0.6s, so 0.6%/tick ÷ 0.6 = 1.0%/sec before the Agility factor.
-func drain_running(delta: float) -> void:
-	var rate: float = 1.0 - float(level("agility")) / 300.0   # % per second (weight 0)
-	use_run_energy(rate * delta)
-	if run_energy <= 0.0:
-		set_run(false)
-
-
-## OSRS regen: units/tick = ⌊Agility/10⌋ + 15 (of 10000). ÷100 → %/tick, ÷0.6 → %/sec.
-func regen_run_energy(delta: float) -> void:
-	if run_enabled and is_moving:
-		return                      # spending energy while running; no regen
-	if run_energy >= 100.0:
-		return
-	var rate: float = (floor(float(level("agility")) / 10.0) + 15.0) / 60.0   # % per second
-	if resting:
-		rate *= REST_REGEN_MULT
-	run_energy = clampf(run_energy + rate * delta, 0.0, 100.0)
-	EventBus.run_energy_changed.emit(run_energy)
-
-
-## Minimap run orb — left-click toggles running.
-func toggle_run() -> void:
-	set_run(not run_enabled)
-
-func set_run(on: bool) -> void:
-	if on and run_energy <= 0.0:
-		on = false
-	if on:
-		resting = false             # running cancels rest
-	run_enabled = on
-	EventBus.run_toggled.emit(run_enabled, resting)
-
-## Right-click the run orb — sit down to recharge faster.
-func set_resting(on: bool) -> void:
-	if on:
-		run_enabled = false         # can't run while resting
-	resting = on
-	EventBus.run_toggled.emit(run_enabled, resting)
+# --------------------------------------------------------- Run energy (§16) ----
+# Logic lives in RunEnergyState (scripts/state/run_energy_state.gd); these forward the public API.
+func use_run_energy(amount: float) -> void: run.spend(amount)
+func drain_running(delta: float) -> void: run.drain(delta)
+func regen_run_energy(delta: float) -> void: run.regen(delta)
+func toggle_run() -> void: run.toggle()
+func set_run(on: bool) -> void: run.set_running(on)
+func set_resting(on: bool) -> void: run.set_resting(on)
 
 
 ## On death, destroy whatever is in ONE random equipment slot (empty slot = no
