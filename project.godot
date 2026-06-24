@@ -27,6 +27,14 @@ WorldGen="*res://autoload/world_gen.gd"
 SaveManager="*res://autoload/save_manager.gd"
 GameSettings="*res://autoload/game_settings.gd"
 Weather="*res://autoload/weather.gd"
+DayNight="*res://autoload/day_night.gd"
+
+[shader_globals]
+
+wind_mul={
+"type": "float",
+"value": 1.0
+}
 
 [debug]
 

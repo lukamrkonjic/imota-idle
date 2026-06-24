@@ -3,6 +3,7 @@ extends Node2D
 
 const AmbienceArt := preload("res://scripts/world/art/ambience/ambience_art.gd")
 const TreeArt := preload("res://scripts/world/art/trees/tree_art.gd")
+const ChunkRenderer := preload("res://scripts/worldgen/chunk_renderer.gd")
 
 var world: Node2D
 
@@ -16,6 +17,10 @@ func _ready() -> void:
 
 
 func _draw() -> void:
+	# The 2D biome ambience is hidden under the 3D render (and superseded by the screen-space
+	# WorldWeatherFx overlay), so skip it while the 3D path is active.
+	if not ChunkRenderer.build_meshes:
+		return
 	if world == null or world._camera == null or world.current_layer != 0:
 		return
 	global_position = world._camera.global_position

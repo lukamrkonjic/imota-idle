@@ -119,29 +119,60 @@ func update(_camera_rig: WorldCameraRig3D, stream_view: TerrainStreamView) -> vo
 	if _sun != null:
 		# Shadows past the fogged range are invisible, so keeping them short is a free perf win.
 		_sun.directional_shadow_max_distance = clampf(vt * 0.85, 30.0, 60.0)
-	_apply_weather()
+	_apply_grade()
 
 
-## Wash the sky / fog / ambient / sun toward the current weather: snow = cool white + brighter, flatter
-## light; rain = cool blue-grey + dimmer, moodier light. Lerps from the clear-weather baselines so it's
-## reversible and never accumulates. Reads the global Weather autoload.
-func _apply_weather() -> void:
+# Night sky / ambient endpoints (the day endpoints are the clear-weather baselines captured at setup).
+const _AMB_NIGHT := Color(0.26, 0.30, 0.46)        # moonlit blue — dim but still navigable
+const _AMB_NIGHT_ENERGY := 0.26
+const _SKY_NIGHT := Color(0.10, 0.13, 0.24)
+const _SUN_HIGH := Color(1.0, 0.95, 0.80)          # warm daylight
+const _SUN_LOW := Color(1.0, 0.60, 0.34)           # orange dawn/dusk
+const _DUSK := Color(0.86, 0.52, 0.40)             # warm horizon bloom at sunrise/sunset
+
+
+## Drive the whole sky from the DAY/NIGHT cycle (sun arc + colour + energy, ambient, sky tint), then
+## wash the current WEATHER over the top (snow = cool white + brighter; rain = blue-grey + dimmer).
+## Lerps from the clear-weather baselines (= the day endpoints) so it's reversible and never drifts.
+func _apply_grade() -> void:
+	var dl := DayNight.daylight()         # 0 night .. 1 noon
+	var glow := DayNight.horizon_glow()   # 1 when the sun is near/below the horizon
+	# Sun arcs east -> overhead -> west and drops below the horizon at night.
+	if _sun != null:
+		var azi := (DayNight.time01 - 0.25) * 360.0 + 40.0
+		_sun.rotation_degrees = Vector3(-clampf(DayNight.sun_elevation(), -90.0, 90.0), azi, 0.0)
+	# Day/night base palette.
+	var ambient := _AMB_NIGHT.lerp(_base_ambient, dl)
+	var amb_energy := lerpf(_AMB_NIGHT_ENERGY, _base_ambient_energy, dl)
+	var sun_color := _SUN_HIGH.lerp(_SUN_LOW, glow * 0.8)
+	var sun_energy := _base_sun_energy * clampf(dl, 0.0, 1.0)
+	var horizon := _SKY_NIGHT.lerp(_base_sky_horizon, dl).lerp(_DUSK, glow * dl * 0.7)
+	var sky_hi := _SKY_NIGHT.lerp(_base_sky_hi, dl)
+	var fog := horizon
+	# Weather wash over the day/night base.
 	var t: Color = Weather.tint
 	var a: float = t.a
 	var wash := Color(t.r, t.g, t.b)
-	_env.ambient_light_color = _base_ambient.lerp(wash, a * 0.6)
-	_env.ambient_light_energy = _base_ambient_energy * (1.0 + Weather.snow * 0.22 - Weather.rain * 0.22)
-	_env.fog_light_color = _base_fog.lerp(wash, a * 0.7)
+	ambient = ambient.lerp(wash, a * 0.5)
+	amb_energy *= 1.0 + Weather.snow * 0.22 - Weather.rain * 0.18
+	horizon = horizon.lerp(wash, a * 0.55)
+	sky_hi = sky_hi.lerp(wash, a * 0.4)
+	fog = fog.lerp(wash, a * 0.6)
+	sun_energy *= 1.0 - Weather.rain * 0.42 - Weather.snow * 0.12
+	sun_color = sun_color.lerp(wash, a * 0.35)
+	# Apply.
+	_env.ambient_light_color = ambient
+	_env.ambient_light_energy = amb_energy
+	_env.fog_light_color = fog
 	_env.fog_sky_affect = 0.5 + (Weather.snow + Weather.rain) * 0.35   # precip thickens the haze
 	if _sky_mat != null:
-		var horizon := _base_sky_horizon.lerp(wash, a * 0.6)
 		_sky_mat.sky_horizon_color = horizon
 		_sky_mat.ground_horizon_color = horizon
 		_sky_mat.ground_bottom_color = horizon
-		_sky_mat.sky_top_color = _base_sky_hi.lerp(wash, a * 0.45)
+		_sky_mat.sky_top_color = sky_hi
 	if _sun != null:
-		_sun.light_energy = _base_sun_energy * (1.0 - Weather.rain * 0.42 - Weather.snow * 0.12)
-		_sun.light_color = _base_sun_color.lerp(wash, a * 0.4)
+		_sun.light_color = sun_color
+		_sun.light_energy = sun_energy
 
 
 ## View-distance slider hook. The per-frame update() is the actual driver (it reads the live

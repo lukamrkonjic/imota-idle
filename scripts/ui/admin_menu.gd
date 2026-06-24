@@ -498,6 +498,37 @@ func _build_misc_tab() -> void:
 		wrow.add_child(b)
 	box.add_child(wrow)
 
+	# Time-of-day override — jump to a phase, or freeze the cycle.
+	var dlabel := Label.new()
+	dlabel.text = "Time of day"
+	dlabel.add_theme_font_size_override("font_size", UiScale.i(13))
+	dlabel.add_theme_color_override("font_color", ACCENT)
+	box.add_child(dlabel)
+	var dstatus := Label.new()
+	dstatus.text = "Now: %s" % DayNight.label()
+	dstatus.add_theme_color_override("font_color", Color(0.7, 0.85, 0.7))
+	box.add_child(dstatus)
+	DayNight.phase_changed.connect(func(_p: String) -> void:
+		if is_instance_valid(dstatus):
+			dstatus.text = "Now: %s" % DayNight.label())
+	var drow := HBoxContainer.new()
+	drow.add_theme_constant_override("separation", UiScale.i(4))
+	for tod: Array in [["Dawn", 0.25], ["Noon", 0.5], ["Dusk", 0.75], ["Midnight", 0.0]]:
+		var b := Button.new()
+		b.text = str(tod[0])
+		var tt: float = tod[1]
+		b.pressed.connect(func() -> void:
+			DayNight.set_time(tt)
+			if is_instance_valid(dstatus):
+				dstatus.text = "Now: %s" % DayNight.label())
+		drow.add_child(b)
+	var freeze := Button.new()
+	freeze.text = "Freeze"
+	freeze.toggle_mode = true
+	freeze.toggled.connect(func(on: bool) -> void: DayNight.scale = 0.0 if on else 1.0)
+	drow.add_child(freeze)
+	box.add_child(drow)
+
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.add_child(box)

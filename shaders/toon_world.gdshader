@@ -25,6 +25,9 @@ uniform float posterize_steps : hint_range(2.0, 8.0) = 4.0;
 // from the model origin; taller verts sway more.
 uniform float wind : hint_range(0.0, 0.3) = 0.0;
 uniform float wind_speed = 1.6;
+// Global multiplier driven by the Weather system (1.0 = calm baseline .. ~4 in a gale), so canopy +
+// grass bend harder when it's windy. Registered in project.godot [shader_globals]; set each frame.
+global uniform float wind_mul;
 // Per-instance damage flash: the renderer pulses this on a body that just took a
 // hit, washing it red for a few frames. Per-instance so only the struck mover flashes.
 instance uniform float hurt : hint_range(0.0, 1.0) = 0.0;
@@ -34,11 +37,12 @@ void vertex() {
 		vec2 wp = (MODEL_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).xz;
 		// Two summed frequencies give a livelier, less mechanical gust than a
 		// single sine; per-instance phase from world position decorrelates props.
-		float phase = TIME * wind_speed + wp.x * 0.6 + wp.y * 0.4;
+		float wm = max(wind_mul, 0.0001);
+		float phase = TIME * wind_speed * (0.8 + 0.5 * wm) + wp.x * 0.6 + wp.y * 0.4;
 		float gust = sin(phase) * 0.75 + sin(phase * 2.3 + 1.1) * 0.25;
 		float lift = max(VERTEX.y + 0.4, 0.0);
-		VERTEX.x += gust * wind * lift;
-		VERTEX.z += cos(phase * 0.8) * wind * 0.5 * lift;
+		VERTEX.x += gust * wind * wm * lift;
+		VERTEX.z += cos(phase * 0.8) * wind * 0.5 * wm * lift;
 	}
 }
 

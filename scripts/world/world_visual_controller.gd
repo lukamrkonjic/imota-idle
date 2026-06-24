@@ -21,6 +21,7 @@ var _darkness_vp := Vector2.ZERO
 
 const TreeArt := preload("res://scripts/world/art/trees/tree_art.gd")
 const WaterSurfaceArt := preload("res://scripts/world/art/water/water_surface_art.gd")
+const ChunkRenderer := preload("res://scripts/worldgen/chunk_renderer.gd")
 
 
 func setup(w: Node2D) -> void:
@@ -60,12 +61,15 @@ func process_tick(delta: float) -> void:
 	# renderers (atmosphere grade, particle overlay, tree wind) then read Weather.* directly.
 	var climate := WorldGen.climate_at(world.player.position) if world.current_layer == 0 else 0.6
 	Weather.update(delta, climate)
-	TreeArt.advance_wind(delta * (0.5 + Weather.wind * 2.2))   # windier weather sways trees faster
+	# Bend the 3D canopy/grass (toon_world wind) harder when it's windy: 1.0 calm baseline .. ~4 in a gale.
+	RenderingServer.global_shader_parameter_set("wind_mul", 1.0 + Weather.wind * 3.2)
 	_cached_visible_rect = _visible_world_rect()
 	# Cheap (a handful of AABB tests) and done every frame so terrain shows/hides
 	# right at the view edge with no late pop when panning or walking fast.
 	world.chunk_manager.set_view_rect(_cached_visible_rect)
-	if world.current_layer == 0:
+	# 2D decor/water/ambience redraw upkeep — ONLY when the 2D substrate is actually shown
+	# (build_meshes). In-game the 3D render hides it, so this whole per-frame block is skipped.
+	if world.current_layer == 0 and ChunkRenderer.build_meshes:
 		_wind_redraw_accum += delta
 		if _wind_redraw_accum >= 0.12:
 			_wind_redraw_accum = 0.0
