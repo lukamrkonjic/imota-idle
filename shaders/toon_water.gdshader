@@ -24,6 +24,7 @@ uniform vec4 foam_color : source_color = vec4(0.886, 0.953, 0.965, 1.0);     // 
 // --- shared coast field (v_wf) ------------------------------------------------
 uniform float sd_scale = 5.2;          // (wf-0.5)*sd_scale -> signed distance to coast, in cells
 uniform float shore_aa = 0.10;         // cells: anti-aliased width of the waterline
+uniform float brim_fill = 0.05;        // world-height AA band for the submersion fill (UV.y)
 uniform float shallow_cells = 0.9;     // cells: shallow band width before it ramps to deep
 
 // --- contour pattern (illustrated loops, open water only) ---------------------
@@ -61,10 +62,12 @@ uniform float min_aa = 0.0015;
 
 varying vec3 v_world;
 varying float v_wf;
+varying float v_sub;   // submersion depth (water surface - terrain) baked per vertex; >0 = under water
 
 void vertex() {
 	v_world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	v_wf = UV.x;
+	v_sub = UV.y;
 }
 
 float contour(float n, float count) {
@@ -82,6 +85,11 @@ void fragment() {
 	// Anti-aliased waterline: fully transparent a touch onto the land, full water a touch
 	// into the sea. The dry beach terrain shows through on the land side.
 	float water_a = smoothstep(-shore_aa, shore_aa, sd);
+	// Height-based fill (ADDITIVE): wherever the terrain actually sits below the sheet — a hole,
+	// dip or low cove the tile map never marked as water — render water up to the brim anyway.
+	// Real fluid can't leave a sub-surface gap, and we have no physics sim, so the geometry test
+	// guarantees it: no exposed sub-water land can peek under the shoreline.
+	water_a = max(water_a, smoothstep(0.0, brim_fill, v_sub));
 	if (water_a <= 0.001) {
 		discard;
 	}

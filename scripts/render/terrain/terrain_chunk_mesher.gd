@@ -145,11 +145,14 @@ func _visual_corner_y(ci: int, cj: int, ref_top: float, wfc: Dictionary, wlc: Di
 	var h := _corner_height_for(ci, cj, ref_top)
 	var wf := _coast_wf(ci, cj, wfc)
 	if wf > SHORE_RAMP_LO:
-		# Target just UNDER the sheet (not exactly on it) so the ramped beach can't z-fight the
-		# semi-transparent waterline where the smoothed contour bulges into an otherwise-dry tile.
-		var bed := _water_corner_level(ci, cj, wlc) - WATER_BED_CLEARANCE
-		h = minf(h, lerpf(h, bed, smoothstep(SHORE_RAMP_LO, 0.5, wf)))
-	# Submerged corners also sit below the sheet so no terrain facet pokes through the contour.
+		# Ease land DOWN to EXACTLY the water surface at the waterline — never below it on the land
+		# side, or the dipped beach would peek out under the shoreline. Land meets water flush at
+		# the contour and rises away from there; the water shader fills anything that does end up
+		# below the sheet (see _emit_water_tile's submersion term), so there are no exposed holes.
+		var surf := _water_corner_level(ci, cj, wlc)
+		h = minf(h, lerpf(h, surf, smoothstep(SHORE_RAMP_LO, 0.5, wf)))
+	# Corners touching an actual water tile sit just below the sheet so no terrain facet pokes up
+	# through the contour on the water side (the submersion fill then covers them with water).
 	if _corner_touches_water(ci, cj):
 		h = minf(h, _water_corner_level(ci, cj, wlc) - WATER_BED_CLEARANCE)
 	return h
@@ -410,6 +413,14 @@ func _emit_water_tile(wst: SurfaceTool, gtx: int, gty: int, wfc: Dictionary, wlc
 	var lB := _water_corner_level(gtx + 1, gty, wlc)
 	var lC := _water_corner_level(gtx + 1, gty + 1, wlc)
 	var lD := _water_corner_level(gtx, gty + 1, wlc)
+	# Ground (terrain) height under each corner. UV.y bakes the SUBMERSION (surface - ground): the
+	# shader fills water wherever this is positive, so any terrain below the sheet — a dip, a hole,
+	# a low cove the tile map never marked as water — is covered up to the brim, with no exposed
+	# sub-water land peeking under the shoreline. Bilerped across sub-vertices like the surface.
+	var gA := _visual_corner_y(gtx, gty, 0.0, wfc, wlc)
+	var gB := _visual_corner_y(gtx + 1, gty, 0.0, wfc, wlc)
+	var gC := _visual_corner_y(gtx + 1, gty + 1, 0.0, wfc, wlc)
+	var gD := _visual_corner_y(gtx, gty + 1, 0.0, wfc, wlc)
 	# Only the COASTAL RING needs tessellation (that's where the 0.5 contour lives). Open
 	# deep water (every corner well offshore) and far-inland margin (every corner on land)
 	# are flat in wf — emit them as a cheap 2-tri quad so the subdivision cost stays tiny.
@@ -424,36 +435,41 @@ func _emit_water_tile(wst: SurfaceTool, gtx: int, gty: int, wfc: Dictionary, wlc
 		var z0 := float(gty) * TILE_S
 		var x1 := x0 + TILE_S
 		var z1 := z0 + TILE_S
-		var qa := [[Vector3(x0, lA, z0), c00], [Vector3(x1, lB, z0), c10], [Vector3(x1, lC, z1), c11],
-			[Vector3(x0, lA, z0), c00], [Vector3(x1, lC, z1), c11], [Vector3(x0, lD, z1), c01]]
+		var qa := [[Vector3(x0, lA, z0), c00, lA - gA], [Vector3(x1, lB, z0), c10, lB - gB], [Vector3(x1, lC, z1), c11, lC - gC],
+			[Vector3(x0, lA, z0), c00, lA - gA], [Vector3(x1, lC, z1), c11, lC - gC], [Vector3(x0, lD, z1), c01, lD - gD]]
 		for v: Array in qa:
 			wst.set_normal(Vector3.UP)
-			wst.set_uv(Vector2(float(v[1]), 0.0))
+			wst.set_uv(Vector2(float(v[1]), float(v[2])))
 			wst.add_vertex(v[0])
 		return
 	var s := WATER_SUBDIV
 	var pos := []        # (s+1)x(s+1) sub-vertex positions
 	var wfv := []        # matching bicubic water-fraction
+	var subv := []       # matching submersion depth (surface - ground)
 	for j: int in range(s + 1):
 		var fz := float(j) / float(s)
 		var prow := []
 		var wrow := []
+		var srow := []
 		for i: int in range(s + 1):
 			var fx := float(i) / float(s)
 			var hy := lerpf(lerpf(lA, lB, fx), lerpf(lD, lC, fx), fz)
+			var gy := lerpf(lerpf(gA, gB, fx), lerpf(gD, gC, fx), fz)
 			var wx := float(gtx) + fx
 			var wz := float(gty) + fz
 			prow.append(Vector3(wx * TILE_S, hy, wz * TILE_S))
 			wrow.append(_wf_cubic(wx, wz, wfc))
+			srow.append(hy - gy)
 		pos.append(prow)
 		wfv.append(wrow)
+		subv.append(srow)
 	for j: int in range(s):
 		for i: int in range(s):
 			var quad := [Vector2i(i, j), Vector2i(i + 1, j), Vector2i(i + 1, j + 1),
 				Vector2i(i, j), Vector2i(i + 1, j + 1), Vector2i(i, j + 1)]
 			for c: Vector2i in quad:
 				wst.set_normal(Vector3.UP)
-				wst.set_uv(Vector2(float(wfv[c.y][c.x]), 0.0))
+				wst.set_uv(Vector2(float(wfv[c.y][c.x]), float(subv[c.y][c.x])))
 				wst.add_vertex(pos[c.y][c.x])
 
 
