@@ -795,7 +795,16 @@ func _spawn_monster(chunk: RefCounted, m: Dictionary, container: Node2D) -> void
 	e.variant = absi(hash(name + chunk.key())) % 1000
 	e.click_radius = 26.0
 	e.position = chunk.tile_world(int(m["tx"]), int(m["ty"]))
-	e.action = {"type": "enemy", "name": name, "aggressive": bool(m["aggressive"]), "level": int(m["level"])}
+	e.action = {
+		"type": "enemy", "name": name, "aggressive": bool(m["aggressive"]), "level": int(m["level"]),
+		# Per-spawn AI (tiles; 0 = use the global monster_cfg default): how far it roams from this
+		# spawn point, how close you must get to be engaged, and how far you can drag it before it
+		# gives up and walks home.
+		"wander": float(m.get("wander", 0.0)),
+		"aggro": float(m.get("aggro", 0.0)),
+		"leash": float(m.get("leash", 0.0)),
+	}
+	e.set_meta("home_pos", e.position)   # the spawn point: wander roams around it, leash measures from it
 	container.add_child(e)
 	world.entities.append(e)
 

@@ -20,6 +20,8 @@ const CHASE_SPEED := 24.0         # px/s the mob chases — slower than the play
 const RETURN_SPEED := 30.0        # px/s it walks back to spawn after de-aggro
 const ATTACK_GAP_TILES := 0.7     # how close beside you the chaser stops
 const RANGED_RANGE_TILES := 11.0  # a bow can fire from this far; closer than this you don't move
+const WANDER_SPEED := 11.0        # px/s slow idle amble around the spawn point
+const MOB_SCAN_INTERVAL := 1.0    # how often we refresh the wandering-mob list (cheap, bounded)
 
 var world: Node2D
 
@@ -27,6 +29,8 @@ var _aggro_timer := 0.0
 var _aggro_grace := 0.0
 var _last_chased: Node2D = null     # mob currently engaged, so we can send it home on combat end
 var _returning: Dictionary = {}     # entity -> home Vector2, walking back to its spawn
+var _active_mobs: Array = []        # loaded enemy entities (refreshed on a timer) — the wander set
+var _mob_scan_t := 0.0
 
 
 func setup(w: Node2D) -> void:
@@ -41,6 +45,43 @@ func process_tick(delta: float) -> void:
 	if _aggro_timer >= AGGRO_INTERVAL:
 		_aggro_timer = 0.0
 		_check_aggro()
+	_mob_scan_t += delta
+	if _mob_scan_t >= MOB_SCAN_INTERVAL:
+		_mob_scan_t = 0.0
+		_rebuild_active_mobs()
+	_update_wander(delta)
+
+
+## Refresh the small list of loaded enemy entities that have a wander radius, so the per-frame
+## wander loop iterates only mobs (not every tree/decor entity in world.entities).
+func _rebuild_active_mobs() -> void:
+	_active_mobs.clear()
+	for e: Node2D in world.entities:
+		if is_instance_valid(e) and str(e.action.get("type", "")) == "enemy" and float(e.action.get("wander", 0.0)) > 0.0:
+			_active_mobs.append(e)
+
+
+## Idle wander: each mob ambles slowly to a random point within its wander radius of the spawn,
+## pauses, then picks another — unless it's in combat, returning home, or dead.
+func _update_wander(delta: float) -> void:
+	if CombatSim.active or _active_mobs.is_empty():
+		return
+	for e in _active_mobs:
+		if not is_instance_valid(e) or e.dimmed or _returning.has(e) or e == world.combat_target_entity:
+			continue
+		var wr := float(e.action.get("wander", 0.0)) * WG.TILE
+		if wr <= 0.0:
+			continue
+		var home: Vector2 = e.get_meta("home_pos", e.position)
+		var t := float(e.get_meta("wander_t", 0.0)) - delta
+		if t <= 0.0 or not e.has_meta("wander_to"):
+			t = randf_range(1.5, 4.5)            # walk to a point, then pause before the next
+			var ang := randf() * TAU
+			e.set_meta("wander_to", home + Vector2(cos(ang), sin(ang)) * sqrt(randf()) * wr)
+		e.set_meta("wander_t", t)
+		var dest: Vector2 = e.get_meta("wander_to")
+		if e.position.distance_to(dest) > 3.0:
+			_step_toward(e, dest, WANDER_SPEED * delta)
 
 
 ## Enemy combat AI — an explicit state machine so a mob stays COMMITTED to the fight:
@@ -71,7 +112,8 @@ func _update_chase(delta: float) -> void:
 		# Leash measured from the mob's SPAWN (not its moving position): if the mob —
 		# or the player it's chasing — is dragged farther than the leash from spawn,
 		# it gives up and returns home.
-		if tgt.position.distance_to(spawn) > _leash_radius() or world.player.position.distance_to(spawn) > _leash_radius():
+		var leash := _leash_radius(tgt)
+		if tgt.position.distance_to(spawn) > leash or world.player.position.distance_to(spawn) > leash:
 			var nm: String = CombatSim.enemy.display_name
 			tgt.set_meta("ai_state", "returning")
 			CombatSim.stop("fled")  # clears target; the else-branch walks it home next tick
@@ -151,7 +193,11 @@ func _step_toward(entity: Node2D, target: Vector2, max_step: float, gap: float =
 	entity.queue_redraw()
 
 
-func _leash_radius() -> float:
+func _leash_radius(mob: Node2D = null) -> float:
+	if mob != null:
+		var lt := float(mob.action.get("leash", 0.0))   # per-spawn leave distance (0 = global default)
+		if lt > 0.0:
+			return lt * WG.TILE
 	return float(WorldGen.reg.monster_cfg.get("leashRadiusTiles", LEASH_RADIUS_TILES)) * WG.TILE
 
 
@@ -371,7 +417,9 @@ func _check_aggro() -> void:
 		var lvl := int(a.get("level", 1))
 		if entry >= int(float(lvl) * float(WorldGen.reg.monster_cfg.get("aggroLevelFactor", 2.0))):
 			continue
-		var radius := float(WorldGen.reg.monster_cfg.get("aggroRadiusTiles", 3.2)) * WG.TILE
+		# Per-spawn aggro distance (0 = fall back to the global default).
+		var aggro_t := float(a.get("aggro", 0.0))
+		var radius := (aggro_t if aggro_t > 0.0 else float(WorldGen.reg.monster_cfg.get("aggroRadiusTiles", 3.2))) * WG.TILE
 		if e.position.distance_to(world.player.position) > radius:
 			continue
 		world._path_ctrl.stop_walking()
