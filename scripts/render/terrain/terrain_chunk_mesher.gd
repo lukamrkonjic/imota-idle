@@ -158,17 +158,25 @@ func _visual_corner_y(ci: int, cj: int, ref_top: float, wfc: Dictionary, wlc: Di
 	return h
 
 
-## A 3x3 box-blur of the visual ground height around a corner. Used ONLY to bake the water
+## A 3x3 BILATERAL blur of the visual ground height around a corner. Used ONLY to bake the water
 ## submersion (UV.y) — softening the per-tile staircase so the waterline / foam / water edge that
 ## ride the submersion contour curve gently instead of stepping tile-by-tile. The real terrain mesh
 ## keeps its un-blurred height; this is a coast-shape filter, not a geometry change.
+##
+## BILATERAL (height-aware): a neighbour only contributes if its height is within ~one elevation
+## step of the centre. A plain box blur bled the RAISED bank of an elevated shore/river into the
+## near-water ground, dragging the submersion contour — and the foam riding it — outward up the
+## slope. The similarity gate keeps the blur on the gentle near-shore band and never crosses a cliff.
 func _smooth_ground_y(ci: int, cj: int, wfc: Dictionary, wlc: Dictionary) -> float:
-	var sum := _visual_corner_y(ci, cj, 0.0, wfc, wlc) * 2.0
+	var center := _visual_corner_y(ci, cj, 0.0, wfc, wlc)
+	var sum := center * 2.0
 	var w := 2.0
 	for off: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
 			Vector2i(1, 1), Vector2i(-1, 1), Vector2i(1, -1), Vector2i(-1, -1)]:
-		sum += _visual_corner_y(ci + off.x, cj + off.y, 0.0, wfc, wlc)
-		w += 1.0
+		var hn := _visual_corner_y(ci + off.x, cj + off.y, 0.0, wfc, wlc)
+		var wt := 1.0 - smoothstep(0.1, ELEV_H * 0.9, absf(hn - center))   # 0 once it's a step away
+		sum += hn * wt
+		w += wt
 	return sum / w
 
 
