@@ -88,6 +88,8 @@ var editor_view_radius := 0:
 	set(value):
 		if stream_view != null:
 			stream_view.editor_radius_cap = value
+		if camera_rig != null:
+			camera_rig.editor_footprint_chunks = value   # extend the camera footprint to match
 
 var _cam_pitch: float:
 	get:

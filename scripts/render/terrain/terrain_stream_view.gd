@@ -42,7 +42,7 @@ func update(camera_rig: WorldCameraRig3D) -> void:
 	visual_margin_chunks = camera_rig.get_ground_footprint_chunk_set(VISUAL_MARGIN_CHUNKS)
 	# Budget: if a wide zoom-out blows the cap, drop the margin chunks farthest from the camera
 	# target first (never the directly-visible footprint chunks).
-	if visual_margin_chunks.size() > MAX_VISUAL_CHUNKS:
+	if visual_margin_chunks.size() > _visual_budget():
 		_clamp_to_budget(camera_rig.get_target_grid())
 	# Mark everything needed this frame, then keep = anything needed within the grace window.
 	for key: String in visual_margin_chunks:
@@ -67,9 +67,18 @@ func _clamp_to_budget(target_grid: Vector2) -> void:
 			continue   # never trim a directly-visible chunk
 		ranked.append([_chunk_center_dist2(key, target_grid), key])
 	ranked.sort_custom(func(a: Array, b: Array) -> bool: return a[0] > b[0])   # farthest first
-	var over := visual_margin_chunks.size() - MAX_VISUAL_CHUNKS
+	var over := visual_margin_chunks.size() - _visual_budget()
 	for i: int in mini(over, ranked.size()):
 		visual_margin_chunks.erase(ranked[i][1])
+
+
+## Kept-chunk budget. Gameplay uses MAX_VISUAL_CHUNKS; the editor raises it to cover its larger
+## footprint (so a far-zoom aerial view isn't trimmed back to a jagged ring).
+func _visual_budget() -> int:
+	if editor_radius_cap > 0:
+		var span := editor_radius_cap * 2 + 1
+		return maxi(MAX_VISUAL_CHUNKS, span * span)
+	return MAX_VISUAL_CHUNKS
 
 
 func _chunk_center_dist2(key: String, target_grid: Vector2) -> float:

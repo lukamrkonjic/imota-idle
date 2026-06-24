@@ -262,6 +262,7 @@ func _update_stream_radius() -> void:
 	# overrides the zoom-derived radius entirely — the slider is the authority.
 	if editor_stream_cap > 0:
 		r = editor_stream_cap
+		chunk_manager.editor_view_cap = editor_stream_cap   # let DATA load out to the editor's view radius
 	# Terrain must fill the whole zoomed-out view, but interactive/entity chunks
 	# only need a modest buffer around the player. Expanding both was flooding the
 	# moving camera with hundreds of extra CanvasItems.

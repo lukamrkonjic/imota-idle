@@ -60,6 +60,13 @@ var _cam_pitch := 0.413            # elevation above horizon (Up/Down arrows); m
 var _cam_follow := Vector2.INF     # smoothed follow target (iso); INF = uninitialised (snap on first use)
 var _cover_zoom := 1.0             # smoothed coverage zoom factor [COVER_ZOOM_MIN .. 1]
 var editor_cam_target = null       # world editor: Vector2 to pin the camera to (overrides player follow); null = off
+var editor_footprint_chunks := 0   # world editor: raise the footprint reach (chunks) so a far zoom fills the view; 0 = gameplay cap
+
+
+## How far (tiles) the projected footprint may reach from the target. Gameplay uses the perf-safe
+## MAX_FOOTPRINT_TILES; the editor raises it from its View slider so the aerial view fills the screen.
+func _footprint_cap() -> float:
+	return float(editor_footprint_chunks * WG.CHUNK_TILES) if editor_footprint_chunks > 0 else MAX_FOOTPRINT_TILES
 
 
 func setup(w: Node2D, w3d: Node3D, present: RenderViewportPresenter, height_provider: Callable) -> void:
@@ -352,11 +359,12 @@ func _ray_ground_grid(o: Vector3, d: Vector3, py: float, center: Vector2) -> Vec
 		var horiz := Vector2(d.x, d.z)
 		if horiz.length() < 0.0001:
 			return center
-		g = Vector2(o.x / TILE_S, o.z / TILE_S) + horiz.normalized() * MAX_FOOTPRINT_TILES
+		g = Vector2(o.x / TILE_S, o.z / TILE_S) + horiz.normalized() * _footprint_cap()
 	# Safety bound: never let a corner exceed the visual budget radius from the target.
+	var cap := _footprint_cap()
 	var off := g - center
-	if off.length() > MAX_FOOTPRINT_TILES:
-		g = center + off.normalized() * MAX_FOOTPRINT_TILES
+	if off.length() > cap:
+		g = center + off.normalized() * cap
 	return g
 
 

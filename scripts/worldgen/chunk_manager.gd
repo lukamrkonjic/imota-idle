@@ -13,6 +13,7 @@ const ChunkRenderer := preload("res://scripts/worldgen/chunk_renderer.gd")
 var layer := 0
 var view_radius := WG.VIEW_RADIUS
 var active_radius := WG.ACTIVE_RADIUS
+var editor_view_cap := 0           # world editor: raise the data-ring hard cap (chunks); 0 = gameplay MAX_VIEW_RADIUS
 var nav_radius := WG.NAV_RADIUS
 var detail_radius := WG.DETAIL_RADIUS
 var unload_radius := WG.VIEW_RADIUS + 2
@@ -161,7 +162,10 @@ func update_center(world_pos: Vector2) -> void:
 ## zoom so the loaded ring always covers the view (plus margin). Re-streams when
 ## the radius grows and unloads when it shrinks.
 func set_radii(p_view: int, p_active: int) -> void:
-	var v := clampi(p_view, WG.VIEW_RADIUS, WG.MAX_VIEW_RADIUS)
+	# Gameplay caps the data ring at WG.MAX_VIEW_RADIUS; the world editor raises it (editor_view_cap)
+	# so a far-zoom aerial view can load DATA all the way out (terrain only meshes where data exists).
+	var view_hard: int = editor_view_cap if editor_view_cap > 0 else WG.MAX_VIEW_RADIUS
+	var v := clampi(p_view, WG.VIEW_RADIUS, view_hard)
 	var a := clampi(p_active, WG.NAV_RADIUS, mini(WG.MAX_ACTIVE_RADIUS, v - 1))
 	if v == view_radius and a == active_radius:
 		return
