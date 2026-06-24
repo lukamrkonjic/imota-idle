@@ -48,13 +48,11 @@ uniform float foam_depth = 0.24;       // world-height band of submersion the fo
 uniform float foam_width = 0.55;       // world units: EVEN ribbon width along the waterline (slope/zoom independent)
 uniform float foam_scale = 0.17;
 uniform float foam_speed = 0.05;
+uniform float foam_aa = 0.08;          // extra anti-aliasing width in world units
+uniform float foam_sdf_bias = 0.02;    // nudge foam slightly if it sits on land
 uniform sampler2D foam_tex : repeat_enable, filter_linear;
 
 // --- distance detail LOD ------------------------------------------------------
-// Foam, the contour loops and the bright shallow rim are NEAR-FIELD detail. Past the mid
-// distance the water collapses to one calm muted tone so the depth fog can blend it to the
-// horizon cleanly — without that, the light-blue shallows pop as a streak against fogged land.
-// detail_fade_* are view-space depths, driven from world_render_3d to track the view slider.
 uniform vec4 distant_color : source_color = vec4(0.231, 0.408, 0.475, 1.0);
 uniform float detail_fade_begin = 16.0;
 uniform float detail_fade_end = 34.0;
@@ -84,24 +82,20 @@ float contour(float n, float count) {
 
 void fragment() {
 	float sd = (v_wf - 0.5) * sd_scale;   // + into water, - onto land; 0 = smoothed coast
-	// Anti-aliased waterline: fully transparent a touch onto the land, full water a touch
-	// into the sea. The dry beach terrain shows through on the land side.
+	// Anti-aliased waterline
 	float water_a = smoothstep(-shore_aa, shore_aa, sd);
-	// Height-based fill (ADDITIVE): wherever the terrain actually sits below the sheet — a hole,
-	// dip or low cove the tile map never marked as water — render water up to the brim anyway.
-	// Real fluid can't leave a sub-surface gap, and we have no physics sim, so the geometry test
-	// guarantees it: no exposed sub-water land can peek under the shoreline.
+	// Height-based fill for dips/coves
 	water_a = max(water_a, smoothstep(0.0, brim_fill, v_sub));
 	if (water_a <= 0.001) {
 		discard;
 	}
 	vec2 wp = v_world.xz;
 
-	// --- shallow -> deep colour ramp by signed coast distance ---
+	// --- shallow -> deep colour ramp ---
 	float deep_t = smoothstep(0.0, shallow_cells, sd);
 	vec3 col = mix(shallow_color.rgb, deep_color.rgb, deep_t);
 
-	// --- illustrated contour loops (fade in past the shallows) ---
+	// --- illustrated contour loops ---
 	vec2 w1 = wp * (pattern_scale * 0.5) + primary_speed * TIME;
 	vec2 w2 = wp * (pattern_scale * 0.5) + secondary_speed * TIME + vec2(0.4, 0.2);
 	vec2 warp = (vec2(texture(warp_tex, w1).r, texture(warp_tex, w2).r) - 0.5) * domain_warp_strength;
@@ -114,35 +108,33 @@ void fragment() {
 	float contour_vis = smoothstep(contour_fade_in, contour_fade_out, sd);
 	col = mix(col, line_color.rgb, lines * contour_vis * line_opacity);
 
-	// --- animated sea-foam hugging the TRUE waterline, as an EVEN-WIDTH ribbon ---
-	// Anchored to the SINGLE true waterline (v_sub = 0, baked from the real elevation-resolved
-	// terrain silhouette — so it follows every crevice and headland of the actual coast). The catch
-	// with a raw submersion band is that its width is in DEPTH, so the horizontal ribbon = depth /
-	// beach-slope: it blobs out on a gentle shore and collapses to a sliver/gap up a steep or
-	// elevated bank. Fix: divide the submersion by its own WORLD-SPACE slope (recovered by inverting
-	// the screen->world derivative jacobian) to get a horizontal WORLD distance to the waterline, so
-	// the ribbon is an even width on ANY steepness and scales naturally with zoom. One contour only —
-	// no second offset shoreline.
+	// --- animated sea-foam (improved smooth hugging) ---
 	vec2 fp = wp * foam_scale;
 	float fa = texture(foam_tex, fp + vec2(TIME * foam_speed, TIME * foam_speed * 0.4)).r;
 	float fb = texture(foam_tex, fp * 1.7 - vec2(TIME * foam_speed * 0.7, 0.0)).r;
 	float wash = (fa + fb) * 0.5;
-	vec2 g_scr = vec2(dFdx(v_sub), dFdy(v_sub));            // d(submersion)/d(pixel)
-	vec2 wxd = vec2(dFdx(wp.x), dFdy(wp.x));                // d(world.x)/d(pixel)
-	vec2 wzd = vec2(dFdx(wp.y), dFdy(wp.y));                // d(world.z)/d(pixel)
+
+	// SDF distance (smooth coast from v_wf) + derivative distance (geometry)
+	float sdf_dist = sd / sd_scale;
+	vec2 g_scr = vec2(dFdx(v_sub), dFdy(v_sub));
+	vec2 wxd = vec2(dFdx(wp.x), dFdy(wp.x));
+	vec2 wzd = vec2(dFdx(wp.y), dFdy(wp.y));
 	float det = wxd.x * wzd.y - wzd.x * wxd.y;
 	vec2 grad = abs(det) > 1e-9
 		? vec2(g_scr.x * wzd.y - g_scr.y * wzd.x, wxd.x * g_scr.y - wxd.y * g_scr.x) / det
-		: vec2(0.0);                                        // world-space gradient of the submersion
-	float dist = v_sub / max(length(grad), 1e-4);          // horizontal world distance from the waterline (+ = sea)
-	float band = foam_width * (0.7 + wash * 0.6);          // outer edge washes in/out (world units)
-	float foam = (1.0 - smoothstep(0.0, band, dist))       // solid at the shore, fading out to sea
-	           * smoothstep(-foam_width * 0.35, foam_width * 0.1, dist);  // and off the dry beach (land side)
-	foam *= 0.72 + wash * 0.5;                              // froth shimmer — varies but never gaps out
+		: vec2(0.0);
+	float deriv_dist = v_sub / max(length(grad), 1e-4);
+
+	// Blend: prefer smooth SDF near coast for clean curves
+	float dist = mix(sdf_dist, deriv_dist, smoothstep(0.0, 0.8, abs(sdf_dist)));
+
+	float band = foam_width * (0.7 + wash * 0.6) + foam_aa;
+	float foam = (1.0 - smoothstep(0.0, band, dist + foam_sdf_bias))
+	           * smoothstep(-foam_width * 0.4 - foam_aa, foam_width * 0.15, dist + foam_sdf_bias);
+	foam *= 0.72 + wash * 0.5;
 	col = mix(col, foam_color.rgb, clamp(foam, 0.0, 1.0));
 
-	// Distance LOD: fade the illustrated near-field detail to a calm muted tone before the
-	// depth fog takes over, so distant water hazes out smoothly instead of streaking cyan.
+	// Distance LOD
 	float view_depth = -VERTEX.z;
 	float detail = 1.0 - smoothstep(detail_fade_begin, detail_fade_end, view_depth);
 	col = mix(distant_color.rgb, col, detail);
