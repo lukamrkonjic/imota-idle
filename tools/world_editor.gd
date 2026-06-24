@@ -319,7 +319,7 @@ var _minimap_tex: TextureRect
 var _minimap_marker: ColorRect
 var _map_overlay: Control       # draws placed content (spawn / creatures / buildings / pois / roads) over the map
 var _minimap_check: CheckBox   # Overlays > "World map" — kept in sync with the M key
-var _show_minimap := true   # Overlays > "World map" toggle (hide the bottom-right map)
+var _show_minimap := false   # Overlays > "World map" toggle — OFF by default (don't auto-open the bottom-right map; press M / tick the box to show it)
 
 
 func _ready() -> void:

@@ -115,6 +115,14 @@ func update(_camera_rig: WorldCameraRig3D, stream_view: TerrainStreamView) -> vo
 	# Editor aerial view: no distance fog — show all the streamed terrain crisply to the edge.
 	if editor_no_fog:
 		_env.fog_enabled = false
+		# CRITICAL: with no fog AND the aerial camera pulled far back, every water vertex sits past
+		# the water shader's default detail-LOD cutoff (16..34), which would collapse the whole sea
+		# to the flat muted "distant" tone (the bug: uniform teal, no shallows/foam/shoreline). Push
+		# the detail fade out beyond the entire aerial view so the shallow→deep gradient, illustrated
+		# contours and shoreline foam render across the map — i.e. water that looks like the game.
+		if _water_mat != null:
+			_water_mat.set_shader_parameter("detail_fade_begin", 1.0e6)
+			_water_mat.set_shader_parameter("detail_fade_end", 1.0e6 + 1.0)
 		_apply_grade()
 		return
 	var vt := stream_view.approx_visual_extent_tiles()
