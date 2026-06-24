@@ -335,6 +335,142 @@ static func _pose_bird(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: 
 	_set_pivot(node, "leg_r", -swing)
 
 
+# --- new creature gaits --------------------------------------------------------
+# Each swings the NAMED PIVOTS its rig (mover_meshes.gd) exposes. All pivot setters are null-safe
+# (_pivot returns null for a missing name), so a pose can address pivots a given variant lacks.
+
+static func _set_pivot_z(node: Node3D, pivot_name: String, angle: float) -> void:
+	var p := _pivot(node, pivot_name)
+	if p != null:
+		p.rotation.z = angle
+
+
+## Dragon / drake / wyvern: a steady wing-beat (stronger airborne while moving), a lashing tail,
+## a bobbing neck that rears on a bite, and a diagonal four-leg step on the ground.
+static func _pose_dragon(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float) -> void:
+	var rest := 1.0 - walk
+	var stride := t * 6.0 + phase
+	var bob := absf(sin(stride)) * 0.05 * walk + rest * sin(t * 1.3 + phase) * 0.03
+	var lift := walk * 0.18                                   # rises as it beats its wings to move
+	node.position = pos3 + Vector3(0, bob + lift + 0.06, 0)
+	node.rotation = Vector3(-0.3 * sin(atk * PI) + walk * 0.08, yaw, sin(t * 0.9 + phase) * 0.03)
+	node.scale = Vector3(base, base, base)
+	# Wing beat: both wings lift together (mirrored Z), a touch faster/wider while flying.
+	var flap := sin(t * (3.4 + walk * 2.2) + phase) * (0.34 + walk * 0.5)
+	_set_pivot_z(node, "wing_r", -0.2 - flap)
+	_set_pivot_z(node, "wing_l", 0.2 + flap)
+	# Tail lashes; the tip (tail2) trails with extra amplitude.
+	var lash := sin(t * 1.6 + phase) * (0.25 + walk * 0.2)
+	_set_pivot_xy(node, "tail", 0.0, lash)
+	_set_pivot_xy(node, "tail2", 0.0, lash * 1.4)
+	# Neck bob + bite lunge.
+	_set_pivot(node, "neck", -0.12 * sin(atk * PI) + sin(t * 1.5 + phase) * 0.05 * rest)
+	# Ground step (legs may be absent on a wyvern — null-safe).
+	var st := sin(stride) * 0.55 * walk
+	_set_pivot(node, "leg_fl", st)
+	_set_pivot(node, "leg_br", st)
+	_set_pivot(node, "leg_fr", -st)
+	_set_pivot(node, "leg_bl", -st)
+
+
+## Serpent / crawler: a lateral travelling wave runs head-to-tail down the segment chain (seg0..),
+## bigger while moving; the head rears and strikes on a bite. Shared by snakes and centipedes.
+static func _pose_serpent(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float) -> void:
+	var rest := 1.0 - walk
+	node.position = pos3 + Vector3(0, 0.04, 0)
+	node.rotation = Vector3(0, yaw, 0)
+	node.scale = Vector3(base, base, base)
+	var amp := 0.34 + walk * 0.34
+	var speed := t * (4.0 + walk * 3.0) + phase
+	# Travelling wave: each segment lags the one behind it, so the bend ripples forward.
+	for i: int in 8:
+		var w := sin(speed - float(i) * 0.9) * amp
+		_set_pivot_xy(node, "seg%d" % i, 0.0, w)
+	# Head segment (last present) rears + strikes — fold the front pivots up on a bite.
+	var strike := sin(atk * PI)
+	_set_pivot(node, "seg0", -0.2 * strike - rest * 0.08 * sin(t * 1.1 + phase))
+	_set_pivot(node, "seg4", 0.5 * strike)
+
+
+## Slime / ooze / elemental: a wobbling squash-stretch on the "blob" pivot, plus a bouncing hop
+## while it moves. No limbs — the whole body pulses.
+static func _pose_slime(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float) -> void:
+	var beat := t * (5.5 + walk * 3.0) + phase
+	var hop := maxf(0.0, sin(beat)) * walk * 0.16                # springs up off the squash
+	node.position = pos3 + Vector3(0, hop + 0.02, 0)
+	node.rotation = Vector3(0, yaw, 0)
+	node.scale = Vector3(base, base, base)
+	# Squash on the way down, stretch tall on the way up; a small idle jiggle at rest.
+	var sq := sin(beat) * (0.12 + walk * 0.06) + sin(t * 2.1 + phase) * 0.03
+	sq += sin(atk * PI) * 0.18                                    # bulges to slam on a hit
+	var blob := _pivot(node, "blob")
+	if blob != null:
+		blob.scale = Vector3(1.0 + sq * 0.6, 1.0 - sq, 1.0 + sq * 0.6)
+
+
+## Floating wraith / eye: a slow hover bob well clear of the ground, a gentle drift sway, and
+## wavering appendages — robe arms (arm_l/arm_r) and/or eye tentacles (tent0..tent3).
+static func _pose_float(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float) -> void:
+	var hover := (0.26 + sin(t * 1.2 + phase) * 0.07 + walk * 0.04) * base
+	node.position = pos3 + Vector3(0, hover, 0)
+	node.rotation = Vector3(-0.25 * sin(atk * PI) + sin(t * 0.8 + phase) * 0.04, yaw, sin(t * 0.6 + phase) * 0.05)
+	node.scale = Vector3(base, base, base)
+	# Robe arms drift out and waver.
+	var wav := sin(t * 1.4 + phase)
+	_set_pivot_z(node, "arm_l", 0.4 + wav * 0.12)
+	_set_pivot_z(node, "arm_r", -0.4 - wav * 0.12)
+	_set_pivot(node, "arm_l", wav * 0.12 - 0.1)
+	_set_pivot(node, "arm_r", -wav * 0.12 - 0.1)
+	# Eye tentacles writhe, each on its own phase.
+	for i: int in 4:
+		_set_pivot_xy(node, "tent%d" % i, sin(t * 2.0 + phase + float(i) * 1.4) * 0.3, sin(t * 1.5 + float(i)) * 0.2)
+
+
+## Spider / scarab: a many-legged scuttle. Legs split into two alternating sets (tripod-ish) so the
+## body skitters; a low body bob; the body rears a touch on a bite. Animates leg0..leg7 (null-safe).
+static func _pose_scuttle(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float) -> void:
+	var stride := t * 11.0 + phase
+	var bob := absf(sin(stride * 2.0)) * 0.03 * walk
+	node.position = pos3 + Vector3(0, bob + 0.03, 0)
+	node.rotation = Vector3(-0.3 * sin(atk * PI), yaw, sin(stride) * 0.04 * walk)
+	node.scale = Vector3(base, base, base)
+	var idle := sin(t * 2.4 + phase)
+	for i: int in 8:
+		# Alternate legs by index parity for a skittering tripod gait; small twitch at rest.
+		var ph := stride + (0.0 if i % 2 == 0 else PI) + float(i) * 0.2
+		_set_pivot(node, "leg%d" % i, sin(ph) * 0.45 * walk + idle * 0.04 * (1.0 - walk))
+
+
+## Crab / shell-crusher: a rolling sidestep (legs leg0..leg5), claws (claw_l/claw_r) that snap shut
+## on a bite, and wiggling eye-stalks. Sways side to side as it scuttles.
+static func _pose_crab(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float) -> void:
+	var stride := t * 9.0 + phase
+	var bob := absf(sin(stride)) * 0.03 * walk
+	node.position = pos3 + Vector3(0, bob + 0.03, 0)
+	node.rotation = Vector3(0, yaw, sin(stride) * 0.12 * walk)         # rolls L/R as it sidesteps
+	node.scale = Vector3(base, base, base)
+	for i: int in 6:
+		_set_pivot(node, "leg%d" % i, sin(stride + float(i) * 1.05) * 0.4 * walk)
+	# Claws: held up, snap closed on a hit, idle twitch otherwise.
+	var snap := sin(atk * PI)
+	_set_pivot(node, "claw_l", -0.3 + snap * 0.5 + sin(t * 1.3 + phase) * 0.06)
+	_set_pivot(node, "claw_r", -0.3 + snap * 0.5 + sin(t * 1.3 + phase + 1.0) * 0.06)
+	# Eye-stalks swivel.
+	_set_pivot_z(node, "stalk_l", sin(t * 1.6 + phase) * 0.12)
+	_set_pivot_z(node, "stalk_r", -sin(t * 1.6 + phase) * 0.12)
+
+
+## Bat: a fast erratic wing-beat with a jittery hover; weaves as it flits. Always airborne.
+static func _pose_bat(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float) -> void:
+	var hover := (0.5 + sin(t * 3.2 + phase) * 0.1 + walk * 0.06) * base
+	node.position = pos3 + Vector3(0, hover, 0)
+	node.rotation = Vector3(-0.4 * sin(atk * PI) + sin(t * 4.0 + phase) * 0.05, yaw + sin(t * 2.2 + phase) * 0.1, sin(t * 3.0 + phase) * 0.08)
+	node.scale = Vector3(base, base, base)
+	var flap := sin(t * 12.0 + phase) * (0.7 + walk * 0.3)
+	_set_pivot_z(node, "wing_r", -flap)
+	_set_pivot_z(node, "wing_l", flap)
+
+
 # --- combat animation: lunges driven by the tick-combat hit splats -------------
 
 

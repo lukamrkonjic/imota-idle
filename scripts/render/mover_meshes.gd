@@ -570,13 +570,48 @@ static func beastman_rig(spec: Dictionary) -> Node3D:
 ## renderer scales/orients it per creature and keeps it pinned to the ground.
 static func enemy_body_type(name: String) -> String:
 	var n := name.to_lower()
-	for kw: String in ["wolf", "hound", "dog", "fox", "amaruq", "jackal"]:
+	# Order matters: more specific creature families are tested before the farm animals and the
+	# humanoid fallback, and "batter"(slime) is tested before "bat", "vaerthrax"(dragon) before any
+	# slime token, so substrings can't cross-match.
+	for kw: String in ["dragon", "drake", "wyvern", "wyrm", "vaerthrax", "vermithrax", "glazarth", "twinfang"]:
+		if n.contains(kw):
+			return "dragon"
+	for kw: String in ["viper", "serpent", "snake", "cobra", "adder", "naga"]:
+		if n.contains(kw):
+			return "serpent"
+	for kw: String in ["ooze", "slime", "jelly", "pudding", "blob", "core", "elemental", "batter", "gel", "malachite"]:
+		if n.contains(kw):
+			return "slime"
+	for kw: String in ["ghost", "wraith", "spectre", "specter", "phantom", "grim", "revenant", "wight", "spirit", "banshee", "poltergeist"]:
+		if n.contains(kw):
+			return "wraith"
+	for kw: String in ["eye", "beholder", "gaze", "devourer"]:
+		if n.contains(kw):
+			return "eye"
+	for kw: String in ["spider", "widow", "arachnid", "weaver", "tarantula"]:
+		if n.contains(kw):
+			return "spider"
+	for kw: String in ["scarab", "beetle", "weevil"]:
+		if n.contains(kw):
+			return "scarab"
+	for kw: String in ["crab", "shellcrush", "pincer", "lobster"]:
+		if n.contains(kw):
+			return "crab"
+	for kw: String in ["crawler", "centipede", "worm", "feeder", "hands", "maggot", "grub"]:
+		if n.contains(kw):
+			return "crawler"
+	if n.contains("bat"):
+		return "bat"
+	if n.contains("bear") or n.contains("ursine"):
+		return "bear"
+	for kw: String in ["wolf", "wolves", "hound", "dog", "fox", "amaruq", "jackal", "warg", "lupine"]:
 		if n.contains(kw):
 			return "wolf"
 	for kw: String in ["boar", "hog", "pig", "swine"]:
 		if n.contains(kw):
 			return "boar"
-	if n.contains("cow") or n.contains("ox") or n.contains("bull") or n.contains("cattle") or n.contains("calf"):
+	# NOTE: no bare "ox" — it matches "t-ox-ic" etc. Cows are caught by their own words.
+	if n.contains("cow") or n.contains("oxen") or n.contains("bull") or n.contains("cattle") or n.contains("calf"):
 		return "cow"
 	if n.contains("sheep") or n.contains("ram") or n.contains("lamb"):
 		return "sheep"
@@ -630,6 +665,42 @@ static func enemy_rig(e: Node) -> Node3D:
 			var brown := n.contains("mumma") or n.contains("momma")
 			node = bird_rig({"body": Color(0.84, 0.72, 0.58) if brown else Color(0.93, 0.89, 0.80)})
 			size = 0.62
+		"dragon":
+			var dt := _enemy_tint(n, Color(0.34, 0.5, 0.38))
+			node = dragon_rig({"scale": dt, "wyvern": n.contains("wyvern")})
+			size = 1.2 if n.contains("wyvern") else 1.5
+		"serpent":
+			node = serpent_rig({"scale": _enemy_tint(n, Color(0.32, 0.54, 0.3))})
+			size = 1.0
+		"slime":
+			node = slime_rig({"col": _enemy_tint(n, Color(0.4, 0.7, 0.45))})
+			size = 0.95
+		"wraith":
+			var wt := _enemy_tint(n, Color(0.42, 0.47, 0.58))
+			node = wraith_rig({"robe": wt, "glow": Color(0.7, 0.95, 1.0) if wt.b > wt.r else Color(1.0, 0.7, 0.4)})
+			size = 1.0
+		"eye":
+			node = eye_rig({"iris": _enemy_tint(n, Color(0.85, 0.7, 0.2)), "flesh": _enemy_tint(n, Color(0.7, 0.4, 0.46))})
+			size = 0.9
+		"spider":
+			node = spider_rig({"chitin": _enemy_tint(n, Color(0.16, 0.16, 0.2))})
+			size = 0.9
+		"scarab":
+			node = scarab_rig({"shell": _enemy_tint(n, Color(0.22, 0.26, 0.34))})
+			size = 0.82
+		"crawler":
+			node = crawler_rig({"skin": _enemy_tint(n, Color(0.55, 0.42, 0.46))})
+			size = 0.85
+		"crab":
+			node = crab_rig({"shell": _enemy_tint(n, Color(0.78, 0.34, 0.26))})
+			size = 0.95
+		"bat":
+			node = bat_rig({"fur": _enemy_tint(n, Color(0.28, 0.24, 0.3))})
+			size = 0.5
+		"bear":
+			var bt := _enemy_tint(n, Color(0.36, 0.27, 0.22))
+			node = quadruped_rig({"hide": bt, "belly": bt.lightened(0.24), "ears": "perk", "tail": "short", "snout": 0.24})
+			size = 1.35
 		_:
 			type = "humanoid"
 			if n.contains("gnoll"):
@@ -705,6 +776,30 @@ static func _variant_size(n: String) -> float:
 		if n.contains(kw4):
 			return 0.72
 	return 1.0
+
+
+## Thematic tint from the enemy name so colour-variants of one archetype read differently (a Frost
+## Wyvern is icy blue, a Blood Dragon crimson…). Falls back to the archetype's base colour.
+static func _enemy_tint(n: String, base: Color) -> Color:
+	for kw: String in ["frost", "ice", "frozen", "glaci", "snow", "brumal", "aqua", "water", "pale", "azure", "winter"]:
+		if n.contains(kw):
+			return Color(0.55, 0.72, 0.86)
+	for kw2: String in ["fire", "ember", "flame", "crimson", "blood", "lava", "magma", "sun", "scorch"]:
+		if n.contains(kw2):
+			return Color(0.8, 0.3, 0.22)
+	for kw3: String in ["toxic", "poison", "viridian", "emerald", "venom", "blight", "bloom", "verdant", "ooz", "plague", "virulent"]:
+		if n.contains(kw3):
+			return Color(0.42, 0.66, 0.32)
+	for kw4: String in ["ebon", "onyx", "dark", "shadow", "night", "void", "obsidian", "black"]:
+		if n.contains(kw4):
+			return Color(0.2, 0.2, 0.26)
+	for kw5: String in ["gold", "royal", "sand", "dune", "desert", "amber", "brass", "tomb", "bone"]:
+		if n.contains(kw5):
+			return Color(0.82, 0.66, 0.3)
+	for kw6: String in ["purple", "warped", "entropic", "arcane", "onyx", "amethyst"]:
+		if n.contains(kw6):
+			return Color(0.5, 0.34, 0.66)
+	return base
 
 
 ## Reusable four-legged beast. Legs hang off hip pivots (leg_fl/leg_fr/leg_bl/
@@ -867,5 +962,264 @@ static func _biped_arm(root: Node3D, side: int, shoulder: Vector3, upper: Vector
 	var el := _limb(sh, "elbow_l" if side < 0 else "elbow_r", Vector3(0, -upper.y, 0))
 	_attach(el, PropMeshes._box(key + "_fo", fore), fore_mat, Vector3(0, -fore.y * 0.5, 0))
 	return el
+
+
+# ─────────────────────────── new creature archetypes ───────────────────────────
+# Each builds a low-poly rig with NAMED PIVOTS that the matching pose in mover_rig.gd swings
+# (wings, tail segments, legs, claws, tentacles…). The body3d meta set in enemy_rig routes the
+# right pose; base_scale + per-name colour come from enemy_rig so variants share one builder.
+
+static func _tri_mat(c: Color) -> ShaderMaterial:
+	return PropMeshes._mat_from(c, c.darkened(0.34), c.lightened(0.2))
+
+
+## Winged dragon / drake / wyvern. Pivots: neck, wing_l, wing_r, tail (+tail2), leg_*.
+## spec: scale/belly/wing (Color), wyvern (bool → rear legs only).
+static func dragon_rig(spec: Dictionary) -> Node3D:
+	var scl: Color = spec.get("scale", Color(0.34, 0.5, 0.38))
+	var belly: Color = spec.get("belly", scl.lightened(0.34))
+	var wing: Color = spec.get("wing", scl.darkened(0.16))
+	var bipedal := bool(spec.get("wyvern", false))
+	var bodym := _tri_mat(scl)
+	var bellym := _tri_mat(belly)
+	var wingm := _tri_mat(wing)
+	var hornm := _tri_mat(Color(0.9, 0.86, 0.74))
+	var eyem := PropMeshes._mat_from(Color(0.97, 0.8, 0.2), Color(0.6, 0.4, 0.08), Color(1.0, 0.92, 0.45))
+	var root := Node3D.new()
+	_attach(root, PropMeshes._sphere("dr_body", 0.4), bodym, Vector3(0, 0.74, 0), Vector3(1.0, 0.92, 1.55))
+	_attach(root, PropMeshes._box("dr_belly", Vector3(0.42, 0.2, 1.04)), bellym, Vector3(0, 0.58, 0.02))
+	var neck := _limb(root, "neck", Vector3(0, 0.9, 0.52))
+	_attach(neck, PropMeshes._box("dr_neck", Vector3(0.22, 0.52, 0.28)), bodym, Vector3(0, 0.18, 0.05), Vector3.ONE, Vector3(-0.55, 0, 0))
+	_attach(neck, PropMeshes._box("dr_head", Vector3(0.3, 0.26, 0.4)), bodym, Vector3(0, 0.46, 0.26))
+	_attach(neck, PropMeshes._cone("dr_snout", 0.12, 0.04, 0.22), bodym, Vector3(0, 0.43, 0.5), Vector3.ONE, Vector3(1.5708, 0, 0))
+	for sx: int in [-1, 1]:
+		_attach(neck, PropMeshes._cone("dr_horn", 0.05, 0.004, 0.24), hornm, Vector3(0.1 * sx, 0.62, 0.16), Vector3.ONE, Vector3(-0.5, 0, 0.35 * sx))
+		_attach(neck, PropMeshes._sphere("dr_eye", 0.05), eyem, Vector3(0.12 * sx, 0.5, 0.4))
+	for sw: int in [-1, 1]:
+		var w := _limb(root, "wing_l" if sw < 0 else "wing_r", Vector3(0.16 * sw, 0.96, -0.02))
+		_attach(w, PropMeshes._box("dr_wbone", Vector3(0.06, 0.06, 0.56)), wingm, Vector3(0.3 * sw, 0.02, -0.12), Vector3.ONE, Vector3(0, 0.5 * sw, 0))
+		_attach(w, PropMeshes._box("dr_wmem", Vector3(0.74, 0.03, 0.66)), wingm, Vector3(0.56 * sw, 0.0, -0.18))
+	var tail := _limb(root, "tail", Vector3(0, 0.72, -0.64))
+	_attach(tail, PropMeshes._cone("dr_tail1", 0.17, 0.1, 0.46), bodym, Vector3(0, 0, -0.23), Vector3.ONE, Vector3(1.5708, 0, 0))
+	var tail2 := _limb(tail, "tail2", Vector3(0, 0, -0.46))
+	_attach(tail2, PropMeshes._cone("dr_tail2", 0.1, 0.015, 0.56), bodym, Vector3(0, 0, -0.28), Vector3.ONE, Vector3(1.5708, 0, 0))
+	var legs := [["leg_bl", -0.24, -0.32], ["leg_br", 0.24, -0.32]]
+	if not bipedal:
+		legs.append_array([["leg_fl", -0.26, 0.34], ["leg_fr", 0.26, 0.34]])
+	for ld: Array in legs:
+		var leg := _limb(root, str(ld[0]), Vector3(float(ld[1]), 0.48, float(ld[2])))
+		_attach(leg, PropMeshes._box("dr_thigh", Vector3(0.16, 0.42, 0.18)), bodym, Vector3(0, -0.21, 0))
+		_attach(leg, PropMeshes._box("dr_claw", Vector3(0.22, 0.1, 0.26)), bodym, Vector3(0, -0.44, 0.05))
+	return root
+
+
+## Legless serpent / viper. A forward chain of segment pivots (seg0..seg4) the slither wave runs
+## down, tapering to the tail, wedge head + eyes at the front. spec: scale (Color).
+static func serpent_rig(spec: Dictionary) -> Node3D:
+	var scl: Color = spec.get("scale", Color(0.32, 0.54, 0.3))
+	var bodym := _tri_mat(scl)
+	var bellym := _tri_mat(scl.lightened(0.3))
+	var eyem := PropMeshes._mat_from(Color(0.95, 0.78, 0.16), Color(0.6, 0.4, 0.06), Color(1.0, 0.9, 0.4))
+	var root := Node3D.new()
+	var radii := [0.2, 0.18, 0.15, 0.12, 0.09]
+	var parent := root
+	for i: int in radii.size():
+		var seg := _limb(parent, "seg%d" % i, Vector3(0, 0.2 if i == 0 else 0.0, 0.0 if i == 0 else 0.34))
+		_attach(seg, PropMeshes._sphere("snk_seg%d" % i, float(radii[i])), bodym, Vector3(0, 0, 0.17), Vector3(1.1, 0.85, 1.35))
+		parent = seg
+	_attach(parent, PropMeshes._box("snk_head", Vector3(0.24, 0.16, 0.3)), bodym, Vector3(0, 0.03, 0.36))
+	_attach(parent, PropMeshes._box("snk_jaw", Vector3(0.2, 0.06, 0.18)), bellym, Vector3(0, -0.04, 0.42))
+	for sx: int in [-1, 1]:
+		_attach(parent, PropMeshes._sphere("snk_eye", 0.04), eyem, Vector3(0.08 * sx, 0.09, 0.4))
+	return root
+
+
+## Gelatinous blob (ooze / slime / elemental / core). No limbs — the pose squashes & jiggles the
+## "blob" pivot. A dome + inner core + bubbles + dot eyes. spec: col (Color).
+static func slime_rig(spec: Dictionary) -> Node3D:
+	var col: Color = spec.get("col", Color(0.4, 0.7, 0.45))
+	var bodym := _tri_mat(col)
+	var litem := _tri_mat(col.lightened(0.28))
+	var eyem := PropMeshes._mat_from(Color(0.08, 0.09, 0.1), Color(0.03, 0.03, 0.04), Color(0.16, 0.16, 0.18))
+	var root := Node3D.new()
+	var blob := _limb(root, "blob", Vector3(0, 0.0, 0))
+	_attach(blob, PropMeshes._sphere("sl_body", 0.46), bodym, Vector3(0, 0.4, 0), Vector3(1.15, 0.92, 1.15))
+	_attach(blob, PropMeshes._sphere("sl_core", 0.2), litem, Vector3(0, 0.34, 0.04))
+	_attach(blob, PropMeshes._sphere("sl_bub", 0.09), litem, Vector3(0.18, 0.56, 0.14))
+	_attach(blob, PropMeshes._sphere("sl_bub", 0.06), litem, Vector3(-0.14, 0.46, 0.2))
+	for sx: int in [-1, 1]:
+		_attach(blob, PropMeshes._sphere("sl_eye", 0.06), eyem, Vector3(0.13 * sx, 0.46, 0.34))
+	return root
+
+
+## Floating wraith / ghost / spirit. A lampshade robe tapering to a wisp (no legs), hood, glowing
+## eyes, and sleeved arms on arm_l/arm_r pivots the pose wavers. spec: robe/glow (Color).
+static func wraith_rig(spec: Dictionary) -> Node3D:
+	var robe: Color = spec.get("robe", Color(0.42, 0.47, 0.58))
+	var robem := _tri_mat(robe)
+	var darkm := _tri_mat(robe.darkened(0.34))
+	var glow: Color = spec.get("glow", Color(0.6, 0.9, 1.0))
+	var glowm := PropMeshes._mat_from(glow, glow.darkened(0.3), glow.lightened(0.3))
+	var root := Node3D.new()
+	_attach(root, PropMeshes._cone("wr_body", 0.02, 0.3, 0.96), robem, Vector3(0, 0.52, 0))
+	_attach(root, PropMeshes._sphere("wr_hood", 0.21), robem, Vector3(0, 1.06, 0))
+	_attach(root, PropMeshes._box("wr_face", Vector3(0.2, 0.2, 0.05)), darkm, Vector3(0, 1.02, 0.16))
+	for sx: int in [-1, 1]:
+		_attach(root, PropMeshes._sphere("wr_eye", 0.04), glowm, Vector3(0.06 * sx, 1.04, 0.2))
+	for sa: int in [-1, 1]:
+		var arm := _limb(root, "arm_l" if sa < 0 else "arm_r", Vector3(0.24 * sa, 0.92, 0.02))
+		_attach(arm, PropMeshes._cone("wr_arm", 0.09, 0.04, 0.44), robem, Vector3(0, -0.2, 0.04), Vector3.ONE, Vector3(PI, 0, 0))
+		_attach(arm, PropMeshes._sphere("wr_hand", 0.06), darkm, Vector3(0, -0.42, 0.06))
+	return root
+
+
+## Floating eyeball aberration (the eye / ghastly eyes / devourer). Sclera + iris + pupil, a flesh
+## brow, and four dangling tentacle pivots (tent0..tent3) the pose wavers. spec: iris/flesh (Color).
+static func eye_rig(spec: Dictionary) -> Node3D:
+	var iris: Color = spec.get("iris", Color(0.85, 0.7, 0.2))
+	var flesh: Color = spec.get("flesh", Color(0.7, 0.4, 0.46))
+	var scleram := _tri_mat(Color(0.92, 0.9, 0.86))
+	var irism := PropMeshes._mat_from(iris, iris.darkened(0.4), iris.lightened(0.3))
+	var pupm := PropMeshes._mat_from(Color(0.05, 0.05, 0.06), Color(0.02, 0.02, 0.03), Color(0.1, 0.1, 0.12))
+	var fleshm := _tri_mat(flesh)
+	var root := Node3D.new()
+	_attach(root, PropMeshes._sphere("ey_ball", 0.4), scleram, Vector3(0, 0.95, 0))
+	_attach(root, PropMeshes._sphere("ey_iris", 0.2), irism, Vector3(0, 0.95, 0.3), Vector3(1, 1, 0.5))
+	_attach(root, PropMeshes._sphere("ey_pupil", 0.1), pupm, Vector3(0, 0.95, 0.38), Vector3(1, 1, 0.5))
+	_attach(root, PropMeshes._box("ey_brow", Vector3(0.52, 0.13, 0.42)), fleshm, Vector3(0, 1.26, 0.02), Vector3.ONE, Vector3(-0.3, 0, 0))
+	for i: int in 4:
+		var a := float(i) / 4.0 * TAU
+		var tent := _limb(root, "tent%d" % i, Vector3(cos(a) * 0.22, 0.68, sin(a) * 0.22))
+		_attach(tent, PropMeshes._cone("ey_tent", 0.05, 0.01, 0.42), fleshm, Vector3(0, -0.21, 0), Vector3.ONE, Vector3(PI, 0, 0))
+	return root
+
+
+## Eight-legged arachnid (spider / widow). Abdomen + head, 8 leg pivots (leg0..leg7) the scuttle
+## ripples, fangs + glowing eyes. spec: chitin (Color), mark (Color).
+static func spider_rig(spec: Dictionary) -> Node3D:
+	var chit: Color = spec.get("chitin", Color(0.16, 0.16, 0.2))
+	var bodym := _tri_mat(chit)
+	var legm := _tri_mat(chit.darkened(0.18))
+	var markm := _tri_mat(spec.get("mark", Color(0.8, 0.18, 0.16)))
+	var eyem := PropMeshes._mat_from(Color(0.85, 0.2, 0.2), Color(0.5, 0.08, 0.08), Color(1.0, 0.4, 0.3))
+	var root := Node3D.new()
+	_attach(root, PropMeshes._sphere("sp_abdo", 0.34), bodym, Vector3(0, 0.42, -0.3), Vector3(1.1, 0.95, 1.2))
+	_attach(root, PropMeshes._sphere("sp_mark", 0.1), markm, Vector3(0, 0.46, -0.5))
+	_attach(root, PropMeshes._sphere("sp_head", 0.22), bodym, Vector3(0, 0.38, 0.16))
+	for sx: int in [-1, 1]:
+		_attach(root, PropMeshes._sphere("sp_eye", 0.04), eyem, Vector3(0.08 * sx, 0.44, 0.34))
+		_attach(root, PropMeshes._cone("sp_fang", 0.04, 0.005, 0.12), legm, Vector3(0.06 * sx, 0.3, 0.34), Vector3.ONE, Vector3(2.4, 0, 0))
+	var li := 0
+	for sx2: int in [-1, 1]:
+		for f: int in 4:
+			var fz := 0.3 - float(f) * 0.2
+			var leg := _limb(root, "leg%d" % li, Vector3(0.2 * sx2, 0.44, fz))
+			_attach(leg, PropMeshes._box("sp_legu", Vector3(0.42, 0.04, 0.04)), legm, Vector3(0.22 * sx2, -0.06, 0), Vector3.ONE, Vector3(0, 0, -0.55 * sx2))
+			_attach(leg, PropMeshes._box("sp_legl", Vector3(0.04, 0.26, 0.04)), legm, Vector3(0.4 * sx2, -0.22, 0))
+			li += 1
+	return root
+
+
+## Six-legged beetle / scarab. Domed carapace + split elytra, a head with mandibles, 6 leg pivots
+## (leg0..leg5). spec: shell (Color), trim (Color, the gilt edges).
+static func scarab_rig(spec: Dictionary) -> Node3D:
+	var shell: Color = spec.get("shell", Color(0.22, 0.26, 0.34))
+	var trim: Color = spec.get("trim", Color(0.82, 0.66, 0.24))
+	var bodym := _tri_mat(shell)
+	var legm := _tri_mat(shell.darkened(0.2))
+	var trimm := _tri_mat(trim)
+	var eyem := PropMeshes._mat_from(Color(0.06, 0.06, 0.08), Color(0.03, 0.03, 0.04), Color(0.14, 0.14, 0.16))
+	var root := Node3D.new()
+	_attach(root, PropMeshes._sphere("sc_shell", 0.42), bodym, Vector3(0, 0.42, -0.06), Vector3(1.25, 0.78, 1.4))
+	_attach(root, PropMeshes._box("sc_split", Vector3(0.04, 0.16, 0.7)), trimm, Vector3(0, 0.62, -0.06))
+	_attach(root, PropMeshes._sphere("sc_head", 0.2), legm, Vector3(0, 0.34, 0.5), Vector3(1.2, 0.8, 0.9))
+	_attach(root, PropMeshes._cone("sc_horn", 0.07, 0.01, 0.26), trimm, Vector3(0, 0.42, 0.66), Vector3.ONE, Vector3(1.2, 0, 0))
+	for sx: int in [-1, 1]:
+		_attach(root, PropMeshes._sphere("sc_eye", 0.05), eyem, Vector3(0.14 * sx, 0.4, 0.56))
+		_attach(root, PropMeshes._cone("sc_mand", 0.03, 0.005, 0.14), trimm, Vector3(0.08 * sx, 0.28, 0.64), Vector3.ONE, Vector3(1.4, 0, 0.4 * sx))
+	var li := 0
+	for sx2: int in [-1, 1]:
+		for f: int in 3:
+			var fz := 0.32 - float(f) * 0.3
+			var leg := _limb(root, "leg%d" % li, Vector3(0.26 * sx2, 0.32, fz))
+			_attach(leg, PropMeshes._box("sc_leg", Vector3(0.3, 0.04, 0.04)), legm, Vector3(0.16 * sx2, -0.04, 0), Vector3.ONE, Vector3(0, 0, -0.6 * sx2))
+			_attach(leg, PropMeshes._box("sc_foot", Vector3(0.04, 0.2, 0.04)), legm, Vector3(0.3 * sx2, -0.18, 0))
+			li += 1
+	return root
+
+
+## Segmented crawler / centipede / brain-aberration. A forward chain of body pivots (seg0..seg5)
+## the undulation runs down (shared serpent pose), each segment with a pair of little legs. The
+## head has mandibles + eyes. spec: skin (Color).
+static func crawler_rig(spec: Dictionary) -> Node3D:
+	var skin: Color = spec.get("skin", Color(0.55, 0.42, 0.46))
+	var bodym := _tri_mat(skin)
+	var legm := _tri_mat(skin.darkened(0.28))
+	var eyem := PropMeshes._mat_from(Color(0.9, 0.85, 0.2), Color(0.5, 0.4, 0.05), Color(1.0, 0.95, 0.4))
+	var root := Node3D.new()
+	var parent := root
+	for i: int in 6:
+		var seg := _limb(parent, "seg%d" % i, Vector3(0, 0.26 if i == 0 else 0.0, 0.0 if i == 0 else 0.3))
+		var r := 0.2 - float(i) * 0.014
+		_attach(seg, PropMeshes._sphere("cw_seg%d" % i, r), bodym, Vector3(0, 0, 0.15), Vector3(1.2, 0.85, 1.15))
+		for sx: int in [-1, 1]:
+			_attach(seg, PropMeshes._box("cw_leg", Vector3(0.22, 0.03, 0.03)), legm, Vector3(0.12 * sx, -0.06, 0.15), Vector3.ONE, Vector3(0, 0, -0.5 * sx))
+		parent = seg
+	_attach(parent, PropMeshes._box("cw_head", Vector3(0.24, 0.18, 0.24)), bodym, Vector3(0, 0.04, 0.32))
+	for sx2: int in [-1, 1]:
+		_attach(parent, PropMeshes._sphere("cw_eye", 0.04), eyem, Vector3(0.08 * sx2, 0.1, 0.4))
+		_attach(parent, PropMeshes._cone("cw_mand", 0.03, 0.005, 0.14), legm, Vector3(0.07 * sx2, 0.0, 0.44), Vector3.ONE, Vector3(1.4, 0, 0.5 * sx2))
+	return root
+
+
+## Crab / shell-crusher. Wide carapace, two big claw arms (claw_l/claw_r), six walking legs
+## (leg0..leg5), eye-stalks. spec: shell (Color), claw (Color).
+static func crab_rig(spec: Dictionary) -> Node3D:
+	var shell: Color = spec.get("shell", Color(0.78, 0.34, 0.26))
+	var claw: Color = spec.get("claw", shell.lightened(0.12))
+	var bodym := _tri_mat(shell)
+	var clawm := _tri_mat(claw)
+	var legm := _tri_mat(shell.darkened(0.2))
+	var eyem := PropMeshes._mat_from(Color(0.06, 0.06, 0.08), Color(0.03, 0.03, 0.04), Color(0.14, 0.14, 0.16))
+	var root := Node3D.new()
+	_attach(root, PropMeshes._sphere("cr_shell", 0.44), bodym, Vector3(0, 0.4, 0), Vector3(1.5, 0.66, 1.1))
+	for sx: int in [-1, 1]:
+		var stalk := _limb(root, "stalk_l" if sx < 0 else "stalk_r", Vector3(0.12 * sx, 0.52, 0.22))
+		_attach(stalk, PropMeshes._cyl("cr_stalk", 0.025, 0.025, 0.16), legm, Vector3(0, 0.08, 0))
+		_attach(stalk, PropMeshes._sphere("cr_eye", 0.05), eyem, Vector3(0, 0.18, 0))
+	for sc: int in [-1, 1]:
+		var claw_p := _limb(root, "claw_l" if sc < 0 else "claw_r", Vector3(0.4 * sc, 0.4, 0.28))
+		_attach(claw_p, PropMeshes._box("cr_arm", Vector3(0.12, 0.12, 0.26)), legm, Vector3(0.06 * sc, 0, 0.12))
+		_attach(claw_p, PropMeshes._box("cr_claw", Vector3(0.2, 0.22, 0.26)), clawm, Vector3(0.12 * sc, 0.02, 0.3))
+		_attach(claw_p, PropMeshes._box("cr_pincer", Vector3(0.16, 0.07, 0.2)), clawm, Vector3(0.12 * sc, 0.16, 0.36))
+	var li := 0
+	for sx2: int in [-1, 1]:
+		for f: int in 3:
+			var fz := 0.18 - float(f) * 0.22
+			var leg := _limb(root, "leg%d" % li, Vector3(0.34 * sx2, 0.34, fz))
+			_attach(leg, PropMeshes._box("cr_leg", Vector3(0.34, 0.04, 0.05)), legm, Vector3(0.18 * sx2, -0.06, 0), Vector3.ONE, Vector3(0, 0, -0.7 * sx2))
+			_attach(leg, PropMeshes._box("cr_tip", Vector3(0.04, 0.2, 0.05)), legm, Vector3(0.33 * sx2, -0.2, 0))
+			li += 1
+	return root
+
+
+## Flying bat. Small fuzzy body, big membrane wings on wing_l/wing_r pivots (fast flap), ears + fangs.
+## spec: fur (Color), wing (Color).
+static func bat_rig(spec: Dictionary) -> Node3D:
+	var fur: Color = spec.get("fur", Color(0.28, 0.24, 0.3))
+	var wing: Color = spec.get("wing", fur.darkened(0.12))
+	var bodym := _tri_mat(fur)
+	var wingm := _tri_mat(wing)
+	var eyem := PropMeshes._mat_from(Color(0.9, 0.4, 0.2), Color(0.5, 0.15, 0.06), Color(1.0, 0.6, 0.3))
+	var root := Node3D.new()
+	_attach(root, PropMeshes._sphere("ba_body", 0.2), bodym, Vector3(0, 0.84, 0), Vector3(1.0, 1.1, 1.0))
+	_attach(root, PropMeshes._sphere("ba_head", 0.15), bodym, Vector3(0, 1.02, 0.04))
+	for sx: int in [-1, 1]:
+		_attach(root, PropMeshes._cone("ba_ear", 0.06, 0.005, 0.16), bodym, Vector3(0.08 * sx, 1.16, 0.0))
+		_attach(root, PropMeshes._sphere("ba_eye", 0.03), eyem, Vector3(0.06 * sx, 1.04, 0.12))
+		var w := _limb(root, "wing_l" if sx < 0 else "wing_r", Vector3(0.14 * sx, 0.86, 0))
+		_attach(w, PropMeshes._box("ba_wmem", Vector3(0.6, 0.03, 0.34)), wingm, Vector3(0.32 * sx, 0, -0.02))
+		_attach(w, PropMeshes._box("ba_wtip", Vector3(0.3, 0.03, 0.22)), wingm, Vector3(0.6 * sx, 0.02, -0.1), Vector3.ONE, Vector3(0, 0.4 * sx, 0))
+	return root
 
 

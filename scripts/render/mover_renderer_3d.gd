@@ -267,6 +267,20 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 					MoverRig._pose_gnoll(node, pos3, yaw, walk, t, phase, base, atk)
 				_:
 					MoverRig._pose_humanoid(node, pos3, yaw, walk, t, phase, base, atk, chop)
+		"dragon":
+			MoverRig._pose_dragon(node, pos3, yaw, walk, t, phase, base, atk)
+		"serpent", "crawler":
+			MoverRig._pose_serpent(node, pos3, yaw, walk, t, phase, base, atk)
+		"slime":
+			MoverRig._pose_slime(node, pos3, yaw, walk, t, phase, base, atk)
+		"wraith", "eye":
+			MoverRig._pose_float(node, pos3, yaw, walk, t, phase, base, atk)
+		"spider", "scarab":
+			MoverRig._pose_scuttle(node, pos3, yaw, walk, t, phase, base, atk)
+		"crab":
+			MoverRig._pose_crab(node, pos3, yaw, walk, t, phase, base, atk)
+		"bat":
+			MoverRig._pose_bat(node, pos3, yaw, walk, t, phase, base, atk)
 		_:
 			MoverRig._pose_quadruped(node, pos3, yaw, walk, t, phase, base, atk)
 	# Resting: the player folds down to sit on the ground (right-click the run orb).
@@ -381,6 +395,18 @@ func _shadow_footprint(btype: String) -> Vector2:
 			return Vector2(0.58, 0.64)
 		"humanoid":
 			return Vector2(0.78, 0.86)
+		"dragon":
+			return Vector2(1.3, 1.95)            # big winged body, long tail
+		"serpent", "crawler":
+			return Vector2(0.66, 1.7)            # long and thin along its length
+		"slime":
+			return Vector2(0.98, 0.98)           # round puddle
+		"spider", "crab":
+			return Vector2(1.18, 1.18)           # wide leg-spread
+		"scarab":
+			return Vector2(0.92, 1.04)
+		"wraith", "eye", "bat":
+			return Vector2(0.5, 0.5)             # floaters: a small, faint shadow under them
 		_:
 			return Vector2(1.05, 1.62)  # four-legged: a longer oval along the spine
 
