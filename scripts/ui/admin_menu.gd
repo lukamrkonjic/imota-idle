@@ -5,9 +5,10 @@ class_name AdminMenu
 const UiScale := preload("res://scripts/ui/ui_scale.gd")
 const WG := preload("res://scripts/worldgen/wg.gd")
 
-const STONE := Color(0.24, 0.22, 0.20)
-const STONE_DARK := Color(0.16, 0.15, 0.14)
-const ACCENT := Color(0.85, 0.72, 0.3)
+const UiTheme := preload("res://scripts/ui/ui_theme.gd")
+const STONE := UiTheme.STONE
+const STONE_DARK := UiTheme.STONE_DARK
+const ACCENT := UiTheme.GOLD
 
 var _hud: CanvasLayer
 var _popup: PopupPanel
@@ -547,9 +548,4 @@ func _add_misc_button(parent: Control, label: String, cb: Callable) -> void:
 
 
 func _panel_style() -> StyleBoxFlat:
-	var s := StyleBoxFlat.new()
-	s.bg_color = STONE
-	s.border_color = STONE_DARK
-	s.set_border_width_all(UiScale.i(2))
-	s.set_corner_radius_all(UiScale.i(4))
-	return s
+	return UiTheme.panel_style()

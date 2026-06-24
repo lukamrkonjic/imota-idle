@@ -3,12 +3,13 @@
 ## minimap + HP orb top-right, stone side panel with tabs bottom-right,
 ## parchment chatbox bottom-left. Pure view layer â€” only talks to autoloads.
 
-const STONE := Color(0.24, 0.22, 0.20)
-const STONE_DARK := Color(0.16, 0.15, 0.14)
-const PARCHMENT := Color(0.84, 0.79, 0.65)
-const PARCHMENT_DARK := Color(0.55, 0.45, 0.3)
-const TEXT_DARK := Color(0.15, 0.1, 0.05)
-const HOVER_YELLOW := Color(1.0, 1.0, 0.4)
+const UiTheme := preload("res://scripts/ui/ui_theme.gd")
+const STONE := UiTheme.STONE
+const STONE_DARK := UiTheme.STONE_DARK
+const PARCHMENT := UiTheme.PARCHMENT
+const PARCHMENT_DARK := UiTheme.PARCHMENT_DARK
+const TEXT_DARK := UiTheme.TEXT_DARK
+const HOVER_YELLOW := UiTheme.HOVER_YELLOW
 const UiScale := preload("res://scripts/ui/ui_scale.gd")
 const WorldHoverTooltipScript := preload("res://scripts/ui/world_hover_tooltip.gd")
 const ClickMarkerNode := preload("res://scripts/ui/click_marker_node.gd")
@@ -252,17 +253,7 @@ func _try_wire_click_marker(node: Node) -> void:
 # ------------------------------------------------------------------ build ----
 
 func _style(c: Color, border: Color = Color.TRANSPARENT) -> StyleBoxFlat:
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = c
-	sb.set_corner_radius_all(UiScale.i(4))
-	sb.content_margin_left = UiScale.f(8.0)
-	sb.content_margin_right = UiScale.f(8.0)
-	sb.content_margin_top = UiScale.f(6.0)
-	sb.content_margin_bottom = UiScale.f(6.0)
-	if border != Color.TRANSPARENT:
-		sb.set_border_width_all(2)
-		sb.border_color = border
-	return sb
+	return UiTheme.padded_style(c, border)
 
 
 func _build() -> void:
@@ -1288,19 +1279,10 @@ func open_bank() -> void:
 	names.sort()
 	for item_id: String in names:
 		var item_name := DataRegistry.item_display_name(item_id)
-		var row := HBoxContainer.new()
-		var lbl := Label.new()
-		lbl.text = "%s x%d" % [item_name, int(GameState.bank[item_id])]
-		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		lbl.clip_text = true
-		row.add_child(lbl)
-		var take := Button.new()
-		take.text = "Take"
-		take.pressed.connect(func() -> void:
-			GameState.withdraw(item_id, int(GameState.bank.get(item_id, 0)))
-			open_bank())
-		row.add_child(take)
-		popup_list.add_child(row)
+		UiTheme.list_row(popup_list, "%s x%d" % [item_name, int(GameState.bank[item_id])], "Take",
+			func() -> void:
+				GameState.withdraw(item_id, int(GameState.bank.get(item_id, 0)))
+				open_bank())
 
 
 func open_shop() -> void:
