@@ -642,16 +642,22 @@ func _place_decor(gtx: int, gty: int, is_tree: bool) -> void:
 	_decor_placed[tkey] = true
 	var lx: int = gtx - chunk.cx * WG.CHUNK_TILES
 	var ly: int = gty - chunk.cy * WG.CHUNK_TILES
-	var tile: Dictionary = _reg.tile_def(chunk.tile_id(lx, ly))
-	if bool(tile.get("water", false)):
-		return                                   # never on water
+	var bidx: int = chunk.biome_at(lx, ly)
+	if bidx == 255:
+		return                                   # no biome on this tile (off-map / ocean gap)
+	var tname: String = str(_reg.tile_order[chunk.tile_id(lx, ly)])
+	# Keep flora off water, roads/paths and settlement floors (matches the auto-canopy rules).
+	if bool(_reg.tile_def(chunk.tile_id(lx, ly)).get("water", false)) \
+			or TerrainStyle.is_path(tname) or tname in ["plaza", "plank_floor", "building_wall"]:
+		return
 	# Trees are sparser than clutter at the same Density setting.
 	if randf() > _decor_density * (0.55 if is_tree else 1.0):
 		return
-	var bid: String = str(_reg.biomes[chunk.biome_at(lx, ly)]["id"])
-	var kinds: Array = (_reg.canopy(bid) if is_tree else _reg.groundDecor(bid)).get("kinds", [])
+	var kinds := _decor_kinds(bidx, is_tree)
 	if kinds.is_empty():
 		return                                   # this biome grows no trees/clutter
+	if is_tree and _tree_at(chunk, lx, ly):
+		return                                   # don't stack a second tree on a tile that has one
 	# Trees render as `tree` entities (full size, species from prop_kind); clutter as `decor`.
 	var part := {
 		"kind": ("tree" if is_tree else "decor"), "prop": _weighted_kind(kinds),
@@ -661,6 +667,26 @@ func _place_decor(gtx: int, gty: int, is_tree: bool) -> void:
 	}
 	chunk.structures.append(part)
 	_stroke["added"].append({"key": "%d:%d" % [chunk.cx, chunk.cy], "arr": "structures", "item": part})
+
+
+## Biome canopy/groundDecor palette for an effective biome index, falling back to the PARENT biome's
+## palette when a sub-biome defines none — so the brush still grows the region's trees/clutter there.
+func _decor_kinds(bidx: int, is_tree: bool) -> Array:
+	var bid := str(_reg.biomes[bidx]["id"])
+	var kinds: Array = (_reg.canopy(bid) if is_tree else _reg.groundDecor(bid)).get("kinds", [])
+	if kinds.is_empty():
+		var pid := _reg.parent_biome_id(bidx)
+		if pid != bid and not pid.is_empty():
+			kinds = (_reg.canopy(pid) if is_tree else _reg.groundDecor(pid)).get("kinds", [])
+	return kinds
+
+
+## True if a tree is already placed on this chunk-local tile (so the brush doesn't stack trees).
+func _tree_at(chunk: RefCounted, lx: int, ly: int) -> bool:
+	for s: Dictionary in chunk.structures:
+		if str(s.get("kind", "")) == "tree" and int(s.get("tx", -1)) == lx and int(s.get("ty", -1)) == ly:
+			return true
+	return false
 
 
 ## Weighted random pick of a `kind` string from a [{kind, weight}] palette (biome canopy/groundDecor).
