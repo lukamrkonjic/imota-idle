@@ -35,8 +35,10 @@ func set_time(t: float) -> void:
 
 ## 0 at midnight .. 1 at noon, with flat-ish nights and a bright plateau at midday.
 func daylight() -> float:
-	var c := -cos(time01 * TAU) * 0.5 + 0.5   # smooth sinusoid, 0 midnight .. 1 noon
-	return clampf(c * 1.35 - 0.18, 0.0, 1.0)
+	# A long BRIGHT plateau through the day (full daytime warmth/brightness, so white/snow surfaces
+	# read correctly), with short ramps at dawn (~0.22→0.31) and dusk (~0.69→0.79) and dark nights.
+	# (The old off-noon dimming made the cool snow palette read purple.)
+	return smoothstep(0.22, 0.31, time01) * (1.0 - smoothstep(0.69, 0.79, time01))
 
 
 ## Sun elevation in degrees above the horizon (negative = below, i.e. night).

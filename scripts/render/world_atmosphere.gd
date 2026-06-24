@@ -179,8 +179,9 @@ func _apply_grade() -> void:
 	# Dusk: richer, warmer colour. A little extra saturation + contrast as the sun sets (not at dawn —
 	# dawn instead gets the misty haze). Rain/snow desaturate slightly so storms read cooler/flatter.
 	var dusk := DayNight.dusk()
-	_env.adjustment_saturation = clampf(1.0 + dusk * 0.55 - (Weather.rain + Weather.snow) * 0.18, 0.6, 1.7)
-	_env.adjustment_contrast = 1.0 + dusk * 0.10
+	# Gentle dusk richening — too much over-saturated the cool snow palette into vivid purple.
+	_env.adjustment_saturation = clampf(1.0 + dusk * 0.32 - (Weather.rain + Weather.snow) * 0.18, 0.7, 1.5)
+	_env.adjustment_contrast = 1.0 + dusk * 0.08
 
 
 ## View-distance slider hook. The per-frame update() is the actual driver (it reads the live
