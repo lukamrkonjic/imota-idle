@@ -158,6 +158,20 @@ func _visual_corner_y(ci: int, cj: int, ref_top: float, wfc: Dictionary, wlc: Di
 	return h
 
 
+## A 3x3 box-blur of the visual ground height around a corner. Used ONLY to bake the water
+## submersion (UV.y) — softening the per-tile staircase so the waterline / foam / water edge that
+## ride the submersion contour curve gently instead of stepping tile-by-tile. The real terrain mesh
+## keeps its un-blurred height; this is a coast-shape filter, not a geometry change.
+func _smooth_ground_y(ci: int, cj: int, wfc: Dictionary, wlc: Dictionary) -> float:
+	var sum := _visual_corner_y(ci, cj, 0.0, wfc, wlc) * 2.0
+	var w := 2.0
+	for off: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
+			Vector2i(1, 1), Vector2i(-1, 1), Vector2i(1, -1), Vector2i(-1, -1)]:
+		sum += _visual_corner_y(ci + off.x, cj + off.y, 0.0, wfc, wlc)
+		w += 1.0
+	return sum / w
+
+
 func _emit_corner(st: SurfaceTool, ci: int, cj: int, ref_top: float, wfc: Dictionary, wlc: Dictionary) -> void:
 	var h := _visual_corner_y(ci, cj, ref_top, wfc, wlc)
 	# Smooth normal from the FINAL visual height field (central differences), so the shore ramp
@@ -417,10 +431,12 @@ func _emit_water_tile(wst: SurfaceTool, gtx: int, gty: int, wfc: Dictionary, wlc
 	# shader fills water wherever this is positive, so any terrain below the sheet — a dip, a hole,
 	# a low cove the tile map never marked as water — is covered up to the brim, with no exposed
 	# sub-water land peeking under the shoreline. Bilerped across sub-vertices like the surface.
-	var gA := _visual_corner_y(gtx, gty, 0.0, wfc, wlc)
-	var gB := _visual_corner_y(gtx + 1, gty, 0.0, wfc, wlc)
-	var gC := _visual_corner_y(gtx + 1, gty + 1, 0.0, wfc, wlc)
-	var gD := _visual_corner_y(gtx, gty + 1, 0.0, wfc, wlc)
+	# SMOOTHED (3x3 corner average) so the submersion contour — and thus the waterline, foam and
+	# water edge that ride it — reads as a soft curve instead of the raw per-tile staircase.
+	var gA := _smooth_ground_y(gtx, gty, wfc, wlc)
+	var gB := _smooth_ground_y(gtx + 1, gty, wfc, wlc)
+	var gC := _smooth_ground_y(gtx + 1, gty + 1, wfc, wlc)
+	var gD := _smooth_ground_y(gtx, gty + 1, wfc, wlc)
 	# Only the COASTAL RING needs tessellation (that's where the 0.5 contour lives). Open
 	# deep water (every corner well offshore) and far-inland margin (every corner on land)
 	# are flat in wf — emit them as a cheap 2-tri quad so the subdivision cost stays tiny.
