@@ -44,6 +44,15 @@ const OUT_DIR := "res://data/world/baked/"
 
 enum Tool { PAN, BIOME, TERRAIN, STAMP, STRUCTURE, ERASE, SPAWN, CREATURE, ROAD, SETTLEMENT, SMOOTHEN, ELEVATE, FOREST, CLUTTER }
 
+# Display name per tool, shown as the floating options-panel title.
+const TOOL_NAMES := {
+	Tool.PAN: "Pan / View", Tool.BIOME: "Biome", Tool.TERRAIN: "Terrain",
+	Tool.STAMP: "Stamp", Tool.STRUCTURE: "Structure", Tool.ERASE: "Erase",
+	Tool.SPAWN: "Set Spawn", Tool.CREATURE: "Creatures", Tool.ROAD: "Roads",
+	Tool.SETTLEMENT: "Settlement", Tool.SMOOTHEN: "Smoothen", Tool.ELEVATE: "Elevate",
+	Tool.FOREST: "Trees", Tool.CLUTTER: "Clutter",
+}
+
 const TERRAIN := [
 	["grass", "Grass"], ["grass_dark", "Dark grass"], ["dirt", "Dirt path"],
 	["cobble", "Cobble road"], ["gravel", "Gravel"], ["sand", "Sand"],
@@ -199,6 +208,14 @@ var _busy := false
 var _preview: PlaceablePreview
 var _preview_panel: PanelContainer
 var _selected_choice_btn: Button
+# Reworked HUD: grouped collapsible sidebar, a floating per-tool options panel, and a
+# dedicated editor menu modal (ESC) — separate from the embedded game's pause menu.
+var _sidebar: PanelContainer
+var _tool_group_bodies: Array = []        # [{btn, body, open}] collapsible tool categories
+var _opts_panel: PanelContainer           # floating panel: active tool's options + brush sliders
+var _opts_title: Label
+var _editor_menu: PopupPanel              # the ESC menu modal
+var _gen_menu: PopupMenu                  # Generate ▸ submenu inside the editor menu
 var _reroll_btn: Button
 
 # Live 3D view — embeds the real game world (world.tscn) in a SubViewport so you can
@@ -458,6 +475,14 @@ func _build_view() -> void:
 
 # ─────────────────────────────── input ──────────────────────────────────────
 
+## Esc is caught at the very top (before the docked 3D-view world's SubViewport) and consumed, so
+## the editor opens ITS OWN menu instead of leaking the game's pause menu.
+func _input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and (event as InputEventKey).keycode == KEY_ESCAPE:
+		get_viewport().set_input_as_handled()
+		_toggle_editor_menu()
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if _busy:
 		return
@@ -577,9 +602,10 @@ func _process(_delta: float) -> void:
 func _position_preview_panel() -> void:
 	if _preview_panel == null:
 		return
-	# FIXED spot just right of the (1.25×-scaled) sidebar — never tracks the selected row (that made
-	# it jump up/down). Always in the same place so it's easy to glance at.
-	_preview_panel.position = Vector2(8 + SIDEBAR_W * HUD_SCALE + 12, 58)
+	# FIXED spot just right of the floating options panel (which itself sits right of the 1.25×
+	# sidebar) — never tracks the selected row. Always in the same place so it's easy to glance at.
+	var opts_w := (_opts_panel.size.x * HUD_SCALE) if _opts_panel != null else 0.0
+	_preview_panel.position = Vector2(8.0 + SIDEBAR_W * HUD_SCALE + 8.0 + opts_w + 10.0, 58)
 
 
 func _tile_under_mouse() -> Vector2i:
@@ -1741,113 +1767,225 @@ func _build_ui() -> void:
 	_status.add_theme_font_size_override("font_size", 15)
 	_status.add_theme_color_override("font_color", Color(0.7, 0.85, 0.7))
 	tb.add_child(_status)
+	var hspacer := Control.new()
+	hspacer.custom_minimum_size = Vector2(12, 0)
+	tb.add_child(hspacer)
+	_toolbar_button(tb, "☰ Menu (Esc)", _toggle_editor_menu)
 
-	# Left panel: tools + brush + palette (one connected column)
-	var left := PanelContainer.new()
-	left.add_theme_stylebox_override("panel", _panel(Color(0.13, 0.13, 0.16)))
-	left.position = Vector2(8, 58)   # clears the now-taller (1.25×) top bar
-	left.scale = Vector2(HUD_SCALE, HUD_SCALE)
-	left.custom_minimum_size = Vector2(SIDEBAR_W, 0)
-	left.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN   # fixed width, never grows with content
-	_track_ui_hover(left)
-	_hud.add_child(left)
+	# Left sidebar: the 14 tools grouped into collapsible categories (replaces the old flat list).
+	_sidebar = PanelContainer.new()
+	_sidebar.add_theme_stylebox_override("panel", _panel(Color(0.13, 0.13, 0.16)))
+	_sidebar.position = Vector2(8, 58)   # clears the taller (1.25×) top bar
+	_sidebar.scale = Vector2(HUD_SCALE, HUD_SCALE)
+	_sidebar.custom_minimum_size = Vector2(SIDEBAR_W, 0)
+	_sidebar.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_track_ui_hover(_sidebar)
+	_hud.add_child(_sidebar)
 	var lb := VBoxContainer.new()
 	lb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lb.add_theme_constant_override("separation", 3)
-	left.add_child(lb)
+	lb.add_theme_constant_override("separation", 2)
+	_sidebar.add_child(lb)
 
-	_header(lb, "Tools")
-	for ts: Array in [[Tool.PAN, "1 Pan/View"], [Tool.BIOME, "2 Biome"], [Tool.TERRAIN, "3 Terrain"],
-			[Tool.STAMP, "4 Stamp"], [Tool.STRUCTURE, "5 Structure"], [Tool.ERASE, "6 Erase"],
-			[Tool.SPAWN, "7 Set Spawn"], [Tool.CREATURE, "8 Creatures"], [Tool.ROAD, "9 Roads"],
-			[Tool.SETTLEMENT, "0 Settlements"], [Tool.SMOOTHEN, "H Smoothen"], [Tool.ELEVATE, "E Elevate"],
-			[Tool.FOREST, "T Trees (biome)"], [Tool.CLUTTER, "C Clutter (biome)"]]:
-		var b := Button.new()
-		b.text = str(ts[1])
-		b.toggle_mode = true
-		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.custom_minimum_size = Vector2(176, 0)
-		var tl: int = ts[0]
-		b.pressed.connect(func() -> void: _set_tool(tl))
-		lb.add_child(b)
-		_tool_buttons[tl] = b
+	_tool_group(lb, "Paint", [[Tool.BIOME, "2  Biome"], [Tool.TERRAIN, "3  Terrain"]], true)
+	_tool_group(lb, "Sculpt", [[Tool.ELEVATE, "E  Elevate"], [Tool.SMOOTHEN, "H  Smoothen"]], true)
+	_tool_group(lb, "Nature", [[Tool.FOREST, "T  Trees"], [Tool.CLUTTER, "C  Clutter"], [Tool.STAMP, "4  Stamp"]], false)
+	_tool_group(lb, "Build", [[Tool.STRUCTURE, "5  Structure"], [Tool.SETTLEMENT, "0  Settlement"], [Tool.ROAD, "9  Roads"]], false)
+	_tool_group(lb, "Live", [[Tool.CREATURE, "8  Creatures"], [Tool.SPAWN, "7  Set Spawn"]], false)
+	_tool_group(lb, "Edit", [[Tool.PAN, "1  Pan / View"], [Tool.ERASE, "6  Erase"]], false)
 
-	_brush_label = Label.new()
-	_brush_label.text = "Brush size: %d" % _brush
-	lb.add_child(_brush_label)
-	var slider := HSlider.new()
-	slider.min_value = 1
-	slider.max_value = 24
-	slider.value = _brush
-	slider.custom_minimum_size = Vector2(176, 0)
-	slider.value_changed.connect(func(v: float) -> void: _set_brush(int(v)))
-	lb.add_child(slider)
-
-	# Density of the Trees / Clutter brushes (per-tile place chance).
-	var dlabel := Label.new()
-	dlabel.text = "Density: %d%%" % int(_decor_density * 100.0)
-	lb.add_child(dlabel)
-	_density_slider = HSlider.new()
-	_density_slider.min_value = 2
-	_density_slider.max_value = 100
-	_density_slider.value = _decor_density * 100.0
-	_density_slider.custom_minimum_size = Vector2(176, 0)
-	_density_slider.value_changed.connect(func(v: float) -> void:
-		_decor_density = v / 100.0
-		dlabel.text = "Density: %d%%" % int(v))
-	lb.add_child(_density_slider)
-
-	# Uniform size for placed structures / houses / trees / clutter (NOT monsters/traders).
-	var slabel := Label.new()
-	slabel.text = "Scale: %d%%" % int(_place_scale * 100.0)
-	lb.add_child(slabel)
-	var sscale := HSlider.new()
-	sscale.min_value = 25
-	sscale.max_value = 300
-	sscale.value = _place_scale * 100.0
-	sscale.custom_minimum_size = Vector2(176, 0)
-	sscale.value_changed.connect(func(v: float) -> void:
-		_place_scale = v / 100.0
-		slabel.text = "Scale: %d%%" % int(v))
-	lb.add_child(sscale)
-
-	_erase_biomes_check = CheckBox.new()
-	_erase_biomes_check.text = "Keep painted terrain"
-	_erase_biomes_check.toggled.connect(func(on: bool) -> void: _erase_keep_terrain = on)
-	lb.add_child(_erase_biomes_check)
-
-	_header(lb, "Overlays")
-	_overlay_check(lb, "Structures", _show_structs, func(on: bool) -> void: _show_structs = on)
-	_overlay_check(lb, "Trees", _show_trees, func(on: bool) -> void: _show_trees = on)
-	_overlay_check(lb, "Player spawn", _show_spawn, func(on: bool) -> void: _show_spawn = on)
-	_overlay_check(lb, "Collision/water", _show_collision, func(on: bool) -> void: _show_collision = on)
-	_overlay_check(lb, "Biome tint", _show_biomes, func(on: bool) -> void: _show_biomes = on)
-	_overlay_check(lb, "Danger/level", _show_danger, func(on: bool) -> void: _show_danger = on)
-	_overlay_check(lb, "Walkability", _show_walk, func(on: bool) -> void: _show_walk = on)
-	_elev_check = _overlay_check(lb, "Elevation", _show_elevation, func(on: bool) -> void: _show_elevation = on)
-	_minimap_check = _overlay_check(lb, "World map (M)", _show_minimap, _set_show_minimap)
-
-	var sep := HSeparator.new()
-	lb.add_child(sep)
-	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(176, 360)
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	lb.add_child(scroll)
-	_palette_box = VBoxContainer.new()
-	_palette_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(_palette_box)
+	# Overlays — its own collapsible section so it never crowds the tools.
+	var ov := _collapsible(lb, "Overlays", false)
+	_overlay_check(ov, "Structures", _show_structs, func(on: bool) -> void: _show_structs = on)
+	_overlay_check(ov, "Trees", _show_trees, func(on: bool) -> void: _show_trees = on)
+	_overlay_check(ov, "Player spawn", _show_spawn, func(on: bool) -> void: _show_spawn = on)
+	_overlay_check(ov, "Collision/water", _show_collision, func(on: bool) -> void: _show_collision = on)
+	_overlay_check(ov, "Biome tint", _show_biomes, func(on: bool) -> void: _show_biomes = on)
+	_overlay_check(ov, "Danger/level", _show_danger, func(on: bool) -> void: _show_danger = on)
+	_overlay_check(ov, "Walkability", _show_walk, func(on: bool) -> void: _show_walk = on)
+	_elev_check = _overlay_check(ov, "Elevation", _show_elevation, func(on: bool) -> void: _show_elevation = on)
+	_minimap_check = _overlay_check(ov, "World map (M)", _show_minimap, _set_show_minimap)
 
 	_coords = Label.new()
-	_coords.add_theme_font_size_override("font_size", 17)
+	_coords.add_theme_font_size_override("font_size", 16)
 	_coords.add_theme_color_override("font_color", Color(0.85, 0.95, 0.85))
 	lb.add_child(_coords)
 	var hint := Label.new()
-	hint.text = "RMB pan · wheel zoom · [ ] size\nCtrl+Z undo · Ctrl+Y redo"
+	hint.text = "RMB pan · wheel zoom · [ ] size · Ctrl+Z/Y · Esc menu"
 	hint.add_theme_font_size_override("font_size", 9)
 	hint.add_theme_color_override("font_color", Color(0.55, 0.55, 0.55))
 	lb.add_child(hint)
 
+	_build_opts_panel()
+	_build_editor_menu()
 	_build_preview_panel()
+
+
+## A collapsible section: a header button that toggles a body VBox. Returns the body to fill.
+func _collapsible(parent: Control, title: String, open: bool) -> VBoxContainer:
+	var head := Button.new()
+	head.flat = true
+	head.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	head.focus_mode = Control.FOCUS_NONE
+	head.add_theme_color_override("font_color", Color(0.95, 0.85, 0.5))
+	head.custom_minimum_size = Vector2(SIDEBAR_W - 12, 0)
+	parent.add_child(head)
+	var body := VBoxContainer.new()
+	body.add_theme_constant_override("separation", 2)
+	body.visible = open
+	parent.add_child(body)
+	head.text = ("▾  " if open else "▸  ") + title
+	head.pressed.connect(func() -> void:
+		body.visible = not body.visible
+		head.text = ("▾  " if body.visible else "▸  ") + title)
+	return body
+
+
+## One collapsible tool category. `tools` = [[Tool.X, "label"], ...]; buttons register in _tool_buttons.
+func _tool_group(parent: Control, title: String, tools: Array, open: bool) -> void:
+	var body := _collapsible(parent, title, open)
+	for ts: Array in tools:
+		var b := Button.new()
+		b.text = "    " + str(ts[1])
+		b.toggle_mode = true
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.custom_minimum_size = Vector2(SIDEBAR_W - 16, 0)
+		var tl: int = ts[0]
+		b.pressed.connect(func() -> void: _set_tool(tl))
+		body.add_child(b)
+		_tool_buttons[tl] = b
+
+
+## Floating panel pinned right of the sidebar: the ACTIVE tool's options + the brush controls,
+## so nothing stacks endlessly in the sidebar. _palette_box is repopulated by _refresh_palette().
+func _build_opts_panel() -> void:
+	_opts_panel = PanelContainer.new()
+	_opts_panel.add_theme_stylebox_override("panel", _panel(Color(0.12, 0.13, 0.17)))
+	_opts_panel.top_level = true
+	_opts_panel.position = Vector2(8.0 + SIDEBAR_W * HUD_SCALE + 8.0, 58)
+	_opts_panel.scale = Vector2(HUD_SCALE, HUD_SCALE)
+	_opts_panel.custom_minimum_size = Vector2(212, 0)
+	_opts_panel.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_track_ui_hover(_opts_panel)
+	_hud.add_child(_opts_panel)
+	var ob := VBoxContainer.new()
+	ob.add_theme_constant_override("separation", 3)
+	_opts_panel.add_child(ob)
+	_opts_title = Label.new()
+	_opts_title.add_theme_font_size_override("font_size", 16)
+	_opts_title.add_theme_color_override("font_color", Color(0.95, 0.85, 0.5))
+	ob.add_child(_opts_title)
+	ob.add_child(HSeparator.new())
+
+	_brush_label = Label.new()
+	_brush_label.text = "Brush size: %d" % _brush
+	ob.add_child(_brush_label)
+	var slider := HSlider.new()
+	slider.min_value = 1; slider.max_value = 24; slider.value = _brush
+	slider.custom_minimum_size = Vector2(198, 0)
+	slider.value_changed.connect(func(v: float) -> void: _set_brush(int(v)))
+	ob.add_child(slider)
+
+	var dlabel := Label.new()
+	dlabel.text = "Density: %d%%" % int(_decor_density * 100.0)
+	ob.add_child(dlabel)
+	_density_slider = HSlider.new()
+	_density_slider.min_value = 2; _density_slider.max_value = 100; _density_slider.value = _decor_density * 100.0
+	_density_slider.custom_minimum_size = Vector2(198, 0)
+	_density_slider.value_changed.connect(func(v: float) -> void:
+		_decor_density = v / 100.0
+		dlabel.text = "Density: %d%%" % int(v))
+	ob.add_child(_density_slider)
+
+	var slabel := Label.new()
+	slabel.text = "Scale: %d%%" % int(_place_scale * 100.0)
+	ob.add_child(slabel)
+	var sscale := HSlider.new()
+	sscale.min_value = 25; sscale.max_value = 300; sscale.value = _place_scale * 100.0
+	sscale.custom_minimum_size = Vector2(198, 0)
+	sscale.value_changed.connect(func(v: float) -> void:
+		_place_scale = v / 100.0
+		slabel.text = "Scale: %d%%" % int(v))
+	ob.add_child(sscale)
+
+	_erase_biomes_check = CheckBox.new()
+	_erase_biomes_check.text = "Keep painted terrain"
+	_erase_biomes_check.toggled.connect(func(on: bool) -> void: _erase_keep_terrain = on)
+	ob.add_child(_erase_biomes_check)
+
+	ob.add_child(HSeparator.new())
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(198, 330)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	ob.add_child(scroll)
+	_palette_box = VBoxContainer.new()
+	_palette_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(_palette_box)
+
+
+## The editor's OWN menu modal (Esc) — replaces the game pause menu that used to leak in from the
+## embedded 3D-view world. File + generate + quit live here so the header stays slim.
+func _build_editor_menu() -> void:
+	_editor_menu = PopupPanel.new()
+	_editor_menu.add_theme_stylebox_override("panel", _panel(Color(0.11, 0.11, 0.14)))
+	_track_ui_hover(_editor_menu)
+	_hud.add_child(_editor_menu)
+	var mb := VBoxContainer.new()
+	mb.add_theme_constant_override("separation", 4)
+	mb.custom_minimum_size = Vector2(248, 0)
+	_editor_menu.add_child(mb)
+	var t := Label.new()
+	t.text = "  World Editor"
+	t.add_theme_font_size_override("font_size", 22)
+	t.add_theme_color_override("font_color", Color(0.95, 0.85, 0.5))
+	mb.add_child(t)
+	mb.add_child(HSeparator.new())
+	_menu_item(mb, "💾   Save   (Ctrl+S)", func() -> void: _editor_menu.hide(); _save())
+	_menu_item(mb, "✓   Validate", func() -> void: _editor_menu.hide(); _validate())
+	_menu_item(mb, "🌿   Generate Natural", func() -> void: _editor_menu.hide(); _confirm_generate_natural())
+	_menu_item(mb, "⟳   Generate Full", func() -> void: _editor_menu.hide(); _confirm_generate())
+	_menu_item(mb, "🗑   Wipe Save", func() -> void: _editor_menu.hide(); _confirm_wipe_save())
+	_menu_item(mb, "⌨   Keyboard Shortcuts", _show_shortcuts)
+	mb.add_child(HSeparator.new())
+	_menu_item(mb, "✕   Quit Editor", func() -> void: get_tree().quit())
+	mb.add_child(HSeparator.new())
+	var resume := Button.new()
+	resume.text = "Resume Editing"
+	resume.custom_minimum_size = Vector2(248, 36)
+	resume.pressed.connect(func() -> void: _editor_menu.hide())
+	mb.add_child(resume)
+
+
+func _menu_item(parent: Control, text: String, cb: Callable) -> void:
+	var b := Button.new()
+	b.text = text
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.custom_minimum_size = Vector2(248, 34)
+	b.pressed.connect(cb)
+	parent.add_child(b)
+
+
+func _toggle_editor_menu() -> void:
+	if _editor_menu == null:
+		return
+	if _editor_menu.visible:
+		_editor_menu.hide()
+	else:
+		_editor_menu.popup_centered()
+
+
+func _show_shortcuts() -> void:
+	var dlg := AcceptDialog.new()
+	dlg.title = "Keyboard Shortcuts"
+	dlg.dialog_text = ("Tools  1 Pan · 2 Biome · 3 Terrain · 4 Stamp · 5 Structure · 6 Erase\n"
+		+ "       7 Set Spawn · 8 Creatures · 9 Roads · 0 Settlements\n"
+		+ "       E Elevate · H Smoothen · T Trees · C Clutter\n\n"
+		+ "Canvas  RMB drag pan · wheel zoom · LMB place/paint\n"
+		+ "        [ ] brush size · R rotate · F flip placement · M world map\n\n"
+		+ "File    Ctrl+S save · Ctrl+Z undo · Ctrl+Y / Ctrl+Shift+Z redo · Esc menu")
+	_hud.add_child(dlg)
+	dlg.popup_centered()
+	dlg.confirmed.connect(dlg.queue_free)
+	dlg.canceled.connect(dlg.queue_free)
 
 
 ## Showcase panel that floats just to the right of the selected sidebar item
@@ -2846,6 +2984,8 @@ func _rotate_placement(dir: int) -> void:
 func _refresh_palette() -> void:
 	if _palette_box == null:
 		return
+	if _opts_title != null:
+		_opts_title.text = str(TOOL_NAMES.get(_tool, "Options"))
 	_selected_choice_btn = null
 	for c: Node in _palette_box.get_children():
 		c.queue_free()
