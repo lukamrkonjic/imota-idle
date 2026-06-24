@@ -5,7 +5,7 @@ extends Node2D
 ## anchored to each body's size (small mobs low, big mobs high).
 
 var world: Node2D
-var render_3d: Node
+var render_3d: WorldRender3D   # the coordinator, set by WorldRender3D itself; typed = compile-checked API
 
 const BAR_W := 52.0
 const BAR_H := 7.0

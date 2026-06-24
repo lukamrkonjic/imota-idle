@@ -21,7 +21,7 @@ const HitSplat := preload("res://scripts/world/hit_splat.gd")
 const ArrowProj := preload("res://scripts/world/arrow_proj.gd")
 const PerfLogger := preload("res://scripts/world/perf_logger.gd")
 const BakeQueue := preload("res://scripts/world/bake_queue.gd")
-const WorldRender3D := preload("res://scripts/render/world_render_3d.gd")
+# WorldRender3D is a global class_name (scripts/render/world_render_3d.gd) — no preload needed.
 
 # --- public state (tests, HUD) ---
 var entities: Array = []
@@ -45,7 +45,7 @@ var _water_decor_nodes: Array = []
 var _roofed_entities: Array = []  # houses/buildings only — for per-frame roof fade
 var _click_fx_layer: Node2D
 var _camera: Camera2D
-var render_3d: Node                 # 3D pixel-art renderer (null/headless = 2D path)
+var render_3d: WorldRender3D        # 3D pixel-art renderer (null/headless = 2D path); typed so its API is compile-checked
 var editor_stream_cap := 0          # world editor: max terrain chunk radius (0 = uncapped)
 var _ambient: CanvasModulate
 var _ambience: Node2D

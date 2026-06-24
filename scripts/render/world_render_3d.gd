@@ -1,4 +1,5 @@
 extends Node
+class_name WorldRender3D
 ## 3D pixel-art renderer for the live world — now a thin COORDINATOR over focused subsystems
 ## (was a ~2.3k-line god-object). It hosts a low-resolution SubViewport with a 3D world (iso
 ## ortho Camera3D, one key light, toon materials, OUR palette), presented at nearest-neighbour
