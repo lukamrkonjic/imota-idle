@@ -5,6 +5,7 @@ extends Node
 ##   godot --path . res://tools/sit_preview.tscn -- --out=C:/path/
 
 const PropMeshes := preload("res://scripts/render/prop_meshes.gd")
+const MoverMeshes := preload("res://scripts/render/mover_meshes.gd")
 const MoverRig := preload("res://scripts/render/mover_rig.gd")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 
@@ -53,7 +54,7 @@ func _ready() -> void:
 	# Close-up tuning: the full-sit figure from two angles (front-quarter, then side).
 	var yaws := [0.0, PI / 2.0]
 	for i: int in yaws.size():
-		var rig := PropMeshes.player_rig(skin)
+		var rig := MoverMeshes.player_rig(skin)
 		rig.set_meta("base_scale", 1.0)
 		world.add_child(rig)
 		var px := float(i) * 2.0 - 1.0

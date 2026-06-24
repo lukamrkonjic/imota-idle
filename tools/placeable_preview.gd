@@ -11,6 +11,7 @@ const WorldEntitySpawner := preload("res://scripts/world/world_entity_spawner.gd
 const IsoSprites := preload("res://scripts/world/art/iso_sprites.gd")
 const StampLibrary := preload("res://scripts/worldgen/stamp_library.gd")
 const PropMeshes := preload("res://scripts/render/prop_meshes.gd")
+const MoverMeshes := preload("res://scripts/render/mover_meshes.gd")
 const WG := preload("res://scripts/worldgen/wg.gd")
 
 const VIEW := Vector2i(232, 224)
@@ -158,7 +159,7 @@ func show_creature(name: String) -> void:
 	e.display_size = 40.0
 	var enemy: Dictionary = DataRegistry.get_enemy(name)
 	e.tier_color = WorldEntitySpawner.tier_color(int(enemy.get("level", 1)))
-	var rig: Node3D = PropMeshes.enemy_rig(e)
+	var rig: Node3D = MoverMeshes.enemy_rig(e)
 	e.free()
 	if rig != null:
 		_model_root.add_child(rig)

@@ -7,6 +7,7 @@ class_name MoverRenderer3D
 ## (lift / head-top / base scale) the screen-space combat UI needs.
 
 const PropMeshes := preload("res://scripts/render/prop_meshes.gd")
+const MoverMeshes := preload("res://scripts/render/mover_meshes.gd")
 const EquipLoadout := preload("res://scripts/render/equip_loadout.gd")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 const OUTLINE_SHADER := preload("res://shaders/outline.gdshader")
@@ -79,7 +80,7 @@ func update(delta: float) -> void:
 				psh.visible = false
 	else:
 		if _player_node == null:
-			_player_node = PropMeshes.player_rig(PixelPalette.pal("skin_a"))
+			_player_node = MoverMeshes.player_rig(PixelPalette.pal("skin_a"))
 			_prep_mover(_player_node, "player")
 			_apply_player_equipment()
 			EventBus.equipment_changed.connect(_apply_player_equipment)
@@ -93,7 +94,7 @@ func update(delta: float) -> void:
 		live[id] = true
 		var n: Node3D = _mover_nodes.get(id)
 		if n == null:
-			n = PropMeshes.enemy_rig(e)
+			n = MoverMeshes.enemy_rig(e)
 			_prep_mover(n, str(id))
 			_mover_nodes[id] = n
 		# A defeated enemy (dimmed) plays its death topple instead of the normal gait.
@@ -128,7 +129,7 @@ func _apply_player_equipment(_a := "", _b := "") -> void:
 	if _player_node == null:
 		return
 	var loadout := EquipLoadout.for_player(GameState.equipment)
-	PropMeshes.apply_equipment(_player_node, loadout)
+	MoverMeshes.apply_equipment(_player_node, loadout)
 	# Grip a planted staff when one is wielded (else stand normally).
 	var mainhand: Dictionary = loadout.get("mainhand", {})
 	_player_node.set_meta("pose", "staff" if str(mainhand.get("kind", "")) in ["staff", "raven_staff", "wand"] else "")
@@ -153,7 +154,7 @@ func _refresh_chop_weapon() -> void:
 	if now:
 		var axe := _axe_loadout()
 		if not axe.is_empty():
-			PropMeshes.apply_equipment(_player_node, axe)
+			MoverMeshes.apply_equipment(_player_node, axe)
 			_disable_cast_shadows(_player_node)
 			return
 	_apply_player_equipment()   # stopped chopping (or no axe slot) -> back to normal gear
