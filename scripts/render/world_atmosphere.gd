@@ -123,6 +123,12 @@ func update(_camera_rig: WorldCameraRig3D, stream_view: TerrainStreamView) -> vo
 		if _water_mat != null:
 			_water_mat.set_shader_parameter("detail_fade_begin", 1.0e6)
 			_water_mat.set_shader_parameter("detail_fade_end", 1.0e6 + 1.0)
+			# But at AERIAL scale the bright cyan shallow band reads as a halo tracing every coast
+			# across the whole map. Mute the shallow tone toward the deep ocean and tighten the band
+			# so the FOAM line alone marks the shoreline — no light-blue rim. (Editor material only;
+			# the player-height game view keeps its lit shallows — its mat never hits this branch.)
+			_water_mat.set_shader_parameter("shallow_color", Color(0.11, 0.43, 0.53))
+			_water_mat.set_shader_parameter("shallow_cells", 0.4)
 		_apply_grade()
 		return
 	var vt := stream_view.approx_visual_extent_tiles()
