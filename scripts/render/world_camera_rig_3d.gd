@@ -32,6 +32,7 @@ const BUDGET_PITCH_FAR := 0.62      # ~36° — strategic top-down floor when zo
 # PAN_EASE is the smoothing rate (lower = slower, more gradual glide).
 const PAN_EASE := 1.7
 const ZOOM_OUT_MAX := 0.55                              # matches WorldInputController.ZOOM_MIN (max zoom-out)
+const ZOOM_KEY_RATE := 0.75                             # Up/Down arrow zoom: constant per-second multiplier (gentle at any height)
 const ZOOM_CINEMATIC := CAM_SIZE_BASE / BUDGET_ORTHO_CLOSE   # zoom-in where the lowest pitch unlocks
 # Radians of yaw/pitch per pixel of middle-mouse drag (before the cam_rotate_speed multiplier).
 const CAM_DRAG_YAW := 0.006
@@ -134,7 +135,12 @@ func update_input(delta: float) -> void:
 		# Frame-rate-independent exponential ease toward the held pose (no-op when neither is held).
 		var k := 1.0 - exp(-PAN_EASE * spd * delta)
 		if not is_equal_approx(tgt_zoom, cur_zoom):
-			var nz := lerpf(cur_zoom, tgt_zoom, k)
+			# Constant MULTIPLICATIVE zoom rate — NOT a lerp toward the target. A lerp moves fast when
+			# the gap is large, so from a far zoom-out Down used to lurch in. The exp step gives the
+			# same gentle speed at any height; pitch is floor-clamped to the live zoom, so slowing the
+			# zoom slows the tilt with it. Held key eases in/out over ~2s across the full zoom range.
+			var step := exp(ZOOM_KEY_RATE * spd * delta)
+			var nz := (minf(tgt_zoom, cur_zoom * step) if tgt_zoom > cur_zoom else maxf(tgt_zoom, cur_zoom / step))
 			world._camera.zoom = Vector2(nz, nz)
 		_cam_pitch = lerpf(_cam_pitch, tgt_pitch, k)
 	# Clamp to the live budget floor (reflecting the eased zoom) so the world edge can't be exposed;
