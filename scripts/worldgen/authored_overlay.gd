@@ -10,16 +10,16 @@ class_name AuthoredOverlay
 ##   • biome/terrain generation changes   • world expansion   • model swaps   • road improvements
 ## without losing your placed objects.
 ##
-## NOTE: hand-painted biome / terrain / elevation are intentionally NOT preserved here — those belong
-## in the mask images so a generation change still takes effect. Use the masks (or a dedicated
-## "bake paint into masks" pass) for those; this layer is about PLACEMENTS + deletions, which are
-## exactly what a re-bake would otherwise lose.
+## ELEVATION is also preserved: tiles sculpted with the editor's Elevate/Smoothen tools override the
+## mask-generated height and survive re-bakes (the designer's tool edits win over generation). Edit
+## elevation with the TOOL — repainting the elev mask is a generation change the diff can't tell from
+## a hand-edit. Hand-painted biome / terrain still belong in the mask images (not preserved here).
 
 
 ## Diff the previous baked world at `world_path` against freshly-generated `chunks`, MERGE authored
 ## placements + cut trees back into those chunks IN PLACE, and return the overlay record for saving.
 static func merge_existing(world_path: String, chunks: Dictionary) -> Dictionary:
-	var record := {"structures": [], "cuts": {}}
+	var record := {"structures": [], "cuts": {}, "elev": {}}
 	if not FileAccess.file_exists(world_path):
 		return record
 	var parsed: Variant = str_to_var(FileAccess.get_file_as_string(world_path))
@@ -54,6 +54,17 @@ static func merge_existing(world_path: String, chunks: Dictionary) -> Dictionary
 			for ci: Variant in cuts:
 				chunk.tree_cuts[int(ci)] = true
 			record["cuts"][key] = cuts.duplicate()
+		# Carry over hand-sculpted ELEVATION: any tile whose saved height differs from the freshly
+		# generated (mask) value was edited with the Elevate/Smoothen tool, so override the fresh value.
+		var old_e := Marshalls.base64_to_raw(str(oc.get("e", "")))
+		if old_e.size() == chunk.elev.size() and old_e.size() > 0:
+			var ov: Array = []
+			for i: int in old_e.size():
+				if old_e[i] != chunk.elev[i]:
+					chunk.elev[i] = old_e[i]
+					ov.append([i, int(old_e[i])])
+			if not ov.is_empty():
+				record["elev"][key] = ov
 	return record
 
 
