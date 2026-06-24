@@ -132,10 +132,6 @@ func _tree_cell_key(gtx: int, gty: int) -> String:
 	return "%d:%d" % [floori(float(gtx) / float(TREE_GRID)), floori(float(gty) / float(TREE_GRID))]
 
 
-func _tree_cell_for_global(gtx: int, gty: int) -> Vector2i:
-	return Vector2i(floori(float(gtx) / float(TREE_GRID)), floori(float(gty) / float(TREE_GRID)))
-
-
 func _tree_tile_in_cell(chunk: RefCounted, cell: Vector2i, salt: int) -> Vector2i:
 	for attempt: int in TREE_GRID * TREE_GRID:
 		var jx: int = WG.hash_i(world_seed, cell.x, cell.y, 300 + salt + attempt) % TREE_GRID
@@ -411,16 +407,6 @@ func _pick_biome_tile(chunk: RefCounted, occupied: Dictionary, biome_id: String,
 		if _tile_ok(chunk, occupied, t, water_edge) and _tile_biome_id(chunk, t) == biome_id:
 			return t
 	return Vector2i(-1, -1)
-
-
-func _pick_inland_biome_tile(chunk: RefCounted, occupied: Dictionary, biome_id: String, salt: int) -> Vector2i:
-	for attempt: int in PLACE_ATTEMPTS * 2:
-		var tx := 1 + WG.hash_i(world_seed, chunk.cx * 47 + salt, chunk.cy, 220 + attempt * 2) % (WG.CHUNK_TILES - 2)
-		var ty := 1 + WG.hash_i(world_seed, chunk.cx, chunk.cy * 47 + salt, 221 + attempt * 2) % (WG.CHUNK_TILES - 2)
-		var t := Vector2i(tx, ty)
-		if _tile_ok(chunk, occupied, t, false) and _tile_biome_id(chunk, t) == biome_id and not _near_water(chunk, t, 1):
-			return t
-	return _pick_biome_tile(chunk, occupied, biome_id, salt, false)
 
 
 func _tile_ok(chunk: RefCounted, occupied: Dictionary, t: Vector2i, water_edge: bool) -> bool:

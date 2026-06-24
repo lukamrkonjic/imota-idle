@@ -320,13 +320,6 @@ func _update_renderer_detail() -> void:
 			_queue_mesh_rebuild(key)
 
 
-func _fade_in(node: CanvasItem, seconds: float) -> void:
-	var tw := node.create_tween()
-	tw.set_trans(Tween.TRANS_SINE)
-	tw.set_ease(Tween.EASE_OUT)
-	tw.tween_property(node, "modulate:a", 1.0, seconds)
-
-
 func _redraw_loaded_neighbors(coords: Vector2i) -> void:
 	# Enqueue the existing neighbours for a seam refresh (the just-created chunk
 	# already draws fresh on entering the tree, so skip its own centre). The queue

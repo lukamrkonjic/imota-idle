@@ -498,10 +498,6 @@ func _is_rock(tile: String) -> bool:
 	return TerrainStyle.is_rock(tile)
 
 
-func _is_snow(tile: String) -> bool:
-	return TerrainStyle.is_snow(tile)
-
-
 ## Raw baked elevation step at a global tile (0 if the chunk/apron isn't loaded). Cheap
 ## array read — used for slope (no noise re-eval).
 func _elev_raw(gtx: int, gty: int) -> int:

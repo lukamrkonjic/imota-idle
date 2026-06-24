@@ -771,17 +771,3 @@ func _pick_biome_surface(b_idx: int, tx: float, ty: float) -> int:
 			return secondary if detail > 0.54 else primary
 		_:
 			return primary
-
-
-func _pick_weighted_tiles(weights: Array, roll: float) -> int:
-	if weights.is_empty():
-		return _t_sand
-	var total := 0.0
-	for entry: Array in weights:
-		total += float(entry[1])
-	var target := roll * total
-	for entry: Array in weights:
-		target -= float(entry[1])
-		if target <= 0.0:
-			return int(entry[0])
-	return int(weights.back()[0])

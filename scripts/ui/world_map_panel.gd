@@ -168,23 +168,6 @@ func _draw() -> void:
 	_draw_title()
 
 
-func _draw_fog() -> void:
-	var spec: RefCounted = WorldGen.reg.spec
-	if not spec.finite:
-		return
-	var b: Rect2i = spec.bounds
-	var cw := _map_rect.size.x / float(b.size.x)
-	var ch := _map_rect.size.y / float(b.size.y)
-	for cy: int in range(b.position.y, b.end.y):
-		for cx: int in range(b.position.x, b.end.x):
-			if WorldGen.store.is_explored(cx, cy):
-				continue
-			var p := _map_rect.position + Vector2(
-				float(cx - b.position.x) * cw, float(cy - b.position.y) * ch)
-			# Translucent so the coastline silhouette still reads under the fog.
-			draw_rect(Rect2(p, Vector2(cw + 1.0, ch + 1.0)), Color(0.05, 0.06, 0.09, 0.6))
-
-
 func _draw_overlays() -> void:
 	var spec: RefCounted = WorldGen.reg.spec
 	# Roads (drawn faint; the baked image already shows them, this reinforces).

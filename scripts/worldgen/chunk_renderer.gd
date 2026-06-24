@@ -187,14 +187,6 @@ class _MeshBuilder:
 		cols.push_back(color)
 
 
-func _draw_placeholder() -> void:
-	var base_tx: int = chunk.cx * WG.CHUNK_TILES
-	var base_ty: int = chunk.cy * WG.CHUNK_TILES
-	for ty: int in WG.CHUNK_TILES:
-		for tx: int in WG.CHUNK_TILES:
-			_draw_flat_tile(self, base_tx + tx, base_ty + ty, _placeholder, false, false)
-
-
 static func tile_color(reg: RefCounted, byte_id: int) -> Color:
 	var cols: Array = reg.tile_def(byte_id)["colors"]
 	return cols[0]
