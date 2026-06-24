@@ -41,6 +41,7 @@ func _ready() -> void:
 	phase2_combat()
 	phase3_save_roundtrip()
 	phase3_save_migration()
+	phase3_save_fallbacks()
 	phase3_rename_alias()
 	phase3_recipes()
 	phase4_food_shop_offline()
@@ -594,6 +595,49 @@ func phase3_save_migration() -> void:
 	check(v3["bank"].has(logs_num), "v3 bank slug->numeric")
 	check(v3["equipment"]["Axe"] == DataRegistry.resolve_item_id("Bronze Axe"), "v3 equipment slug->numeric")
 	check(v3["activity"]["node_id"] == DataRegistry.resolve_node_id("woodcutting", "Regular Tree"), "v3 activity node slug->numeric")
+
+
+## Graceful degradation when content a save references has been removed/altered. None of these may
+## crash the load or corrupt state — the player keeps a valid game.
+func phase3_save_fallbacks() -> void:
+	print("== Phase 3e: save fallbacks (removed/altered content) ==")
+
+	# A malformed skill entry must not abort the load: valid skills before AND after it still apply.
+	GameState.reset_state()
+	GameState.add_xp("woodcutting", 5000.0)
+	var s := GameState.to_save_dict()
+	s["skills"] = (s["skills"] as Dictionary).duplicate(true)
+	s["skills"]["mining"] = 12345                 # bare number, not {level,xp}
+	s["skills"]["fishing"] = {"level": 5}         # dict missing "xp"
+	GameState.reset_state()
+	GameState.from_save_dict(s)
+	check(GameState.level("woodcutting") == DataRegistry.level_for_xp(5000.0), "valid skill loads past a malformed sibling (no crash)")
+	check(GameState.level("mining") == 1, "malformed skill entry -> default level 1")
+	check(GameState.level("fishing") == 1, "skill entry missing xp -> default level 1")
+
+	# A combat_style naming a skill that no longer exists falls back to "attack".
+	var s2 := GameState.to_save_dict()
+	s2["combat_style"] = "skill_that_was_removed"
+	GameState.from_save_dict(s2)
+	check(GameState.combat_style == "attack", "invalid combat_style -> attack")
+
+	# A slayer task whose monster no longer exists is dropped; a valid one survives.
+	var s3 := GameState.to_save_dict()
+	s3["slayer_task"] = {"monster": "Nonexistent Beast 9000", "required": 5, "done": 0}
+	GameState.from_save_dict(s3)
+	check(GameState.slayer_task.is_empty(), "slayer task with removed monster is dropped on load")
+	if not DataRegistry.enemies.is_empty():
+		var real_monster: String = str(DataRegistry.enemies.keys()[0])
+		var s3b := GameState.to_save_dict()
+		s3b["slayer_task"] = {"monster": real_monster, "required": 5, "done": 1}
+		GameState.from_save_dict(s3b)
+		check(not GameState.slayer_task.is_empty(), "slayer task with a valid monster survives load")
+
+	# A non-dict inventory element + an unknown item id are skipped; a valid stack still loads.
+	var s4 := GameState.to_save_dict()
+	s4["inventory"] = [42, {"id": "item.does_not_exist_999", "qty": 3}, {"id": DataRegistry.resolve_item_id("Logs"), "qty": 7}]
+	GameState.from_save_dict(s4)
+	check(GameState.count_item("Logs") == 7, "valid stack loads past a non-dict element + unknown item")
 
 
 func phase3_rename_alias() -> void:

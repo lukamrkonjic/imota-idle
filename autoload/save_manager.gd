@@ -64,8 +64,10 @@ func load_game() -> void:
 		push_error("Corrupt save file ignored")
 		EventBus.game_loaded.emit()
 		return
-	GameState.from_save_dict(parsed)
+	# Migrate ONCE, up front, so every consumer (GameState, farming, activity) reads the same
+	# schema-current dict. from_save_dict still migrates its own arg idempotently for direct callers.
 	parsed = SaveMigration.migrate_game_save(parsed)
+	GameState.from_save_dict(parsed)
 	FarmingSim.from_save(parsed.get("farming", {}))
 	# Each sim re-starts its own activity if the saved "kind" matches (owned by the sim now).
 	ActivityManager.restore_active(parsed.get("activity", {}))

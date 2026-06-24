@@ -646,27 +646,36 @@ func to_save_dict() -> Dictionary:
 
 func from_save_dict(d: Dictionary) -> void:
 	d = SaveMigration.migrate_game_save(d)
-	var loaded: Dictionary = d.get("skills", {})
+	var loaded: Dictionary = d.get("skills", {}) if (d.get("skills") is Dictionary) else {}
 	for s: String in SKILLS:
-		if loaded.has(s):
-			# Normalize pre-cap saves: clamp level to the cap and trim overflow XP
-			# so a level-1000 save loads as a clean level 99.
-			var cap := DataRegistry.max_level
-			var lvl := mini(int(loaded[s]["level"]), cap)
-			var sx := float(loaded[s]["xp"])
-			if lvl >= cap:
-				sx = minf(sx, float(DataRegistry.xp_for_level(cap)))
-			skills[s] = {"xp": sx, "level": lvl}
+		# Guard the entry SHAPE: a malformed/legacy entry (not a {level,xp} dict) is skipped so
+		# the skill keeps its reset_state default instead of crashing the whole load mid-way.
+		var entry: Variant = loaded.get(s)
+		if not (entry is Dictionary and entry.has("level") and entry.has("xp")):
+			continue
+		# Normalize pre-cap saves: clamp level to the cap and trim overflow XP
+		# so a level-1000 save loads as a clean level 99.
+		var cap := DataRegistry.max_level
+		var lvl := mini(int(entry["level"]), cap)
+		var sx := float(entry["xp"])
+		if lvl >= cap:
+			sx = minf(sx, float(DataRegistry.xp_for_level(cap)))
+		skills[s] = {"xp": sx, "level": lvl}
 	inventory = []
-	for stack: Dictionary in d.get("inventory", []):
+	for stack: Variant in d.get("inventory", []):
+		if not stack is Dictionary:
+			continue                          # tolerate a non-object element in a corrupt save
 		var raw: String = str(stack.get("id", stack.get("name", "")))
 		var item_id := DataRegistry.resolve_item_id(raw)
 		if item_id.is_empty():
 			push_warning("Save load: unknown inventory item '%s' skipped" % raw)
 			continue
-		inventory.append({"id": item_id, "qty": int(stack["qty"])})
+		var qty := int(stack.get("qty", 0))
+		if qty <= 0:
+			continue                          # drop empty/garbage stacks rather than carry them
+		inventory.append({"id": item_id, "qty": qty})
 	bank = {}
-	var saved_bank: Dictionary = d.get("bank", {})
+	var saved_bank: Dictionary = d.get("bank", {}) if (d.get("bank") is Dictionary) else {}
 	for k: String in saved_bank:
 		var item_id := DataRegistry.resolve_item_id(k)
 		if not item_id.is_empty():
@@ -674,7 +683,7 @@ func from_save_dict(d: Dictionary) -> void:
 		else:
 			push_warning("Save load: unknown bank item '%s' skipped" % k)
 	equipment = {}
-	var saved_eq: Dictionary = d.get("equipment", {})
+	var saved_eq: Dictionary = d.get("equipment", {}) if (d.get("equipment") is Dictionary) else {}
 	for k: String in saved_eq:
 		var item_id := DataRegistry.resolve_item_id(str(saved_eq[k]))
 		if not item_id.is_empty():
@@ -682,7 +691,10 @@ func from_save_dict(d: Dictionary) -> void:
 		else:
 			push_warning("Save load: unknown equipped item '%s' (slot %s) skipped" % [str(saved_eq[k]), k])
 	coins = int(d.get("coins", d.get("gold", 0)))
-	combat_style = str(d.get("combat_style", "attack"))
+	# Fall back to "attack" if the saved style names a skill that was since removed/renamed,
+	# so the player keeps training a valid skill instead of a dead style string.
+	var saved_style := str(d.get("combat_style", "attack"))
+	combat_style = saved_style if SkillRegistry.is_combat(saved_style) else "attack"
 	run_energy = clampf(float(d.get("run_energy", 100.0)), 0.0, 100.0)
 	run_enabled = bool(d.get("run_enabled", false))
 	resting = false
@@ -693,7 +705,14 @@ func from_save_dict(d: Dictionary) -> void:
 		if DataRegistry.prayers.has(str(pn)):
 			active_prayers.append(str(pn))
 	devotion = float(d.get("devotion", -1.0))
-	slayer_task = Dictionary(d.get("slayer_task", {})).duplicate()
+	# Drop a slayer task whose target monster no longer exists (enemies are keyed by display name),
+	# so a removed/renamed enemy can't leave the player with a task that never completes.
+	var raw_task: Variant = d.get("slayer_task", {})
+	var task: Dictionary = raw_task.duplicate() if raw_task is Dictionary else {}
+	if not task.is_empty() and not DataRegistry.enemies.has(str(task.get("monster", ""))):
+		push_warning("Save load: slayer target '%s' no longer exists; task dropped" % str(task.get("monster", "")))
+		task = {}
+	slayer_task = task
 	slayer_points = int(d.get("slayer_points", 0))
 	current_hp = clampi(int(d.get("current_hp", max_hp())), 1, max_hp())
 	EventBus.inventory_changed.emit()
