@@ -30,6 +30,7 @@ const WATER_BED_CLEARANCE := 0.07  # how far submerged ground sits below the she
 const SHORE_SMOOTH := 4
 const SHORE_RADIUS := 4.0       # kernel reach in cells (round, Euclidean — NOT square)
 const SHORE_SD_SCALE := 5.2     # maps (wf - 0.5) -> signed distance to coast, in cells
+const SHORE_RAMP_LO := 0.12     # coast-field value where the shore ramp starts easing land down to the water surface
 
 var world: Node2D
 var _ground_mat: ShaderMaterial
@@ -133,17 +134,33 @@ func _water_plane_tile(gtx: int, gty: int) -> bool:
 	return false
 
 
-func _emit_corner(st: SurfaceTool, ci: int, cj: int, ref_top: float, wfc: Dictionary, wlc: Dictionary) -> void:
+## Final VISUAL height of a ground corner: smoothed terrain, eased DOWN to the local water
+## surface as it nears the shore (so land and water meet flush — no floating bank / sub-water
+## gap, which fluid can't do in reality), then pushed a touch under the sheet where actually
+## submerged. minf() guarantees we only ever LOWER coastal land — never lift low ground or a
+## bed — so banks slope into the water like a real beach instead of perching above it. Used for
+## BOTH the vertex and the shading normal so the ramp lights correctly. (Corner height ignores
+## ref_top, so this is deterministic per corner like _corner_height_for.)
+func _visual_corner_y(ci: int, cj: int, ref_top: float, wfc: Dictionary, wlc: Dictionary) -> float:
 	var h := _corner_height_for(ci, cj, ref_top)
-	# Smooth normal from the height field (central differences over the corners). Sampled on
-	# THIS tile's plateau (ref_top) so a corner at a cliff lip stays flat-shaded on top rather
-	# than tilting toward the drop.
-	var hx := _corner_height_for(ci + 1, cj, ref_top) - _corner_height_for(ci - 1, cj, ref_top)
-	var hz := _corner_height_for(ci, cj + 1, ref_top) - _corner_height_for(ci, cj - 1, ref_top)
-	# If this ground corner sits UNDER the water sheet, push it safely below the sheet so a
-	# terrain facet can never poke through and clip the shader's smooth waterline contour.
+	var wf := _coast_wf(ci, cj, wfc)
+	if wf > SHORE_RAMP_LO:
+		# Target just UNDER the sheet (not exactly on it) so the ramped beach can't z-fight the
+		# semi-transparent waterline where the smoothed contour bulges into an otherwise-dry tile.
+		var bed := _water_corner_level(ci, cj, wlc) - WATER_BED_CLEARANCE
+		h = minf(h, lerpf(h, bed, smoothstep(SHORE_RAMP_LO, 0.5, wf)))
+	# Submerged corners also sit below the sheet so no terrain facet pokes through the contour.
 	if _corner_touches_water(ci, cj):
 		h = minf(h, _water_corner_level(ci, cj, wlc) - WATER_BED_CLEARANCE)
+	return h
+
+
+func _emit_corner(st: SurfaceTool, ci: int, cj: int, ref_top: float, wfc: Dictionary, wlc: Dictionary) -> void:
+	var h := _visual_corner_y(ci, cj, ref_top, wfc, wlc)
+	# Smooth normal from the FINAL visual height field (central differences), so the shore ramp
+	# and water bed are lit correctly — sampling the raw terrain height would shade the beach flat.
+	var hx := _visual_corner_y(ci + 1, cj, ref_top, wfc, wlc) - _visual_corner_y(ci - 1, cj, ref_top, wfc, wlc)
+	var hz := _visual_corner_y(ci, cj + 1, ref_top, wfc, wlc) - _visual_corner_y(ci, cj - 1, ref_top, wfc, wlc)
 	st.set_normal(Vector3(-hx, 2.0 * TILE_S, -hz).normalized())
 	st.set_color(_corner_color(ci, cj))
 	# UV carries beach data for toon_ground: y = beach fraction (sand vs other, smoothed
