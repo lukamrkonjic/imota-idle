@@ -47,5 +47,30 @@
     "ui_click": "",
     "bank": "",
     "teleport": ""
+  },
+  "footsteps": {
+    "_doc": "Surface family -> footstep one-shot. Fired once per stride by world_visual_controller; surface comes from TerrainStyle.surface_family under the player. 'grass' is the fallback for any unmapped surface.",
+    "grass": "",
+    "sand": "",
+    "snow": "",
+    "rock": "",
+    "path": "",
+    "water": ""
+  },
+  "ambient": {
+    "_doc": "Looping ambience bed -> stream path, cross-faded by Audio.set_ambient(channel,tag,target). 'rain'/'wind' auto-track the live Weather; the biome tags (same ids as 'music') play under the active biome. All loop seamlessly; volume eases with intensity.",
+    "rain": "",
+    "wind": "",
+    "ocean": "",
+    "coast": "",
+    "plains": "",
+    "forest": "",
+    "deep_forest": "",
+    "hills": "",
+    "swamp": "",
+    "desert": "",
+    "tundra": "",
+    "volcanic": "",
+    "town": ""
   }
 }

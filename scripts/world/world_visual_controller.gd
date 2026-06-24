@@ -22,6 +22,12 @@ var _darkness_vp := Vector2.ZERO
 const TreeArt := preload("res://scripts/world/art/trees/tree_art.gd")
 const WaterSurfaceArt := preload("res://scripts/world/art/water/water_surface_art.gd")
 const ChunkRenderer := preload("res://scripts/worldgen/chunk_renderer.gd")
+const TerrainStyle := preload("res://scripts/render/terrain_style.gd")
+
+const STEP_STRIDE_PX := 26.0   # world px walked per footstep (≈ one tile of travel)
+var _step_accum := 0.0
+var _last_player_pos := Vector2.ZERO
+var _have_last_pos := false
 
 
 func setup(w: Node2D) -> void:
@@ -88,6 +94,7 @@ func process_tick(delta: float) -> void:
 			_queue_visible_water_redraw()
 	_update_interactable_outlines()
 	_update_zone_and_biome()
+	_drive_footsteps()
 	_update_darkness()
 	_update_visibility_budget(delta)
 	_update_house_roofs(delta)
@@ -95,6 +102,37 @@ func process_tick(delta: float) -> void:
 
 func reset_biome_tracking() -> void:
 	_biome_id = ""
+
+
+## Emit a footstep every STEP_STRIDE_PX of overworld travel, tagged with the surface under the
+## player so Audio picks the right footstep loop (grass/sand/snow/rock/path/water). Silent until
+## footstep files are mapped in audio.json; standing still or off-overworld emits nothing.
+func _drive_footsteps() -> void:
+	if world.current_layer != 0 or world.player == null:
+		_have_last_pos = false
+		return
+	var pp: Vector2 = world.player.position
+	if not _have_last_pos:
+		_have_last_pos = true
+		_last_player_pos = pp
+		return
+	var moved := pp.distance_to(_last_player_pos)
+	_last_player_pos = pp
+	if moved <= 0.01:
+		return
+	_step_accum += moved
+	if _step_accum >= STEP_STRIDE_PX:
+		_step_accum = 0.0
+		Audio.footstep(_player_surface())
+
+
+## Surface family ("grass"/"sand"/"snow"/"rock"/"path"/"water") of the tile under the player.
+func _player_surface() -> String:
+	var t := WG.world_to_tile(world.player.position)
+	var tid := WorldGen.surface_tile_id(t.x, t.y)
+	if tid < 0 or tid >= WorldGen.reg.tile_order.size():
+		return "grass"
+	return TerrainStyle.surface_family(str(WorldGen.reg.tile_order[tid]))
 
 
 func show_xp_float(skill: String, amount: float) -> void:
