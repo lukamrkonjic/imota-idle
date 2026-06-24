@@ -137,6 +137,11 @@ var _place_off := Vector2.ZERO   # sub-tile iso offset for free (non-grid) struc
 var _struct_open: Dictionary = {}   # structure-accordion: category name → expanded?
 var _sel_stamp := 0
 var _sel_creature := ""
+var _creature_count := 3          # pack size dropped per click (scattered across the spawn area)
+var _creature_wander := 4         # roam radius, tiles
+var _creature_aggro := 0          # engage distance, tiles (0 = global default)
+var _creature_leash := 0          # give-up/leave distance, tiles (0 = global default)
+var _creature_aggressive := true
 var _stamp_variant := 0
 var _stamp_rot := 0
 var _stamp_flip := false
@@ -614,6 +619,10 @@ func _apply_tool(just_pressed: bool) -> void:
 		Tool.SETTLEMENT:
 			if just_pressed:
 				_place_settlement(_hover_tile)
+				_commit_stroke()
+		Tool.CREATURE:
+			if just_pressed:
+				_place_creature(_hover_tile)
 				_commit_stroke()
 
 
@@ -1171,8 +1180,9 @@ func _commit_stroke() -> void:
 	# chunk data and are re-emitted unchanged, so only the biome's own scatter is swapped.
 	if _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE]:
 		_refresh_painted_entities(_stroke["tiles"].keys())
-	# Trees/Clutter brushes add `decor` structures — respawn the touched chunks so they appear in 3D.
-	if _tool in [Tool.FOREST, Tool.CLUTTER]:
+	# Trees/Clutter brushes + the Creature tool add records to chunk data — respawn the touched
+	# chunks so the new trees/clutter/enemies appear in the 3D view immediately.
+	if _tool in [Tool.FOREST, Tool.CLUTTER, Tool.CREATURE]:
 		_refresh_struct_chunks(_stroke["added"])
 	_refresh_history_buttons()
 
@@ -2614,8 +2624,10 @@ func _v3d_place_at_cursor() -> void:
 		Tool.SETTLEMENT:
 			_begin_stroke(); _place_settlement(tile); _commit_stroke()
 			_refresh_3d_entities(tile)
+		Tool.CREATURE:
+			_begin_stroke(); _place_creature(tile); _commit_stroke()
 		_:
-			_status.text = "Pick a Structure/Stamp/Road/Settlement tool, then click to place. (%d, %d)" % [tile.x, tile.y]
+			_status.text = "Pick a Structure/Stamp/Road/Settlement/Creature tool, then click to place. (%d, %d)" % [tile.x, tile.y]
 
 
 ## View-distance slider: drive the aerial terrain streaming radius live.
@@ -2848,8 +2860,18 @@ func _refresh_palette() -> void:
 		Tool.STRUCTURE:
 			_build_structure_accordion()
 		Tool.CREATURE:
-			_header(_palette_box, "Creatures (preview)")
-			_note("Browse the bestiary art. Creatures are placed by world generation, not painted.")
+			_header(_palette_box, "Enemy spawn")
+			_note("Click a walkable tile to drop a spawn of the selected creature. The pack scatters\nacross the spawn area and wanders it; set how far it roams, how close you must get to\nbe attacked, and how far you can drag it before it gives up.")
+			_param_slider("Pack size: %d", _creature_count, 1, 12, func(v: int) -> void: _creature_count = v)
+			_param_slider("Wander radius: %d", _creature_wander, 1, 24, func(v: int) -> void: _creature_wander = v)
+			_param_slider("Aggro dist (0=auto): %d", _creature_aggro, 0, 24, func(v: int) -> void: _creature_aggro = v)
+			_param_slider("Leave dist (0=auto): %d", _creature_leash, 0, 40, func(v: int) -> void: _creature_leash = v)
+			var ck := CheckBox.new()
+			ck.text = "Aggressive (auto-attacks)"
+			ck.button_pressed = _creature_aggressive
+			ck.toggled.connect(func(on: bool) -> void: _creature_aggressive = on)
+			_palette_box.add_child(ck)
+			_header(_palette_box, "Creature")
 			for e: Dictionary in _creature_list():
 				var nm := str(e["name"])
 				_choice("%s  ·  Lv%d" % [nm, int(e["level"])], nm, _sel_creature == nm,
@@ -2909,6 +2931,54 @@ func _creature_list() -> Array:
 			return int(a["level"]) < int(b["level"])
 		return str(a["name"]) < str(b["name"]))
 	return out
+
+
+## A labelled integer slider in the palette (label_fmt has one %d). cb gets the new int value.
+func _param_slider(label_fmt: String, value: int, mn: int, mx: int, cb: Callable) -> void:
+	var lbl := Label.new()
+	lbl.text = label_fmt % value
+	_palette_box.add_child(lbl)
+	var s := HSlider.new()
+	s.min_value = mn
+	s.max_value = mx
+	s.value = value
+	s.custom_minimum_size = Vector2(176, 0)
+	s.value_changed.connect(func(v: float) -> void:
+		cb.call(int(v))
+		lbl.text = label_fmt % int(v))
+	_palette_box.add_child(s)
+
+
+## Drop an enemy spawn (a pack of `_creature_count`) around the clicked tile, scattered within the
+## wander radius. Each mob gets the per-spawn wander/aggro/leash from the palette and roams its own
+## spawn point. Records go into chunk.monsters (saved + undoable + carried through re-bakes).
+func _place_creature(t: Vector2i) -> void:
+	if _sel_creature.is_empty():
+		_status.text = "Pick a creature first."
+		return
+	var lvl := int(DataRegistry.enemies.get(_sel_creature, {}).get("level", 1))
+	var placed := 0
+	for i: int in _creature_count:
+		var ang := randf() * TAU
+		var rad := (0.0 if i == 0 else sqrt(randf()) * float(_creature_wander))
+		var gx := t.x + int(round(cos(ang) * rad))
+		var gy := t.y + int(round(sin(ang) * rad))
+		var chunk: RefCounted = _chunk_at_tile(gx, gy)
+		if chunk == null:
+			continue
+		var lx: int = gx - chunk.cx * WG.CHUNK_TILES
+		var ly: int = gy - chunk.cy * WG.CHUNK_TILES
+		if bool(_reg.tile_def(chunk.tile_id(lx, ly)).get("water", false)):
+			continue
+		var m := {
+			"name": _sel_creature, "level": lvl, "tx": lx, "ty": ly,
+			"aggressive": _creature_aggressive, "wander": float(_creature_wander),
+			"aggro": float(_creature_aggro), "leash": float(_creature_leash),
+		}
+		chunk.monsters.append(m)
+		_stroke["added"].append({"key": "%d:%d" % [chunk.cx, chunk.cy], "arr": "monsters", "item": m})
+		placed += 1
+	_status.text = "Placed %d × %s (Lv%d)" % [placed, _sel_creature, lvl]
 
 
 ## Drive the showcase turntable from the current tool + selection.

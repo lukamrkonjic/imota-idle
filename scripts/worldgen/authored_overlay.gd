@@ -19,7 +19,7 @@ class_name AuthoredOverlay
 ## Diff the previous baked world at `world_path` against freshly-generated `chunks`, MERGE authored
 ## placements + cut trees back into those chunks IN PLACE, and return the overlay record for saving.
 static func merge_existing(world_path: String, chunks: Dictionary) -> Dictionary:
-	var record := {"structures": [], "cuts": {}, "elev": {}}
+	var record := {"structures": [], "cuts": {}, "elev": {}, "monsters": []}
 	if not FileAccess.file_exists(world_path):
 		return record
 	var parsed: Variant = str_to_var(FileAccess.get_file_as_string(world_path))
@@ -48,6 +48,19 @@ static func merge_existing(world_path: String, chunks: Dictionary) -> Dictionary
 				chunk.cx, chunk.cy, str(pd.get("kind", "")), str(pd.get("prop", "")),
 				int(pd.get("tx", 0)), int(pd.get("ty", 0))]))
 			record["structures"].append(rec)
+		# Hand-placed enemy spawns (editor Creature tool): same generated-vs-authored diff as structures.
+		var gen_mon := {}
+		for mm: Dictionary in chunk.monsters:
+			gen_mon[_mkey(mm)] = true
+		for raw_m: Variant in oc.get("monsters", []):
+			var md: Dictionary = raw_m
+			if gen_mon.has(_mkey(md)):
+				continue   # regenerated this bake — not authored
+			chunk.monsters.append(md.duplicate(true))
+			var mrec: Dictionary = md.duplicate(true)
+			mrec["cx"] = chunk.cx
+			mrec["cy"] = chunk.cy
+			record["monsters"].append(mrec)
 		# Carry over cut/removed procedural trees so they stay gone after the re-bake.
 		var cuts: Array = oc.get("cuts", [])
 		if not cuts.is_empty():
@@ -73,3 +86,8 @@ static func merge_existing(world_path: String, chunks: Dictionary) -> Dictionary
 static func _skey(p: Dictionary) -> String:
 	return "%s|%s|%d|%d" % [str(p.get("kind", "")), str(p.get("prop", "")),
 		int(p.get("tx", -999)), int(p.get("ty", -999))]
+
+
+## Identity of an enemy spawn for the generated-vs-authored diff.
+static func _mkey(m: Dictionary) -> String:
+	return "%s|%d|%d" % [str(m.get("name", "")), int(m.get("tx", -999)), int(m.get("ty", -999))]

@@ -52,9 +52,9 @@ func _ready() -> void:
 	if ofile != null:
 		ofile.store_string(JSON.stringify(overlay, "  "))
 		ofile.close()
-	print("  preserved %d authored structures, %d chunks-with-cuts, %d chunks-with-elev-edits" % [
-		(overlay["structures"] as Array).size(), (overlay["cuts"] as Dictionary).size(),
-		(overlay["elev"] as Dictionary).size()])
+	print("  preserved %d structures, %d enemy spawns, %d chunks-with-cuts, %d chunks-with-elev-edits" % [
+		(overlay["structures"] as Array).size(), (overlay["monsters"] as Array).size(),
+		(overlay["cuts"] as Dictionary).size(), (overlay["elev"] as Dictionary).size()])
 
 	# Assemble: encode the fixed chunks, render the overview map.
 	var tile_w: int = b.size.x * WG.CHUNK_TILES
