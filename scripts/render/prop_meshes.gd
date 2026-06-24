@@ -1051,6 +1051,357 @@ static func _city_prop_parts(prop: String) -> Array:
 				_part(_box("flowerbox", Vector3(0.92, 0.22, 0.32)), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0, 0.11, 0)),
 				_part(_sphere("flowerbox_bloom", 0.11), _mat("gold", "dirt_a", "snow_a"), Vector3(-0.24, 0.28, 0)),
 				_part(_sphere("flowerbox_bloom", 0.11), _mat("foliage_c", "grass_dark", "foliage_c"), Vector3(0.2, 0.27, 0.02))]
+		# ── Graveyard ───────────────────────────────────────────────────────────
+		"gravestone":
+			return [
+				_part(_box("hs_base", Vector3(0.5, 0.12, 0.26)), _mat("stone_b", "shadow", "stone_a"), Vector3(0, 0.06, 0)),
+				_part(_box("hs_body", Vector3(0.4, 0.56, 0.13)), _mat("stone_a", "stone_b", "snow_a"), Vector3(0, 0.34, 0)),
+				_part(_sphere("hs_top", 0.2), _mat("stone_a", "stone_b", "snow_a"), Vector3(0, 0.6, 0), Vector3(1.0, 0.6, 0.65))]
+		"gravestone_cross":
+			return [
+				_part(_box("gc_base", Vector3(0.42, 0.12, 0.24)), _mat("stone_b", "shadow", "stone_a"), Vector3(0, 0.06, 0)),
+				_part(_box("gc_v", Vector3(0.14, 0.74, 0.13)), _mat("stone_a", "stone_b", "snow_a"), Vector3(0, 0.46, 0)),
+				_part(_box("gc_h", Vector3(0.46, 0.14, 0.12)), _mat("stone_a", "stone_b", "snow_a"), Vector3(0, 0.6, 0))]
+		"tomb":
+			return [
+				_part(_box("tomb_body", Vector3(1.1, 0.42, 0.6)), _mat("stone_a", "stone_b", "snow_a"), Vector3(0, 0.24, 0)),
+				_part(_box("tomb_lid", Vector3(1.18, 0.16, 0.66)), _mat("stone_b", "shadow", "stone_a"), Vector3(0, 0.52, 0)),
+				_part(_box("tomb_cross", Vector3(0.1, 0.34, 0.1)), _mat("stone_a", "stone_b", "snow_a"), Vector3(0, 0.74, 0))]
+		"crypt":
+			return [
+				_part(_box("crypt_body", Vector3(1.3, 1.3, 1.1)), _mat("stone_b", "shadow", "stone_a"), Vector3(0, 0.65, 0)),
+				_part(_prism("crypt_roof", Vector3(1.5, 0.5, 1.25)), _mat("cliff_dark", "shadow", "stone_b"), Vector3(0, 1.55, 0)),
+				_part(_box("crypt_door", Vector3(0.5, 0.8, 0.1)), _mat("dark_bark", "shadow", "trunk_a"), Vector3(0, 0.4, 0.56))]
+		"grave_mound":
+			return [
+				_part(_sphere("mound", 0.5), _mat("dirt_a", "dirt_b", "moss"), Vector3(0, 0.0, 0), Vector3(1.3, 0.5, 0.9)),
+				_part(_box("mound_marker", Vector3(0.3, 0.34, 0.08)), _mat("trunk_b", "shadow", "trunk_a"), Vector3(0, 0.2, -0.42))]
+		"coffin":
+			return [
+				_part(_box("coffin", Vector3(0.5, 0.3, 1.05)), _mat("trunk_a", "trunk_b", "dark_bark"), Vector3(0, 0.15, 0)),
+				_part(_box("coffin_lid", Vector3(0.42, 0.1, 0.95)), _mat("dark_bark", "shadow", "trunk_a"), Vector3(0, 0.34, 0))]
+		"bone_pile":
+			return [
+				_part(_sphere("skull", 0.18), _mat("snow_a", "stone_b", "snow"), Vector3(-0.1, 0.16, 0.05)),
+				_part(_cyl("bone", 0.05, 0.05, 0.5), _mat("snow_a", "stone_b", "snow"), Vector3(0.12, 0.1, 0), Vector3.ONE, Vector3(0, 0, PI * 0.4)),
+				_part(_cyl("bone", 0.05, 0.05, 0.46), _mat("snow_a", "stone_b", "snow"), Vector3(0.05, 0.08, 0.1), Vector3.ONE, Vector3(PI * 0.45, 0.5, 0))]
+		"grave_urn":
+			return [
+				_part(_box("urn_ped", Vector3(0.34, 0.4, 0.34)), _mat("stone_b", "shadow", "stone_a"), Vector3(0, 0.2, 0)),
+				_part(_sphere("urn", 0.22), _mat("stone_a", "stone_b", "snow_a"), Vector3(0, 0.56, 0), Vector3(1.0, 1.2, 1.0)),
+				_part(_cyl("urn_lip", 0.1, 0.13, 0.1), _mat("stone_a", "stone_b", "snow_a"), Vector3(0, 0.78, 0))]
+		"mourning_statue":
+			return [
+				_part(_box("ms_ped", Vector3(0.5, 0.4, 0.5)), _mat("stone_b", "shadow", "stone_a"), Vector3(0, 0.2, 0)),
+				_part(_cyl("ms_body", 0.18, 0.24, 0.7), _mat("stone_a", "stone_b", "snow_a"), Vector3(0, 0.75, 0)),
+				_part(_sphere("ms_head", 0.16), _mat("stone_a", "stone_b", "snow_a"), Vector3(0, 1.2, 0)),
+				_part(_box("ms_wing", Vector3(0.5, 0.5, 0.08)), _mat("stone_a", "stone_b", "snow_a"), Vector3(0, 0.95, -0.18), Vector3.ONE, Vector3(0.3, 0, 0))]
+		"iron_fence":
+			return [
+				_part(_box("if_rail", Vector3(1.0, 0.06, 0.05)), _mat("weathered_metal", "shadow", "slate_blue"), Vector3(0, 0.5, 0)),
+				_part(_box("if_rail2", Vector3(1.0, 0.06, 0.05)), _mat("weathered_metal", "shadow", "slate_blue"), Vector3(0, 0.2, 0)),
+				_part(_cyl("if_p", 0.03, 0.03, 0.66), _mat("weathered_metal", "shadow", "slate_blue"), Vector3(-0.4, 0.33, 0)),
+				_part(_cyl("if_p", 0.03, 0.03, 0.66), _mat("weathered_metal", "shadow", "slate_blue"), Vector3(0.0, 0.33, 0)),
+				_part(_cyl("if_p", 0.03, 0.03, 0.66), _mat("weathered_metal", "shadow", "slate_blue"), Vector3(0.4, 0.33, 0)),
+				_part(_octa("if_tip"), _mat("weathered_metal", "shadow", "gold"), Vector3(-0.4, 0.7, 0), Vector3(0.08, 0.12, 0.08)),
+				_part(_octa("if_tip"), _mat("weathered_metal", "shadow", "gold"), Vector3(0.4, 0.7, 0), Vector3(0.08, 0.12, 0.08))]
+		"grave_candle":
+			return [
+				_part(_box("gcs_base", Vector3(0.26, 0.16, 0.26)), _mat("stone_b", "shadow", "stone_a"), Vector3(0, 0.08, 0)),
+				_part(_cyl("gcs_candle", 0.05, 0.06, 0.22), _mat("wall_cream", "stone_b", "snow_a"), Vector3(0, 0.27, 0)),
+				_part(_sphere("gcs_flame", 0.05), _mat("fire_hot", "fire_red", "gold"), Vector3(0, 0.42, 0), Vector3(0.7, 1.4, 0.7))]
+
+		# ── Dark moor ───────────────────────────────────────────────────────────
+		"dead_tree":
+			return [
+				_part(_cyl("dt_trunk", 0.08, 0.16, 1.3), _mat("dark_bark", "shadow", "trunk_b"), Vector3(0, 0.65, 0)),
+				_part(_cyl("dt_b1", 0.03, 0.06, 0.6), _mat("dark_bark", "shadow", "trunk_b"), Vector3(0.22, 1.05, 0), Vector3.ONE, Vector3(0, 0, -0.8)),
+				_part(_cyl("dt_b2", 0.03, 0.06, 0.55), _mat("dark_bark", "shadow", "trunk_b"), Vector3(-0.2, 1.1, 0.08), Vector3.ONE, Vector3(0.6, 1.0, 0.7)),
+				_part(_cyl("dt_b3", 0.025, 0.05, 0.5), _mat("dark_bark", "shadow", "trunk_b"), Vector3(0.05, 1.3, -0.18), Vector3.ONE, Vector3(-0.7, 0, 0.3))]
+		"gnarled_stump":
+			return [
+				_part(_cyl("gs_stump", 0.28, 0.36, 0.42), _mat("dark_bark", "shadow", "trunk_b"), Vector3(0, 0.21, 0)),
+				_part(_cyl("gs_root", 0.04, 0.08, 0.4), _mat("dark_bark", "shadow", "trunk_b"), Vector3(0.3, 0.06, 0.1), Vector3.ONE, Vector3(0, 0.6, 1.3)),
+				_part(_sphere("gs_moss", 0.18), _mat("moss", "grass_dark", "moss_hi"), Vector3(0, 0.42, 0), Vector3(1.1, 0.4, 1.1))]
+		"gallows":
+			return [
+				_part(_box("gal_base", Vector3(0.8, 0.12, 0.6)), _mat("trunk_b", "shadow", "trunk_a"), Vector3(0, 0.06, 0)),
+				_part(_cyl("gal_post", 0.07, 0.08, 1.7), _mat("dark_bark", "shadow", "trunk_a"), Vector3(-0.3, 0.85, 0)),
+				_part(_box("gal_arm", Vector3(0.7, 0.1, 0.1)), _mat("dark_bark", "shadow", "trunk_a"), Vector3(-0.02, 1.62, 0)),
+				_part(_cyl("gal_rope", 0.015, 0.015, 0.35), _mat("trunk_a", "trunk_b", "wall_cream"), Vector3(0.26, 1.42, 0))]
+		"standing_stone_dark":
+			return [
+				_part(_box("ssd", Vector3(0.36, 1.3, 0.28)), _mat("cliff_dark", "shadow", "stone_b"), Vector3(0, 0.6, 0), Vector3.ONE, Vector3(0, 0.2, 0.08)),
+				_part(_sphere("ssd_moss", 0.16), _mat("moss", "grass_dark", "moss_hi"), Vector3(0.06, 0.3, 0.12), Vector3(0.9, 1.4, 0.5))]
+		"crooked_post":
+			return [
+				_part(_cyl("cp_post", 0.05, 0.06, 0.9), _mat("dark_bark", "shadow", "trunk_a"), Vector3(0, 0.45, 0), Vector3.ONE, Vector3(0, 0, 0.18)),
+				_part(_box("cp_sign", Vector3(0.4, 0.22, 0.04)), _mat("trunk_a", "trunk_b", "wood_light"), Vector3(0.12, 0.78, 0), Vector3.ONE, Vector3(0, 0, 0.18))]
+		"raven_perch":
+			return [
+				_part(_cyl("rp_post", 0.05, 0.06, 1.0), _mat("dark_bark", "shadow", "trunk_b"), Vector3(0, 0.5, 0)),
+				_part(_sphere("rp_raven", 0.13), _mat("shadow", "ash", "slate_blue"), Vector3(0, 1.06, 0.02), Vector3(1.0, 1.1, 1.4)),
+				_part(_cone("rp_beak", 0.04, 0.0, 0.12), _mat("gold", "dirt_a", "snow_a"), Vector3(0, 1.08, 0.16), Vector3.ONE, Vector3(PI * 0.5, 0, 0))]
+		"withered_bush":
+			return [
+				_part(_sphere("wb", 0.3), _mat("ash", "shadow", "dark_bark"), Vector3(0, 0.24, 0), Vector3(1.0, 0.8, 1.0)),
+				_part(_cyl("wb_tw", 0.02, 0.03, 0.3), _mat("dark_bark", "shadow", "trunk_b"), Vector3(0.1, 0.4, 0), Vector3.ONE, Vector3(0, 0, -0.5))]
+		"wisp_lantern":
+			return [
+				_part(_cyl("wl_pole", 0.035, 0.045, 1.0), _mat("dark_bark", "shadow", "trunk_b"), Vector3(0, 0.5, 0), Vector3.ONE, Vector3(0, 0, 0.1)),
+				_part(_sphere("wl_wisp", 0.13), _mat("water_lit", "water_b", "snow_a"), Vector3(0.1, 1.05, 0), Vector3(1.0, 1.1, 1.0))]
+		"peat_stack":
+			return [
+				_part(_box("ps1", Vector3(0.5, 0.18, 0.34)), _mat("mud", "shadow", "dirt_b"), Vector3(0, 0.09, 0)),
+				_part(_box("ps2", Vector3(0.44, 0.18, 0.3)), _mat("mud", "shadow", "dirt_b"), Vector3(0.03, 0.27, 0.02)),
+				_part(_box("ps3", Vector3(0.34, 0.16, 0.24)), _mat("mud", "shadow", "dirt_b"), Vector3(-0.02, 0.43, -0.01))]
+
+		# ── Fairy ───────────────────────────────────────────────────────────────
+		"fairy_ring":
+			var ring: Array = []
+			for i: int in 7:
+				var a := float(i) / 7.0 * TAU
+				ring.append(_part(_cyl("fr_stem", 0.02, 0.03, 0.1), _mat("wall_cream", "stone_b", "snow_a"), Vector3(cos(a) * 0.4, 0.05, sin(a) * 0.4)))
+				ring.append(_part(_sphere("fr_cap", 0.07), _mat("fire_red", "shadow", "wall_blush"), Vector3(cos(a) * 0.4, 0.12, sin(a) * 0.4), Vector3(1.2, 0.6, 1.2)))
+			return ring
+		"giant_toadstool":
+			return [
+				_part(_cyl("gt_stem", 0.14, 0.2, 0.6), _mat("wall_cream", "stone_b", "snow_a"), Vector3(0, 0.3, 0)),
+				_part(_sphere("gt_cap", 0.42), _mat("fire_red", "shadow", "wall_blush"), Vector3(0, 0.66, 0), Vector3(1.2, 0.7, 1.2)),
+				_part(_sphere("gt_spot", 0.06), _mat("snow_a", "stone_b", "snow"), Vector3(0.18, 0.78, 0.1)),
+				_part(_sphere("gt_spot", 0.05), _mat("snow_a", "stone_b", "snow"), Vector3(-0.2, 0.74, -0.05))]
+		"glow_mushroom":
+			return [
+				_part(_cyl("gm_stem", 0.05, 0.07, 0.4), _mat("wall_cream", "slate_blue", "snow_a"), Vector3(0, 0.2, 0)),
+				_part(_sphere("gm_cap", 0.18), _mat("water_lit", "water_b", "snow_a"), Vector3(0, 0.46, 0), Vector3(1.1, 0.8, 1.1))]
+		"glow_crystal":
+			return [
+				_part(_octa("gcry1"), _mat("roof_purple", "roof_purple_dark", "roof_purple_light"), Vector3(0, 0.3, 0), Vector3(0.22, 0.6, 0.22)),
+				_part(_octa("gcry2"), _mat("roof_purple", "roof_purple_dark", "roof_purple_light"), Vector3(0.18, 0.2, 0.05), Vector3(0.14, 0.4, 0.14), Vector3(0.2, 0, 0.4)),
+				_part(_octa("gcry3"), _mat("roof_purple", "roof_purple_dark", "roof_purple_light"), Vector3(-0.16, 0.18, -0.04), Vector3(0.12, 0.34, 0.12), Vector3(-0.3, 0, -0.3))]
+		"flower_arch":
+			return [
+				_part(_cyl("fa_p", 0.04, 0.05, 1.0), _mat("trunk_a", "trunk_b", "wood_light"), Vector3(-0.45, 0.5, 0)),
+				_part(_cyl("fa_p", 0.04, 0.05, 1.0), _mat("trunk_a", "trunk_b", "wood_light"), Vector3(0.45, 0.5, 0)),
+				_part(_box("fa_top", Vector3(1.0, 0.08, 0.1)), _mat("trunk_a", "trunk_b", "wood_light"), Vector3(0, 1.0, 0)),
+				_part(_sphere("fa_fl", 0.12), _mat("wall_blush", "roof_purple", "snow_a"), Vector3(-0.45, 1.02, 0)),
+				_part(_sphere("fa_fl", 0.12), _mat("gold", "dirt_a", "snow_a"), Vector3(0, 1.04, 0)),
+				_part(_sphere("fa_fl", 0.12), _mat("wall_blush", "roof_purple", "snow_a"), Vector3(0.45, 1.02, 0))]
+		"toadstool_house":
+			return [
+				_part(_cyl("th_stem", 0.3, 0.36, 0.7), _mat("wall_cream", "stone_b", "snow_a"), Vector3(0, 0.35, 0)),
+				_part(_sphere("th_cap", 0.55), _mat("fire_red", "shadow", "wall_blush"), Vector3(0, 0.8, 0), Vector3(1.2, 0.8, 1.2)),
+				_part(_box("th_door", Vector3(0.18, 0.3, 0.06)), _mat("dark_bark", "shadow", "trunk_a"), Vector3(0, 0.25, 0.34)),
+				_part(_sphere("th_win", 0.06), _mat("gold", "dirt_a", "snow_a"), Vector3(0.16, 0.45, 0.3))]
+		"fairy_lantern":
+			return [
+				_part(_cyl("fl_stem", 0.03, 0.04, 0.8), _mat("moss", "grass_dark", "moss_hi"), Vector3(0, 0.4, 0), Vector3.ONE, Vector3(0, 0, 0.1)),
+				_part(_sphere("fl_orb1", 0.09), _mat("gold", "dirt_a", "snow_a"), Vector3(0.08, 0.85, 0)),
+				_part(_sphere("fl_orb2", 0.07), _mat("water_lit", "water_b", "snow_a"), Vector3(-0.06, 0.7, 0.06)),
+				_part(_sphere("fl_orb3", 0.06), _mat("wall_blush", "roof_purple", "snow_a"), Vector3(0.04, 0.55, -0.05))]
+		"bluebells":
+			return [
+				_part(_sphere("bb_clump", 0.2), _mat("foliage_c", "grass_dark", "leaf_green"), Vector3(0, 0.12, 0), Vector3(1.2, 0.5, 1.2)),
+				_part(_sphere("bb_f", 0.06), _mat("slate_blue", "roof_purple_dark", "water_lit"), Vector3(0.1, 0.26, 0.05)),
+				_part(_sphere("bb_f", 0.06), _mat("slate_blue", "roof_purple_dark", "water_lit"), Vector3(-0.08, 0.24, -0.06)),
+				_part(_sphere("bb_f", 0.06), _mat("slate_blue", "roof_purple_dark", "water_lit"), Vector3(0.0, 0.28, 0.12))]
+
+		# ── Medieval town & yard ────────────────────────────────────────────────
+		"signpost":
+			return [
+				_part(_cyl("sp_post", 0.05, 0.06, 1.0), _mat("trunk_a", "trunk_b", "wood_light"), Vector3(0, 0.5, 0)),
+				_part(_box("sp_board", Vector3(0.5, 0.24, 0.05)), _mat("trunk_a", "trunk_b", "wood_light"), Vector3(0.16, 0.82, 0)),
+				_part(_box("sp_board2", Vector3(0.44, 0.2, 0.05)), _mat("trunk_a", "trunk_b", "wood_light"), Vector3(-0.14, 0.55, 0))]
+		"banner":
+			return [
+				_part(_cyl("ban_pole", 0.035, 0.045, 1.5), _mat("trunk_b", "shadow", "trunk_a"), Vector3(0, 0.75, 0)),
+				_part(_box("ban_cloth", Vector3(0.04, 0.7, 0.42)), _mat("roof_purple", "roof_purple_dark", "roof_purple_light"), Vector3(0.06, 1.0, 0)),
+				_part(_octa("ban_top"), _mat("gold", "dirt_a", "snow_a"), Vector3(0, 1.54, 0), Vector3(0.08, 0.14, 0.08))]
+		"torch":
+			return [
+				_part(_cyl("tor_stick", 0.03, 0.04, 0.85), _mat("dark_bark", "shadow", "trunk_a"), Vector3(0, 0.42, 0)),
+				_part(_sphere("tor_flame", 0.12), _mat("fire_hot", "fire_red", "gold"), Vector3(0, 0.92, 0), Vector3(0.8, 1.5, 0.8))]
+		"brazier":
+			return [
+				_part(_cyl("br_bowl", 0.26, 0.18, 0.22), _mat("weathered_metal", "shadow", "slate_blue"), Vector3(0, 0.5, 0)),
+				_part(_cyl("br_leg", 0.02, 0.03, 0.5), _mat("weathered_metal", "shadow", "slate_blue"), Vector3(0.12, 0.25, 0.08), Vector3.ONE, Vector3(0.2, 0, -0.3)),
+				_part(_cyl("br_leg", 0.02, 0.03, 0.5), _mat("weathered_metal", "shadow", "slate_blue"), Vector3(-0.12, 0.25, 0.08), Vector3.ONE, Vector3(0.2, 0, 0.3)),
+				_part(_sphere("br_fire", 0.18), _mat("fire_hot", "fire_red", "gold"), Vector3(0, 0.66, 0), Vector3(1.0, 1.2, 1.0))]
+		"water_trough":
+			return [
+				_part(_box("wt_body", Vector3(1.0, 0.3, 0.42)), _mat("trunk_a", "trunk_b", "dark_bark"), Vector3(0, 0.18, 0)),
+				_part(_box("wt_water", Vector3(0.9, 0.06, 0.34)), _mat("water_a", "water_deep", "water_lit"), Vector3(0, 0.32, 0))]
+		"market_awning":
+			return [
+				_part(_box("ma_table", Vector3(1.0, 0.1, 0.55)), _mat("trunk_a", "trunk_b", "wood_light"), Vector3(0, 0.5, 0)),
+				_part(_cyl("ma_pole", 0.03, 0.04, 1.0), _mat("trunk_b", "shadow", "trunk_a"), Vector3(-0.42, 0.5, -0.22)),
+				_part(_cyl("ma_pole", 0.03, 0.04, 1.0), _mat("trunk_b", "shadow", "trunk_a"), Vector3(0.42, 0.5, -0.22)),
+				_part(_prism("ma_roof", Vector3(1.2, 0.3, 0.7)), _mat("fire_red", "shadow", "wall_cream"), Vector3(0, 1.05, 0.0), Vector3.ONE, Vector3(0.3, 0, 0))]
+		"grindstone":
+			return [
+				_part(_box("gri_frame", Vector3(0.5, 0.4, 0.16)), _mat("trunk_a", "trunk_b", "dark_bark"), Vector3(0, 0.3, 0)),
+				_part(_cyl("gri_wheel", 0.26, 0.26, 0.08), _mat("stone_b", "shadow", "stone_a"), Vector3(0, 0.5, 0.12), Vector3.ONE, Vector3(0, 0, PI * 0.5))]
+		"archery_target":
+			return [
+				_part(_cyl("at_stand", 0.04, 0.05, 0.5), _mat("trunk_b", "shadow", "trunk_a"), Vector3(-0.2, 0.25, 0)),
+				_part(_cyl("at_stand", 0.04, 0.05, 0.5), _mat("trunk_b", "shadow", "trunk_a"), Vector3(0.2, 0.25, 0)),
+				_part(_cyl("at_face", 0.34, 0.34, 0.08), _mat("wall_cream", "dirt_a", "snow_a"), Vector3(0, 0.55, 0), Vector3.ONE, Vector3(PI * 0.5, 0, 0)),
+				_part(_cyl("at_ring", 0.2, 0.2, 0.09), _mat("fire_red", "shadow", "wall_blush"), Vector3(0, 0.55, 0.01), Vector3.ONE, Vector3(PI * 0.5, 0, 0)),
+				_part(_cyl("at_bull", 0.08, 0.08, 0.1), _mat("gold", "dirt_a", "snow_a"), Vector3(0, 0.55, 0.02), Vector3.ONE, Vector3(PI * 0.5, 0, 0))]
+		"training_dummy":
+			return [
+				_part(_cyl("td_post", 0.05, 0.06, 0.9), _mat("trunk_b", "shadow", "trunk_a"), Vector3(0, 0.45, 0)),
+				_part(_box("td_arms", Vector3(0.7, 0.1, 0.1)), _mat("trunk_b", "shadow", "trunk_a"), Vector3(0, 0.7, 0)),
+				_part(_sphere("td_body", 0.2), _mat("gold", "dirt_a", "wall_cream"), Vector3(0, 0.62, 0), Vector3(1.0, 1.3, 1.0)),
+				_part(_sphere("td_head", 0.12), _mat("dirt_a", "trunk_b", "wall_cream"), Vector3(0, 0.9, 0))]
+		"stocks":
+			return [
+				_part(_cyl("st_p", 0.05, 0.06, 0.8), _mat("trunk_a", "trunk_b", "dark_bark"), Vector3(-0.3, 0.4, 0)),
+				_part(_cyl("st_p", 0.05, 0.06, 0.8), _mat("trunk_a", "trunk_b", "dark_bark"), Vector3(0.3, 0.4, 0)),
+				_part(_box("st_board", Vector3(0.8, 0.16, 0.08)), _mat("trunk_a", "trunk_b", "wood_light"), Vector3(0, 0.66, 0))]
+		"hanging_sign":
+			return [
+				_part(_cyl("hgs_post", 0.045, 0.055, 1.2), _mat("trunk_b", "shadow", "trunk_a"), Vector3(-0.3, 0.6, 0)),
+				_part(_box("hgs_arm", Vector3(0.5, 0.06, 0.06)), _mat("trunk_b", "shadow", "trunk_a"), Vector3(-0.1, 1.16, 0)),
+				_part(_box("hgs_board", Vector3(0.4, 0.3, 0.04)), _mat("trunk_a", "trunk_b", "wood_light"), Vector3(0.1, 0.85, 0))]
+		"forge":
+			return [
+				_part(_box("fo_base", Vector3(0.8, 0.6, 0.7)), _mat("stone_a", "stone_b", "snow_a"), Vector3(0, 0.3, 0)),
+				_part(_cyl("fo_chimney", 0.14, 0.18, 0.7), _mat("stone_b", "shadow", "stone_a"), Vector3(0.0, 0.95, -0.2)),
+				_part(_sphere("fo_coals", 0.18), _mat("fire_hot", "fire_red", "gold"), Vector3(0, 0.62, 0.05), Vector3(1.2, 0.5, 1.0))]
+
+		# ── Stable & farmyard ───────────────────────────────────────────────────
+		"stable":
+			return [
+				_part(_box("sta_body", Vector3(1.8, 1.0, 1.3)), _mat("trunk_a", "trunk_b", "wood_light"), Vector3(0, 0.5, 0)),
+				_part(_prism("sta_roof", Vector3(2.0, 0.6, 1.5)), _mat("cabin_roof", "cabin_shadow", "cabin_trim"), Vector3(0, 1.3, 0)),
+				_part(_box("sta_door1", Vector3(0.5, 0.7, 0.06)), _mat("dark_bark", "shadow", "trunk_a"), Vector3(-0.4, 0.35, 0.66)),
+				_part(_box("sta_door2", Vector3(0.5, 0.7, 0.06)), _mat("dark_bark", "shadow", "trunk_a"), Vector3(0.4, 0.35, 0.66))]
+		"hay_bale":
+			return [_part(_cyl("hb", 0.36, 0.36, 0.6), _mat("gold", "dirt_a", "leaf_gold"), Vector3(0, 0.3, 0), Vector3.ONE, Vector3(0, 0, PI * 0.5))]
+		"hitching_post":
+			return [
+				_part(_cyl("hp_post", 0.06, 0.07, 0.9), _mat("trunk_a", "trunk_b", "dark_bark"), Vector3(0, 0.45, 0)),
+				_part(_box("hp_rail", Vector3(0.7, 0.06, 0.06)), _mat("trunk_a", "trunk_b", "dark_bark"), Vector3(0.2, 0.78, 0)),
+				_part(_octa("hp_ring"), _mat("weathered_metal", "shadow", "slate_blue"), Vector3(0, 0.6, 0.08), Vector3(0.08, 0.08, 0.03))]
+		"feed_trough":
+			return [
+				_part(_box("ft_body", Vector3(0.9, 0.26, 0.36)), _mat("trunk_a", "trunk_b", "dark_bark"), Vector3(0, 0.16, 0)),
+				_part(_box("ft_hay", Vector3(0.78, 0.08, 0.28)), _mat("gold", "dirt_a", "leaf_gold"), Vector3(0, 0.3, 0))]
+		"saddle_rack":
+			return [
+				_part(_cyl("sr_p", 0.04, 0.05, 0.7), _mat("trunk_b", "shadow", "trunk_a"), Vector3(-0.2, 0.35, 0)),
+				_part(_cyl("sr_p", 0.04, 0.05, 0.7), _mat("trunk_b", "shadow", "trunk_a"), Vector3(0.2, 0.35, 0)),
+				_part(_cyl("sr_bar", 0.05, 0.05, 0.5), _mat("trunk_b", "shadow", "trunk_a"), Vector3(0, 0.7, 0), Vector3.ONE, Vector3(0, 0, PI * 0.5)),
+				_part(_box("sr_saddle", Vector3(0.42, 0.18, 0.26)), _mat("dark_bark", "shadow", "trunk_a"), Vector3(0, 0.82, 0))]
+		"paddock_fence":
+			return [
+				_part(_cyl("pf_p", 0.05, 0.06, 0.7), _mat("trunk_a", "trunk_b", "wood_light"), Vector3(-0.42, 0.35, 0)),
+				_part(_cyl("pf_p", 0.05, 0.06, 0.7), _mat("trunk_a", "trunk_b", "wood_light"), Vector3(0.42, 0.35, 0)),
+				_part(_box("pf_rail", Vector3(1.0, 0.07, 0.05)), _mat("trunk_a", "trunk_b", "wood_light"), Vector3(0, 0.55, 0)),
+				_part(_box("pf_rail", Vector3(1.0, 0.07, 0.05)), _mat("trunk_a", "trunk_b", "wood_light"), Vector3(0, 0.3, 0))]
+
+		# ── Furniture & fittings (interiors) ────────────────────────────────────
+		"weapon_rack":
+			return [
+				_part(_box("wr_frame", Vector3(0.8, 0.9, 0.16)), _mat("trunk_a", "trunk_b", "dark_bark"), Vector3(0, 0.45, 0)),
+				_part(_cyl("wr_spear", 0.02, 0.02, 0.85), _mat("trunk_b", "shadow", "trunk_a"), Vector3(-0.22, 0.5, 0.1)),
+				_part(_cone("wr_tip", 0.04, 0.0, 0.14), _mat("weathered_metal", "shadow", "slate_blue"), Vector3(-0.22, 0.95, 0.1)),
+				_part(_cyl("wr_spear", 0.02, 0.02, 0.85), _mat("trunk_b", "shadow", "trunk_a"), Vector3(0.0, 0.5, 0.1)),
+				_part(_cone("wr_tip", 0.04, 0.0, 0.14), _mat("weathered_metal", "shadow", "slate_blue"), Vector3(0.0, 0.95, 0.1)),
+				_part(_box("wr_sword", Vector3(0.06, 0.5, 0.02)), _mat("slate_blue", "shadow", "snow_a"), Vector3(0.24, 0.5, 0.1)),
+				_part(_box("wr_hilt", Vector3(0.16, 0.05, 0.04)), _mat("gold", "dirt_a", "snow_a"), Vector3(0.24, 0.74, 0.1))]
+		"bookcase":
+			return [
+				_part(_box("bc_body", Vector3(0.8, 1.1, 0.32)), _mat("dark_bark", "shadow", "trunk_a"), Vector3(0, 0.55, 0)),
+				_part(_box("bc_books1", Vector3(0.7, 0.16, 0.24)), _mat("fire_red", "shadow", "wall_blush"), Vector3(0, 0.85, 0.04)),
+				_part(_box("bc_books2", Vector3(0.7, 0.16, 0.24)), _mat("slate_blue", "shadow", "water_lit"), Vector3(0, 0.6, 0.04)),
+				_part(_box("bc_books3", Vector3(0.7, 0.16, 0.24)), _mat("moss", "grass_dark", "moss_hi"), Vector3(0, 0.35, 0.04))]
+		"shelf":
+			return [
+				_part(_box("sh_back", Vector3(0.7, 0.6, 0.06)), _mat("trunk_a", "trunk_b", "dark_bark"), Vector3(0, 0.5, 0)),
+				_part(_box("sh_plank", Vector3(0.7, 0.04, 0.22)), _mat("trunk_a", "trunk_b", "wood_light"), Vector3(0, 0.65, 0.1)),
+				_part(_box("sh_plank", Vector3(0.7, 0.04, 0.22)), _mat("trunk_a", "trunk_b", "wood_light"), Vector3(0, 0.4, 0.1)),
+				_part(_cyl("sh_pot", 0.06, 0.07, 0.12), _mat("ore", "shadow", "gold"), Vector3(0.18, 0.72, 0.1))]
+		"table":
+			return [
+				_part(_box("tb_top", Vector3(0.9, 0.08, 0.6)), _mat("trunk_a", "trunk_b", "wood_light"), Vector3(0, 0.5, 0)),
+				_part(_box("tb_leg", Vector3(0.08, 0.5, 0.08)), _mat("trunk_b", "shadow", "trunk_a"), Vector3(-0.36, 0.25, 0.22)),
+				_part(_box("tb_leg", Vector3(0.08, 0.5, 0.08)), _mat("trunk_b", "shadow", "trunk_a"), Vector3(0.36, 0.25, 0.22)),
+				_part(_box("tb_leg", Vector3(0.08, 0.5, 0.08)), _mat("trunk_b", "shadow", "trunk_a"), Vector3(-0.36, 0.25, -0.22)),
+				_part(_box("tb_leg", Vector3(0.08, 0.5, 0.08)), _mat("trunk_b", "shadow", "trunk_a"), Vector3(0.36, 0.25, -0.22))]
+		"chair":
+			return [
+				_part(_box("ch_seat", Vector3(0.36, 0.06, 0.36)), _mat("trunk_a", "trunk_b", "wood_light"), Vector3(0, 0.35, 0)),
+				_part(_box("ch_back", Vector3(0.36, 0.4, 0.06)), _mat("trunk_a", "trunk_b", "wood_light"), Vector3(0, 0.55, -0.15)),
+				_part(_box("ch_leg", Vector3(0.05, 0.35, 0.05)), _mat("trunk_b", "shadow", "trunk_a"), Vector3(-0.14, 0.17, 0.14)),
+				_part(_box("ch_leg", Vector3(0.05, 0.35, 0.05)), _mat("trunk_b", "shadow", "trunk_a"), Vector3(0.14, 0.17, 0.14)),
+				_part(_box("ch_leg", Vector3(0.05, 0.35, 0.05)), _mat("trunk_b", "shadow", "trunk_a"), Vector3(-0.14, 0.17, -0.14)),
+				_part(_box("ch_leg", Vector3(0.05, 0.35, 0.05)), _mat("trunk_b", "shadow", "trunk_a"), Vector3(0.14, 0.17, -0.14))]
+		"bench":
+			return [
+				_part(_box("be_seat", Vector3(1.0, 0.06, 0.3)), _mat("trunk_a", "trunk_b", "wood_light"), Vector3(0, 0.34, 0)),
+				_part(_box("be_leg", Vector3(0.08, 0.34, 0.26)), _mat("trunk_b", "shadow", "trunk_a"), Vector3(-0.4, 0.17, 0)),
+				_part(_box("be_leg", Vector3(0.08, 0.34, 0.26)), _mat("trunk_b", "shadow", "trunk_a"), Vector3(0.4, 0.17, 0))]
+		"bed":
+			return [
+				_part(_box("bed_frame", Vector3(0.7, 0.2, 1.3)), _mat("trunk_a", "trunk_b", "dark_bark"), Vector3(0, 0.2, 0)),
+				_part(_box("bed_mat", Vector3(0.64, 0.12, 1.2)), _mat("wall_cream", "dirt_a", "snow_a"), Vector3(0, 0.36, 0)),
+				_part(_box("bed_head", Vector3(0.7, 0.5, 0.1)), _mat("trunk_a", "trunk_b", "dark_bark"), Vector3(0, 0.45, -0.62)),
+				_part(_sphere("bed_pillow", 0.16), _mat("snow_a", "dirt_a", "snow"), Vector3(0, 0.46, -0.45), Vector3(1.6, 0.7, 1.0))]
+		"candelabra":
+			return [
+				_part(_box("ca_base", Vector3(0.2, 0.08, 0.2)), _mat("gold", "dirt_a", "snow_a"), Vector3(0, 0.04, 0)),
+				_part(_cyl("ca_stem", 0.04, 0.05, 0.7), _mat("gold", "dirt_a", "snow_a"), Vector3(0, 0.4, 0)),
+				_part(_box("ca_arm", Vector3(0.5, 0.04, 0.04)), _mat("gold", "dirt_a", "snow_a"), Vector3(0, 0.7, 0)),
+				_part(_sphere("ca_fl", 0.05), _mat("fire_hot", "fire_red", "gold"), Vector3(-0.24, 0.82, 0), Vector3(0.7, 1.4, 0.7)),
+				_part(_sphere("ca_fl", 0.05), _mat("fire_hot", "fire_red", "gold"), Vector3(0, 0.86, 0), Vector3(0.7, 1.4, 0.7)),
+				_part(_sphere("ca_fl", 0.05), _mat("fire_hot", "fire_red", "gold"), Vector3(0.24, 0.82, 0), Vector3(0.7, 1.4, 0.7))]
+		"cauldron":
+			return [
+				_part(_sphere("cau_pot", 0.32), _mat("shadow", "ash", "slate_blue"), Vector3(0, 0.34, 0), Vector3(1.0, 0.9, 1.0)),
+				_part(_cyl("cau_leg", 0.02, 0.03, 0.2), _mat("shadow", "ash", "slate_blue"), Vector3(0.16, 0.1, 0.1), Vector3.ONE, Vector3(0.3, 0, -0.4)),
+				_part(_cyl("cau_leg", 0.02, 0.03, 0.2), _mat("shadow", "ash", "slate_blue"), Vector3(-0.16, 0.1, 0.1), Vector3.ONE, Vector3(0.3, 0, 0.4)),
+				_part(_sphere("cau_brew", 0.26), _mat("moss", "grass_dark", "moss_hi"), Vector3(0, 0.5, 0), Vector3(1.0, 0.2, 1.0))]
+		"fireplace":
+			return [
+				_part(_box("fp_back", Vector3(1.0, 1.0, 0.3)), _mat("stone_a", "stone_b", "snow_a"), Vector3(0, 0.5, -0.2)),
+				_part(_box("fp_hearth", Vector3(0.7, 0.4, 0.4)), _mat("shadow", "ash", "stone_b"), Vector3(0, 0.2, 0.05)),
+				_part(_sphere("fp_fire", 0.18), _mat("fire_hot", "fire_red", "gold"), Vector3(0, 0.24, 0.1), Vector3(1.2, 1.0, 0.8)),
+				_part(_box("fp_mantel", Vector3(1.1, 0.12, 0.4)), _mat("trunk_a", "trunk_b", "dark_bark"), Vector3(0, 0.85, 0.0))]
+		"barrel_rack":
+			return [
+				_part(_box("brk_frame", Vector3(1.0, 0.5, 0.5)), _mat("trunk_b", "shadow", "trunk_a"), Vector3(0, 0.3, 0)),
+				_part(_cyl("brk_b", 0.2, 0.22, 0.6), _mat("trunk_a", "trunk_b", "dark_bark"), Vector3(-0.26, 0.55, 0), Vector3.ONE, Vector3(PI * 0.5, 0, 0)),
+				_part(_cyl("brk_b", 0.2, 0.22, 0.6), _mat("trunk_a", "trunk_b", "dark_bark"), Vector3(0.26, 0.55, 0), Vector3.ONE, Vector3(PI * 0.5, 0, 0))]
+		"crate_stack":
+			return [
+				_part(_box("cs1", Vector3(0.6, 0.6, 0.6)), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0, 0.3, 0)),
+				_part(_box("cs2", Vector3(0.5, 0.5, 0.5)), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0.05, 0.85, 0.05)),
+				_part(_box("cs3", Vector3(0.48, 0.48, 0.48)), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(-0.32, 0.24, 0.3))]
+		"alchemy_table":
+			return [
+				_part(_box("al_top", Vector3(0.9, 0.08, 0.5)), _mat("dark_bark", "shadow", "trunk_a"), Vector3(0, 0.5, 0)),
+				_part(_box("al_leg", Vector3(0.07, 0.5, 0.07)), _mat("trunk_b", "shadow", "trunk_a"), Vector3(-0.38, 0.25, 0.18)),
+				_part(_box("al_leg", Vector3(0.07, 0.5, 0.07)), _mat("trunk_b", "shadow", "trunk_a"), Vector3(0.38, 0.25, 0.18)),
+				_part(_box("al_leg", Vector3(0.07, 0.5, 0.07)), _mat("trunk_b", "shadow", "trunk_a"), Vector3(-0.38, 0.25, -0.18)),
+				_part(_box("al_leg", Vector3(0.07, 0.5, 0.07)), _mat("trunk_b", "shadow", "trunk_a"), Vector3(0.38, 0.25, -0.18)),
+				_part(_sphere("al_flask", 0.08), _mat("moss", "grass_dark", "moss_hi"), Vector3(-0.2, 0.62, 0), Vector3(1.0, 1.3, 1.0)),
+				_part(_sphere("al_flask2", 0.07), _mat("roof_purple", "roof_purple_dark", "roof_purple_light"), Vector3(0.1, 0.6, 0.1)),
+				_part(_cyl("al_vial", 0.03, 0.04, 0.16), _mat("water_lit", "water_b", "snow_a"), Vector3(0.28, 0.62, -0.05))]
+		"throne":
+			return [
+				_part(_box("thr_seat", Vector3(0.5, 0.08, 0.5)), _mat("roof_purple", "roof_purple_dark", "roof_purple_light"), Vector3(0, 0.45, 0)),
+				_part(_box("thr_back", Vector3(0.5, 0.9, 0.1)), _mat("dark_bark", "shadow", "gold"), Vector3(0, 0.85, -0.2)),
+				_part(_box("thr_arm", Vector3(0.08, 0.3, 0.5)), _mat("dark_bark", "shadow", "gold"), Vector3(-0.29, 0.6, 0)),
+				_part(_box("thr_arm", Vector3(0.08, 0.3, 0.5)), _mat("dark_bark", "shadow", "gold"), Vector3(0.29, 0.6, 0)),
+				_part(_octa("thr_jewel"), _mat("fire_red", "shadow", "wall_blush"), Vector3(0, 1.28, -0.18), Vector3(0.08, 0.1, 0.05))]
+		"lectern":
+			return [
+				_part(_cyl("le_post", 0.05, 0.07, 0.9), _mat("dark_bark", "shadow", "trunk_a"), Vector3(0, 0.45, 0)),
+				_part(_box("le_slope", Vector3(0.5, 0.08, 0.4)), _mat("dark_bark", "shadow", "trunk_a"), Vector3(0, 0.95, 0), Vector3.ONE, Vector3(-0.5, 0, 0)),
+				_part(_box("le_book", Vector3(0.4, 0.04, 0.3)), _mat("wall_cream", "dirt_a", "snow_a"), Vector3(0, 1.0, 0.04), Vector3.ONE, Vector3(-0.5, 0, 0))]
+
 		_: # crate fallback
 			return [_part(_box("crate", Vector3(0.62, 0.62, 0.62)), _mat("trunk_a", "trunk_b", "dirt_a"), Vector3(0, 0.31, 0))]
 

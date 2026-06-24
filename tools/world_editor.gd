@@ -110,6 +110,68 @@ const STRUCTURES := [
 	["Sack", {"kind": "decor", "prop": "sack"}], ["Hay bale", {"kind": "decor", "prop": "hay_bale"}],
 	["Bucket", {"kind": "decor", "prop": "bucket"}], ["Signpost", {"kind": "decor", "prop": "signpost"}],
 	["Fence post", {"kind": "decor", "prop": "fence_post"}], ["Anthill", {"kind": "decor", "prop": "anthill"}],
+	# ── Graveyard structures ──
+	["Gravestone", {"kind": "city_prop", "prop": "gravestone"}],
+	["Cross headstone", {"kind": "city_prop", "prop": "gravestone_cross"}],
+	["Tomb", {"kind": "city_prop", "prop": "tomb"}], ["Crypt", {"kind": "city_prop", "prop": "crypt"}],
+	["Grave mound", {"kind": "city_prop", "prop": "grave_mound"}],
+	["Coffin", {"kind": "city_prop", "prop": "coffin"}], ["Bone pile", {"kind": "city_prop", "prop": "bone_pile"}],
+	["Grave urn", {"kind": "city_prop", "prop": "grave_urn"}],
+	["Mourning statue", {"kind": "city_prop", "prop": "mourning_statue"}],
+	["Iron railing", {"kind": "city_prop", "prop": "iron_fence"}],
+	["Grave candle", {"kind": "city_prop", "prop": "grave_candle"}],
+	# ── Dark moor ──
+	["Dead tree", {"kind": "city_prop", "prop": "dead_tree"}],
+	["Gnarled stump", {"kind": "city_prop", "prop": "gnarled_stump"}],
+	["Gallows", {"kind": "city_prop", "prop": "gallows"}],
+	["Standing stone (dark)", {"kind": "city_prop", "prop": "standing_stone_dark"}],
+	["Crooked post", {"kind": "city_prop", "prop": "crooked_post"}],
+	["Raven perch", {"kind": "city_prop", "prop": "raven_perch"}],
+	["Withered bush", {"kind": "city_prop", "prop": "withered_bush"}],
+	["Wisp lantern", {"kind": "city_prop", "prop": "wisp_lantern"}],
+	["Peat stack", {"kind": "city_prop", "prop": "peat_stack"}],
+	# ── Fairy ──
+	["Fairy ring", {"kind": "city_prop", "prop": "fairy_ring"}],
+	["Giant toadstool", {"kind": "city_prop", "prop": "giant_toadstool"}],
+	["Glow mushroom", {"kind": "city_prop", "prop": "glow_mushroom"}],
+	["Glow crystal", {"kind": "city_prop", "prop": "glow_crystal"}],
+	["Flower arch", {"kind": "city_prop", "prop": "flower_arch"}],
+	["Toadstool house", {"kind": "city_prop", "prop": "toadstool_house"}],
+	["Fairy lantern", {"kind": "city_prop", "prop": "fairy_lantern"}],
+	["Bluebells", {"kind": "city_prop", "prop": "bluebells"}],
+	# ── Medieval props ──
+	["Crossroads sign", {"kind": "city_prop", "prop": "signpost"}],
+	["Banner", {"kind": "city_prop", "prop": "banner"}], ["Torch", {"kind": "city_prop", "prop": "torch"}],
+	["Brazier", {"kind": "city_prop", "prop": "brazier"}],
+	["Water trough", {"kind": "city_prop", "prop": "water_trough"}],
+	["Market awning", {"kind": "city_prop", "prop": "market_awning"}],
+	["Grindstone", {"kind": "city_prop", "prop": "grindstone"}],
+	["Archery target", {"kind": "city_prop", "prop": "archery_target"}],
+	["Training dummy", {"kind": "city_prop", "prop": "training_dummy"}],
+	["Stocks", {"kind": "city_prop", "prop": "stocks"}],
+	["Hanging sign", {"kind": "city_prop", "prop": "hanging_sign"}],
+	["Forge", {"kind": "city_prop", "prop": "forge"}],
+	# ── Stable & farm ──
+	["Stable", {"kind": "city_prop", "prop": "stable"}],
+	["Hay bale (round)", {"kind": "city_prop", "prop": "hay_bale"}],
+	["Hitching post", {"kind": "city_prop", "prop": "hitching_post"}],
+	["Feed trough", {"kind": "city_prop", "prop": "feed_trough"}],
+	["Saddle rack", {"kind": "city_prop", "prop": "saddle_rack"}],
+	["Paddock fence", {"kind": "city_prop", "prop": "paddock_fence"}],
+	# ── Furniture & fittings ──
+	["Weapon rack", {"kind": "city_prop", "prop": "weapon_rack"}],
+	["Bookcase", {"kind": "city_prop", "prop": "bookcase"}],
+	["Shelf", {"kind": "city_prop", "prop": "shelf"}], ["Table", {"kind": "city_prop", "prop": "table"}],
+	["Chair", {"kind": "city_prop", "prop": "chair"}], ["Bench", {"kind": "city_prop", "prop": "bench"}],
+	["Bed", {"kind": "city_prop", "prop": "bed"}],
+	["Candelabra", {"kind": "city_prop", "prop": "candelabra"}],
+	["Cauldron", {"kind": "city_prop", "prop": "cauldron"}],
+	["Fireplace", {"kind": "city_prop", "prop": "fireplace"}],
+	["Barrel rack", {"kind": "city_prop", "prop": "barrel_rack"}],
+	["Crate stack", {"kind": "city_prop", "prop": "crate_stack"}],
+	["Alchemy table", {"kind": "city_prop", "prop": "alchemy_table"}],
+	["Throne", {"kind": "city_prop", "prop": "throne"}],
+	["Lectern", {"kind": "city_prop", "prop": "lectern"}],
 ]
 
 const ROOF_COLORS := ["7a3b3b", "3b5a7a", "4a6b3a", "6b5a3a", "5a3b6b", "7a6b3a"]
@@ -3212,9 +3274,10 @@ func _update_preview() -> void:
 # Ordered category list. Each structure is bucketed by _struct_category(); categories render
 # as collapsible headers so the long list is browsable instead of one flat scroll.
 const STRUCT_CATEGORY_ORDER := [
-	"Buildings", "Walls & fences", "Town props", "Camp & light", "Ruins & monuments",
-	"Landmarks", "Trees & nature", "Decor · plants", "Decor · fungi", "Decor · rocks",
-	"Decor · wood", "Decor · desert", "Decor · snow & ice", "Decor · coastal",
+	"Buildings", "Walls & fences", "Town props", "Medieval props", "Camp & light",
+	"Stable & farm", "Furniture & fittings", "Graveyard", "Dark moor", "Fairy",
+	"Ruins & monuments", "Landmarks", "Trees & nature", "Decor · plants", "Decor · fungi",
+	"Decor · rocks", "Decor · wood", "Decor · desert", "Decor · snow & ice", "Decor · coastal",
 	"Decor · camp props", "Other"]
 
 
@@ -3265,10 +3328,32 @@ func _struct_category(part: Dictionary) -> String:
 		"mammoth", "meteor", "bridge": return "Landmarks"
 		"tree", "bush", "rock": return "Trees & nature"
 		"city_prop":
-			return "Camp & light" if prop == "lamp" else "Town props"
+			return _city_prop_category(prop)
 		"decor":
 			return _decor_category(prop)
 	return "Other"
+
+
+func _city_prop_category(prop: String) -> String:
+	if prop == "lamp" or prop == "lantern": return "Camp & light"
+	if prop in ["gravestone", "gravestone_cross", "tomb", "crypt", "grave_mound", "coffin",
+			"bone_pile", "grave_urn", "mourning_statue", "iron_fence", "grave_candle"]:
+		return "Graveyard"
+	if prop in ["dead_tree", "gnarled_stump", "gallows", "standing_stone_dark", "crooked_post",
+			"raven_perch", "withered_bush", "wisp_lantern", "peat_stack"]:
+		return "Dark moor"
+	if prop in ["fairy_ring", "giant_toadstool", "glow_mushroom", "glow_crystal", "flower_arch",
+			"toadstool_house", "fairy_lantern", "bluebells"]:
+		return "Fairy"
+	if prop in ["stable", "hay_bale", "hitching_post", "feed_trough", "saddle_rack", "paddock_fence"]:
+		return "Stable & farm"
+	if prop in ["weapon_rack", "bookcase", "shelf", "table", "chair", "bench", "bed", "candelabra",
+			"cauldron", "fireplace", "barrel_rack", "crate_stack", "alchemy_table", "throne", "lectern"]:
+		return "Furniture & fittings"
+	if prop in ["signpost", "banner", "torch", "brazier", "water_trough", "market_awning",
+			"grindstone", "archery_target", "training_dummy", "stocks", "hanging_sign", "forge"]:
+		return "Medieval props"
+	return "Town props"   # well, crate, barrel, cart, hay, flowerbox
 
 
 func _decor_category(prop: String) -> String:
