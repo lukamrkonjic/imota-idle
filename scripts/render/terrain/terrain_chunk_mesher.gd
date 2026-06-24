@@ -44,6 +44,7 @@ var _cc_cache: Dictionary = {}    # Vector2i corner -> corner colour
 var _cb_cache: Dictionary = {}    # Vector2i corner -> beach fraction
 var _vfh_cache: Dictionary = {}   # Vector2i tile -> visual floor height
 var _ccl_cache: Dictionary = {}   # Vector2i corner -> smoothed corner height
+var _vcy_cache: Dictionary = {}   # Vector2i corner -> final VISUAL corner height (shore-ramped)
 
 
 func setup(w: Node2D, ground_mat: ShaderMaterial, water_mat: ShaderMaterial) -> void:
@@ -65,6 +66,7 @@ func clear_frame_caches() -> void:
 	_cb_cache.clear()
 	_vfh_cache.clear()
 	_ccl_cache.clear()
+	_vcy_cache.clear()
 
 
 ## Smooth, continuous, SEAMLESS terrain: each grid corner's height/normal/color
@@ -142,6 +144,12 @@ func _water_plane_tile(gtx: int, gty: int) -> bool:
 ## BOTH the vertex and the shading normal so the ramp lights correctly. (Corner height ignores
 ## ref_top, so this is deterministic per corner like _corner_height_for.)
 func _visual_corner_y(ci: int, cj: int, ref_top: float, wfc: Dictionary, wlc: Dictionary) -> float:
+	# Deterministic per corner (ref_top is ignored downstream — see _corner_height_for), so memoise:
+	# the ground mesh samples each corner ~5x (vertex + normal differences) and the water submersion
+	# now samples it 16x per sub-vertex through the bicubic _ground_cubic.
+	var ck := Vector2i(ci, cj)
+	if _vcy_cache.has(ck):
+		return _vcy_cache[ck]
 	var h := _corner_height_for(ci, cj, ref_top)
 	var wf := _coast_wf(ci, cj, wfc)
 	if wf > SHORE_RAMP_LO:
@@ -155,21 +163,29 @@ func _visual_corner_y(ci: int, cj: int, ref_top: float, wfc: Dictionary, wlc: Di
 	# through the contour on the water side (the submersion fill then covers them with water).
 	if _corner_touches_water(ci, cj):
 		h = minf(h, _water_corner_level(ci, cj, wlc) - WATER_BED_CLEARANCE)
+	_vcy_cache[ck] = h
 	return h
 
 
-## A 3x3 box-blur of the visual ground height around a corner. Used ONLY to bake the water
-## submersion (UV.y) — softening the per-tile staircase so the waterline / foam / water edge that
-## ride the submersion contour curve gently instead of stepping tile-by-tile. The real terrain mesh
-## keeps its un-blurred height; this is a coast-shape filter, not a geometry change.
-func _smooth_ground_y(ci: int, cj: int, wfc: Dictionary, wlc: Dictionary) -> float:
-	var sum := _visual_corner_y(ci, cj, 0.0, wfc, wlc) * 2.0
-	var w := 2.0
-	for off: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
-			Vector2i(1, 1), Vector2i(-1, 1), Vector2i(1, -1), Vector2i(-1, -1)]:
-		sum += _visual_corner_y(ci + off.x, cj + off.y, 0.0, wfc, wlc)
-		w += 1.0
-	return sum / w
+## Bicubic sample of the FINAL visual ground height at a fractional world position — the SAME
+## C1-smooth interpolant the coast field uses (_wf_cubic), but over _visual_corner_y: the actual
+## rendered terrain silhouette (shore-ramped, elevation and all). Baking the water submersion (UV.y)
+## from THIS makes the waterline / foam / water edge ride the very surface the ground mesh draws, so
+## they hug the true coast at any elevation. (A plain 3x3 box-blur of the height — the old approach —
+## averaged a raised bank into the near-water ground and dragged the foam offset up the slope on
+## elevated shores; a bicubic of the un-blurred height is smooth across tiles WITHOUT bleeding a
+## cliff into the shore, since Catmull-Rom passes through each corner exactly.)
+func _ground_cubic(fx: float, fz: float, wfc: Dictionary, wlc: Dictionary) -> float:
+	var x0 := floori(fx)
+	var z0 := floori(fz)
+	var tx := fx - float(x0)
+	var tz := fz - float(z0)
+	var rows := []
+	for dz: int in range(-1, 3):
+		rows.append(_cubic1(
+			_visual_corner_y(x0 - 1, z0 + dz, 0.0, wfc, wlc), _visual_corner_y(x0, z0 + dz, 0.0, wfc, wlc),
+			_visual_corner_y(x0 + 1, z0 + dz, 0.0, wfc, wlc), _visual_corner_y(x0 + 2, z0 + dz, 0.0, wfc, wlc), tx))
+	return _cubic1(rows[0], rows[1], rows[2], rows[3], tz)
 
 
 func _emit_corner(st: SurfaceTool, ci: int, cj: int, ref_top: float, wfc: Dictionary, wlc: Dictionary) -> void:
@@ -427,16 +443,6 @@ func _emit_water_tile(wst: SurfaceTool, gtx: int, gty: int, wfc: Dictionary, wlc
 	var lB := _water_corner_level(gtx + 1, gty, wlc)
 	var lC := _water_corner_level(gtx + 1, gty + 1, wlc)
 	var lD := _water_corner_level(gtx, gty + 1, wlc)
-	# Ground (terrain) height under each corner. UV.y bakes the SUBMERSION (surface - ground): the
-	# shader fills water wherever this is positive, so any terrain below the sheet — a dip, a hole,
-	# a low cove the tile map never marked as water — is covered up to the brim, with no exposed
-	# sub-water land peeking under the shoreline. Bilerped across sub-vertices like the surface.
-	# SMOOTHED (3x3 corner average) so the submersion contour — and thus the waterline, foam and
-	# water edge that ride it — reads as a soft curve instead of the raw per-tile staircase.
-	var gA := _smooth_ground_y(gtx, gty, wfc, wlc)
-	var gB := _smooth_ground_y(gtx + 1, gty, wfc, wlc)
-	var gC := _smooth_ground_y(gtx + 1, gty + 1, wfc, wlc)
-	var gD := _smooth_ground_y(gtx, gty + 1, wfc, wlc)
 	# Only the COASTAL RING needs tessellation (that's where the 0.5 contour lives). Open
 	# deep water (every corner well offshore) and far-inland margin (every corner on land)
 	# are flat in wf — emit them as a cheap 2-tri quad so the subdivision cost stays tiny.
@@ -447,6 +453,12 @@ func _emit_water_tile(wst: SurfaceTool, gtx: int, gty: int, wfc: Dictionary, wlc
 	var lo: float = minf(minf(c00, c10), minf(c11, c01))
 	var hi: float = maxf(maxf(c00, c10), maxf(c11, c01))
 	if lo >= 0.9 or hi <= 0.12:
+		# Flat-in-wf quad: no shoreline contour crosses here (all open water or all dry margin),
+		# so the corner heights drive the submersion directly — submersion = surface - ground.
+		var gA := _visual_corner_y(gtx, gty, 0.0, wfc, wlc)
+		var gB := _visual_corner_y(gtx + 1, gty, 0.0, wfc, wlc)
+		var gC := _visual_corner_y(gtx + 1, gty + 1, 0.0, wfc, wlc)
+		var gD := _visual_corner_y(gtx, gty + 1, 0.0, wfc, wlc)
 		var x0 := float(gtx) * TILE_S
 		var z0 := float(gty) * TILE_S
 		var x1 := x0 + TILE_S
@@ -458,6 +470,13 @@ func _emit_water_tile(wst: SurfaceTool, gtx: int, gty: int, wfc: Dictionary, wlc
 			wst.set_uv(Vector2(float(v[1]), float(v[2])))
 			wst.add_vertex(v[0])
 		return
+	# Coastal ring. UV.y bakes the SUBMERSION (surface - ground): the shader fills water wherever
+	# this is positive, so any terrain below the sheet — a dip, a hole, a low cove the tile map
+	# never marked as water — is covered up to the brim, no exposed sub-water land under the shore.
+	# Ground height is sampled BICUBICALLY off the un-blurred _visual_corner_y (_ground_cubic), the
+	# SAME surface the ground mesh draws — so the submersion contour, and thus the waterline / foam /
+	# water edge riding it, hugs the real silhouette at any elevation: smooth across tiles, yet tight
+	# to elevated banks instead of dragged up the slope (which a plain height box-blur did).
 	var s := WATER_SUBDIV
 	var pos := []        # (s+1)x(s+1) sub-vertex positions
 	var wfv := []        # matching bicubic water-fraction
@@ -470,12 +489,11 @@ func _emit_water_tile(wst: SurfaceTool, gtx: int, gty: int, wfc: Dictionary, wlc
 		for i: int in range(s + 1):
 			var fx := float(i) / float(s)
 			var hy := lerpf(lerpf(lA, lB, fx), lerpf(lD, lC, fx), fz)
-			var gy := lerpf(lerpf(gA, gB, fx), lerpf(gD, gC, fx), fz)
 			var wx := float(gtx) + fx
 			var wz := float(gty) + fz
 			prow.append(Vector3(wx * TILE_S, hy, wz * TILE_S))
 			wrow.append(_wf_cubic(wx, wz, wfc))
-			srow.append(hy - gy)
+			srow.append(hy - _ground_cubic(wx, wz, wfc, wlc))
 		pos.append(prow)
 		wfv.append(wrow)
 		subv.append(srow)

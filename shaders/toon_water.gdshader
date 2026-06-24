@@ -45,6 +45,7 @@ uniform sampler2D warp_tex : repeat_enable, filter_linear;
 // --- animated foam ------------------------------------------------------------
 uniform float foam_cells = 0.55;       // cells: how far the foam can wash off the waterline
 uniform float foam_depth = 0.24;       // world-height band of submersion the foam rides (hugs the true edge)
+uniform float foam_width = 0.55;       // world units: EVEN ribbon width along the waterline (slope/zoom independent)
 uniform float foam_scale = 0.17;
 uniform float foam_speed = 0.05;
 uniform sampler2D foam_tex : repeat_enable, filter_linear;
@@ -113,19 +114,31 @@ void fragment() {
 	float contour_vis = smoothstep(contour_fade_in, contour_fade_out, sd);
 	col = mix(col, line_color.rgb, lines * contour_vis * line_opacity);
 
-	// --- animated sea-foam hugging the TRUE waterline, as a CONTINUOUS ribbon ---
-	// Driven by SUBMERSION (v_sub: 0 right at the land edge, growing out to sea), NOT the smoothed wf
-	// contour — so it follows every crevice and headland of the actual coast. A solid band on the
-	// shore whose OUTER edge washes in and out + a brightness shimmer, both from the animated foam
-	// texture. The foam is never gated on/off, so the ribbon stays connected (no lacy cuts).
+	// --- animated sea-foam hugging the TRUE waterline, as an EVEN-WIDTH ribbon ---
+	// Anchored to the SINGLE true waterline (v_sub = 0, baked from the real elevation-resolved
+	// terrain silhouette — so it follows every crevice and headland of the actual coast). The catch
+	// with a raw submersion band is that its width is in DEPTH, so the horizontal ribbon = depth /
+	// beach-slope: it blobs out on a gentle shore and collapses to a sliver/gap up a steep or
+	// elevated bank. Fix: divide the submersion by its own WORLD-SPACE slope (recovered by inverting
+	// the screen->world derivative jacobian) to get a horizontal WORLD distance to the waterline, so
+	// the ribbon is an even width on ANY steepness and scales naturally with zoom. One contour only —
+	// no second offset shoreline.
 	vec2 fp = wp * foam_scale;
 	float fa = texture(foam_tex, fp + vec2(TIME * foam_speed, TIME * foam_speed * 0.4)).r;
 	float fb = texture(foam_tex, fp * 1.7 - vec2(TIME * foam_speed * 0.7, 0.0)).r;
 	float wash = (fa + fb) * 0.5;
-	float foam_band = foam_depth * (0.55 + wash * 0.95);     // outer edge washes in/out — the animation
-	float foam = (1.0 - smoothstep(0.0, foam_band, v_sub))   // solid on the shore, fading out to sea
-	           * smoothstep(-0.03, 0.012, v_sub);            // and off the dry beach (v_sub < 0)
-	foam *= 0.72 + wash * 0.5;                               // froth shimmer — varies but never gaps out
+	vec2 g_scr = vec2(dFdx(v_sub), dFdy(v_sub));            // d(submersion)/d(pixel)
+	vec2 wxd = vec2(dFdx(wp.x), dFdy(wp.x));                // d(world.x)/d(pixel)
+	vec2 wzd = vec2(dFdx(wp.y), dFdy(wp.y));                // d(world.z)/d(pixel)
+	float det = wxd.x * wzd.y - wzd.x * wxd.y;
+	vec2 grad = abs(det) > 1e-9
+		? vec2(g_scr.x * wzd.y - g_scr.y * wzd.x, wxd.x * g_scr.y - wxd.y * g_scr.x) / det
+		: vec2(0.0);                                        // world-space gradient of the submersion
+	float dist = v_sub / max(length(grad), 1e-4);          // horizontal world distance from the waterline (+ = sea)
+	float band = foam_width * (0.7 + wash * 0.6);          // outer edge washes in/out (world units)
+	float foam = (1.0 - smoothstep(0.0, band, dist))       // solid at the shore, fading out to sea
+	           * smoothstep(-foam_width * 0.35, foam_width * 0.1, dist);  // and off the dry beach (land side)
+	foam *= 0.72 + wash * 0.5;                              // froth shimmer — varies but never gaps out
 	col = mix(col, foam_color.rgb, clamp(foam, 0.0, 1.0));
 
 	// Distance LOD: fade the illustrated near-field detail to a calm muted tone before the
