@@ -28,6 +28,7 @@ var chunk_last_needed_ms: Dictionary = {}    # key -> last ms it was visible/mar
 
 var _player_chunk := Vector2i.ZERO
 var _data_ring := TERRAIN_RING_MIN
+var editor_radius_cap := 0      # world editor: raise the visual hard cap (chunks); 0 = gameplay default
 
 
 func setup(w: Node2D) -> void:
@@ -91,7 +92,10 @@ func _compute_data_ring() -> int:
 			continue
 		var d := maxi(absi(int(parts[1]) - _player_chunk.x), absi(int(parts[2]) - _player_chunk.y))
 		reach = maxi(reach, d)
-	return clampi(maxi(required_visual_radius_floor(), reach + 1), TERRAIN_RING_MIN, TERRAIN_RING_HARD_MAX)
+	# The world editor raises the visual hard cap so the aerial view meshes all the way out to the
+	# loaded data edge (no cut-off band) — gameplay keeps the perf-tuned TERRAIN_RING_HARD_MAX.
+	var hard := editor_radius_cap if editor_radius_cap > 0 else TERRAIN_RING_HARD_MAX
+	return clampi(maxi(required_visual_radius_floor(), reach + 1), TERRAIN_RING_MIN, hard)
 
 
 # ---------------------------------------------------------------------- queries ----

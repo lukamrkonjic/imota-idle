@@ -23,6 +23,7 @@ var _base_ambient_energy: float
 var _base_fog: Color
 var _base_sun_energy: float
 var _base_sun_color: Color
+var editor_no_fog := false      # world editor: kill depth fog so the aerial view shows the whole map
 
 
 func setup(w3d: Node3D, water_mat: ShaderMaterial) -> void:
@@ -110,6 +111,11 @@ func _setup_sun() -> void:
 ## terrain edge (so the edge is still hidden, fading into the matching sky haze).
 func update(_camera_rig: WorldCameraRig3D, stream_view: TerrainStreamView) -> void:
 	if _env == null:
+		return
+	# Editor aerial view: no distance fog — show all the streamed terrain crisply to the edge.
+	if editor_no_fog:
+		_env.fog_enabled = false
+		_apply_grade()
 		return
 	var vt := stream_view.approx_visual_extent_tiles()
 	# Push fog out of the foreground: begin at ~74% of the visual extent (was 50%), end just past

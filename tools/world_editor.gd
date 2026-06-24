@@ -251,7 +251,7 @@ var _ghost_variant := 0         # reroll seed for the ghost's look (roof colour 
 var _ghost_sig := ""            # rebuild key: rebuild ghost meshes only when selection/variant changes
 var _ghost_mat_cache: Dictionary = {}   # source material id → cached translucent ghost material
 var _v3d_focus_pos := Vector2.ZERO   # float world-space camera focus (WASD/pan move it)
-var _v3d_view_cap := 8               # aerial terrain radius (chunks); the View slider drives it
+var _v3d_view_cap := 18              # aerial terrain radius (chunks); the View slider drives it (fills the view by default)
 var _v3d_view_slider: HSlider
 var _v3d_view_label: Label
 # World minimap (bottom-right): whole-world baked map; click to jump the aerial camera.
@@ -2042,7 +2042,7 @@ func _build_3d_view_panel() -> void:
 	bar.add_child(_v3d_view_label)
 	_v3d_view_slider = HSlider.new()
 	_v3d_view_slider.min_value = 4
-	_v3d_view_slider.max_value = 16
+	_v3d_view_slider.max_value = 40
 	_v3d_view_slider.step = 1
 	_v3d_view_slider.value = _v3d_view_cap
 	_v3d_view_slider.custom_minimum_size = Vector2(130, 0)
@@ -2246,8 +2246,10 @@ func _spawn_embedded_world() -> void:
 	var rend: Node = _v3d_world.get("render_3d")
 	if rend != null:
 		rend.set("editor_hide_player", true)
+		rend.set("editor_no_fog", true)               # no distance fog in the editor
+		rend.set("editor_view_radius", _v3d_view_cap)  # mesh terrain all the way to the view edge
 	# Cap terrain streaming so zooming way out can't try to mesh the whole continent;
-	# the View-distance slider tunes this radius.
+	# the View-distance slider tunes both the data ring and the meshed radius.
 	_v3d_world.set("editor_stream_cap", _v3d_view_cap)
 
 
@@ -2792,6 +2794,9 @@ func _on_v3d_view_changed(v: float) -> void:
 	_v3d_view_cap = int(v)
 	if _v3d_world != null:
 		_v3d_world.set("editor_stream_cap", _v3d_view_cap)
+		var rend: Node = _v3d_world.get("render_3d")
+		if rend != null:
+			rend.set("editor_view_radius", _v3d_view_cap)
 	_update_v3d_view_label()
 
 

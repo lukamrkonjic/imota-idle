@@ -75,6 +75,20 @@ var editor_hide_player := false:
 		if mover_renderer != null:
 			mover_renderer.set_editor_hide_player(value)
 
+var editor_no_fog := false:
+	get:
+		return atmosphere.editor_no_fog if atmosphere != null else false
+	set(value):
+		if atmosphere != null:
+			atmosphere.editor_no_fog = value
+
+var editor_view_radius := 0:
+	get:
+		return stream_view.editor_radius_cap if stream_view != null else 0
+	set(value):
+		if stream_view != null:
+			stream_view.editor_radius_cap = value
+
 var _cam_pitch: float:
 	get:
 		return camera_rig.get_pitch() if camera_rig != null else 0.413
