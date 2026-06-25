@@ -84,12 +84,15 @@ float contour(float n, float count) {
 
 void fragment() {
 	float sd = (v_wf - 0.5) * sd_scale;   // + into water, - onto land; 0 = smoothed coast
-	// Water is rendered PURELY from the smoothed coast contour (v_wf): the sheet shows where
-	// the low-passed water fraction is past the shoreline, so an isolated 1-2 tile water tile
-	// gets averaged below 0.5 and never appears as a square "pond". (The old height-based
-	// submersion fill — max(.., smoothstep(0,brim_fill,v_sub)) — force-rendered every water
-	// tile and also flooded dry dips near water; dropped. v_sub/v_is_water now unused.)
+	// Base water = the smoothed coast contour (v_wf past the shoreline).
 	float water_a = smoothstep(-shore_aa, shore_aa, sd);
+	// Then fill any DOWNSLOPED terrain that dips below the sheet (v_sub > 0) so water always
+	// reaches the shore with no dry gap — but GATE it by coastal proximity (v_wf): only near a
+	// real water body. Far from water v_wf -> 0, so an isolated dip / margin trough / despeckled
+	// pond never fills (that was the square-pond bug); approaching the shoreline the gate opens
+	// and the submerged beach is covered up to the waterline.
+	float coastal = smoothstep(0.12, 0.40, v_wf);
+	water_a = max(water_a, coastal * smoothstep(0.0, brim_fill, v_sub));
 	if (water_a <= 0.001) {
 		discard;
 	}
