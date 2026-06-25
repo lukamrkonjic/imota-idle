@@ -73,7 +73,13 @@ func _setup_present() -> void:
 	_snap_mat.shader = PALETTE_SNAP
 	_snap_mat.set_shader_parameter("palette_tex", _palette_texture())
 	_snap_mat.set_shader_parameter("palette_count", PixelPalette.PAL.size())
-	_snap_mat.set_shader_parameter("enabled", 1.0)
+	# Palette QUANTIZATION is off (A Short Hike-style). With the smooth biome blends, a hard
+	# per-pixel nearest-colour snap flickers wherever a gradient sits near a palette decision
+	# boundary — adjacent pixels flip between two entries on tiny lighting/patch variation, which
+	# reads as speckled "noise" all over the ground. The chunky pixel-art look already comes from
+	# the low-res SubViewport + the toon shader's lighting posterization, so we keep the grade
+	# (contrast/saturation/brightness, applied regardless of `enabled`) and drop the snap.
+	_snap_mat.set_shader_parameter("enabled", 0.0)
 	_snap_mat.set_shader_parameter("strength", 0.8)
 	_snap_mat.set_shader_parameter("contrast", 1.08)
 	_snap_mat.set_shader_parameter("saturation", 1.03)   # muted, earthy — not punchy lime
