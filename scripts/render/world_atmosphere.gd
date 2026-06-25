@@ -88,9 +88,14 @@ func _setup_environment() -> void:
 	_base_fog = horizon_col
 
 
+## Fixed sun direction (pitch, yaw, roll). Steady afternoon angle so shadows never slide as the
+## day/night cycle advances — only the sun's colour/energy change with time (see _apply_grade).
+const SUN_DIR_DEG := Vector3(-38, 40, 0)   # lower afternoon sun -> longer soft shadows
+
+
 func _setup_sun() -> void:
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-38, 40, 0)   # lower afternoon sun -> longer soft shadows
+	sun.rotation_degrees = SUN_DIR_DEG
 	sun.light_color = Color(1.0, 0.95, 0.8)    # warm afternoon daylight
 	sun.light_energy = 1.0                     # softer key light for a moodier, earthy look
 	sun.shadow_enabled = true
@@ -160,10 +165,13 @@ const _DUSK := Color(0.86, 0.52, 0.40)             # warm horizon bloom at sunri
 func _apply_grade() -> void:
 	var dl := DayNight.daylight()         # 0 night .. 1 noon
 	var glow := DayNight.horizon_glow()   # 1 when the sun is near/below the horizon
-	# Sun arcs east -> overhead -> west and drops below the horizon at night.
+	# Sun DIRECTION is fixed (a steady afternoon angle), so cast shadows and the toon lit/shadow
+	# bands stay put. Arcing the sun made those bands creep across the open ground all day — on
+	# near-flat grass the soft threshold is so light-angle-sensitive it read as "moving cloud
+	# shadows". The day/night cycle still drives the sun's COLOUR + ENERGY (and ambient/sky/fog)
+	# below, so dawn/day/dusk/night still look right — only the shadows no longer slide.
 	if _sun != null:
-		var azi := (DayNight.time01 - 0.25) * 360.0 + 40.0
-		_sun.rotation_degrees = Vector3(-clampf(DayNight.sun_elevation(), -90.0, 90.0), azi, 0.0)
+		_sun.rotation_degrees = SUN_DIR_DEG
 	# Day/night base palette.
 	var ambient := _AMB_NIGHT.lerp(_base_ambient, dl)
 	var amb_energy := lerpf(_AMB_NIGHT_ENERGY, _base_ambient_energy, dl)
