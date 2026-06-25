@@ -2,9 +2,10 @@ extends Node
 ## Headless validation. Run:
 const ValidateContent := preload("res://tools/validate_content.gd")
 # Worldgen determinism baseline — refactors of the generation pipeline must keep these.
-# Re-pinned for the authored mask-driven Aldreth coastline (generatorVersion 18).
-const WORLDGEN_TILES_HASH := 2960537303
-const WORLDGEN_ELEV_SUM := 64585
+# Re-pinned for the water-system rework: despeckled river mask + elevation carved flat
+# under water, biome-modulated sand banks around inland water, wider ocean beach.
+const WORLDGEN_TILES_HASH := 954904775
+const WORLDGEN_ELEV_SUM := 84357
 const ContentId := preload("res://scripts/content/content_id.gd")
 const SaveMigration := preload("res://autoload/save_migration.gd")
 const SkillRemap := preload("res://scripts/content/skill_remap.gd")

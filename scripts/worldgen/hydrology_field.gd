@@ -63,12 +63,15 @@ func _touches_water_tile(tx: float, ty: float) -> bool:
 	for off: Vector2 in [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]:
 		var nx := tx + off.x
 		var ny := ty + off.y
+		# Ocean adjacency uses the biome generator's OWN test, NOT the raw height
+		# field: _apply_continent sinks h near the coast, so a low h is not water —
+		# treating it as water falsely flagged dry coastal land as "touches water"
+		# and spawned stray shallow puddles inland.
+		var is_ocean: bool = (_cl.coast_sink(nx, ny) > 0.72) if _cl._finite else (_cl.fields(nx, ny).x < 0.30)
+		if is_ocean:
+			return true
 		var nf: Vector3 = _cl.fields(nx, ny)
-		if nf.x < 0.345:
-			return true
-		if lake_at(nx, ny, nf.x, "") > 0:
-			return true
-		if river_at(nx, ny, nf.x) > 0:
+		if lake_at(nx, ny, nf.x, "") > 0 or river_at(nx, ny, nf.x) > 0:
 			return true
 	return false
 

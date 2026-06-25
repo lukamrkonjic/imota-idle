@@ -24,13 +24,19 @@ const WATER_SINK := 0.16        # surface below the local dry-land baseline
 const WATER_SHORE_DEPTH := 0.12 # lakebed clearance just under the surface at the shore
 const WATER_DEEP_DROP := 0.62   # extra interior lakebed depth (deep_water) below the surface
 const SHORE := Color(0.80, 0.75, 0.58)  # sandy shore tone under/at water edges
-const WATER_PLANE_MARGIN := 3
+const WATER_PLANE_MARGIN := 2
 const WATER_SUBDIV := 5            # sub-quads per tile edge (25 quads / tile near the coast)
 const WATER_BED_CLEARANCE := 0.07  # how far submerged ground sits below the sheet
 const SHORE_SMOOTH := 4
 const SHORE_RADIUS := 4.0       # kernel reach in cells (round, Euclidean — NOT square)
 const SHORE_SD_SCALE := 5.2     # maps (wf - 0.5) -> signed distance to coast, in cells
 const SHORE_RAMP_LO := 0.12     # coast-field value where the shore ramp starts easing land down to the water surface
+# Shore FLATTEN: the rolling-hill swell is faded out as land nears water (by the same
+# water-fraction field) so banks and basins are flat and the sheet never floats on a
+# pedestal — and, crucially, no rolling-hill TROUGH near water can dip below the sheet
+# and read as a spurious pond. Inland (wf below LO) the hills are untouched.
+const SHORE_FLAT_LO := 0.05     # water-fraction where flattening begins (a few tiles out)
+const SHORE_FLAT_HI := 0.42     # water-fraction where the ground is fully flat (at the bank)
 
 var world: Node2D
 var _ground_mat: ShaderMaterial
@@ -45,6 +51,7 @@ var _cb_cache: Dictionary = {}    # Vector2i corner -> beach fraction
 var _vfh_cache: Dictionary = {}   # Vector2i tile -> visual floor height
 var _ccl_cache: Dictionary = {}   # Vector2i corner -> smoothed corner height
 var _vcy_cache: Dictionary = {}   # Vector2i corner -> final VISUAL corner height (shore-ramped)
+var _sf_cache: Dictionary = {}    # Vector2i tile -> shore-flatten factor (0 inland .. 1 at water)
 
 
 func setup(w: Node2D, ground_mat: ShaderMaterial, water_mat: ShaderMaterial) -> void:
@@ -67,6 +74,7 @@ func clear_frame_caches() -> void:
 	_vfh_cache.clear()
 	_ccl_cache.clear()
 	_vcy_cache.clear()
+	_sf_cache.clear()
 
 
 ## Smooth, continuous, SEAMLESS terrain: each grid corner's height/normal/color
@@ -367,7 +375,7 @@ func _visual_floor_height(gtx: int, gty: int, info: Dictionary) -> float:
 			depth += WATER_DEEP_DROP * 0.45
 		elif tile == "deep_water":
 			depth += WATER_DEEP_DROP
-		h = _rolling_hill(gtx, gty) - WATER_SINK - depth
+		h = _rolling_hill_at(gtx, gty) - WATER_SINK - depth
 	elif _is_path(tile):
 		# Road/path bed: FOLLOWS the (smoothed) terrain height so a road slopes up and down hills
 		# like a mountain road, but stays a smooth, recessed bed — no rocky bumpiness. The recess
@@ -384,7 +392,7 @@ func _visual_floor_height(gtx: int, gty: int, info: Dictionary) -> float:
 	elif _is_rock(tile):
 		h = _smoothed_elevation_height(gtx, gty) + _rolling_hill(gtx, gty) * 0.42 + _rocky_lift(gtx, gty) * 0.35
 	else:
-		h = top + _rolling_hill(gtx, gty)
+		h = top + _rolling_hill_at(gtx, gty)
 	_vfh_cache[fk] = h
 	return h
 
@@ -415,9 +423,9 @@ func _water_corner_level(ci: int, cj: int, wlc: Dictionary) -> float:
 	for off: Vector2i in [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(0, 0)]:
 		var info := _tile_info(ci + off.x, cj + off.y)
 		if not info.is_empty() and bool(info["water"]):
-			sum += _rolling_hill(ci + off.x, cj + off.y)
+			sum += _rolling_hill_at(ci + off.x, cj + off.y)
 			cnt += 1
-	var base: float = sum / float(cnt) if cnt > 0 else _rolling_hill(ci, cj)
+	var base: float = sum / float(cnt) if cnt > 0 else _rolling_hill_at(ci, cj)
 	var lvl := base - WATER_SINK
 	wlc[key] = lvl
 	return lvl
@@ -426,7 +434,7 @@ func _water_corner_level(ci: int, cj: int, wlc: Dictionary) -> float:
 # Water-surface height at a tile CENTRE (for movers/decor/fish that ride the sheet).
 # Matches the mesh: the sheet rides the sea-level rolling baseline minus WATER_SINK.
 func _water_surface_at(gtx: int, gty: int) -> float:
-	return _rolling_hill(gtx, gty) - WATER_SINK
+	return _rolling_hill_at(gtx, gty) - WATER_SINK
 
 
 # True if any of the four tiles touching this grid corner is water (cheap occupancy read).
@@ -439,6 +447,10 @@ func _corner_touches_water(ci: int, cj: int) -> bool:
 # coast field (UV.x) sampled BICUBICALLY, so the shader's 0.5 contour is smooth at sub-tile
 # resolution. Heights bilerp the four watertight corner levels (the sheet is near-flat).
 func _emit_water_tile(wst: SurfaceTool, gtx: int, gty: int, wfc: Dictionary, wlc: Dictionary) -> void:
+	# is_water (UV2.x): 1 only on a REAL water tile, 0 on the dry coastal margin. The
+	# shader gates its height-based submersion fill behind this, so a dip in dry land
+	# near water can never be flooded — only the genuine water body + its AA contour show.
+	var iw := 1.0 if _coast_water(gtx, gty) else 0.0
 	var lA := _water_corner_level(gtx, gty, wlc)
 	var lB := _water_corner_level(gtx + 1, gty, wlc)
 	var lC := _water_corner_level(gtx + 1, gty + 1, wlc)
@@ -468,6 +480,7 @@ func _emit_water_tile(wst: SurfaceTool, gtx: int, gty: int, wfc: Dictionary, wlc
 		for v: Array in qa:
 			wst.set_normal(Vector3.UP)
 			wst.set_uv(Vector2(float(v[1]), float(v[2])))
+			wst.set_uv2(Vector2(iw, 0.0))
 			wst.add_vertex(v[0])
 		return
 	# Coastal ring. UV.y bakes the SUBMERSION (surface - ground): the shader fills water wherever
@@ -504,6 +517,7 @@ func _emit_water_tile(wst: SurfaceTool, gtx: int, gty: int, wfc: Dictionary, wlc
 			for c: Vector2i in quad:
 				wst.set_normal(Vector3.UP)
 				wst.set_uv(Vector2(float(wfv[c.y][c.x]), float(subv[c.y][c.x])))
+				wst.set_uv2(Vector2(iw, 0.0))
 				wst.add_vertex(pos[c.y][c.x])
 
 
@@ -544,6 +558,37 @@ func _rolling_hill(gtx: int, gty: int) -> float:
 	var mid := sin(x * 0.155 - 0.4) * cos(y * 0.138 + 0.9)
 	var fine := sin((x - y) * 0.21 + 2.3)
 	return broad * 0.52 + roll * 0.28 + mid * 0.2 + fine * 0.09
+
+
+## Rolling-hill height with the swell faded out near water (shore flatten). Used for
+## BOTH the dry-land floor and the water surface/bed so banks and the sheet agree on a
+## flat basin at the waterline — no pedestal, and no trough dipping under the sheet.
+func _rolling_hill_at(gtx: int, gty: int) -> float:
+	return _rolling_hill(gtx, gty) * (1.0 - _shore_flat01(gtx, gty))
+
+
+## 0 inland .. 1 at/over water: a distance-weighted water fraction around the TILE centre
+## (same round kernel + occupancy reads as the corner coast field), shaped into a flatten
+## ramp. Memoised per frame; only the tiles a chunk build touches ever compute it.
+func _shore_flat01(gtx: int, gty: int) -> float:
+	var key := Vector2i(gtx, gty)
+	if _sf_cache.has(key):
+		return _sf_cache[key]
+	var sum := 0.0
+	var wsum := 0.0
+	for dy: int in range(-SHORE_SMOOTH, SHORE_SMOOTH + 1):
+		for dx: int in range(-SHORE_SMOOTH, SHORE_SMOOTH + 1):
+			var d := sqrt(float(dx * dx + dy * dy))
+			var w := smoothstep(SHORE_RADIUS, 0.0, d)
+			if w <= 0.0:
+				continue
+			if _coast_water(gtx + dx, gty + dy):
+				sum += w
+			wsum += w
+	var wf: float = sum / wsum if wsum > 0.0 else 0.0
+	var f := smoothstep(SHORE_FLAT_LO, SHORE_FLAT_HI, wf)
+	_sf_cache[key] = f
+	return f
 
 
 func _rocky_lift(gtx: int, gty: int) -> float:

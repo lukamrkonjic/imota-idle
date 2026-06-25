@@ -62,12 +62,14 @@ uniform float min_aa = 0.0015;
 
 varying vec3 v_world;
 varying float v_wf;
-varying float v_sub;   // submersion depth (water surface - terrain) baked per vertex; >0 = under water
+varying float v_sub;       // submersion depth (water surface - terrain) baked per vertex; >0 = under water
+varying float v_is_water;  // 1.0 on a real water tile, 0.0 on the dry coastal margin (UV2.x)
 
 void vertex() {
 	v_world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	v_wf = UV.x;
 	v_sub = UV.y;
+	v_is_water = UV2.x;
 }
 
 float contour(float n, float count) {
@@ -82,10 +84,13 @@ float contour(float n, float count) {
 
 void fragment() {
 	float sd = (v_wf - 0.5) * sd_scale;   // + into water, - onto land; 0 = smoothed coast
-	// Anti-aliased waterline
+	// Anti-aliased waterline (the smoothed coast contour). This is the ONLY thing that
+	// shows on the dry coastal margin — a 1px waterline, never a filled pond.
 	float water_a = smoothstep(-shore_aa, shore_aa, sd);
-	// Height-based fill for dips/coves
-	water_a = max(water_a, smoothstep(0.0, brim_fill, v_sub));
+	// Height-based fill for the basin/dips, but ONLY on a real water tile (v_is_water).
+	// Gating this is what stops a rolling-hill trough on dry land near water from flooding:
+	// on dry margin tiles v_is_water=0, so the fill is off and only the contour above shows.
+	water_a = max(water_a, v_is_water * smoothstep(0.0, brim_fill, v_sub));
 	if (water_a <= 0.001) {
 		discard;
 	}

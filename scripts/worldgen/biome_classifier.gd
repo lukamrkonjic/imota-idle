@@ -79,7 +79,10 @@ var _land_corridors: Array = [] # [{a,b:Vector2, r:float}] connecting land bridg
 const _MASK_DIR := "res://data/world/masks/"
 const _MASK_SHORE := 0.04       # landmass value at the waterline (=> coast_sink ~0.72, ocean/beach edge)
 const _MASK_SLOPE := 0.013      # landmass gained per tile inland (=> ~3-tile beach, solid land beyond ~6)
-const _MASK_FRAY := 0.012       # tile-scale jitter on the waterline so it isn't a smooth interpolation
+const _MASK_FRAY := 0.0         # tile-scale waterline jitter — OFF: the high-freq jitter flipped
+                                # individual tiles across the ocean threshold, scattering deep-water
+                                # "ponds" through the sand band. The traced SDF coast is already
+                                # irregular; 0 keeps a clean, connected sea→beach edge.
 var _has_land_mask := false
 var _land_sdf: PackedFloat32Array = PackedFloat32Array()  # signed dist in MASK PIXELS (+inland/-sea)
 var _mask_w := 0
@@ -101,6 +104,7 @@ var _has_river_mask := false
 var _biome_data: PackedByteArray = PackedByteArray()   # 1 byte/px = palette index
 var _elev_data: PackedByteArray = PackedByteArray()    # 1 byte/px = 0..255 height
 var _river_data: PackedByteArray = PackedByteArray()   # 1 byte/px = 0/255 water
+var _water_dist: PackedFloat32Array = PackedFloat32Array()  # mask-px distance to nearest inland water (sand band)
 var _biome_lut: PackedInt32Array = PackedInt32Array()  # palette index -> reg biome index
 
 
@@ -404,6 +408,8 @@ func _load_data_masks() -> void:
 	_has_biome_mask = _biome_data.size() == n
 	_has_elev_mask = _elev_data.size() == n
 	_has_river_mask = _river_data.size() == n
+	if _has_river_mask:
+		_build_water_dist()
 	if _has_biome_mask:
 		_build_biome_lut(id)
 		if _biome_lut.is_empty():
@@ -485,6 +491,32 @@ func mask_is_water(tx: float, ty: float) -> bool:
 		return false
 	var pi := _mask_pi(tx, ty)
 	return pi >= 0 and _river_data[pi] > 127
+
+
+## Distance (in tiles) from a tile to the nearest inland river/lake water, from the
+## precomputed chamfer field. 0 on water; huge when no river mask. Drives the sand
+## bank band so soft biomes never run straight to inland water.
+func water_dist_tiles(tx: float, ty: float) -> float:
+	if _water_dist.is_empty():
+		return 1.0e9
+	var pi := _mask_pi(tx, ty)
+	if pi < 0:
+		return 1.0e9
+	return _water_dist[pi] * _tiles_per_mask_px
+
+
+## Chamfer distance (mask px) from every pixel to the nearest river/lake water pixel
+## (0 on water). Cheap (O(2·W·H)), runs once at setup. Ocean beaches come from
+## coast_sink; this is purely the inland-water bank.
+func _build_water_dist() -> void:
+	var n := _mask_w * _mask_h
+	var INF := 1.0e9
+	var d := PackedFloat32Array()
+	d.resize(n)
+	for i: int in n:
+		d[i] = 0.0 if _river_data[i] > 127 else INF
+	_chamfer(d, INF)
+	_water_dist = d
 
 
 ## Two-pass chamfer signed-distance transform of the binary mask (land = bright).
@@ -721,12 +753,6 @@ func _touches_water_tile(tx: float, ty: float) -> bool:
 	return _hydro._touches_water_tile(tx, ty)
 
 
-func _near_surface_water(tx: float, ty: float, h: float) -> bool:
-	if _has_river_mask:
-		return _touches_water_tile(tx, ty)
-	return _hydro._near_surface_water(tx, ty, h)
-
-
 func tile_at(tx: float, ty: float, f: Vector3, b_idx: int, chunk: RefCounted = null, lx: int = -1, ly: int = -1) -> int:
 	var h := f.x
 	var biome_id := str(reg.biomes[b_idx]["id"])
@@ -739,14 +765,30 @@ func tile_at(tx: float, ty: float, f: Vector3, b_idx: int, chunk: RefCounted = n
 	match river_at(tx, ty, h):
 		2: return _t_water
 		1: return _t_shallow
-	# Occasional shallow puddles in swamp (never in dry biomes).
-	if parent_id == "swamp" or biome_id == "marsh_pool":
-		if _near_surface_water(tx, ty, h) and WG.r01(world_seed, floori(tx), floori(ty), 9) < 0.08:
-			return _t_shallow
-	# One-tile sand beach ring on walkable land directly touching water.
-	if parent_id in ["forest", "plains", "swamp", "rocky_hills", "savanna", "jungle", "boreal_forest", "badlands", "alpine"] and _touches_water_tile(tx, ty):
-		return _t_sand
+	# Sandy bank around inland rivers/lakes: a biome-modulated band (in tiles) so soft
+	# biomes never run straight to the waterline. Distance is an O(1) read of the water
+	# signed-distance field; ocean coasts get their sand from the beach biome instead.
+	var bw := _beach_radius_for(parent_id)
+	if bw > 0.0:
+		var wd := water_dist_tiles(tx, ty)
+		if wd > 0.0 and wd <= bw:
+			return _t_sand
 	return _pick_biome_surface(b_idx, tx, ty)
+
+
+## Width (in tiles) of the sand bank a biome carries around inland water. Sandy in
+## open grassland, a thinner strip under forest/rock, minimal in swamp (it runs to
+## the reed line); 0 = no bank (desert is already sand; volcanic/tundra keep their edge).
+func _beach_radius_for(parent_id: String) -> float:
+	match parent_id:
+		"plains", "savanna", "wildflower_meadow", "grove", "heather_moor":
+			return 3.0
+		"forest", "dense_forest", "jungle", "boreal_forest", "rocky_hills", "alpine", "badlands", "bamboo_thicket":
+			return 2.0
+		"swamp":
+			return 1.0
+		_:
+			return 0.0
 
 
 func _pick_biome_surface(b_idx: int, tx: float, ty: float) -> int:

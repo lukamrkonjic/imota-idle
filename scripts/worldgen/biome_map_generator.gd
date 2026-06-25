@@ -57,6 +57,15 @@ func _blend_offset(gtx: int, gty: int) -> Vector2i:
 	var by := _blend_noise.get_noise_2d(float(gtx) + 311.0, float(gty) + 57.0) * BLEND_RADIUS
 	bx += (WG.r01(world_seed, gtx, gty, 4441) - 0.5) * 2.0 * BLEND_JITTER
 	by += (WG.r01(world_seed, gtx, gty, 4451) - 0.5) * 2.0 * BLEND_JITTER
+	# Keep the SHORELINE crisp: this soft-edge offset is for blending LAND biomes into each
+	# other, but applied at the coast it dragged ocean/beach tiles across the true waterline —
+	# scattering deep-water "ponds" through the sand band. Fade it to 0 as a tile nears the
+	# coast (by the smooth coast_sink), so the sea->beach->land bands stay clean lines while
+	# inland biome borders still interleave softly.
+	if classifier != null and classifier.has_land_mask():
+		var inland := 1.0 - smoothstep(0.10, 0.32, classifier.coast_sink(float(gtx), float(gty)))
+		bx *= inland
+		by *= inland
 	return Vector2i(int(round(bx)), int(round(by)))
 
 
@@ -188,7 +197,7 @@ func _parent_id(gtx: int, gty: int) -> String:
 			var shore: float = classifier.coast_sink(float(gtx), float(gty))
 			if shore > 0.72:
 				return "ocean"
-			if shore > 0.34:
+			if shore > 0.30:
 				return "beach"
 		var mi: int = classifier.mask_biome_idx(float(gtx), float(gty))
 		if mi >= 0:
@@ -222,7 +231,7 @@ func _pick_parent_id(h: float, m: float, t: float, tx: float, ty: float) -> Stri
 		var shore: float = classifier.coast_sink(tx, ty)
 		if shore > 0.72:
 			return "ocean"
-		if shore > 0.34:
+		if shore > 0.30:
 			return "beach"
 	else:
 		if h < 0.30:
