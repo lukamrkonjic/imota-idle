@@ -20,6 +20,9 @@ uniform float light_threshold : hint_range(0.0, 1.0)  = 0.58;
 uniform float softness : hint_range(0.0, 0.4) = 0.04;
 uniform float ambient : hint_range(0.0, 1.0) = 0.22;
 uniform float posterize_steps : hint_range(2.0, 8.0) = 4.0;
+// How much the terrain's OWN surface normal shades it. Low = flat, even ground (A Short Hike): gentle
+// undulation no longer bands into fake "shadows". The real dark shapes come from object cast shadows.
+uniform float slope_shading : hint_range(0.0, 1.0) = 0.16;
 
 // Sand palette + variation controls.
 uniform vec4 sand_dry : source_color = vec4(0.902, 0.800, 0.471, 1.0);    // #E6CC78 main dry
@@ -75,17 +78,28 @@ void fragment() {
 }
 
 void light() {
-	float lit = clamp(dot(normalize(NORMAL), normalize(LIGHT)), 0.0, 1.0) * ATTENUATION;
-	lit = ambient + (1.0 - ambient) * lit;
-	lit = floor(lit * posterize_steps + 0.5) / posterize_steps;
 	vec3 base = ALBEDO;
 	vec3 surface_shadow = mix(shadow_tint.rgb, cold_shadow_tint.rgb, v_cold);
 	vec3 surface_light = mix(light_tint.rgb, cold_light_tint.rgb, v_cold);
 	vec3 shad = mix(base, surface_shadow, 0.62);
 	vec3 lite = mix(base, surface_light, 0.42);
-	float s = smoothstep(shadow_threshold - softness, shadow_threshold + softness, lit);
-	float l = smoothstep(light_threshold - softness, light_threshold + softness, lit);
-	vec3 ramp = mix(shad, base, s);
-	ramp = mix(ramp, lite, l);
+
+	// 1) TERRAIN SELF-SHADING — deliberately near-flat. The old shader folded N·L into the same
+	// term as the cast shadow, so the height-field normals turned every gentle rise into a big dark
+	// patch that read as a shadow cast by nothing. `slope_shading` scales that down to ~flat, so open
+	// ground is one even tone; a touch of it keeps real hillsides legible. NO cast shadow here.
+	float ndl = clamp(dot(normalize(NORMAL), normalize(LIGHT)), 0.0, 1.0);
+	float self = ambient + (1.0 - ambient) * mix(1.0, ndl, slope_shading);
+	self = floor(self * posterize_steps + 0.5) / posterize_steps;
+	float l = smoothstep(light_threshold - softness, light_threshold + softness, self);
+	vec3 ramp = mix(base, lite, l);
+
+	// 2) OBJECT CAST SHADOWS — the ONLY real darkening on the ground (A Short Hike). ATTENUATION is
+	// the directional shadow map: 1 in open sun, 0 under a tree/building. Posterized to a clean,
+	// soft-edged shadow shape that tints toward the surface shadow colour (never pure black).
+	float cast_lit = floor(ATTENUATION * posterize_steps + 0.5) / posterize_steps;
+	float cs = smoothstep(shadow_threshold - softness, shadow_threshold + softness, cast_lit);
+	ramp = mix(shad, ramp, cs);
+
 	DIFFUSE_LIGHT += ramp * mix(vec3(1.0), LIGHT_COLOR.rgb, 0.18);
 }
