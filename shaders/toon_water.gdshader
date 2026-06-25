@@ -45,7 +45,7 @@ uniform sampler2D warp_tex : repeat_enable, filter_linear;
 // --- animated foam ------------------------------------------------------------
 uniform float foam_cells = 0.55;       // cells: how far the foam can wash off the waterline
 uniform float foam_depth = 0.24;       // world-height band of submersion the foam rides (hugs the true edge)
-uniform float foam_width = 0.55;       // world units: EVEN ribbon width along the waterline (slope/zoom independent)
+uniform float foam_width = 0.30;       // world units: EVEN ribbon width along the waterline (slope/zoom independent)
 uniform float foam_scale = 0.17;
 uniform float foam_speed = 0.05;
 uniform float foam_aa = 0.08;          // extra anti-aliasing width in world units
@@ -135,7 +135,10 @@ void fragment() {
 	// Blend: prefer smooth SDF near coast for clean curves
 	float dist = mix(sdf_dist, deriv_dist, smoothstep(0.0, 0.8, abs(sdf_dist)));
 
-	float band = foam_width * (0.7 + wash * 0.6) + foam_aa;
+	// Lapping animation: the band breathes with the scrolling foam noise (wash) plus a slow
+	// shore-wave pulse, so the thin ribbon visibly washes in and out instead of sitting static.
+	float lap = 0.82 + 0.18 * sin(TIME * 1.3 + (wp.x + wp.y) * 0.18);
+	float band = (foam_width * (0.55 + wash * 0.9) + foam_aa) * lap;
 	float foam = (1.0 - smoothstep(0.0, band, dist + foam_sdf_bias))
 	           * smoothstep(-foam_width * 0.4 - foam_aa, foam_width * 0.15, dist + foam_sdf_bias);
 	foam *= 0.72 + wash * 0.5;

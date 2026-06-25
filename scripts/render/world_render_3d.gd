@@ -228,7 +228,7 @@ func _setup_materials() -> void:
 	_water_mat.set_shader_parameter("contour_fade_out", 1.6)      # cells: contours fully back
 	_water_mat.set_shader_parameter("foam_cells", 0.55)          # foam band width at the shore (cells)
 	_water_mat.set_shader_parameter("foam_scale", 0.17)
-	_water_mat.set_shader_parameter("foam_speed", 0.05)
+	_water_mat.set_shader_parameter("foam_speed", 0.14)        # faster scroll -> visibly animated foam
 	_water_mat.set_shader_parameter("foam_tex", TerrainChunkMesher.make_water_noise(0.7, 3, 6))
 	_water_mat.set_shader_parameter("noise_tex", TerrainChunkMesher.make_water_noise(0.9, 2, 1))
 	_water_mat.set_shader_parameter("warp_tex", TerrainChunkMesher.make_water_noise(0.35, 2, 2))
