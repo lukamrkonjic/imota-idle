@@ -486,6 +486,10 @@ func phase1_inventory_bank_equipment() -> void:
 	var iron_ld := EquipLoadout.for_player({"Weapon": "Iron Scimitar"})
 	check(iron_ld["mainhand"]["material"] == "iron", "tier ramp: Iron Scimitar (tier 2) -> iron")
 	check(iron_ld["mainhand"]["kind"] == "sword", "scimitar maps to sword mesh kind")
+	var dagger_ld := EquipLoadout.for_player({"Weapon": "Bronze Dagger"})
+	check(dagger_ld["mainhand"]["kind"] == "dagger", "weapon category maps Bronze Dagger -> dagger mesh kind")
+	var staff_ld := EquipLoadout.for_player({"Weapon": "Staff of Ardent"})
+	check(staff_ld["mainhand"]["kind"] == "staff", "weapon category maps Staff of Ardent -> staff mesh kind")
 	var adam_ld := EquipLoadout.for_player({"Body": "Adamantite Body"})
 	check(adam_ld["body"]["material"] == "adamant", "tier ramp: Adamantite Body (tier 5) -> adamant")
 	# Emberite Sword (invented tier-8 family) used to default to iron; now grades by data.
@@ -496,6 +500,45 @@ func phase1_inventory_bank_equipment() -> void:
 		"slot": "Weapon", "tier": 8, "renderKind": "dagger", "renderMaterial": "bone"})
 	check(EquipLoadout._kind(ov, "sword") == "dagger", "explicit render_kind overrides inferred kind")
 	check(EquipLoadout._material(ov, "Test Blade") == "bone", "explicit render_material overrides tier ramp")
+	var twoh := ItemDef.from_dict({"id": "item.test2", "name": "Test 2H", "category": "equipment",
+		"slot": "Weapon", "tier": 5, "weaponCategory": "two_handed"})
+	check(EquipLoadout.weapon_kind_for_def(twoh, "Test 2H") == "greatsword", "weapon category maps two_handed -> greatsword")
+	var MoverMeshes := preload("res://scripts/render/mover_meshes.gd")
+	var sword_grip: Dictionary = MoverMeshes.weapon_profile("sword")
+	var sword_grip_pos: Vector3 = sword_grip["pos"]
+	check(str(sword_grip["pose"]) == "onehand" and sword_grip_pos.length() < 0.001,
+		"one-handed weapon grip origin stays at the hand socket")
+	var sword_grip_rot: Vector3 = sword_grip["rot"]
+	check(sword_grip_rot.x > 1.4 and sword_grip_rot.x < 2.2 and sword_grip_rot.z < -0.1,
+		"one-handed weapon points forward/out from the low fist")
+	var staff_grip: Dictionary = MoverMeshes.weapon_profile("staff")
+	check(str(staff_grip["pose"]) == "staff" and str(staff_grip["attack"]) == "staff_cast",
+		"staff weapon profile uses planted staff/cast pose")
+	var staff_grip_rot: Vector3 = staff_grip["rot"]
+	check(staff_grip_rot.x > 1.0 and absf(staff_grip_rot.z) < 0.15,
+		"staff weapon profile compensates for the reached-out grip")
+	var heavy_grip: Dictionary = MoverMeshes.weapon_profile("greatsword")
+	var heavy_grip_rot: Vector3 = heavy_grip["rot"]
+	check(str(heavy_grip["pose"]) == "heavy" and heavy_grip_rot.x > 0.45 and heavy_grip_rot.z > 0.3,
+		"two-handed weapon rests diagonally over the shoulder")
+	var rig := MoverMeshes.player_rig(Color(0.86, 0.68, 0.56))
+	var bare_sock := rig.find_child("socket_mainhand", true, false) as Node3D
+	check(bare_sock != null and bare_sock.position.x > 0.06 and bare_sock.position.z > 0.04,
+		"mainhand socket sits at the outside/front of the fist")
+	MoverMeshes.apply_equipment(rig, {"mainhand": {"kind": "greatsword", "material": "iron"}})
+	var sock := rig.find_child("socket_mainhand", true, false) as Node3D
+	var held := sock.get_node_or_null(^"equip") if sock != null else null
+	check(str(rig.get_meta("weapon_pose", "")) == "heavy" and held != null, "mainhand equipment attaches to the hand socket with heavy pose metadata")
+	rig.free()
+	var staff_rig := MoverMeshes.player_rig(Color(0.86, 0.68, 0.56))
+	MoverMeshes.apply_equipment(staff_rig, {"mainhand": {"kind": "staff", "material": "wood"}})
+	var MoverRig := preload("res://scripts/render/mover_rig.gd")
+	MoverRig._pose_humanoid(staff_rig, Vector3.ZERO, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+	var staff_arm := staff_rig.find_child("arm_r", true, false) as Node3D
+	var staff_elbow := staff_rig.find_child("elbow_r", true, false) as Node3D
+	check(staff_arm != null and staff_elbow != null and staff_arm.rotation.x < -0.45 and staff_elbow.rotation.x < -0.7,
+		"staff idle pose reaches the hand out to wrap the shaft")
+	staff_rig.free()
 
 
 func phase2_combat() -> void:
@@ -1038,8 +1081,8 @@ func phase6_worldgen() -> void:
 	pf_chunk.elev[Chunk.idx(0, 1)] = 1
 	pf_chunk.elev[Chunk.idx(0, 2)] = 3   # +2 from (0,1): a walkable slope
 	pf_chunk.elev[Chunk.idx(0, 3)] = 6   # +3 from (0,2): too steep to climb
-	pf_chunk.elev[Chunk.idx(2, 0)] = 34  # high shelf remains a valid navigation node
-	pf_chunk.elev[Chunk.idx(3, 0)] = 46  # above MAX_REACHABLE_ELEV (44): summit crown excluded
+	pf_chunk.elev[Chunk.idx(2, 0)] = maxi(0, WG.MAX_REACHABLE_ELEV - 10)  # high shelf remains a valid navigation node
+	pf_chunk.elev[Chunk.idx(3, 0)] = WG.MAX_REACHABLE_ELEV + 1  # above the reachable cap: summit crown excluded
 	var pf := PathFinder.new()
 	pf.rebuild([pf_chunk], WorldGen.reg, 1)
 	var base := Vector2i(pf_chunk.cx, pf_chunk.cy) * WG.CHUNK_TILES

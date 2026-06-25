@@ -10,6 +10,7 @@ extends RefCounted
 const PropMeshes := preload("res://scripts/render/prop_meshes.gd")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 const EquipLoadout := preload("res://scripts/render/equip_loadout.gd")
+const HAND_SOCKET_POS := Vector3(0.075, -0.35, 0.055)
 
 
 ## Articulated low-poly human with natural proportions (a normal-sized squared
@@ -59,7 +60,7 @@ static func figure_rig(body: Color, head: Color, cape := Color(0, 0, 0, 0)) -> N
 	for side2: int in [-1, 1]:
 		var el := _biped_arm(spine, side2, Vector3(0.3 * side2, 0.47, 0), Vector3(0.14, 0.26, 0.16), Vector3(0.12, 0.26, 0.14), shirt, skin, "harm")
 		_attach(el, PropMeshes._box("hum_hand", Vector3(0.13, 0.13, 0.15)), skin, Vector3(0, -0.34, 0))
-		_socket(el, "socket_mainhand" if side2 > 0 else "socket_offhand", Vector3(0.04 * side2, -0.42, 0.16), Vector3(-0.1, 0, -0.08 * side2))
+		_socket(el, "socket_mainhand" if side2 > 0 else "socket_offhand", Vector3(HAND_SOCKET_POS.x * side2, HAND_SOCKET_POS.y, HAND_SOCKET_POS.z))
 	# Worn-gear sockets (see equip_profile): the renderer attaches armor/weapons here.
 	# Upper-body sockets ride the spine; leg armor stays on the (vertical) root.
 	_socket(spine, "socket_head", Vector3(0, 0.79, 0))
@@ -126,7 +127,7 @@ static func player_rig(skin_col: Color) -> Node3D:
 	for s2: int in [-1, 1]:
 		var el := _biped_arm(root, s2, Vector3(0.3 * s2, 1.42, 0), Vector3(0.16, 0.24, 0.18), Vector3(0.12, 0.26, 0.14), linen, skin, "parm")
 		_attach(el, PropMeshes._box("p_hand", Vector3(0.13, 0.13, 0.15)), skin, Vector3(0, -0.34, 0))
-		_socket(el, "socket_mainhand" if s2 > 0 else "socket_offhand", Vector3(0.04 * s2, -0.42, 0.16), Vector3(-0.1, 0, -0.08 * s2))
+		_socket(el, "socket_mainhand" if s2 > 0 else "socket_offhand", Vector3(HAND_SOCKET_POS.x * s2, HAND_SOCKET_POS.y, HAND_SOCKET_POS.z))
 	_socket(root, "socket_head", Vector3(0, 1.79, 0))
 	_socket(root, "socket_body", Vector3(0, 1.24, 0))
 	_socket(root, "socket_legs", Vector3(0, 0.9, 0))
@@ -198,6 +199,9 @@ static func apply_equipment(rig: Node3D, loadout: Dictionary) -> void:
 		var old: Node = sock.get_node_or_null(^"equip")
 		if old != null:
 			old.free()
+	rig.set_meta("weapon_pose", "")
+	rig.set_meta("weapon_kind", "")
+	rig.set_meta("weapon_attack", "")
 	# A long robe replaces the visible legs — hide them so they don't poke through
 	# the skirt (the wearer glides). Reset first so unequipping shows them again.
 	var hide_legs := loadout.has("legs") and str(Dictionary(loadout.get("legs", {})).get("kind", "")) == "robe_bottom"
@@ -233,10 +237,17 @@ static func apply_equipment(rig: Node3D, loadout: Dictionary) -> void:
 			holder = PropMeshes.build_node(parts)
 		holder.name = "equip"
 		# Per-type GRIP so a held weapon reads correctly instead of poking up into the body:
-		# a 1H melee weapon hangs down at the side (blade out, visible from the top-down camera);
-		# staves/wands stay upright (planted); a 2H weapon is carried across the body.
+		# the socket sits at the fist and the weapon mesh origin is its grip point, so
+		# rotations happen around the hand instead of the weapon's middle.
 		if slot == "mainhand":
-			holder.rotation = _weapon_grip(kind)
+			var grip := weapon_profile(kind)
+			holder.position = grip["pos"]
+			holder.rotation = grip["rot"]
+			holder.set_meta("weapon_pose", grip["pose"])
+			holder.set_meta("weapon_attack", grip["attack"])
+			rig.set_meta("weapon_pose", grip["pose"])
+			rig.set_meta("weapon_kind", kind)
+			rig.set_meta("weapon_attack", grip["attack"])
 		# Flag flowing cloth pieces so the renderer can sway them (cheap procedural
 		# secondary motion — no physics). Skirts and capes are the big flowy ones.
 		holder.set_meta("cloth", kind in ["robe_bottom", "robe_top", "cape", "hood"])
@@ -246,19 +257,72 @@ static func apply_equipment(rig: Node3D, loadout: Dictionary) -> void:
 		sock2.add_child(holder)
 
 
-## Resting orientation (socket-local euler) for a held mainhand weapon, by kind. The weapon
-## meshes are modelled pointing +Y (up the forearm, toward the body — hidden), so 1H weapons get
-## flipped to hang DOWN at the side; uprights (staff/wand/spear/bow) stay as-is; 2H lies across.
-static func _weapon_grip(kind: String) -> Vector3:
+## Socket-local grip profile for a held weapon. The rig's socket is the hand; the
+## weapon meshes are modelled with their grip at local origin and their length on
+## +Y, so this transform describes the held pose without ever moving the hilt out
+## of the fist.
+static func weapon_profile(kind: String) -> Dictionary:
 	match kind:
-		"staff", "raven_staff", "wand", "spear", "bow":
-			return Vector3.ZERO                       # planted / upright
-		"greatsword", "twohand", "2h", "battleaxe", "warhammer", "halberd":
-			return Vector3(2.35, 0.0, -0.95)          # carried diagonally across the body
-		"axe":                                        # woodcutting axe: gripped at the haft, HEAD OUT
-			return Vector3(2.7, 0.0, -0.1)            # past the fist (an extension of the arm) to chop
-		_:                                            # sword / scimitar / dagger / mace (1H)
-			return Vector3(0.22, 0.0, -0.18)          # held UPRIGHT in the hand, blade up, tilted just off the body
+		"staff", "raven_staff":
+			return {
+				"pose": "staff", "attack": "staff_cast",
+				"pos": Vector3.ZERO,
+				"rot": Vector3(1.5, 0.0, 0.02),
+			}
+		"wand":
+			return {
+				"pose": "staff", "attack": "staff_cast",
+				"pos": Vector3.ZERO,
+				"rot": Vector3(0.08, 0.0, -0.08),
+			}
+		"bow":
+			return {
+				"pose": "bow", "attack": "bow",
+				"pos": Vector3.ZERO,
+				"rot": Vector3(0.18, 0.0, -0.28),
+			}
+		"spear", "halberd":
+			return {
+				"pose": "polearm", "attack": "thrust",
+				"pos": Vector3.ZERO,
+				"rot": Vector3(0.04, 0.0, -0.08),
+			}
+		"greatsword", "twohand", "2h":
+			return {
+				"pose": "heavy", "attack": "heavy_slash",
+				"pos": Vector3.ZERO,
+				"rot": Vector3(0.9, 0.0, 0.72),
+			}
+		"battleaxe", "warhammer", "hammer":
+			return {
+				"pose": "heavy", "attack": "heavy_chop",
+				"pos": Vector3.ZERO,
+				"rot": Vector3(0.82, 0.0, 0.64),
+			}
+		"axe":
+			return {
+				"pose": "onehand", "attack": "slash",
+				"pos": Vector3.ZERO,
+				"rot": Vector3(1.78, 0.0, -0.46),
+			}
+		"dagger":
+			return {
+				"pose": "onehand", "attack": "stab",
+				"pos": Vector3.ZERO,
+				"rot": Vector3(1.7, 0.0, -0.28),
+			}
+		"mace":
+			return {
+				"pose": "onehand", "attack": "bonk",
+				"pos": Vector3.ZERO,
+				"rot": Vector3(1.72, 0.0, -0.38),
+			}
+		_:
+			return {
+				"pose": "onehand", "attack": "slash",
+				"pos": Vector3.ZERO,
+				"rot": Vector3(1.82, 0.0, -0.34),
+			}
 
 
 ## Palette for an equipment material tier; `tint` overrides cloth/gem colour.
@@ -296,60 +360,81 @@ static func equip_parts(slot: String, kind: String, mat_key: String, tint: Color
 		"staff":
 			var wood := equip_material("wood")
 			return [
-				PropMeshes._part(PropMeshes._cyl("eq_staff", 0.035, 0.05, 1.5), wood, Vector3(0, 0.52, 0.04)),
-				PropMeshes._part(PropMeshes._box("eq_staff_bind", Vector3(0.09, 0.07, 0.09)), gold, Vector3(0, 1.18, 0.04)),
-				PropMeshes._part(PropMeshes._sphere("eq_staff_gem", 0.11), equip_material("gem", tint), Vector3(0, 1.32, 0.04))]
+				PropMeshes._part(PropMeshes._cyl("eq_staff", 0.035, 0.05, 1.75), wood, Vector3(0, -0.08, 0.0)),
+				PropMeshes._part(PropMeshes._box("eq_staff_bind", Vector3(0.09, 0.07, 0.09)), gold, Vector3(0, 0.72, 0.0)),
+				PropMeshes._part(PropMeshes._sphere("eq_staff_gem", 0.11), equip_material("gem", tint), Vector3(0, 0.86, 0.0))]
 		"raven_staff":
 			# Tall gnarled staff with a raven perched on top, planted forward (+Z) of
 			# the body so it stays visible whichever way the wearer turns to face.
 			var wd := equip_material("wood")
 			var rav := PropMeshes._mat_from(Color(0.12, 0.12, 0.15), Color(0.06, 0.06, 0.08), Color(0.24, 0.24, 0.3))
-			# Planted vertically out to the side of the hand (not in front), so the
-			# staff clears the body silhouette from most camera angles, and long enough
-			# that its bottom rests on the ground.
-			var sx := 0.16
-			var fz := 0.14
+			# The staff's origin is the grip point in the fist; its lower end reaches
+			# down past the hand so the idle pose can plant it on the ground.
+			var sx := 0.0
+			var fz := 0.0
 			return [
-				PropMeshes._part(PropMeshes._cyl("eq_rstaff_g", 0.05, 0.06, 2.7), wd, Vector3(sx, 0.0, fz)),
-				PropMeshes._part(PropMeshes._box("eq_rstaff_knot", Vector3(0.11, 0.12, 0.11)), wd, Vector3(sx, 0.78, fz)),
-				PropMeshes._part(PropMeshes._box("eq_rstaff_perch", Vector3(0.22, 0.05, 0.06)), wd, Vector3(sx, 1.3, fz)),
-				PropMeshes._part(PropMeshes._sphere("eq_raven_body", 0.11), rav, Vector3(sx, 1.41, fz), Vector3(1.0, 1.05, 1.5)),
-				PropMeshes._part(PropMeshes._sphere("eq_raven_head", 0.07), rav, Vector3(sx, 1.52, fz + 0.1)),
-				PropMeshes._part(PropMeshes._cone("eq_raven_beak", 0.028, 0.002, 0.11), gold, Vector3(sx, 1.52, fz + 0.2), Vector3.ONE, Vector3(1.5708, 0, 0)),
-				PropMeshes._part(PropMeshes._box("eq_raven_tail", Vector3(0.07, 0.04, 0.22)), rav, Vector3(sx, 1.39, fz - 0.16), Vector3.ONE, Vector3(0.4, 0, 0)),
-				PropMeshes._part(PropMeshes._box("eq_raven_wing", Vector3(0.04, 0.14, 0.18)), rav, Vector3(sx + 0.08, 1.41, fz))]
+				PropMeshes._part(PropMeshes._cyl("eq_rstaff_g", 0.05, 0.06, 2.1), wd, Vector3(sx, -0.12, fz)),
+				PropMeshes._part(PropMeshes._box("eq_rstaff_knot", Vector3(0.11, 0.12, 0.11)), wd, Vector3(sx, 0.42, fz)),
+				PropMeshes._part(PropMeshes._box("eq_rstaff_perch", Vector3(0.22, 0.05, 0.06)), wd, Vector3(sx, 0.88, fz)),
+				PropMeshes._part(PropMeshes._sphere("eq_raven_body", 0.11), rav, Vector3(sx, 0.99, fz), Vector3(1.0, 1.05, 1.5)),
+				PropMeshes._part(PropMeshes._sphere("eq_raven_head", 0.07), rav, Vector3(sx, 1.1, fz + 0.1)),
+				PropMeshes._part(PropMeshes._cone("eq_raven_beak", 0.028, 0.002, 0.11), gold, Vector3(sx, 1.1, fz + 0.2), Vector3.ONE, Vector3(1.5708, 0, 0)),
+				PropMeshes._part(PropMeshes._box("eq_raven_tail", Vector3(0.07, 0.04, 0.22)), rav, Vector3(sx, 0.97, fz - 0.16), Vector3.ONE, Vector3(0.4, 0, 0)),
+				PropMeshes._part(PropMeshes._box("eq_raven_wing", Vector3(0.04, 0.14, 0.18)), rav, Vector3(sx + 0.08, 0.99, fz))]
 		"wand":
 			return [
-				PropMeshes._part(PropMeshes._cyl("eq_wand", 0.03, 0.04, 0.6), equip_material("wood"), Vector3(0, 0.24, 0.04)),
-				PropMeshes._part(PropMeshes._sphere("eq_wand_tip", 0.07), equip_material("gem", tint), Vector3(0, 0.56, 0.04))]
+				PropMeshes._part(PropMeshes._cyl("eq_wand", 0.03, 0.04, 0.6), equip_material("wood"), Vector3(0, 0.2, 0.0)),
+				PropMeshes._part(PropMeshes._sphere("eq_wand_tip", 0.07), equip_material("gem", tint), Vector3(0, 0.54, 0.0))]
+		"greatsword", "twohand", "2h":
+			return [
+				PropMeshes._part(PropMeshes._box("eq_gs_blade_" + mat_key, Vector3(0.12, 1.05, 0.035)), m, Vector3(0, 0.62, 0.0)),
+				PropMeshes._part(PropMeshes._box("eq_gs_fuller", Vector3(0.035, 0.72, 0.042)), PropMeshes._mat_from(Color(0.92, 0.92, 0.96), Color(0.5, 0.52, 0.58), Color(1, 1, 1)), Vector3(0, 0.68, 0.02)),
+				PropMeshes._part(PropMeshes._box("eq_gs_guard", Vector3(0.34, 0.06, 0.08)), gold, Vector3(0, 0.08, 0.0)),
+				PropMeshes._part(PropMeshes._box("eq_gs_grip", Vector3(0.06, 0.28, 0.06)), dark, Vector3(0, -0.08, 0.0)),
+				PropMeshes._part(PropMeshes._box("eq_gs_pommel", Vector3(0.09, 0.08, 0.08)), gold, Vector3(0, -0.26, 0.0))]
 		"sword":
 			return [
-				PropMeshes._part(PropMeshes._box("eq_blade_" + mat_key, Vector3(0.07, 0.7, 0.025)), m, Vector3(0, 0.52, 0.04)),
-				PropMeshes._part(PropMeshes._box("eq_guard", Vector3(0.24, 0.05, 0.07)), gold, Vector3(0, 0.16, 0.04)),
-				PropMeshes._part(PropMeshes._box("eq_grip", Vector3(0.05, 0.18, 0.05)), dark, Vector3(0, 0.05, 0.04)),
-				PropMeshes._part(PropMeshes._box("eq_pommel", Vector3(0.07, 0.06, 0.06)), gold, Vector3(0, -0.05, 0.04))]
+				PropMeshes._part(PropMeshes._box("eq_blade_" + mat_key, Vector3(0.07, 0.7, 0.025)), m, Vector3(0, 0.48, 0.0)),
+				PropMeshes._part(PropMeshes._box("eq_guard", Vector3(0.24, 0.05, 0.07)), gold, Vector3(0, 0.1, 0.0)),
+				PropMeshes._part(PropMeshes._box("eq_grip", Vector3(0.05, 0.18, 0.05)), dark, Vector3(0, -0.02, 0.0)),
+				PropMeshes._part(PropMeshes._box("eq_pommel", Vector3(0.07, 0.06, 0.06)), gold, Vector3(0, -0.14, 0.0))]
 		"dagger":
 			return [
-				PropMeshes._part(PropMeshes._box("eq_dblade_" + mat_key, Vector3(0.06, 0.34, 0.02)), m, Vector3(0, 0.3, 0.04)),
-				PropMeshes._part(PropMeshes._box("eq_dguard", Vector3(0.16, 0.04, 0.06)), gold, Vector3(0, 0.12, 0.04)),
-				PropMeshes._part(PropMeshes._box("eq_dgrip", Vector3(0.05, 0.14, 0.05)), dark, Vector3(0, 0.03, 0.04))]
+				PropMeshes._part(PropMeshes._box("eq_dblade_" + mat_key, Vector3(0.06, 0.34, 0.02)), m, Vector3(0, 0.26, 0.0)),
+				PropMeshes._part(PropMeshes._box("eq_dguard", Vector3(0.16, 0.04, 0.06)), gold, Vector3(0, 0.06, 0.0)),
+				PropMeshes._part(PropMeshes._box("eq_dgrip", Vector3(0.05, 0.14, 0.05)), dark, Vector3(0, -0.04, 0.0))]
 		"axe":
 			return [
-				PropMeshes._part(PropMeshes._cyl("eq_haft", 0.03, 0.04, 0.8), equip_material("wood"), Vector3(0, 0.3, 0.04)),
-				PropMeshes._part(PropMeshes._box("eq_axehead_" + mat_key, Vector3(0.06, 0.26, 0.22)), m, Vector3(0.1, 0.6, 0.04))]
+				PropMeshes._part(PropMeshes._cyl("eq_haft", 0.03, 0.04, 0.82), equip_material("wood"), Vector3(0, 0.24, 0.0)),
+				PropMeshes._part(PropMeshes._box("eq_axehead_" + mat_key, Vector3(0.07, 0.28, 0.24)), m, Vector3(0.1, 0.58, 0.0))]
+		"battleaxe":
+			return [
+				PropMeshes._part(PropMeshes._cyl("eq_bax_haft", 0.035, 0.045, 1.2), equip_material("wood"), Vector3(0, 0.34, 0.0)),
+				PropMeshes._part(PropMeshes._box("eq_bax_head_" + mat_key, Vector3(0.08, 0.36, 0.34)), m, Vector3(0.15, 0.92, 0.0)),
+				PropMeshes._part(PropMeshes._box("eq_bax_head2_" + mat_key, Vector3(0.08, 0.3, 0.28)), m, Vector3(-0.12, 0.88, 0.0))]
+		"warhammer", "hammer":
+			return [
+				PropMeshes._part(PropMeshes._cyl("eq_wh_haft", 0.035, 0.045, 1.08), equip_material("wood"), Vector3(0, 0.3, 0.0)),
+				PropMeshes._part(PropMeshes._box("eq_wh_head_" + mat_key, Vector3(0.44, 0.18, 0.22)), m, Vector3(0, 0.88, 0.0)),
+				PropMeshes._part(PropMeshes._box("eq_wh_cap", Vector3(0.12, 0.12, 0.16)), gold, Vector3(0, 0.72, 0.0))]
 		"mace":
 			return [
-				PropMeshes._part(PropMeshes._cyl("eq_macehaft", 0.035, 0.045, 0.7), dark, Vector3(0, 0.28, 0.04)),
-				PropMeshes._part(PropMeshes._sphere("eq_macehead_" + mat_key, 0.13), m, Vector3(0, 0.64, 0.04))]
+				PropMeshes._part(PropMeshes._cyl("eq_macehaft", 0.035, 0.045, 0.7), dark, Vector3(0, 0.2, 0.0)),
+				PropMeshes._part(PropMeshes._sphere("eq_macehead_" + mat_key, 0.13), m, Vector3(0, 0.58, 0.0))]
 		"spear":
 			return [
-				PropMeshes._part(PropMeshes._cyl("eq_spearhaft", 0.03, 0.035, 1.6), equip_material("wood"), Vector3(0, 0.5, 0.04)),
-				PropMeshes._part(PropMeshes._cone("eq_spearpt_" + mat_key, 0.07, 0.005, 0.28), m, Vector3(0, 1.42, 0.04))]
+				PropMeshes._part(PropMeshes._cyl("eq_spearhaft", 0.03, 0.035, 1.75), equip_material("wood"), Vector3(0, 0.34, 0.0)),
+				PropMeshes._part(PropMeshes._cone("eq_spearpt_" + mat_key, 0.07, 0.005, 0.28), m, Vector3(0, 1.26, 0.0))]
+		"halberd":
+			return [
+				PropMeshes._part(PropMeshes._cyl("eq_halb_haft", 0.03, 0.035, 1.8), equip_material("wood"), Vector3(0, 0.34, 0.0)),
+				PropMeshes._part(PropMeshes._cone("eq_halb_pt_" + mat_key, 0.075, 0.005, 0.3), m, Vector3(0, 1.3, 0.0)),
+				PropMeshes._part(PropMeshes._box("eq_halb_blade_" + mat_key, Vector3(0.08, 0.28, 0.24)), m, Vector3(0.11, 1.08, 0.0))]
 		"bow":
 			var wood2 := equip_material("wood")
 			return [
-				PropMeshes._part(PropMeshes._box("eq_bow_u", Vector3(0.04, 0.5, 0.06)), wood2, Vector3(0, 0.28, 0.06), Vector3.ONE, Vector3(-0.32, 0, 0)),
-				PropMeshes._part(PropMeshes._box("eq_bow_l", Vector3(0.04, 0.5, 0.06)), wood2, Vector3(0, -0.28, 0.06), Vector3.ONE, Vector3(0.32, 0, 0)),
+				PropMeshes._part(PropMeshes._box("eq_bow_u", Vector3(0.04, 0.5, 0.06)), wood2, Vector3(0, 0.28, 0.0), Vector3.ONE, Vector3(-0.32, 0, 0)),
+				PropMeshes._part(PropMeshes._box("eq_bow_l", Vector3(0.04, 0.5, 0.06)), wood2, Vector3(0, -0.28, 0.0), Vector3.ONE, Vector3(0.32, 0, 0)),
 				PropMeshes._part(PropMeshes._box("eq_bowstr", Vector3(0.012, 1.0, 0.012)), equip_material("cloth", Color(0.9, 0.9, 0.85)), Vector3(0, 0, -0.02))]
 		"shield":
 			return [
@@ -562,7 +647,7 @@ static func beastman_rig(spec: Dictionary) -> Node3D:
 	for side2: int in [-1, 1]:
 		var el := _biped_arm(spine, side2, Vector3(0.34 * side2, 0.54, 0.02), Vector3(0.17, 0.32, 0.19), Vector3(0.15, 0.3, 0.16), furm, furd, "gnarm")
 		_attach(el, PropMeshes._box("gn_hand", Vector3(0.17, 0.15, 0.2)), claw, Vector3(0, -0.34, 0.02))
-		_socket(el, "socket_mainhand" if side2 > 0 else "socket_offhand", Vector3(0.04 * side2, -0.42, 0.12), Vector3(-0.1, 0, -0.08 * side2))
+		_socket(el, "socket_mainhand" if side2 > 0 else "socket_offhand", Vector3(HAND_SOCKET_POS.x * side2, HAND_SOCKET_POS.y, HAND_SOCKET_POS.z))
 	_socket(spine, "socket_head", Vector3(0, 0.74, 0.18))
 	_socket(spine, "socket_body", Vector3(0, 0.32, 0.06))
 	_socket(root, "socket_legs", Vector3(0, 0.86, 0))
@@ -1231,5 +1316,3 @@ static func bat_rig(spec: Dictionary) -> Node3D:
 		_attach(w, PropMeshes._box("ba_wmem", Vector3(0.6, 0.03, 0.34)), wingm, Vector3(0.32 * sx, 0, -0.02))
 		_attach(w, PropMeshes._box("ba_wtip", Vector3(0.3, 0.03, 0.22)), wingm, Vector3(0.6 * sx, 0.02, -0.1), Vector3.ONE, Vector3(0, 0.4 * sx, 0))
 	return root
-
-

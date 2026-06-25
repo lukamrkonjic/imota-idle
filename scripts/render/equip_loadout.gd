@@ -65,12 +65,47 @@ static func material_for(item_name: String) -> String:
 ## Map a weapon item display name to a held-weapon kind.
 static func weapon_kind(item_name: String) -> String:
 	var n := item_name.to_lower()
-	for kw: String in ["staff", "wand", "dagger", "scimitar", "spear", "axe", "mace", "bow"]:
+	for kw: String in ["greatsword", "godsword", "battleaxe", "battle axe", "warhammer", "hammer", "halberd", "staff", "wand", "dagger", "scimitar", "spear", "axe", "mace", "bow"]:
 		if n.contains(kw):
-			return "bow" if kw == "bow" else ("sword" if kw == "scimitar" else kw)
+			match kw:
+				"bow":
+					return "bow"
+				"scimitar":
+					return "sword"
+				"greatsword", "godsword":
+					return "greatsword"
+				"battle axe":
+					return "battleaxe"
+				"hammer":
+					return "warhammer"
+				_:
+					return kw
 	if n.contains("sword") or n.contains("blade") or n.contains("reaver"):
 		return "sword"
 	return "sword"
+
+
+## Visual weapon kind from the typed item category first, then name fallback. This
+## keeps combat categories and held silhouettes in sync without making display
+## names load-bearing.
+static func weapon_kind_for_def(def: ItemDef, item_name: String) -> String:
+	match def.weapon_category():
+		"dagger":
+			return "dagger"
+		"mace":
+			return "mace"
+		"battleaxe":
+			return "battleaxe"
+		"two_handed":
+			return "greatsword"
+		"bow", "crossbow":
+			return "bow"
+		"staff":
+			return "staff"
+		"sword", "scimitar":
+			return "sword"
+		_:
+			return weapon_kind(item_name)
 
 
 static func _is_cloth(item_name: String) -> bool:
@@ -104,7 +139,7 @@ static func for_player(equipment: Dictionary) -> Dictionary:
 		var mat := _material(def, disp)
 		match slot:
 			"Weapon":
-				ld["mainhand"] = {"kind": _kind(def, weapon_kind(disp)), "material": mat}
+				ld["mainhand"] = {"kind": _kind(def, weapon_kind_for_def(def, disp)), "material": mat}
 			"Shield":
 				ld["offhand"] = {"kind": _kind(def, "shield"), "material": mat}
 			"Helm":

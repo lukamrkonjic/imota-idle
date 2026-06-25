@@ -73,6 +73,116 @@ static func _flow_cape(eq: Node3D, walk: float, t: float, phase: float) -> void:
 
 
 
+static func _weapon_pose(node: Node3D) -> String:
+	var p := str(node.get_meta("weapon_pose", ""))
+	if p.is_empty():
+		p = str(node.get_meta("pose", ""))
+	return p
+
+
+static func _weapon_attack(node: Node3D) -> String:
+	return str(node.get_meta("weapon_attack", ""))
+
+
+static func _phase(v: float, a: float, b: float) -> float:
+	return clampf((v - a) / maxf(b - a, 0.0001), 0.0, 1.0)
+
+
+static func _smooth_phase(v: float, a: float, b: float) -> float:
+	return smoothstep(0.0, 1.0, _phase(v, a, b))
+
+
+static func _weapon_attack_pose(
+	node: Node3D,
+	weapon_pose: String,
+	weapon_attack: String,
+	atk: float,
+	arm_l: float,
+	arm_r: float,
+	elbow_l: float,
+	elbow_r: float
+) -> bool:
+	if atk <= 0.0:
+		return false
+	var spine: Node3D = _pivot(node, "spine")
+	match weapon_pose:
+		"staff":
+			var wind := _smooth_phase(atk, 0.0, 0.28)
+			var point := _smooth_phase(atk, 0.28, 0.68)
+			var recover := _smooth_phase(atk, 0.68, 1.0)
+			var sh := _pivot(node, "arm_r")
+			if sh != null:
+				var base := Vector3(arm_r, 0.0, 0.0)
+				var raise := Vector3(-0.28, 0.18, 0.08)
+				var cast := Vector3(-0.78, -0.12, 0.08) if weapon_attack != "staff_melee" else Vector3(-0.95, -0.34, 0.2)
+				var r := base.lerp(raise, wind).lerp(cast, point).lerp(base, recover)
+				sh.rotation = r
+			_set_pivot(node, "arm_r/elbow_r", lerpf(lerpf(elbow_r, -0.28, wind), -0.18, point))
+			_set_pivot(node, "arm_l", lerpf(arm_l, 0.22, sin(atk * PI)))
+			_set_pivot(node, "arm_l/elbow_l", lerpf(elbow_l, -0.78, sin(atk * PI)))
+			if spine != null:
+				spine.rotation.y += lerpf(0.16, -0.18, point) * sin(atk * PI)
+			return true
+		"heavy":
+			var wind_h := _smooth_phase(atk, 0.0, 0.42)
+			var slam := _smooth_phase(atk, 0.42, 0.74)
+			var rec_h := _smooth_phase(atk, 0.74, 1.0)
+			var sh_h := _pivot(node, "arm_r")
+			if sh_h != null:
+				var rest_h := Vector3(arm_r, 0.0, 0.0)
+				var ready := Vector3(-0.82, 0.62, 0.86)
+				var hit := Vector3(-1.75, -0.28, 0.28)
+				if weapon_attack == "heavy_chop":
+					hit = Vector3(-1.92, -0.08, 0.12)
+				var rr := rest_h.lerp(ready, wind_h).lerp(hit, slam).lerp(rest_h, rec_h)
+				sh_h.rotation = rr
+			_set_pivot(node, "arm_r/elbow_r", lerpf(lerpf(-0.58, -0.38, wind_h), -0.95, slam))
+			_set_pivot(node, "arm_l", lerpf(0.2, 0.72, wind_h * (1.0 - rec_h)))
+			_set_pivot(node, "arm_l/elbow_l", lerpf(-0.82, -1.05, wind_h * (1.0 - rec_h)))
+			if spine != null:
+				spine.rotation.x += lerpf(-0.08, 0.22, slam) * sin(atk * PI)
+				spine.rotation.y += lerpf(0.34, -0.42, slam) * sin(atk * PI)
+			return true
+		"polearm":
+			var pull := _smooth_phase(atk, 0.0, 0.3)
+			var thrust := _smooth_phase(atk, 0.3, 0.62)
+			var rec_p := _smooth_phase(atk, 0.62, 1.0)
+			var sh_p := _pivot(node, "arm_r")
+			if sh_p != null:
+				var rest_p := Vector3(arm_r, 0.0, 0.0)
+				var cock := Vector3(-0.3, 0.4, 0.2)
+				var jab := Vector3(-0.95, -0.08, 0.05)
+				sh_p.rotation = rest_p.lerp(cock, pull).lerp(jab, thrust).lerp(rest_p, rec_p)
+			_set_pivot(node, "arm_r/elbow_r", lerpf(lerpf(elbow_r, -0.62, pull), -0.22, thrust))
+			_set_pivot(node, "arm_l", lerpf(0.22, -0.18, thrust * (1.0 - rec_p)))
+			_set_pivot(node, "arm_l/elbow_l", lerpf(-0.86, -0.34, thrust * (1.0 - rec_p)))
+			if spine != null:
+				spine.rotation.x += 0.12 * thrust * (1.0 - rec_p)
+			return true
+		_:
+			var wind_1 := _smooth_phase(atk, 0.0, 0.26)
+			var cut := _smooth_phase(atk, 0.26, 0.56)
+			var rec_1 := _smooth_phase(atk, 0.56, 1.0)
+			var sh_1 := _pivot(node, "arm_r")
+			if sh_1 != null:
+				var rest_1 := Vector3(arm_r, 0.0, 0.0)
+				var back := Vector3(-0.45, 0.5, 0.42)
+				var hit_1 := Vector3(-1.28, -0.56, 0.2)
+				if weapon_attack == "stab":
+					back = Vector3(-0.18, 0.34, 0.18)
+					hit_1 = Vector3(-0.92, -0.08, 0.08)
+				elif weapon_attack == "bonk":
+					back = Vector3(-0.52, 0.36, 0.28)
+					hit_1 = Vector3(-1.1, -0.18, 0.08)
+				sh_1.rotation = rest_1.lerp(back, wind_1).lerp(hit_1, cut).lerp(rest_1, rec_1)
+			_set_pivot(node, "arm_r/elbow_r", lerpf(lerpf(elbow_r, -0.7, wind_1), -0.24, cut))
+			_set_pivot(node, "arm_l", lerpf(arm_l, 0.36, sin(atk * PI)))
+			_set_pivot(node, "arm_l/elbow_l", lerpf(elbow_l, -0.78, sin(atk * PI)))
+			if spine != null:
+				spine.rotation.y += lerpf(0.24, -0.34, cut) * sin(atk * PI)
+			return true
+
+
 ## Jointed biped: knees and elbows flex for a natural bent-leg walk, and a `crouch`
 ## meta gives a bent-kneed standing stance (goblins stoop, the gnoll sneaks low).
 ## `lean` hunches the body, `arm_rest` keeps arms a touch forward (never ramrod).
@@ -85,7 +195,12 @@ static func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float,
 	var hunch: float = float(node.get_meta("hunch", 0.0))
 	var arm_rest: float = float(node.get_meta("arm_rest", 0.08))
 	var crouch: float = float(node.get_meta("crouch", 0.1))
-	var holds_staff: bool = str(node.get_meta("pose", "")) == "staff"
+	var weapon_pose := _weapon_pose(node)
+	var weapon_attack := _weapon_attack(node)
+	var holds_staff := weapon_pose == "staff"
+	var holds_heavy := weapon_pose == "heavy"
+	var holds_polearm := weapon_pose == "polearm"
+	var holds_onehand := weapon_pose == "onehand"
 	var breathe := rest * sin(t * 1.9 + phase) * 0.03
 	var sway := rest * sin(t * 1.15 + phase) * 0.05
 	var stride := t * 6.0 + phase
@@ -126,8 +241,21 @@ static func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float,
 	var elbow_l := elbow_base - walk * 0.22 * maxf(0.0, sin(stride + PI + 0.5))
 	var elbow_r := elbow_base - walk * 0.22 * maxf(0.0, sin(stride + 0.5))
 	if holds_staff:
-		arm_r = 0.12 + idle_arm * 0.3   # rest the hand on a side-planted staff
-		elbow_r = -0.16
+		arm_r = -0.62 + idle_arm * 0.08   # reach the hand forward so it visibly wraps the staff
+		elbow_r = -0.88
+	elif holds_heavy:
+		arm_r = -1.02 + idle_arm * 0.06 + sin(stride) * 0.03 * walk
+		elbow_r = -0.95
+		arm_l = -0.82 - idle_arm * 0.05
+		elbow_l = -0.88
+	elif holds_polearm:
+		arm_r = -0.04 + idle_arm * 0.1
+		elbow_r = -0.18
+		arm_l = lerpf(arm_l, -0.12, 0.35)
+		elbow_l = lerpf(elbow_l, -0.68, 0.35)
+	elif holds_onehand:
+		arm_r = -0.1 + idle_arm * 0.14 + sin(stride) * 0.05 * walk
+		elbow_r = -0.22
 	if chop > 0.0:
 		# Woodcutting chop, swung like a real axe into a tree: the axe is carried OUT TO THE RIGHT
 		# (arm abducted, not overhead), then swung in a horizontal/diagonal arc ACROSS the body into
@@ -155,11 +283,8 @@ static func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float,
 		_set_pivot(node, "arm_l", lerpf(0.25, 0.5, sd))      # off hand follows the swing across
 		_set_pivot(node, "arm_l/elbow_l", lerpf(-0.55, -0.95, sd))
 		return
-	if atk > 0.0:
-		var strike := sin(atk * PI)
-		arm_r = lerpf(arm_r, -1.5, strike)   # lead arm chops overarm
-		elbow_r = lerpf(elbow_r, -1.0, strike)  # forearm folds in for the chop
-		arm_l = lerpf(arm_l, 0.4, strike)
+	if _weapon_attack_pose(node, weapon_pose, weapon_attack, atk, arm_l, arm_r, elbow_l, elbow_r):
+		return
 	_set_pivot(node, "arm_l", arm_l)
 	_set_pivot(node, "arm_r", arm_r)
 	_set_pivot(node, "arm_l/elbow_l", elbow_l)   # elbows are nested under the shoulder pivots
@@ -188,7 +313,7 @@ static func _chop_swing(c: float) -> float:
 ## fast, light, bouncy scamper.
 static func _pose_goblin(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float) -> void:
 	var rest := 1.0 - walk
-	var holds_staff: bool = str(node.get_meta("pose", "")) == "staff"
+	var holds_staff: bool = _weapon_pose(node) == "staff"
 	var crouch := 0.24                                               # bent knees, but STANDING
 	var stride := t * 8.4 + phase                                    # fast little legs
 	var bob := absf(sin(stride)) * 0.08 * walk
@@ -539,5 +664,3 @@ static func _pivot(node: Node3D, pivot_name: String) -> Node3D:
 		p = cur as Node3D
 	cache[pivot_name] = p
 	return p
-
-
