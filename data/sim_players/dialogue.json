@@ -1,85 +1,85 @@
 {
- "_comment": "Sim-player chatter. Templates: @name (the other party — a nearby sim, or the player rendered as @you), @skill, @level. Lines surface as speech bubbles above the rig and (optionally) in the chat feed.",
+ "_comment": "Sim-player chatter for Imota. Templates: @name (the other party — a nearby sim, or the player), @skill, @level. Lines surface as speech bubbles above the rig and (optionally) in the chat feed. Cozy fantasy-skilling tone — woodcutting/mining/fishing/foraging, slayer, prayer, banking, exploring the wilds.",
  "greetings": [
   "Hey @name!",
   "Well met, traveller.",
   "Hi there :)",
   "Good to see you, @name.",
-  "Watch yourself out here.",
-  "Howdy.",
-  "Oh hey, didn't see you.",
+  "Mind how you go out here.",
+  "Oh, hello @name.",
+  "Didn't see you there.",
   "Safe travels!"
  ],
  "player_greetings": [
   "Hey there, new face!",
-  "Welcome to the wilds.",
-  "Need a hand with anything?",
-  "You look lost, friend.",
-  "Careful out here, adventurer.",
+  "Welcome to Imota.",
+  "Need a hand, friend?",
+  "You look new around here.",
+  "Mind the wilds, adventurer.",
   "Nice cape.",
-  "Hello! Lovely day for it."
+  "Hello! Fine day for it."
  ],
  "smalltalk": [
   "Lovely weather today.",
-  "Anyone selling logs?",
-  "Big grind ahead.",
-  "I should bank soon...",
-  "So close to my next level.",
-  "Wish I'd brought more food.",
   "This spot's always busy.",
-  "brb, afk",
-  "Anyone seen the boss spawn?",
-  "Gonna be a long day.",
-  "My inventory's nearly full.",
-  "Buying yew logs, paying well!"
+  "So close to my next level.",
+  "I should bank soon...",
+  "Wish I'd packed more food.",
+  "My pack's nearly full.",
+  "These pastures are peaceful.",
+  "My prayer's running a bit low.",
+  "Got a slayer task to finish.",
+  "Foraging's good around here.",
+  "Long way to the next camp.",
+  "Heard there's a beast up north."
  ],
  "skill": {
   "woodcutting": [
    "These logs add up.",
-   "Need more yews...",
-   "Chop chop.",
-   "My axe is getting dull.",
-   "Best tree spot around here."
+   "Chop, chop.",
+   "My axe needs sharpening.",
+   "Best tree around here, this.",
+   "Good timber in these woods."
   ],
   "mining": [
    "Rocks for days.",
-   "Powermining, don't mind me.",
    "Found a nice ore vein.",
-   "My pickaxe has seen better days.",
-   "Just one more rock."
+   "My pick's seen better days.",
+   "Just one more rock.",
+   "Plenty of stone up in the hills."
   ],
   "fishing": [
    "Fishing is so relaxing.",
-   "Got any bait?",
    "The fish are biting today.",
    "Almost a full net.",
-   "Nothing beats a quiet shore."
+   "Nothing beats a quiet shore.",
+   "Caught a big one earlier."
   ],
   "generic": [
-   "Almost levelled!",
-   "Grindin' away.",
-   "This XP is slow today.",
+   "Almost levelled.",
+   "Slow and steady.",
    "Worth it in the end.",
-   "Just a few more."
+   "Just a few more.",
+   "Getting there."
   ]
  },
  "reactions": {
   "levelup": [
-   "Ding! @skill level @level!",
+   "@skill up to @level!",
    "Finally, @level @skill!",
-   "Yes! @skill up to @level.",
-   "@level @skill, let's go!"
+   "Yes! @level @skill.",
+   "@level @skill, at last!"
   ],
   "idle": [
    "*stretches*",
    "Phew.",
    "Hm.",
-   "*checks map*",
+   "*checks the map*",
    "Right, where to next..."
   ]
  },
  "group": [
-  "Wanna team up?",
+  "Want to team up?",
   "I'll follow you, @name.",
   "Let's go together!",
   "Stick close, @name.",

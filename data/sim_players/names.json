@@ -1,20 +1,20 @@
 {
- "_comment": "Deterministic sim-player name pool. Identity picks a base name by hashed slot; a fraction get a numeric/clan suffix for that lived-in MMO roster feel. Never edited at runtime; safe to extend.",
+ "_comment": "Deterministic sim-player name pool for Imota. Identity picks a base name by hashed slot; a fraction get a fantasy epithet, and ~18% get a playful adventurer handle. Names are clean Croatian first names mixed with short Slavic-myth/fantasy ones. Keep ASCII (no diacritics) so the pixel font renders them. Never edited at runtime; safe to extend.",
  "names": [
-  "Aldwin", "Bryn", "Cael", "Dara", "Edrin", "Fenwick", "Gwyn", "Hale",
-  "Isolde", "Jory", "Kerrin", "Lysa", "Maeve", "Nolan", "Orin", "Perrin",
-  "Quill", "Rowan", "Sable", "Thane", "Ulric", "Vesna", "Wren", "Xander",
-  "Yorick", "Zia", "Brannoc", "Corwin", "Delwyn", "Esmae", "Garrick",
-  "Halia", "Ivo", "Linnea", "Merrick", "Norah", "Osric", "Petra", "Riona",
-  "Selby", "Tamsin", "Berengar", "Cassia", "Doran", "Elspeth", "Faelan",
-  "Greer", "Hadwin", "Ingrid", "Joran", "Kestrel", "Lorcan", "Maddox",
-  "Niamh", "Oswin", "Pell", "Rhett", "Sorcha", "Torin", "Una", "Vaughn",
-  "Wynne", "Yara", "Zephyr"
+  "Luka", "Marko", "Jozo", "Ivan", "Ante", "Mate", "Petar", "Roko",
+  "Vid", "Bruno", "Niko", "Frane", "Jure", "Lovro", "Toma", "Borna",
+  "Duje", "Grga", "Stipe", "Filip", "Damir", "Goran", "Davor", "Branko",
+  "Boris", "Tomo", "Mirko", "Zoran", "Zlatko",
+  "Ana", "Iva", "Maja", "Lucija", "Mara", "Nada", "Lana", "Tena",
+  "Nika", "Klara", "Dora", "Ema", "Sara", "Tina", "Mira", "Anja",
+  "Marta", "Stela", "Jela", "Kata", "Tihana", "Vita",
+  "Vuk", "Vukan", "Zorin", "Radan", "Perun", "Veles", "Morana", "Vesna",
+  "Zora", "Senka", "Vihor", "Plamen", "Gora"
  ],
  "leet": [
-  "Xx_Slayer_xX", "DragonW4rrior", "PkMaster99", "L33tMiner", "NoobSlayer",
-  "ChopChop", "AfkFisher", "GrindLord", "IronManIke", "Lumberjackk",
-  "OreHoarder", "Skiller4Life", "Maxed_Out", "RngJesus", "Quester88"
+  "VukSlayer", "ZmajLovac", "RudarMate", "RibarDuje", "SjekiraAnte",
+  "ZlatniRoko", "SjenkaNiko", "MorskiVid", "BrzaIva", "KamenJozo",
+  "HrastMarko", "LovacZora", "GromVuk", "ZvijezdaTena", "TihiLuka"
  ],
- "suffixes": ["", "", "", "", "", "II", "the Bold", "99", "XCII", "_", "x", "the Wanderer"]
+ "suffixes": ["", "", "", "", "", "", "the Bold", "the Wanderer", "the Quiet", "the Kind", "of the Glade"]
 }
