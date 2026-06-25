@@ -251,7 +251,7 @@ func _process(delta: float) -> void:
 	# Gameplay simulation — gated so the editor's view-only instance never runs the game (see
 	# gameplay_active). Streaming + the visual pass below always run so the world still looks right.
 	if gameplay_active:
-		_path_ctrl.process_tick()
+		_path_ctrl.process_tick(delta)
 	var t3 := Time.get_ticks_usec()
 	_visual_ctrl.process_tick(delta)
 	var t4 := Time.get_ticks_usec()

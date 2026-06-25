@@ -15,6 +15,13 @@ var _has_long_target := false
 var _repath_budget := 0
 var _needs_rebuild := true
 var _dirty_time := 0.0
+# Right-click "Follow": the PLAYER trails a chosen entity (the inverse of "Ask to follow", where the
+# entity trails you). Repaths periodically toward the target and stops a comfortable tile short.
+var _follow_entity: Node2D = null
+var _follow_repath_t := 0.0
+const FOLLOW_GAP := WG.TILE * 1.6        # stop this close — don't crowd onto the target
+const FOLLOW_LEASH := WG.TILE * 64.0     # give up if the target gets impossibly far (streamed out)
+const FOLLOW_REPATH := 0.3               # seconds between follow repaths
 # A chunk crossing activates several chunks over successive frames, each marking
 # the nav graph dirty. Without debouncing, the full A* rebuild ran every one of
 # those frames — the ~2s walking hitch. Wait until the activations settle, then
@@ -36,9 +43,10 @@ func on_level_up() -> void:
 	_dirty_time = Time.get_ticks_msec() / 1000.0
 
 
-func process_tick() -> void:
+func process_tick(delta: float = 0.0) -> void:
 	if _needs_rebuild and (Time.get_ticks_msec() / 1000.0 - _dirty_time) >= REBUILD_DEBOUNCE:
 		rebuild()
+	_update_follow(delta)
 
 
 # Zones are no longer level-gated for entry — the player may walk anywhere. Pass an
@@ -91,13 +99,75 @@ func on_waypoint_reached() -> void:
 
 
 func stop_walking() -> void:
+	stop_following()
 	world.player.stop_walking()
 	_path = PackedVector2Array()
 	_path_i = 0
 	_has_long_target = false
 
 
+# ----------------------------------------------------------------- player follow (right-click) ----
+
+## Right-click "Follow X": the player trails the entity until told to stop (or a manual walk/action,
+## which clears it via walk_to_pos). The opposite of SimDirector.command_follow ("Ask to follow").
+func follow_entity(e: Node2D) -> void:
+	if not is_instance_valid(e):
+		return
+	_follow_entity = e
+	_follow_repath_t = 0.0   # repath immediately on the next tick
+
+
+func stop_following() -> void:
+	_follow_entity = null
+
+
+func is_following_entity(e: Node2D) -> bool:
+	return _follow_entity != null and _follow_entity == e
+
+
+## Each tick, keep the player walking toward the followed entity: repath on a short cadence (or when
+## the current leg is spent) while it's beyond FOLLOW_GAP, and idle when we're close enough.
+func _update_follow(delta: float) -> void:
+	if _follow_entity == null:
+		return
+	if not is_instance_valid(_follow_entity):
+		_follow_entity = null
+		return
+	var target: Vector2 = _follow_entity.position
+	var dist: float = world.player.position.distance_to(target)
+	if dist > FOLLOW_LEASH:
+		_follow_entity = null
+		return
+	_follow_repath_t -= delta
+	if dist <= FOLLOW_GAP:
+		return   # close enough — hold position, let them come to a stop
+	if _follow_repath_t <= 0.0 or _path_i >= _path.size():
+		_follow_repath_t = FOLLOW_REPATH
+		_repath_follow(target)
+
+
+## Build a fresh path toward the follow target, trimmed one waypoint short so the player stops beside
+## the target rather than on top of it. Bypasses pending_action/auto_task so following has no side effects.
+func _repath_follow(target: Vector2) -> void:
+	if _needs_rebuild:
+		rebuild()
+	var dest := target
+	if not path_finder.in_region(WG.world_to_tile(target)):
+		dest = _clamp_to_region(target)
+	var path := PackedVector2Array(path_finder.find_path(world.player.position, dest, true))
+	if path.size() >= 2:
+		path.remove_at(path.size() - 1)   # stop a tile short of the target
+	if path.is_empty():
+		return
+	_has_long_target = false
+	_path = path
+	_path_i = 0
+	_advance_waypoint()
+
+
 func walk_to_pos(target: Vector2) -> bool:
+	# Any explicit walk/action cancels an in-progress "Follow".
+	stop_following()
 	# A real path request must use a current graph, so flush any debounced rebuild
 	# now rather than waiting out REBUILD_DEBOUNCE.
 	if _needs_rebuild:

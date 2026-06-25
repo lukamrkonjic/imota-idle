@@ -259,10 +259,15 @@ func _show_sim_menu(e: Node2D) -> void:
 	_ctx_target = e
 	_ctx_menu.clear()
 	var nm := str(e.get("label"))
-	if world._sim_director.is_following(e):
+	# "Follow" = YOU trail them. "Ask to follow" = they trail you.
+	if world._path_ctrl.is_following_entity(e):
 		_ctx_menu.add_item("Stop following %s" % nm, 2)
 	else:
 		_ctx_menu.add_item("Follow %s" % nm, 1)
+	if world._sim_director.is_following(e):
+		_ctx_menu.add_item("Ask %s to stop" % nm, 5)
+	else:
+		_ctx_menu.add_item("Ask %s to follow" % nm, 4)
 	_ctx_menu.add_item("Examine %s" % nm, 3)
 	_ctx_menu.add_separator()
 	_ctx_menu.add_item("Cancel", 0)
@@ -276,8 +281,12 @@ func _on_ctx_id(id: int) -> void:
 		return
 	match id:
 		1:
-			world._sim_director.command_follow(_ctx_target)
+			world._path_ctrl.follow_entity(_ctx_target)   # you follow them
 		2:
-			world._sim_director.stop_follow(_ctx_target)
+			world._path_ctrl.stop_following()
 		3:
 			world._sim_director.examine(_ctx_target)
+		4:
+			world._sim_director.command_follow(_ctx_target)   # they follow you
+		5:
+			world._sim_director.stop_follow(_ctx_target)
