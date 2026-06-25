@@ -88,14 +88,23 @@ func _setup_environment() -> void:
 	_base_fog = horizon_col
 
 
-## Fixed sun direction (pitch, yaw, roll). Steady afternoon angle so shadows never slide as the
-## day/night cycle advances — only the sun's colour/energy change with time (see _apply_grade).
+## Sun direction (pitch, yaw, roll). Steady angle so shadows never slide as the day/night cycle
+## advances — only the sun's colour/energy change with time (see _apply_grade). DEFAULT is a lower
+## afternoon sun; tunable live via set_sun_direction (admin slider) to dial in the look.
 const SUN_DIR_DEG := Vector3(-38, 40, 0)   # lower afternoon sun -> longer soft shadows
+var sun_dir_deg := SUN_DIR_DEG
+
+
+## Set the (fixed) sun pitch/yaw live — used by the admin "Sun direction" sliders to find a look.
+func set_sun_direction(pitch: float, yaw: float) -> void:
+	sun_dir_deg = Vector3(pitch, yaw, 0.0)
+	if _sun != null:
+		_sun.rotation_degrees = sun_dir_deg
 
 
 func _setup_sun() -> void:
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = SUN_DIR_DEG
+	sun.rotation_degrees = sun_dir_deg
 	sun.light_color = Color(1.0, 0.95, 0.8)    # warm afternoon daylight
 	sun.light_energy = 1.0                     # softer key light for a moodier, earthy look
 	sun.shadow_enabled = true
@@ -171,7 +180,7 @@ func _apply_grade() -> void:
 	# shadows". The day/night cycle still drives the sun's COLOUR + ENERGY (and ambient/sky/fog)
 	# below, so dawn/day/dusk/night still look right — only the shadows no longer slide.
 	if _sun != null:
-		_sun.rotation_degrees = SUN_DIR_DEG
+		_sun.rotation_degrees = sun_dir_deg
 	# Day/night base palette.
 	var ambient := _AMB_NIGHT.lerp(_base_ambient, dl)
 	var amb_energy := lerpf(_AMB_NIGHT_ENERGY, _base_ambient_energy, dl)

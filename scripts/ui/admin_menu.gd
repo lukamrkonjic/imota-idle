@@ -530,6 +530,24 @@ func _build_misc_tab() -> void:
 	drow.add_child(freeze)
 	box.add_child(drow)
 
+	# Sun direction — drag to find a fixed light angle you like (shadows are pinned to this).
+	var slabel := Label.new()
+	slabel.text = "Sun direction"
+	slabel.add_theme_font_size_override("font_size", UiScale.i(13))
+	slabel.add_theme_color_override("font_color", ACCENT)
+	box.add_child(slabel)
+	var atmo: WorldAtmosphere = _atmosphere()
+	var cur: Vector3 = atmo.sun_dir_deg if atmo != null else WorldAtmosphere.SUN_DIR_DEG
+	# Pitch = height above horizon (more negative = higher sun, shorter shadows). Yaw = compass angle.
+	_add_sun_slider(box, "Pitch (height)", -85.0, -5.0, cur.x, func(v: float) -> void:
+		var a: WorldAtmosphere = _atmosphere()
+		if a != null:
+			a.set_sun_direction(v, a.sun_dir_deg.y))
+	_add_sun_slider(box, "Yaw (compass)", 0.0, 360.0, cur.y, func(v: float) -> void:
+		var a: WorldAtmosphere = _atmosphere()
+		if a != null:
+			a.set_sun_direction(a.sun_dir_deg.x, v))
+
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.add_child(box)
@@ -545,6 +563,42 @@ func _add_misc_button(parent: Control, label: String, cb: Callable) -> void:
 	btn.text = label
 	btn.pressed.connect(cb)
 	parent.add_child(btn)
+
+
+## The live 3D atmosphere (sun/fog/env), or null in the 2D/headless path.
+func _atmosphere() -> WorldAtmosphere:
+	var world: Node2D = _hud.get("world")
+	if world == null or world.render_3d == null:
+		return null
+	return world.render_3d.atmosphere
+
+
+## A labelled HSlider whose live value is shown in degrees; calls `cb(value)` as it's dragged.
+func _add_sun_slider(parent: Control, label: String, lo: float, hi: float, value: float, cb: Callable) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", UiScale.i(6))
+	var name_lbl := Label.new()
+	name_lbl.text = label
+	name_lbl.custom_minimum_size.x = UiScale.i(96)
+	name_lbl.add_theme_color_override("font_color", Color(0.7, 0.85, 0.7))
+	row.add_child(name_lbl)
+	var slider := HSlider.new()
+	slider.min_value = lo
+	slider.max_value = hi
+	slider.step = 1.0
+	slider.value = clampf(value, lo, hi)
+	slider.custom_minimum_size.x = UiScale.i(150)
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(slider)
+	var val_lbl := Label.new()
+	val_lbl.text = "%d°" % int(round(value))
+	val_lbl.custom_minimum_size.x = UiScale.i(40)
+	row.add_child(val_lbl)
+	slider.value_changed.connect(func(v: float) -> void:
+		if is_instance_valid(val_lbl):
+			val_lbl.text = "%d°" % int(round(v))
+		cb.call(v))
+	parent.add_child(row)
 
 
 func _panel_style() -> StyleBoxFlat:
