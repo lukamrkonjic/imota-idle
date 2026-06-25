@@ -486,11 +486,31 @@ func has_river_mask() -> bool:
 	return _has_river_mask
 
 
+## Bilinear-sample the river/water mask (bytes 0..255) at the tile's fractional mask
+## position and threshold the interpolated value. The mask is ~1.5 tiles per pixel, so
+## NEAREST sampling fragments thin rivers + small coastal water into isolated square
+## "ponds"; bilinear keeps them connected and smooth.
 func mask_is_water(tx: float, ty: float) -> bool:
 	if not _has_river_mask:
 		return false
-	var pi := _mask_pi(tx, ty)
-	return pi >= 0 and _river_data[pi] > 127
+	var u := (tx - _mask_min_tx) / _mask_tile_w
+	var v := (ty - _mask_min_ty) / _mask_tile_h
+	if u < 0.0 or u >= 1.0 or v < 0.0 or v >= 1.0:
+		return false
+	var fx := clampf(u, 0.0, 1.0) * float(_mask_w - 1)
+	var fy := clampf(v, 0.0, 1.0) * float(_mask_h - 1)
+	var x0 := floori(fx)
+	var y0 := floori(fy)
+	var x1 := mini(x0 + 1, _mask_w - 1)
+	var y1 := mini(y0 + 1, _mask_h - 1)
+	var tfx := fx - float(x0)
+	var tfy := fy - float(y0)
+	var s00 := float(_river_data[y0 * _mask_w + x0])
+	var s10 := float(_river_data[y0 * _mask_w + x1])
+	var s01 := float(_river_data[y1 * _mask_w + x0])
+	var s11 := float(_river_data[y1 * _mask_w + x1])
+	var s := lerpf(lerpf(s00, s10, tfx), lerpf(s01, s11, tfx), tfy)
+	return s > 127.5
 
 
 ## Distance (in tiles) from a tile to the nearest inland river/lake water, from the

@@ -24,7 +24,10 @@ const WATER_SINK := 0.16        # surface below the local dry-land baseline
 const WATER_SHORE_DEPTH := 0.12 # lakebed clearance just under the surface at the shore
 const WATER_DEEP_DROP := 0.62   # extra interior lakebed depth (deep_water) below the surface
 const SHORE := Color(0.80, 0.75, 0.58)  # sandy shore tone under/at water edges
-const WATER_PLANE_MARGIN := 2
+const WATER_PLANE_MARGIN := 5   # >= SHORE_SMOOTH so the smoothed shoreline contour + foam render
+                                # fully and the coast curves smoothly (a smaller margin clips the
+                                # contour at the mesh edge and the coast staircases). Safe to be
+                                # generous — the shader gates its fill behind the is_water flag.
 const WATER_SUBDIV := 5            # sub-quads per tile edge (25 quads / tile near the coast)
 const WATER_BED_CLEARANCE := 0.07  # how far submerged ground sits below the sheet
 const SHORE_SMOOTH := 4

@@ -84,13 +84,12 @@ float contour(float n, float count) {
 
 void fragment() {
 	float sd = (v_wf - 0.5) * sd_scale;   // + into water, - onto land; 0 = smoothed coast
-	// Anti-aliased waterline (the smoothed coast contour). This is the ONLY thing that
-	// shows on the dry coastal margin — a 1px waterline, never a filled pond.
+	// Water is rendered PURELY from the smoothed coast contour (v_wf): the sheet shows where
+	// the low-passed water fraction is past the shoreline, so an isolated 1-2 tile water tile
+	// gets averaged below 0.5 and never appears as a square "pond". (The old height-based
+	// submersion fill — max(.., smoothstep(0,brim_fill,v_sub)) — force-rendered every water
+	// tile and also flooded dry dips near water; dropped. v_sub/v_is_water now unused.)
 	float water_a = smoothstep(-shore_aa, shore_aa, sd);
-	// Height-based fill for the basin/dips, but ONLY on a real water tile (v_is_water).
-	// Gating this is what stops a rolling-hill trough on dry land near water from flooding:
-	// on dry margin tiles v_is_water=0, so the fill is off and only the contour above shows.
-	water_a = max(water_a, v_is_water * smoothstep(0.0, brim_fill, v_sub));
 	if (water_a <= 0.001) {
 		discard;
 	}
