@@ -73,14 +73,15 @@ func _setup_present() -> void:
 	_snap_mat.shader = PALETTE_SNAP
 	_snap_mat.set_shader_parameter("palette_tex", _palette_texture())
 	_snap_mat.set_shader_parameter("palette_count", PixelPalette.PAL.size())
-	# Palette QUANTIZATION is off (A Short Hike-style). With the smooth biome blends, a hard
-	# per-pixel nearest-colour snap flickers wherever a gradient sits near a palette decision
-	# boundary — adjacent pixels flip between two entries on tiny lighting/patch variation, which
-	# reads as speckled "noise" all over the ground. The chunky pixel-art look already comes from
-	# the low-res SubViewport + the toon shader's lighting posterization, so we keep the grade
-	# (contrast/saturation/brightness, applied regardless of `enabled`) and drop the snap.
-	_snap_mat.set_shader_parameter("enabled", 0.0)
-	_snap_mat.set_shader_parameter("strength", 0.8)
+	# Colour treatment = POSTERIZE (mode 2), not palette-snap. A hard per-pixel nearest-palette
+	# snap flickers over the smooth biome blends (a near-boundary pixel jumps to a different hue ->
+	# speckle); turning it off entirely leaves the ground muddy/washed-out. Posterizing in HSV
+	# keeps hue continuous and steps value/saturation into flat bands, so a blend becomes clean
+	# adjacent bands — crisp, no speckle. The grade (contrast/saturation/brightness) always applies.
+	_snap_mat.set_shader_parameter("mode", 2.0)
+	_snap_mat.set_shader_parameter("strength", 1.0)
+	_snap_mat.set_shader_parameter("value_steps", 9.0)
+	_snap_mat.set_shader_parameter("sat_steps", 7.0)
 	_snap_mat.set_shader_parameter("contrast", 1.08)
 	_snap_mat.set_shader_parameter("saturation", 1.03)   # muted, earthy — not punchy lime
 	_snap_mat.set_shader_parameter("brightness", 0.92)   # moodier, slightly darker

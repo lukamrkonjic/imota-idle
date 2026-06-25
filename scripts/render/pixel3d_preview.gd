@@ -56,7 +56,7 @@ func _ready() -> void:
 	snap_mat.shader = SNAP
 	snap_mat.set_shader_parameter("palette_tex", _palette_texture())
 	snap_mat.set_shader_parameter("palette_count", 28)
-	snap_mat.set_shader_parameter("enabled", 0.0)
+	snap_mat.set_shader_parameter("mode", 0.0)
 	snap_mat.set_shader_parameter("strength", 1.0)
 	present.material = snap_mat
 	add_child(present)
@@ -335,8 +335,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 					(mat as ShaderMaterial).set_shader_parameter("light_threshold", 2.0 if soft < 1.0 else 0.84)
 					(mat as ShaderMaterial).set_shader_parameter("shadow_threshold", -1.0 if soft < 1.0 else 0.34)
 		KEY_P:
-			var en: float = float(snap_mat.get_shader_parameter("enabled"))
-			snap_mat.set_shader_parameter("enabled", 0.0 if en > 0.5 else 1.0)
+			var m: float = float(snap_mat.get_shader_parameter("mode"))
+			snap_mat.set_shader_parameter("mode", fmod(m + 1.0, 3.0))
 		KEY_O:
 			_orbit = not _orbit
 		KEY_K:
