@@ -26,8 +26,8 @@ const ALP_OLIVE := Color(0.53, 0.55, 0.33)       # dry mid-slope olive
 const ALP_DIRT := Color(0.60, 0.47, 0.30)        # ochre worn earth / scree
 const ALP_ROCK := Color(0.60, 0.53, 0.47)        # warm taupe stone
 const ALP_ROCK_HI := Color(0.74, 0.73, 0.76)     # cool desaturated high rock
-const SNOW_LIT := Color(0.91, 0.91, 1.00)        # soft lilac-white sunlit snow
-const SNOW_SHADE := Color(0.61, 0.64, 0.88)      # periwinkle alpine shadow
+const SNOW_LIT := Color(0.96, 0.97, 0.99)        # bright, near-white sunlit snow (barely cool)
+const SNOW_SHADE := Color(0.75, 0.79, 0.84)      # cool light-grey snow shadow — white, NOT periwinkle
 
 
 static func is_path(tile: String) -> bool:
@@ -161,8 +161,9 @@ static func grade(col: Color, tile: String, gtx: int, gty: int, elev: int = 0, s
 			return alpine_ramp(elev, bright, band2).lerp(ALP_ROCK_HI, 0.55)
 		var snow_light := clampf(bright * 0.46 + hi * 0.32, 0.08, 0.82)
 		var snow := SNOW_SHADE.lerp(SNOW_LIT, snow_light)
-		var lavender_patch := 0.5 + 0.5 * sin(fx * 0.045 - fz * 0.038 + 0.7)
-		return snow.lerp(Color(0.70, 0.68, 0.91), lavender_patch * 0.10)
+		# Faint cool mottle so the snow isn't a flat slab — a light blue-grey, never lavender/purple.
+		var cool_patch := 0.5 + 0.5 * sin(fx * 0.045 - fz * 0.038 + 0.7)
+		return snow.lerp(Color(0.84, 0.88, 0.93), cool_patch * 0.07)
 	if is_path(tile):
 		# Roads/paths keep their road surface colour at ANY elevation, so a road drawn up a hill
 		# reads as a mountain road instead of vanishing into the rock/snow shading.

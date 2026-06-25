@@ -13,8 +13,8 @@ render_mode specular_disabled, ambient_light_disabled, diffuse_lambert;
 
 uniform vec4 shadow_tint : source_color = vec4(0.27, 0.34, 0.22, 1.0);
 uniform vec4 light_tint : source_color  = vec4(0.42, 0.47, 0.28, 1.0);
-uniform vec4 cold_shadow_tint : source_color = vec4(0.48, 0.51, 0.74, 1.0);
-uniform vec4 cold_light_tint : source_color  = vec4(0.88, 0.89, 1.0, 1.0);
+uniform vec4 cold_shadow_tint : source_color = vec4(0.66, 0.71, 0.78, 1.0);
+uniform vec4 cold_light_tint : source_color  = vec4(0.94, 0.96, 0.99, 1.0);
 uniform float shadow_threshold : hint_range(0.0, 1.0) = 0.30;
 uniform float light_threshold : hint_range(0.0, 1.0)  = 0.58;
 uniform float softness : hint_range(0.0, 0.4) = 0.04;

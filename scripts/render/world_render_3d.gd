@@ -189,8 +189,9 @@ func _setup_materials() -> void:
 	_ground_mat.shader = TOON_GROUND
 	_ground_mat.set_shader_parameter("shadow_tint", PixelPalette.pal("grass_dark"))   # deeper mossy shade so cast shadows read
 	_ground_mat.set_shader_parameter("light_tint", PixelPalette.pal("hike_grass_light"))
-	_ground_mat.set_shader_parameter("cold_shadow_tint", Color(0.48, 0.51, 0.74))
-	_ground_mat.set_shader_parameter("cold_light_tint", Color(0.88, 0.89, 1.0))
+	# Snow/ice surfaces: cool light grey, NOT periwinkle — snowy mountains should read white.
+	_ground_mat.set_shader_parameter("cold_shadow_tint", Color(0.66, 0.71, 0.78))
+	_ground_mat.set_shader_parameter("cold_light_tint", Color(0.94, 0.96, 0.99))
 	_ground_mat.set_shader_parameter("ambient", 0.26)
 	_ground_mat.set_shader_parameter("softness", 0.03)
 	# Beach sand: warm golden tones + world-space macro/speckle variation (toon_ground applies
