@@ -42,7 +42,7 @@ const MountainField := preload("res://scripts/worldgen/mountain_field.gd")
 
 const OUT_DIR := "res://data/world/baked/"
 
-enum Tool { PAN, BIOME, TERRAIN, STAMP, STRUCTURE, ERASE, SPAWN, CREATURE, ROAD, SETTLEMENT, SMOOTHEN, ELEVATE, FOREST, CLUTTER }
+enum Tool { PAN, BIOME, TERRAIN, STAMP, STRUCTURE, ERASE, SPAWN, CREATURE, ROAD, SETTLEMENT, SMOOTHEN, ELEVATE, FOREST, CLUTTER, SKILL }
 
 # Display name per tool, shown as the floating options-panel title.
 const TOOL_NAMES := {
@@ -50,7 +50,16 @@ const TOOL_NAMES := {
 	Tool.STAMP: "Stamp", Tool.STRUCTURE: "Structure", Tool.ERASE: "Erase",
 	Tool.SPAWN: "Set Spawn", Tool.CREATURE: "Creatures", Tool.ROAD: "Roads",
 	Tool.SETTLEMENT: "Settlement", Tool.SMOOTHEN: "Smoothen", Tool.ELEVATE: "Elevate",
-	Tool.FOREST: "Trees", Tool.CLUTTER: "Clutter",
+	Tool.FOREST: "Trees", Tool.CLUTTER: "Clutter", Tool.SKILL: "Skills",
+}
+
+# Gather skills exposed by the Skills tool, in palette order. Combat (monster spawns) is shown
+# first as its own accordion section. Each places a FUNCTIONAL resource: a harvestable gather site
+# (trees/rocks/fish/herbs/...) or a wandering monster pack.
+const SKILL_PLACE_ORDER := ["woodcutting", "mining", "fishing", "foraging", "hunter", "thieving"]
+const SKILL_DISPLAY := {
+	"woodcutting": "Woodcutting", "mining": "Mining", "fishing": "Fishing",
+	"foraging": "Foraging", "hunter": "Hunter", "thieving": "Thieving",
 }
 
 const TERRAIN := [
@@ -209,6 +218,10 @@ var _place_off := Vector2.ZERO   # sub-tile iso offset for free (non-grid) struc
 var _struct_open: Dictionary = {}   # structure-accordion: category name → expanded?
 var _sel_stamp := 0
 var _sel_creature := ""
+# Skills tool: which skill section ("combat" or a gather-skill key) + the chosen node/creature.
+var _sel_skill := "fishing"
+var _sel_skill_item := ""
+var _skill_open: Dictionary = {}    # skills-accordion: section name → expanded?
 var _creature_count := 3          # pack size dropped per click (scattered across the spawn area)
 var _creature_wander := 4         # roam radius, tiles
 var _creature_aggro := 0          # engage distance, tiles (0 = global default)
@@ -631,6 +644,7 @@ func _handle_key(event: InputEventKey) -> void:
 		KEY_E: _set_tool(Tool.ELEVATE)    # Elevate / raise into hills & mountains
 		KEY_T: _set_tool(Tool.FOREST)     # Trees brush (biome-aware species)
 		KEY_C: _set_tool(Tool.CLUTTER)    # Clutter brush (biome-aware ground detail)
+		KEY_G: _set_tool(Tool.SKILL)      # Gather/skill resource placement (trees/fish/rocks/monsters)
 
 
 func _zoom_at(factor: float) -> void:
@@ -727,6 +741,10 @@ func _apply_tool(just_pressed: bool) -> void:
 		Tool.CREATURE:
 			if just_pressed:
 				_place_creature(_hover_tile)
+				_commit_stroke()
+		Tool.SKILL:
+			if just_pressed:
+				_place_skill(_hover_tile)
 				_commit_stroke()
 
 
@@ -1290,7 +1308,7 @@ func _commit_stroke() -> void:
 		_refresh_painted_entities(_stroke["tiles"].keys())
 	# Trees/Clutter brushes + the Creature tool add records to chunk data — respawn the touched
 	# chunks so the new trees/clutter/enemies appear in the 3D view immediately.
-	if _tool in [Tool.FOREST, Tool.CLUTTER, Tool.CREATURE]:
+	if _tool in [Tool.FOREST, Tool.CLUTTER, Tool.CREATURE, Tool.SKILL]:
 		_refresh_struct_chunks(_stroke["added"])
 	if _map_overlay != null:
 		_map_overlay.queue_redraw()   # keep the world-map markers in sync with the edit (no-op when hidden)
@@ -1874,6 +1892,7 @@ func _build_ui() -> void:
 	_tool_group(lb, "Sculpt", [[Tool.ELEVATE, "E  Elevate"], [Tool.SMOOTHEN, "H  Smoothen"]], true)
 	_tool_group(lb, "Nature", [[Tool.FOREST, "T  Trees"], [Tool.CLUTTER, "C  Clutter"], [Tool.STAMP, "4  Stamp"]], false)
 	_tool_group(lb, "Build", [[Tool.STRUCTURE, "5  Structure"], [Tool.SETTLEMENT, "0  Settlement"], [Tool.ROAD, "9  Roads"]], false)
+	_tool_group(lb, "Skills", [[Tool.SKILL, "G  Skills"]], false)
 	_tool_group(lb, "Live", [[Tool.CREATURE, "8  Creatures"], [Tool.SPAWN, "7  Set Spawn"]], false)
 	_tool_group(lb, "Edit", [[Tool.PAN, "1  Pan / View"], [Tool.ERASE, "6  Erase"]], false)
 
@@ -3119,8 +3138,11 @@ func _v3d_place_at_cursor() -> void:
 			_refresh_3d_entities(tile)
 		Tool.CREATURE:
 			_begin_stroke(); _place_creature(tile); _commit_stroke()
+		Tool.SKILL:
+			_begin_stroke(); _place_skill(tile); _commit_stroke()
+			_refresh_3d_entities(tile)
 		_:
-			_status.text = "Pick a Structure/Stamp/Road/Settlement/Creature tool, then click to place. (%d, %d)" % [tile.x, tile.y]
+			_status.text = "Pick a Structure/Stamp/Road/Settlement/Creature/Skills tool, then click to place. (%d, %d)" % [tile.x, tile.y]
 
 
 func _v3d_zoom_by(factor: float) -> void:
@@ -3341,6 +3363,8 @@ func _refresh_palette() -> void:
 			_note("Click to place. R rotate, F flip. Each placement varies.")
 		Tool.STRUCTURE:
 			_build_structure_accordion()
+		Tool.SKILL:
+			_build_skill_accordion()
 		Tool.CREATURE:
 			_header(_palette_box, "Enemy spawn")
 			_note("Click a walkable tile to drop a spawn of the selected creature. The pack scatters\nacross the spawn area and wanders it; set how far it roams, how close you must get to\nbe attacked, and how far you can drag it before it gives up.")
@@ -3401,6 +3425,128 @@ func _refresh_palette() -> void:
 		_:
 			_note("Right-drag to pan, wheel to zoom. Pick a tool to edit.")
 	_update_preview()
+
+
+## Skills palette: a per-skill accordion. "Combat" drops monster spawns; each gather skill lists its
+## nodes (trees / rocks / fish / herbs / …). Picking a node + clicking a tile places a working site.
+func _build_skill_accordion() -> void:
+	_note("Pick a skill, choose a node, then click a tile to place a WORKING resource.\nGather nodes become harvestable; Combat drops a wandering monster pack.")
+	# --- Combat (monster spawns) ---
+	var c_open := bool(_skill_open.get("Combat", _sel_skill == "combat"))
+	_skill_header("Combat", c_open, _creature_list().size())
+	if c_open:
+		_param_slider("Pack size: %d", _creature_count, 1, 12, func(v: int) -> void: _creature_count = v)
+		_param_slider("Wander radius: %d", _creature_wander, 1, 24, func(v: int) -> void: _creature_wander = v)
+		_param_slider("Aggro dist (0=auto): %d", _creature_aggro, 0, 24, func(v: int) -> void: _creature_aggro = v)
+		_param_slider("Leave dist (0=auto): %d", _creature_leash, 0, 40, func(v: int) -> void: _creature_leash = v)
+		var ck := CheckBox.new()
+		ck.text = "Aggressive (auto-attacks)"
+		ck.button_pressed = _creature_aggressive
+		ck.toggled.connect(func(on: bool) -> void: _creature_aggressive = on)
+		_palette_box.add_child(ck)
+		for e: Dictionary in _creature_list():
+			var nm := str(e["name"])
+			var sel := _sel_skill == "combat" and _sel_skill_item == nm
+			_choice("  %s  ·  Lv%d" % [nm, int(e["level"])], nm, sel,
+				func(id: String) -> void:
+					_sel_skill = "combat"
+					_sel_skill_item = id
+					_sel_creature = id
+					_update_preview())
+	# --- Gather skills ---
+	for skill: String in SKILL_PLACE_ORDER:
+		var nodes: Array = _reg.node_table.get(skill, [])
+		if nodes.is_empty():
+			continue
+		var disp := str(SKILL_DISPLAY.get(skill, skill.capitalize()))
+		var open := bool(_skill_open.get(disp, _sel_skill == skill))
+		_skill_header(disp, open, nodes.size())
+		if not open:
+			continue
+		var sorted := nodes.duplicate()
+		sorted.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a["level"]) < int(b["level"]))
+		var sk := skill
+		for e: Dictionary in sorted:
+			var nm := str(e["name"])
+			var sel := _sel_skill == sk and _sel_skill_item == nm
+			_choice("  %s  ·  Lv%d" % [nm, int(e["level"])], nm, sel,
+				func(id: String) -> void:
+					_sel_skill = sk
+					_sel_skill_item = id
+					_update_preview())
+
+
+## Accordion header for the Skills tool (toggles _skill_open, mirrors _accordion_header).
+func _skill_header(cat: String, open: bool, count: int) -> void:
+	var b := Button.new()
+	b.text = ("▾ " if open else "▸ ") + cat + "  (%d)" % count
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.custom_minimum_size = Vector2(176, 0)
+	b.add_theme_color_override("font_color", Color(0.85, 0.72, 0.3))
+	b.pressed.connect(func() -> void:
+		_skill_open[cat] = not open
+		_refresh_palette())
+	_palette_box.add_child(b)
+
+
+## Place the selected skill resource at a tile: a monster pack (Combat) or a functional gather site.
+func _place_skill(t: Vector2i) -> void:
+	if _sel_skill == "combat":
+		_place_creature(t)
+		return
+	if _sel_skill_item.is_empty():
+		_status.text = "Pick a skill node first."
+		return
+	_place_skill_site(t, _sel_skill, _sel_skill_item)
+
+
+## Append a working gather site (the same dict the runtime spawner builds) for a specific node, so
+## it's immediately harvestable in Test Level and persists on save. Fishing binds an adjacent water
+## tile so its school + cast have somewhere to go.
+func _place_skill_site(t: Vector2i, skill: String, node_name: String) -> void:
+	var chunk: RefCounted = _chunk_at_tile(t.x, t.y)
+	if chunk == null:
+		return
+	var def: Dictionary = {}
+	for e: Dictionary in _reg.node_table.get(skill, []):
+		if str(e["name"]) == node_name:
+			def = e
+			break
+	if def.is_empty():
+		_status.text = "Unknown node '%s'." % node_name
+		return
+	var cfg: Dictionary = _reg.skill_cfg(skill)
+	var lx: int = t.x - chunk.cx * WG.CHUNK_TILES
+	var ly: int = t.y - chunk.cy * WG.CHUNK_TILES
+	var site := {
+		"skill": skill, "node": node_name, "level": int(def["level"]),
+		"kind": str(cfg.get("kind", "bush")), "tx": lx, "ty": ly,
+		"resources": int(cfg.get("resources", 8)), "remaining": int(cfg.get("resources", 8)),
+		"respawn_sec": float(cfg.get("respawnSec", 25.0)), "available": true, "respawn_at": 0.0,
+	}
+	if skill == "fishing":
+		var w := _adjacent_water_tile(chunk, lx, ly)
+		if w.x < 0:
+			_status.text = "Fishing spots need water beside them — click a shore tile next to water."
+			return
+		site["fish_tx"] = w.x
+		site["fish_ty"] = w.y
+	chunk.sites.append(site)
+	_stroke["added"].append({"key": "%d:%d" % [chunk.cx, chunk.cy], "arr": "sites", "item": site})
+	_status.text = "Placed %s — %s Lv%d" % [node_name, SKILL_DISPLAY.get(skill, skill.capitalize()), int(def["level"])]
+
+
+## Nearest 4-neighbour water tile (local coords) beside (lx,ly), or (-1,-1). Used to anchor a
+## fishing spot's school/cast to real water.
+func _adjacent_water_tile(chunk: RefCounted, lx: int, ly: int) -> Vector2i:
+	for off: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		var nx: int = lx + off.x
+		var ny: int = ly + off.y
+		if nx < 0 or ny < 0 or nx >= WG.CHUNK_TILES or ny >= WG.CHUNK_TILES:
+			continue
+		if bool(_reg.tile_def(chunk.tile_id(nx, ny)).get("water", false)):
+			return Vector2i(nx, ny)
+	return Vector2i(-1, -1)
 
 
 ## Bestiary entries sorted by level then name, for the creature preview browser.
@@ -3494,6 +3640,20 @@ func _update_preview() -> void:
 				_preview.show_empty("No creatures in the bestiary")
 			else:
 				_preview.show_creature(_sel_creature)
+		Tool.SKILL:
+			if _sel_skill == "combat":
+				if _sel_skill_item.is_empty():
+					_preview.show_empty("Pick a creature to spawn")
+				else:
+					_preview.show_creature(_sel_skill_item)
+			elif _sel_skill_item.is_empty():
+				_preview.show_empty("Pick a skill node to place")
+			else:
+				var skind := str(_reg.skill_cfg(_sel_skill).get("kind", "bush"))
+				if skind in ["tree", "rock", "bush"]:
+					_preview.show_structure({"kind": skind, "label": _sel_skill_item}, _sel_skill_item)
+				else:
+					_preview.show_empty(_sel_skill_item)
 		_:
 			_preview.show_empty("Pick a paint/place tool to preview")
 
