@@ -6,9 +6,10 @@ const ValidateContent := preload("res://tools/validate_content.gd")
 # under water, biome-modulated sand banks around inland water, wider ocean beach.
 # Re-pinned again when the summit height doubled (ELEV_MAX_STEPS 64→128 for taller mountains):
 # biome tiles unchanged, elevation sum scaled ~2× (84357→168810). Then re-pinned for the sharp-alpine
-# ridge carving (mask_elev_steps): high zone carved into jagged peaks, lowering the sum (168810→153759).
+# ridge carving (mask_elev_steps); then again when the carving was cranked up (deeper couloirs, two
+# octaves): sum 168810→153759→141232.
 const WORLDGEN_TILES_HASH := 954904775
-const WORLDGEN_ELEV_SUM := 153759
+const WORLDGEN_ELEV_SUM := 141232
 const ContentId := preload("res://scripts/content/content_id.gd")
 const SaveMigration := preload("res://autoload/save_migration.gd")
 const SkillRemap := preload("res://scripts/content/skill_remap.gd")

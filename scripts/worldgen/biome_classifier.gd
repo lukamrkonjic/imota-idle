@@ -143,7 +143,7 @@ func setup(p_reg: RefCounted, p_seed: int) -> void:
 	_volcanic_rift = _noise(p_seed + 707, 0.0011, 2)
 	_domain_warp = _noise(p_seed + 1201, 0.0032, 2)
 	_surface_detail = _noise(p_seed + 1202, 0.11, 1)
-	_alpine_ridge = _noise(p_seed + 1303, 0.045, 4)   # ~22-tile ridge spacing for jagged alpine summits
+	_alpine_ridge = _noise(p_seed + 1303, 0.035, 4)   # ~28-tile ridge spacing — bold jagged alpine ridges
 	_t_deep = int(reg.tile_index["deep_water"])
 	_t_water = int(reg.tile_index["water"])
 	_t_shallow = int(reg.tile_index["shallow"])
@@ -483,16 +483,19 @@ func mask_elev_steps(tx: float, ty: float) -> int:
 	# painted areas soar toward the raised ceiling — so peaks get huge without lifting valleys.
 	var h := pow(v, 1.8)   # base height 0..1
 	# ── Sharp alpine zone ──────────────────────────────────────────────────────────
-	# The painted high country is a smooth plateau; carve it into JAGGED peaks. Only bites where the
-	# terrain is already high (the top-left alpine zone), leaving valleys/lowland untouched.
-	var alpine := smoothstep(0.55, 0.85, v)
+	# The painted high country is a smooth plateau; carve it into DRAMATIC jagged peaks. Two octaves of
+	# ridged noise (1-|n|, crests→1 troughs→0) cut DEEP couloirs while leaving narrow sharp crests high.
+	# The deep snow-crest / bare-rock-couloir contrast also makes the range read as jagged from the
+	# near-top-down camera. Gated to high terrain so valleys/lowland stay smooth.
+	var alpine := smoothstep(0.48, 0.82, v)
 	if alpine > 0.0:
-		# Ridged noise (1-|n|) → crests near 1, troughs near 0. Carve the troughs DOWN so sharp
-		# ridge crests and steep couloirs remain → pointed summits instead of a flat mesa.
-		var ridge := 1.0 - absf(_alpine_ridge.get_noise_2d(tx, ty))
-		h -= (1.0 - ridge) * 0.34 * alpine
-		# Steepen the very top so summits come to a point (blend toward a sharp gamma at the crest).
-		h = lerpf(h, pow(v, 3.3), alpine * 0.5)
+		var r1 := 1.0 - absf(_alpine_ridge.get_noise_2d(tx, ty))
+		r1 = r1 * r1                                                                  # narrow the crests → sharper ridges
+		var r2 := 1.0 - absf(_alpine_ridge.get_noise_2d(tx * 2.7 + 80.0, ty * 2.7 - 40.0))   # finer detail octave
+		var ridge := r1 * 0.68 + r2 * 0.32
+		h -= (1.0 - ridge) * 0.52 * alpine                                           # deep couloirs (was 0.34)
+		h = lerpf(h, pow(v, 2.7), alpine * 0.35)                                     # mild overall steepening
+		h = maxf(h, 0.0)
 	return clampi(int(round(clampf(h, 0.0, 1.0) * float(_ELEV_MAX))), 0, _ELEV_MAX)
 
 
