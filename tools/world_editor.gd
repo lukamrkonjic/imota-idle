@@ -3623,7 +3623,7 @@ func _refresh_palette() -> void:
 			_header(_palette_box, "Creature")
 			for e: Dictionary in _creature_list():
 				var nm := str(e["name"])
-				_choice("%s  ·  Lv%d" % [nm, int(e["level"])], nm, _sel_creature == nm,
+				_choice("%s  ·  Lv%d" % [DataRegistry.enemy_display_name(nm), int(e["level"])], nm, _sel_creature == nm,
 					func(id: String) -> void: _sel_creature = id)
 		Tool.SPAWN:
 			_note("Click a walkable tile to set the player spawn. Current: (%d, %d)" % [_spawn_tile.x, _spawn_tile.y])
@@ -3733,7 +3733,8 @@ func _build_skill_nodes() -> void:
 		_header(_palette_box, "Creature")
 		for e: Dictionary in _creature_list():
 			var nm := str(e["name"])
-			_choice("%s  ·  Lv%d" % [nm, int(e["level"])], nm, _sel_skill_item == nm,
+			# Show the renamed displayName; the frozen id stays the stored value (placement/lookups).
+			_choice("%s  ·  Lv%d" % [DataRegistry.enemy_display_name(nm), int(e["level"])], nm, _sel_skill_item == nm,
 				func(id: String) -> void:
 					_sel_skill_item = id
 					_sel_creature = id
@@ -3874,7 +3875,7 @@ func _place_creature(t: Vector2i) -> void:
 		chunk.monsters.append(m)
 		_stroke["added"].append({"key": "%d:%d" % [chunk.cx, chunk.cy], "arr": "monsters", "item": m})
 		placed += 1
-	_status.text = "Placed %d × %s (Lv%d)" % [placed, _sel_creature, lvl]
+	_status.text = "Placed %d × %s (Lv%d)" % [placed, DataRegistry.enemy_display_name(_sel_creature), lvl]
 
 
 ## Drive the showcase turntable from the current tool + selection.

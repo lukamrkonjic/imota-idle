@@ -332,14 +332,14 @@ func _npc_slayer_options(npc_id: String) -> void:
 			var t: Dictionary = GameState.slayer_task
 			if not t.is_empty():
 				EventBus.combat_log.emit("[color=#9ad29a]New Slayer task: kill %d %s.[/color]" % [
-					int(t["required"]), str(t["monster"])])
+					int(t["required"]), DataRegistry.enemy_display_name(str(t["monster"]))])
 			open_npc_dialog(npc_id))
 		popup_list.add_child(get_btn)
 	else:
 		var t: Dictionary = GameState.slayer_task
 		var tl := Label.new()
 		tl.text = "Current task: %s   (%d / %d)" % [
-			str(t["monster"]), int(t["done"]), int(t["required"])]
+			DataRegistry.enemy_display_name(str(t["monster"])), int(t["done"]), int(t["required"])]
 		popup_list.add_child(tl)
 		var cancel := Button.new()
 		cancel.text = "Cancel task"

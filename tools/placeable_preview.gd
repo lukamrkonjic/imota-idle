@@ -175,7 +175,9 @@ func show_creature(name: String, boss := false) -> void:
 	if rig != null:
 		_model_root.add_child(rig)
 	var lvl := int(enemy.get("level", 0))
-	_caption.text = name if lvl <= 0 else "%s · Lvl %d" % [name, lvl]
+	# Caption shows the renamed displayName (the frozen id never appears in the UI).
+	var shown := DataRegistry.enemy_display_name(name)
+	_caption.text = shown if lvl <= 0 else "%s · Lvl %d" % [shown, lvl]
 	_frame_to_model(1.4)
 
 
