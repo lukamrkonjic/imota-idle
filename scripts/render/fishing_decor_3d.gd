@@ -88,6 +88,7 @@ func _animate(rig: Node3D, iso: Vector2, t: float, variant: float) -> void:
 		var rise := fposmod(t * speed + ph, 1.0)
 		var wob := sin(t * 2.3 + fi * 1.7) * 0.025   # sideways drift as it climbs
 		b.position = Vector3(cos(ang) * rad + wob, rise * RISE_HEIGHT, sin(ang) * rad * 0.6)
-		# Swell in from nothing, peak mid-climb, pop to nothing at the top (continuous spawn + fizz).
-		var sc := size * sin(rise * PI)
-		b.scale = Vector3.ONE * maxf(sc, 0.0001)
+		# Real-bubble envelope: POP in fast at the surface, hold near full size while rising, then
+		# POP out near the top. (Not a slow symmetric swell — a quick appear + a quick burst.)
+		var env := smoothstep(0.0, 0.1, rise) * (1.0 - smoothstep(0.82, 0.96, rise))
+		b.scale = Vector3.ONE * maxf(size * env, 0.0001)

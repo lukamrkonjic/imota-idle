@@ -338,34 +338,37 @@ static func _pose_gather_work(node: Node3D, work: String, w: float, t: float, ph
 			_set_pivot(node, "arm_l", lerpf(arm_l, lerpf(-1.15, -0.15, s), w)) # off hand follows the haft
 			_set_pivot(node, "arm_l/elbow_l", lerpf(elbow_l, lerpf(-0.5, -0.18, s), w))
 		"forage":
-			# Bend at the waist and pick from the ground with a gentle repeated pluck.
-			var dip := 0.5 - 0.5 * cos(fmod(t * 0.9, 1.0) * TAU)
-			_set_pivot(node, "spine", lerpf(hunch, 0.52 + dip * 0.12, w))
-			_set_pivot(node, "arm_l", lerpf(arm_l, -0.82 - dip * 0.16, w))
-			_set_pivot(node, "arm_r", lerpf(arm_r, -0.82 - dip * 0.16, w))
-			_set_pivot(node, "arm_l/elbow_l", lerpf(elbow_l, -0.45, w))
-			_set_pivot(node, "arm_r/elbow_r", lerpf(elbow_r, -0.45, w))
+			# Bend at the waist and PICK: both hands sweep from the waist down to the ground (reach +
+			# straighten), then back up (bend, as if pocketing the find), over and over.
+			var reach := 0.5 - 0.5 * cos(fmod(t * 1.1, 1.0) * TAU)   # 0 up .. 1 down .. 0 up
+			_set_pivot(node, "spine", lerpf(hunch, 0.5, w))
+			_set_pivot(node, "arm_l", lerpf(arm_l, lerpf(-0.5, -1.15, reach), w))
+			_set_pivot(node, "arm_r", lerpf(arm_r, lerpf(-0.5, -1.15, reach), w))
+			_set_pivot(node, "arm_l/elbow_l", lerpf(elbow_l, lerpf(-0.9, -0.3, reach), w))   # bend up, straighten down
+			_set_pivot(node, "arm_r/elbow_r", lerpf(elbow_r, lerpf(-0.9, -0.3, reach), w))
 		"trap":
-			# Hunter: crouch low and set a trap on the ground in front, both hands placing it.
+			# Hunter: crouch low, then reach both hands forward to SET the trap on the ground and
+			# withdraw — a repeated placing motion, not a static hold.
 			node.position.y -= w * 0.14 * base
-			var set_t := 0.5 - 0.5 * cos(fmod(t * 0.6, 1.0) * TAU)
-			_set_pivot(node, "spine", lerpf(hunch, 0.42 + set_t * 0.1, w))
+			var place := 0.5 - 0.5 * cos(fmod(t * 0.8, 1.0) * TAU)
+			_set_pivot(node, "spine", lerpf(hunch, 0.42, w))
 			_set_pivot(node, "leg_l", lerpf(hip + hip_crouch, -0.5, w))
 			_set_pivot(node, "leg_r", lerpf(-hip + hip_crouch, -0.5, w))
 			_set_pivot(node, "leg_l/knee_l", lerpf(knee_l, 1.1, w))
 			_set_pivot(node, "leg_r/knee_r", lerpf(knee_r, 1.1, w))
-			_set_pivot(node, "arm_l", lerpf(arm_l, -0.7 - set_t * 0.12, w))
-			_set_pivot(node, "arm_r", lerpf(arm_r, -0.7 - set_t * 0.12, w))
-			_set_pivot(node, "arm_l/elbow_l", lerpf(elbow_l, -0.5, w))
-			_set_pivot(node, "arm_r/elbow_r", lerpf(elbow_r, -0.5, w))
+			_set_pivot(node, "arm_l", lerpf(arm_l, lerpf(-0.55, -1.0, place), w))
+			_set_pivot(node, "arm_r", lerpf(arm_r, lerpf(-0.55, -1.0, place), w))
+			_set_pivot(node, "arm_l/elbow_l", lerpf(elbow_l, lerpf(-0.8, -0.2, place), w))   # extend to place
+			_set_pivot(node, "arm_r/elbow_r", lerpf(elbow_r, lerpf(-0.8, -0.2, place), w))
 		"steal":
-			# Thieving: a furtive forward lean, the right hand darting out and back (pickpocket).
-			var reach := 0.5 - 0.5 * cos(fmod(t * 1.4, 1.0) * TAU)
-			_set_pivot(node, "spine", lerpf(hunch, 0.2, w))
-			_set_pivot(node, "arm_r", lerpf(arm_r, lerpf(-0.2, -0.95, reach), w))
-			_set_pivot(node, "arm_r/elbow_r", lerpf(elbow_r, lerpf(-0.7, -0.1, reach), w))
-			_set_pivot(node, "arm_l", lerpf(arm_l, 0.12, w))
-			_set_pivot(node, "arm_l/elbow_l", lerpf(elbow_l, -0.5, w))
+			# Thieving: a furtive forward lean; the right hand DARTS out, snatches, and snaps back —
+			# elbow extends on the reach and folds on the withdraw.
+			var dart := 0.5 - 0.5 * cos(fmod(t * 1.5, 1.0) * TAU)
+			_set_pivot(node, "spine", lerpf(hunch, 0.22, w))
+			_set_pivot(node, "arm_r", lerpf(arm_r, lerpf(-0.1, -1.0, dart), w))
+			_set_pivot(node, "arm_r/elbow_r", lerpf(elbow_r, lerpf(-0.95, -0.05, dart), w))   # fold → extend
+			_set_pivot(node, "arm_l", lerpf(arm_l, 0.1, w))
+			_set_pivot(node, "arm_l/elbow_l", lerpf(elbow_l, -0.6, w))
 
 
 ## Chop phase (0..1) -> swing position: <0 extra-raised (windup anticipation), 0 overhead-ready,

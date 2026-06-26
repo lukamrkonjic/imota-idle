@@ -252,16 +252,33 @@ func begin_action(entity: Node2D) -> void:
 			var i := int(action["site_index"])
 			if i < chunk.sites.size():
 				target = FishingHelper.best_stand(world.player.position, chunk, chunk.sites[i])
+		world.pending_action["exact_stand"] = true   # stand exactly at the water's edge (no trim-back)
 	elif str(action.get("type", "")) == "gather":
-		# Stand a clear gap SHORT of the tree/rock/bush (OSRS-style) so the player chops from
-		# beside it instead of clipping into the trunk.
-		var pg: Vector2 = world.player.position
-		var ggap := _attack_gap(entity)
-		if pg.distance_to(entity.position) > ggap:
-			target = entity.position + (pg - entity.position).normalized() * ggap
-		else:
-			target = pg
+		# Stand in the tile right BESIDE the tree/rock/bush so the player works up close (not a tile
+		# or two away). exact_stand walks onto that adjacent tile rather than trimming a tile short.
+		target = _adjacent_stand(entity.position, world.player.position)
+		world.pending_action["exact_stand"] = true
 	world.walk_to_pos(target)
+
+
+## The walkable tile immediately adjacent (8-neighbour) to a node, nearest the player — so skilling
+## happens from the next tile over, right beside the resource.
+func _adjacent_stand(node_pos: Vector2, player_pos: Vector2) -> Vector2:
+	var nt := WG.world_to_tile(node_pos)
+	var best := node_pos
+	var best_d := INF
+	for dy: int in [-1, 0, 1]:
+		for dx: int in [-1, 0, 1]:
+			if dx == 0 and dy == 0:
+				continue
+			var w := WG.tile_to_world(nt.x + dx, nt.y + dy)
+			if not WorldGen.is_walkable_world(w):
+				continue
+			var d := player_pos.distance_squared_to(w)
+			if d < best_d:
+				best_d = d
+				best = w
+	return best
 
 
 func execute_action(action: Dictionary) -> void:

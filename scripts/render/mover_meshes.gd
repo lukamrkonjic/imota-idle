@@ -326,10 +326,11 @@ static func weapon_profile(kind: String) -> Dictionary:
 				"rot": Vector3(2.35, 0.0, 0.0),
 			}
 		"pickaxe":
+			# Yaw the head 45° off the haft so a POINT (not the flat bar) leads down into the rock.
 			return {
 				"pose": "onehand", "attack": "none",
 				"pos": Vector3.ZERO,
-				"rot": Vector3(1.78, 0.0, -0.46),
+				"rot": Vector3(1.78, 0.785, -0.46),
 			}
 		_:
 			return {

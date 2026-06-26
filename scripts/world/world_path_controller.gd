@@ -203,7 +203,11 @@ func walk_to_pos(target: Vector2) -> bool:
 		world.player.play_no()
 		world.pending_action = {}
 		return false
-	if not world.pending_action.is_empty() and not _has_long_target and path.size() >= 2:
+	# Normally a pending action stops one tile SHORT of the target (work from beside it). When the
+	# action requests exact_stand (gather/fishing already aimed at the precise adjacent/edge tile),
+	# walk all the way onto it instead so the player ends up right next to the resource.
+	if not world.pending_action.is_empty() and not bool(world.pending_action.get("exact_stand", false)) \
+			and not _has_long_target and path.size() >= 2:
 		path.remove_at(path.size() - 1)
 	_path = path
 	_path_i = 0
