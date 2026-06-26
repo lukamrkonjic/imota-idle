@@ -23,6 +23,7 @@ const HitSplat := preload("res://scripts/world/hit_splat.gd")
 const ArrowProj := preload("res://scripts/world/arrow_proj.gd")
 const PerfLogger := preload("res://scripts/world/perf_logger.gd")
 const BakeQueue := preload("res://scripts/world/bake_queue.gd")
+const PerfStressFixture := preload("res://scripts/render/perf_stress_fixture.gd")
 # WorldRender3D is a global class_name (scripts/render/world_render_3d.gd) — no preload needed.
 
 # --- public state (tests, HUD) ---
@@ -210,6 +211,7 @@ func _build_scene() -> void:
 	render_3d.name = "WorldRender3D"
 	add_child(render_3d)
 	render_3d.setup(self)
+	PerfStressFixture.populate(self)
 
 
 func _connect_events() -> void:

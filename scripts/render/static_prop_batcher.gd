@@ -7,6 +7,7 @@ class_name StaticPropBatcher
 ## meanwhile (no gap). It also skips its slice on chunk-build frames to avoid stacking spikes.
 
 const PropMeshes := preload("res://scripts/render/prop_meshes.gd")
+const WG := preload("res://scripts/worldgen/wg.gd")
 
 const BATCH_REBUILD_MIN := 0.35      # min seconds between static-batch rebuilds
 const RB_COLLECT_PER_FRAME := 150     # props collected per frame (caps height_at samples/frame)
@@ -33,6 +34,8 @@ var _rb_staging: Node3D = null
 var _rb_g: Dictionary = {}           # group currently being emitted (filled incrementally)
 var _rb_gbuf := PackedFloat32Array() # its instance buffer, filled across frames
 var _rb_gi := 0                      # instance index within the current group
+var _keep_chunks: Dictionary = {}     # WorldRender3D camera footprint + margin; controls which props enter batches
+var _keep_generation := 0
 
 
 func setup(w: Node2D, root: Node3D, height_provider: Callable, iso_to_3d_provider: Callable) -> void:
@@ -45,6 +48,16 @@ func setup(w: Node2D, root: Node3D, height_provider: Callable, iso_to_3d_provide
 ## Force a fresh rebuild on the next update (editor edits / preview teleports / placed props).
 func invalidate() -> void:
 	_static_sig = ""
+
+
+## Keep static MultiMeshes local to the terrain chunks the camera may present. A MultiMesh only
+## has one coarse AABB, so a world-wide batch otherwise draws every tree/rock even if it is far
+## outside the view. `keep_chunks` already has a neighbour margin and short hysteresis window.
+func set_keep_chunks(keep_chunks: Dictionary) -> void:
+	if keep_chunks == _keep_chunks:
+		return
+	_keep_chunks = keep_chunks.duplicate()
+	_keep_generation += 1
 
 
 ## Drop cached transforms for static props standing inside `world_rect` (iso/world 2D space) so the
@@ -74,7 +87,7 @@ func reset_transforms_in_rect(world_rect: Rect2) -> void:
 ## new one is fully built, then swaps in. terrain_built = a chunk mesh built this frame.
 func update(terrain_built: bool) -> void:
 	if not _rb_active:
-		var sig := "%s:%d:%d:%d" % [str(world.current_layer), int(world._decor_nodes.size()), int(world._water_decor_nodes.size()), int(world.entities.size())]
+		var sig := "%s:%d:%d:%d:%d" % [str(world.current_layer), int(world._decor_nodes.size()), int(world._water_decor_nodes.size()), int(world.entities.size()), _keep_generation]
 		if sig == _static_sig:
 			return
 		var now := Time.get_ticks_msec() / 1000.0
@@ -110,16 +123,27 @@ func _start_staged_rebuild(sig: String) -> void:
 	_rb_sig = sig
 	_rb_list = []
 	for d: Node in world._decor_nodes:
-		_rb_list.append([0, d])
+		if _is_in_kept_chunk(d):
+			_rb_list.append([0, d])
 	for d: Node in world._water_decor_nodes:
 		# fish_school nodes are rendered as animated bubbles by FishingDecor3D — skip the old static
 		# squashed-sphere mesh here (it read as grey pebbles sitting on the water).
 		if str(d.get("kind")) == "fish_school":
 			continue
-		_rb_list.append([1, d])
+		if _is_in_kept_chunk(d):
+			_rb_list.append([1, d])
 	for e: Node in world.entities:
-		if is_instance_valid(e) and not PropMeshes.is_moving(e):
+		if is_instance_valid(e) and not PropMeshes.is_moving(e) and _is_in_kept_chunk(e):
 			_rb_list.append([2, e])
+
+
+func _is_in_kept_chunk(node: Node) -> bool:
+	if _keep_chunks.is_empty():
+		return true
+	if not is_instance_valid(node) or not (node is Node2D):
+		return false
+	var coord := WG.world_to_chunk((node as Node2D).position)
+	return _keep_chunks.has(WG.key(world.current_layer, coord.x, coord.y))
 
 
 func _advance_staged_rebuild() -> void:

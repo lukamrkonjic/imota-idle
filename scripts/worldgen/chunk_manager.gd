@@ -38,6 +38,8 @@ var _results_mutex := Mutex.new()
 # slightly slower fill for no frame hiccup when the player walks into a new area.
 const LOADS_PER_FRAME := 1
 const LOAD_TIME_BUDGET_USEC := 1400
+const TERRAIN_DEMAND_LOADS_PER_FRAME := 3
+const TERRAIN_DEMAND_TIME_BUDGET_USEC := 2800
 const ACTIVATIONS_PER_FRAME := 1
 const DEACTIVATIONS_PER_FRAME := 1
 const UNLOADS_PER_FRAME := 1
@@ -64,6 +66,7 @@ var _queued_mesh: Dictionary = {}
 var _mesh_queue_dirty := false
 var _last_center_change_msec := 0
 var _detail_update_pending := false
+var _terrain_data_demand: Dictionary = {} # "cx:cy" -> urgency; visual terrain only
 const PERF_KEYS := ["load", "redraw", "mesh", "deactivate", "unload", "activate", "detail", "total"]
 var _perf_accum: Dictionary = {}
 var _perf_frames := 0
@@ -111,6 +114,20 @@ func terrain_chunk_count() -> int:
 	return _renderers.size()
 
 
+func terrain_demand_status() -> Dictionary:
+	var real := 0
+	var placeholders := 0
+	var queued := 0
+	for key: String in _terrain_data_demand:
+		if _chunks.has(key):
+			real += 1
+		elif _visual_only.has(key):
+			placeholders += 1
+		if _queued.has(key):
+			queued += 1
+	return {"demand": _terrain_data_demand.size(), "real": real, "placeholders": placeholders, "queued": queued}
+
+
 func set_visible_rect(world_rect: Rect2) -> void:
 	for key: String in _renderers.keys():
 		var renderer: Node2D = _renderers[key]
@@ -142,6 +159,7 @@ func clear_all() -> void:
 	_detail_update_pending = false
 	_active.clear()
 	_visual_only.clear()
+	_terrain_data_demand.clear()
 	_center = Vector2i(2000000, 2000000)
 
 
@@ -176,6 +194,27 @@ func set_radii(p_view: int, p_active: int) -> void:
 		_refresh(false)
 
 
+## Camera-visible terrain loads ahead of the generic square ring, but does not join the active
+## gameplay/entity set. Hydrates a 2D placeholder immediately when the 3D camera needs it.
+func set_terrain_data_demand(demand: Dictionary) -> void:
+	var next: Dictionary = {}
+	for render_key: String in demand:
+		var parts := render_key.split(":")
+		if parts.size() != 3 or int(parts[0]) != layer:
+			continue
+		next["%s:%s" % [parts[1], parts[2]]] = int(demand[render_key])
+	if next == _terrain_data_demand:
+		return
+	_terrain_data_demand = next
+	for key: String in _terrain_data_demand:
+		if _visual_only.has(key) and not _queued.has(key):
+			var parts := key.split(":")
+			_load_queue.append(Vector2i(int(parts[0]), int(parts[1])))
+			_queued[key] = true
+	if not _load_queue.is_empty():
+		_load_queue.sort_custom(_stream_queue_less)
+
+
 func _refresh(first_fill: bool) -> void:
 	var c := _center
 	var needed: Dictionary = {}
@@ -191,7 +230,7 @@ func _refresh(first_fill: bool) -> void:
 			_load_queue.append(needed[key])
 			_queued[key] = true
 	if not _load_queue.is_empty():
-		_load_queue.sort_custom(_closer_to_center)
+		_load_queue.sort_custom(_stream_queue_less)
 	for key: String in _renderers.keys():
 		if not needed.has(key):
 			var parts: PackedStringArray = key.split(":")
@@ -290,6 +329,14 @@ func _closer_to_center(a: Vector2i, b: Vector2i) -> bool:
 	return da < db
 
 
+func _stream_queue_less(a: Vector2i, b: Vector2i) -> bool:
+	var pa := int(_terrain_data_demand.get("%d:%d" % [a.x, a.y], 2))
+	var pb := int(_terrain_data_demand.get("%d:%d" % [b.x, b.y], 2))
+	if pa != pb:
+		return pa < pb
+	return _closer_to_center(a, b)
+
+
 func _closer_key_to_center(a: String, b: String) -> bool:
 	return _closer_to_center(_coord_from_key(a), _coord_from_key(b))
 
@@ -343,10 +390,16 @@ func _process(_delta: float) -> void:
 	# Stream queued chunks in a few per frame; skip any that are already loaded
 	# or that the player has since walked out of range of.
 	var p0 := Time.get_ticks_usec()
-	var budget := LOADS_PER_FRAME
+	var has_demand := false
+	for coord: Vector2i in _load_queue:
+		if _terrain_data_demand.has("%d:%d" % [coord.x, coord.y]):
+			has_demand = true
+			break
+	var budget := LOADS_PER_FRAME + (TERRAIN_DEMAND_LOADS_PER_FRAME if has_demand else 0)
+	var time_budget := TERRAIN_DEMAND_TIME_BUDGET_USEC if has_demand else LOAD_TIME_BUDGET_USEC
 	var started := Time.get_ticks_usec()
 	while budget > 0 and not _load_queue.is_empty():
-		if Time.get_ticks_usec() - started > LOAD_TIME_BUDGET_USEC:
+		if Time.get_ticks_usec() - started > time_budget:
 			break
 		var coord: Vector2i = _load_queue.pop_front()
 		var key := "%d:%d" % [coord.x, coord.y]
@@ -425,7 +478,9 @@ func _detail_updates_allowed() -> bool:
 
 
 func _should_load_real_chunk(coord: Vector2i) -> bool:
-	return _within_radius(coord, _center, active_radius + 1) or _detail_updates_allowed()
+	return _terrain_data_demand.has("%d:%d" % [coord.x, coord.y]) \
+		or _within_radius(coord, _center, active_radius + 1) \
+		or _detail_updates_allowed()
 
 
 func _queue_unload(key: String) -> void:

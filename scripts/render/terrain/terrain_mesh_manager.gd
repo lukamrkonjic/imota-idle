@@ -13,7 +13,9 @@ const WG := preload("res://scripts/worldgen/wg.gd")
 
 const DEFER_MAX_WAIT := 24          # frames a chunk may wait for neighbour data before force-building
 const MAX_TERRAIN_MESHES := 1400    # persisted terrain budget; ~radius-21-chunk explored area
-const TERRAIN_CATCHUP_BUILDS := 5   # extra chunk meshes built in one frame while the ring is filling
+const TERRAIN_CATCHUP_BUILDS := 1   # one extra only after the camera settles; avoids zoom-time mesh spikes
+const TERRAIN_CATCHUP_BUDGET_USEC := 3500
+const ZOOM_SETTLE_MS := 220          # wheel/pinch pauses this long before detailed terrain catches up
 
 var world: Node2D
 var terrain_root: Node3D
@@ -25,6 +27,34 @@ var _chunk_wait: Dictionary = {}     # chunk key -> frames waited for neighbour 
 var _chunk_by_key: Dictionary = {}   # chunk key -> chunk RefCounted (apron index; shared w/ mesher)
 var _terrain_built := false          # did a chunk mesh build this frame (stagger batch rebuild off it)
 var _chunk_used_ms: Dictionary = {}  # chunk key -> last ms it was kept-visible (eviction tie-break)
+var _last_camera_zoom := -1.0
+var _last_zoom_change_ms := -ZOOM_SETTLE_MS
+
+# Opt-in sub-phase timing (set by WorldRender3D when `-- --perf-probe`).
+var probe := false
+var _sub: Dictionary = {}
+var _sub_frames := 0
+var _nbuild_total := 0
+
+
+func consume_sub() -> Dictionary:
+	var n := maxi(1, _sub_frames)
+	var out: Dictionary = {}
+	for k: String in ["apron", "scan", "build_pick", "reconcile", "vis"]:
+		out["mesh_" + k] = int(float(_sub.get(k, 0.0)) / float(n))
+	out["mesh_nbuilds_total"] = int(_sub.get("nbuilds", 0.0))   # SUM, not mean
+	var nb := maxf(1.0, _sub.get("nbuilds", 0.0))
+	out["mesh_us_per_build"] = int(float(_sub.get("build_us_sum", 0.0)) / nb)   # true single-build cost
+	out["mesh_us_loop"] = int(float(_sub.get("loop_us_sum", 0.0)) / nb)        # sampling+add_vertex
+	out["mesh_us_commit"] = int(float(_sub.get("commit_us_sum", 0.0)) / nb)    # SurfaceTool.commit
+	out["mesh_water_builds"] = int(_sub.get("water_builds", 0.0))
+	_sub.clear()
+	_sub_frames = 0
+	return out
+
+
+func _sub_add(k: String, v: float) -> void:
+	_sub[k] = float(_sub.get(k, 0.0)) + v
 
 
 func setup(w: Node2D, root: Node3D, m: TerrainChunkMesher) -> void:
@@ -37,13 +67,16 @@ func setup(w: Node2D, root: Node3D, m: TerrainChunkMesher) -> void:
 ## Build/free per-chunk terrain meshes to match the camera's visual coverage (stream_view).
 func update(stream_view: TerrainStreamView) -> void:
 	var now := Time.get_ticks_msec()
+	var zoom_interacting := _is_zoom_interacting(now)
 	var live := stream_view.keep_chunks()   # the build/keep set: camera-footprint visual coverage
+	var _ta := Time.get_ticks_usec()
 	# APRON / HALO: index EVERY chunk with loaded data (a ring larger than the build set), so
 	# building a chunk can sample its neighbour tiles one ring out and compute complete, matching
 	# shared-border corners on the FIRST build — no later seam, no rebuild heal.
 	_chunk_by_key.clear()
 	for chunk: RefCounted in world.chunk_manager.data_chunks():
 		_chunk_by_key[chunk.key()] = chunk
+	var _tb := Time.get_ticks_usec()
 	# Pass 2 (DEFER): build at most one mesh per frame (each SurfaceTool build is a few ms), and
 	# prefer the highest-priority (camera-visible) chunk whose 8 neighbours' data is already
 	# present, so its borders are seamless the first time. Only chunks whose OWN data is loaded
@@ -74,11 +107,18 @@ func update(stream_view: TerrainStreamView) -> void:
 				best_w = w
 				pick = key2
 	_terrain_built = false
-	if pick != "":
+	var _tc := Time.get_ticks_usec()
+	var _nb0 := _nbuild_total
+	# Zooming out can expose dozens of chunks at once. The hybrid underlay already covers the
+	# temporary gap, so defer expensive detailed mesh construction until the wheel/pinch settles
+	# rather than stacking several SurfaceTool builds into every input frame.
+	var _t_recon0 := 0
+	if pick != "" and not zoom_interacting:
+		var build_started := Time.get_ticks_usec()
 		_build_into(pick)
 		# CATCH-UP: when many chunks are missing at once (just zoomed out / view grew), build a
-		# few extra neighbour-complete chunks this frame so the new, larger ring fills in within a
-		# fraction of a second instead of crawling in one-per-frame with the edge exposed.
+		# single additional neighbour-complete chunk in the same frame, only while inside a small
+		# CPU budget. This settles far more smoothly than the former five-build burst.
 		var missing := 0
 		for k: String in live:
 			if not _chunk_meshes.has(k):
@@ -86,16 +126,17 @@ func update(stream_view: TerrainStreamView) -> void:
 		if missing > 24:
 			var extra := 0
 			for k2: String in live:
-				if extra >= TERRAIN_CATCHUP_BUILDS:
+				if extra >= TERRAIN_CATCHUP_BUILDS or Time.get_ticks_usec() - build_started > TERRAIN_CATCHUP_BUDGET_USEC:
 					break
 				if _chunk_meshes.has(k2) or not _chunk_by_key.has(k2):
 					continue
 				if _data_nbr_count(k2) == 8:
 					_build_into(k2)
 					extra += 1
-	else:
+	elif not zoom_interacting:
 		# Pass 2b: nothing new to build this frame -> reconcile any chunk that was force-built with
 		# partial neighbour data once more of its neighbours have loaded.
+		_t_recon0 = Time.get_ticks_usec()
 		for key2: String in _chunk_meshes.keys():
 			if not live.has(key2) or not _chunk_by_key.has(key2):
 				continue
@@ -111,12 +152,47 @@ func update(stream_view: TerrainStreamView) -> void:
 	# revisiting an area never re-streams or flickers. Only evict when over budget.
 	if _chunk_meshes.size() > MAX_TERRAIN_MESHES:
 		_evict_far_terrain(_chunk_meshes.size() - MAX_TERRAIN_MESHES, stream_view)
+	var _td := Time.get_ticks_usec()
 	_update_terrain_visibility(stream_view, now)
+	if probe:
+		var _te := Time.get_ticks_usec()
+		_sub_add("apron", float(_tb - _ta))
+		_sub_add("scan", float(_tc - _tb))
+		# reconcile branch (_t_recon0 set) vs the pick-build branch are mutually exclusive.
+		if _t_recon0 > 0:
+			_sub_add("reconcile", float(_td - _t_recon0))
+			_sub_add("build_pick", float(_t_recon0 - _tc))
+		else:
+			_sub_add("build_pick", float(_td - _tc))
+		_sub_add("vis", float(_te - _td))
+		_sub_add("nbuilds", float(_nbuild_total - _nb0))
+		_sub_frames += 1
+
+
+## Wheel and pinch events update the logic Camera2D immediately. Keep the expensive detailed-mesh
+## path dormant for a short settling interval; low-detail terrain remains visible via the hybrid
+## fallback, so this is a responsiveness improvement rather than a coverage reduction.
+func _is_zoom_interacting(now: int) -> bool:
+	if world == null or world._camera == null:
+		return false
+	var zoom := float(world._camera.zoom.x)
+	if _last_camera_zoom < 0.0 or not is_equal_approx(zoom, _last_camera_zoom):
+		_last_camera_zoom = zoom
+		_last_zoom_change_ms = now
+	return now - _last_zoom_change_ms < ZOOM_SETTLE_MS
 
 
 # Build the mesh for a loaded chunk and register it.
 func _build_into(key: String) -> void:
+	_nbuild_total += 1
+	var _bs := Time.get_ticks_usec()
 	var node := mesher.build_chunk_terrain(_chunk_by_key[key])
+	if probe:
+		_sub_add("build_us_sum", float(Time.get_ticks_usec() - _bs))
+		_sub_add("loop_us_sum", float(mesher.dbg_loop_us))
+		_sub_add("commit_us_sum", float(mesher.dbg_commit_us))
+		if mesher.dbg_had_water:
+			_sub_add("water_builds", 1.0)
 	terrain_root.add_child(node)
 	_chunk_meshes[key] = node
 	_chunk_nbr[key] = _data_nbr_count(key)

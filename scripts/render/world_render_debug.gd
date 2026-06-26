@@ -38,6 +38,7 @@ func update_if_enabled() -> void:
 		return
 	var pc := WG.world_to_chunk(world.player.position)
 	var loaded: int = world.chunk_manager.data_chunks().size()
+	var demand: Dictionary = world.chunk_manager.terrain_demand_status()
 	var poly := camera_rig.get_ground_footprint_polygon()
 	var fog_begin := 0.0
 	var fog_end := 0.0
@@ -53,6 +54,10 @@ func update_if_enabled() -> void:
 		stream_view.terrain_data_ring(), stream_view.approx_visual_extent_tiles(),
 		fog_begin, fog_end,
 		_poly_str(poly),
+	])
+	print("[render-debug] terrain-demand total=%d real=%d placeholders=%d queued=%d" % [
+		int(demand.get("demand", 0)), int(demand.get("real", 0)),
+		int(demand.get("placeholders", 0)), int(demand.get("queued", 0)),
 	])
 
 

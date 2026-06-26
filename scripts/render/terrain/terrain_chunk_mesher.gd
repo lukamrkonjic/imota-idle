@@ -55,12 +55,70 @@ var _vfh_cache: Dictionary = {}   # Vector2i tile -> visual floor height
 var _ccl_cache: Dictionary = {}   # Vector2i corner -> smoothed corner height
 var _vcy_cache: Dictionary = {}   # Vector2i corner -> final VISUAL corner height (shore-ramped)
 var _sf_cache: Dictionary = {}    # Vector2i tile -> shore-flatten factor (0 inland .. 1 at water)
+var _chunk_resolve: Dictionary = {}  # Vector2i(cx,cy) -> chunk RefCounted (per-frame, current layer)
+
+# Precomputed coastline-kernel weights. Both _coast_wf and _shore_flat01 convolve a FIXED
+# offset grid whose smoothstep weights depend only on (dx,dy) — never on tile position — and
+# whose weight-sum is therefore a constant. Building this once (in setup) turns the per-corner
+# inner loop from ~39k sqrt+smoothstep evals per chunk into a flat weighted occupancy sum.
+# Offsets are interleaved dx,dy in PackedInt32Array; weights kept in 64-bit packed arrays so
+# the field is bit-identical to the old per-call computation.
+var _coast_off := PackedInt32Array()
+var _coast_w := PackedFloat64Array()
+var _coast_wsum := 0.0
+var _shore_off := PackedInt32Array()
+var _shore_w := PackedFloat64Array()
+var _shore_wsum := 0.0
+
+# Probe diagnostics (last build): loop/sampling time vs SurfaceTool.commit time.
+var dbg_loop_us := 0
+var dbg_commit_us := 0
+var dbg_had_water := false
+var dbg_us_tileinfo := 0
+var dbg_us_corners := 0
+var dbg_us_watergate := 0
+var dbg_us_wateremit := 0
 
 
 func setup(w: Node2D, ground_mat: ShaderMaterial, water_mat: ShaderMaterial) -> void:
 	world = w
 	_ground_mat = ground_mat
 	_water_mat = water_mat
+	_build_coast_kernels()
+
+
+## Precompute the two coastline convolution kernels once. The weight at each offset is a
+## radial smoothstep falloff that depends only on (dx,dy); we keep only positive weights and
+## bank their constant sum, so the hot samplers become a flat occupancy-weighted average.
+func _build_coast_kernels() -> void:
+	_coast_off.clear()
+	_coast_w.clear()
+	_coast_wsum = 0.0
+	# Corner-centred grid: tile (ci+dx, cj+dy) sits 0.5 off the corner (matches _coast_wf).
+	for dy: int in range(-SHORE_SMOOTH, SHORE_SMOOTH):
+		for dx: int in range(-SHORE_SMOOTH, SHORE_SMOOTH):
+			var rx := float(dx) + 0.5
+			var ry := float(dy) + 0.5
+			var w := smoothstep(SHORE_RADIUS, 0.0, sqrt(rx * rx + ry * ry))
+			if w <= 0.0:
+				continue
+			_coast_off.push_back(dx)
+			_coast_off.push_back(dy)
+			_coast_w.push_back(w)
+			_coast_wsum += w
+	_shore_off.clear()
+	_shore_w.clear()
+	_shore_wsum = 0.0
+	# Tile-centred grid (matches _shore_flat01).
+	for dy: int in range(-SHORE_SMOOTH, SHORE_SMOOTH + 1):
+		for dx: int in range(-SHORE_SMOOTH, SHORE_SMOOTH + 1):
+			var w := smoothstep(SHORE_RADIUS, 0.0, sqrt(float(dx * dx + dy * dy)))
+			if w <= 0.0:
+				continue
+			_shore_off.push_back(dx)
+			_shore_off.push_back(dy)
+			_shore_w.push_back(w)
+			_shore_wsum += w
 
 
 ## The TerrainMeshManager hands us a reference to its loaded-data lookup (same Dictionary
@@ -78,6 +136,20 @@ func clear_frame_caches() -> void:
 	_ccl_cache.clear()
 	_vcy_cache.clear()
 	_sf_cache.clear()
+	_chunk_resolve.clear()
+
+
+## Resolve a chunk by its (cx,cy) coordinate on the current layer, memoised for the frame.
+## The hot samplers (_elev_raw, _coast_water, _tile_info_compute) call this tens of thousands
+## of times per chunk build; routing them through one Vector2i-keyed cache means the costly
+## "%d:%d:%d"-formatted string key (WG.key) is built at most once per unique chunk per frame
+## instead of once per tile sample — the single biggest chunk-build cost.
+func _chunk_at(ck: Vector2i) -> RefCounted:
+	if _chunk_resolve.has(ck):
+		return _chunk_resolve[ck]
+	var c: RefCounted = _chunk_by_key.get(WG.key(world.current_layer, ck.x, ck.y))
+	_chunk_resolve[ck] = c
+	return c
 
 
 ## Smooth, continuous, SEAMLESS terrain: each grid corner's height/normal/color
@@ -85,6 +157,7 @@ func clear_frame_caches() -> void:
 ## giving rolling sculpted land instead of flat terraced diamonds. Water tiles dip
 ## the floor into a basin and get a separate animated water surface on top.
 func build_chunk_terrain(chunk: RefCounted) -> Node3D:
+	var dbg_t0 := Time.get_ticks_usec()
 	var n := WG.CHUNK_TILES
 	var cx0: int = int(chunk.cx) * n
 	var cy0: int = int(chunk.cy) * n
@@ -96,14 +169,18 @@ func build_chunk_terrain(chunk: RefCounted) -> Node3D:
 	var wst := SurfaceTool.new()
 	wst.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var has_water := false
+	dbg_us_tileinfo = 0; dbg_us_corners = 0; dbg_us_watergate = 0; dbg_us_wateremit = 0
 	for ty: int in n:
 		for tx: int in n:
 			var gtx := cx0 + tx
 			var gty := cy0 + ty
+			var _p0 := Time.get_ticks_usec()
 			var info := _tile_info(gtx, gty)
 			# Plateau the tile sits on: gameplay floor (terraced, noise-free). Each corner is
 			# emitted on THIS plateau so cliffs stay vertical (see _corner_height_for).
 			var ref_top := float(info["top"]) if not info.is_empty() else 0.0
+			var _p1 := Time.get_ticks_usec()
+			dbg_us_tileinfo += _p1 - _p0
 			# Four shared corners (continuous across cells -> one smooth surface). Steep
 			# terrace risers come through as steep smooth slopes (no axis-aligned vertical
 			# faces, which would staircase into sawtooth teeth along diagonal contours).
@@ -113,14 +190,22 @@ func build_chunk_terrain(chunk: RefCounted) -> Node3D:
 			_emit_corner(st, gtx, gty, ref_top, wfc, wlc)
 			_emit_corner(st, gtx + 1, gty + 1, ref_top, wfc, wlc)
 			_emit_corner(st, gtx, gty + 1, ref_top, wfc, wlc)
+			var _p2 := Time.get_ticks_usec()
+			dbg_us_corners += _p2 - _p1
 			# The water sheet covers the water bodies + a small coastal margin and is FINELY
 			# TESSELLATED. Each sub-vertex bakes the smoothed coast field (UV.x), sampled
 			# BICUBICALLY, so the shader's 0.5 contour (the shoreline) is a smooth curve at
 			# sub-tile resolution — decoupled from the coarse terrain mesh, so the coast can
 			# never staircase into per-tile teeth.
-			if _water_plane_tile(gtx, gty):
+			var wp := _water_plane_tile(gtx, gty)
+			var _p3 := Time.get_ticks_usec()
+			dbg_us_watergate += _p3 - _p2
+			if wp:
 				has_water = true
 				_emit_water_tile(wst, gtx, gty, wfc, wlc)
+				dbg_us_wateremit += Time.get_ticks_usec() - _p3
+	dbg_loop_us = Time.get_ticks_usec() - dbg_t0
+	var _tcommit := Time.get_ticks_usec()
 	var root := Node3D.new()
 	var ground := MeshInstance3D.new()
 	ground.mesh = st.commit()
@@ -133,6 +218,8 @@ func build_chunk_terrain(chunk: RefCounted) -> Node3D:
 		water.material_override = _water_mat
 		water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(water)
+	dbg_commit_us = Time.get_ticks_usec() - _tcommit
+	dbg_had_water = has_water
 	return root
 
 
@@ -326,7 +413,7 @@ func _tile_info(gtx: int, gty: int) -> Dictionary:
 
 func _tile_info_compute(gtx: int, gty: int) -> Dictionary:
 	var ck := WG.tile_to_chunk(Vector2i(gtx, gty))
-	var chunk: RefCounted = _chunk_by_key.get(WG.key(world.current_layer, ck.x, ck.y))
+	var chunk: RefCounted = _chunk_at(ck)
 	if chunk == null:
 		return {}
 	var lx: int = gtx - ck.x * WG.CHUNK_TILES
@@ -578,17 +665,11 @@ func _shore_flat01(gtx: int, gty: int) -> float:
 	if _sf_cache.has(key):
 		return _sf_cache[key]
 	var sum := 0.0
-	var wsum := 0.0
-	for dy: int in range(-SHORE_SMOOTH, SHORE_SMOOTH + 1):
-		for dx: int in range(-SHORE_SMOOTH, SHORE_SMOOTH + 1):
-			var d := sqrt(float(dx * dx + dy * dy))
-			var w := smoothstep(SHORE_RADIUS, 0.0, d)
-			if w <= 0.0:
-				continue
-			if _coast_water(gtx + dx, gty + dy):
-				sum += w
-			wsum += w
-	var wf: float = sum / wsum if wsum > 0.0 else 0.0
+	var n := _shore_w.size()
+	for k: int in n:
+		if _coast_water(gtx + _shore_off[k * 2], gty + _shore_off[k * 2 + 1]):
+			sum += _shore_w[k]
+	var wf: float = sum / _shore_wsum if _shore_wsum > 0.0 else 0.0
 	var f := smoothstep(SHORE_FLAT_LO, SHORE_FLAT_HI, wf)
 	_sf_cache[key] = f
 	return f
@@ -617,7 +698,7 @@ func _is_rock(tile: String) -> bool:
 ## array read — used for slope (no noise re-eval).
 func _elev_raw(gtx: int, gty: int) -> int:
 	var ck := WG.tile_to_chunk(Vector2i(gtx, gty))
-	var chunk: RefCounted = _chunk_by_key.get(WG.key(world.current_layer, ck.x, ck.y))
+	var chunk: RefCounted = _chunk_at(ck)
 	if chunk == null or chunk.elev.size() == 0:
 		return 0
 	var lx: int = gtx - ck.x * WG.CHUNK_TILES
@@ -675,7 +756,7 @@ func _coast_water(gtx: int, gty: int) -> bool:
 		return _occ_cache[key]
 	var w := false
 	var ck := WG.tile_to_chunk(key)
-	var chunk: RefCounted = _chunk_by_key.get(WG.key(world.current_layer, ck.x, ck.y))
+	var chunk: RefCounted = _chunk_at(ck)
 	if chunk != null:
 		var lx: int = gtx - ck.x * WG.CHUNK_TILES
 		var ly: int = gty - ck.y * WG.CHUNK_TILES
@@ -695,24 +776,16 @@ func _coast_wf(ci: int, cj: int, wfc: Dictionary) -> float:
 	var key := Vector2i(ci, cj)
 	if wfc.has(key):
 		return wfc[key]
+	# Tiles count by a ROUND (Euclidean) smooth falloff baked into _coast_w at setup: a
+	# square/Chebyshev kernel would make the 0.5 iso-line diamond-shaped (angular sawtooth
+	# coast); the radial bump rounds the contour so bays and headlands curve smoothly. Only
+	# the water occupancy varies per corner, so this is a flat weighted sum over the kernel.
 	var sum := 0.0
-	var wsum := 0.0
-	for dy: int in range(-SHORE_SMOOTH, SHORE_SMOOTH):
-		for dx: int in range(-SHORE_SMOOTH, SHORE_SMOOTH):
-			# Tile (ci+dx, cj+dy) sits with its centre 0.5 off the corner. Weight by a
-			# ROUND (Euclidean) smooth falloff: a square/Chebyshev kernel makes the 0.5
-			# iso-line diamond-shaped, which reads as an angular sawtooth coast. The radial
-			# bump rounds the contour so bays and headlands curve smoothly.
-			var rx := float(dx) + 0.5
-			var ry := float(dy) + 0.5
-			var d := sqrt(rx * rx + ry * ry)
-			var w := smoothstep(SHORE_RADIUS, 0.0, d)   # 1 at centre -> 0 at the reach
-			if w <= 0.0:
-				continue
-			if _coast_water(ci + dx, cj + dy):
-				sum += w
-			wsum += w
-	var wf: float = sum / wsum if wsum > 0.0 else 0.0
+	var n := _coast_w.size()
+	for k: int in n:
+		if _coast_water(ci + _coast_off[k * 2], cj + _coast_off[k * 2 + 1]):
+			sum += _coast_w[k]
+	var wf: float = sum / _coast_wsum if _coast_wsum > 0.0 else 0.0
 	wfc[key] = wf
 	return wf
 

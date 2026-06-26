@@ -121,6 +121,17 @@ func keep_chunks() -> Dictionary:
 	return visual_keep_chunks
 
 
+## Real terrain data for the visible camera footprint must beat generic player-centred streaming.
+## The existing visual margin supplies the neighbour halo TerrainMeshManager needs for clean seams.
+func terrain_data_demand() -> Dictionary:
+	var out: Dictionary = {}
+	for key: String in visual_margin_chunks:
+		out[key] = 1
+	for key: String in visual_visible_chunks:
+		out[key] = 0
+	return out
+
+
 func is_chunk_visible(key: String) -> bool:
 	return visual_visible_chunks.has(key)
 

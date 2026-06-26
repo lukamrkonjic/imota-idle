@@ -25,13 +25,13 @@ class_name WorldRender3D
 ##   WorldFx3D                — firemaking fire + prayer bursts
 ##   WorldRenderDebug / WorldRenderPreviewTools — diagnostics + verification helpers
 
-const WG := preload("res://scripts/worldgen/wg.gd")
 const ChunkRenderer := preload("res://scripts/worldgen/chunk_renderer.gd")
 const TOON_GROUND := preload("res://shaders/toon_ground.gdshader")
 const TOON_WATER := preload("res://shaders/toon_water.gdshader")
 const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 const PropMeshes := preload("res://scripts/render/prop_meshes.gd")
 const CombatBars := preload("res://scripts/world/combat_bars.gd")
+const FarTerrainBackdrop := preload("res://scripts/render/terrain/far_terrain_backdrop.gd")
 
 var world: Node2D
 var cam: Camera3D                    # the live render camera (kept for WorldFx3D)
@@ -51,6 +51,7 @@ var camera_rig: WorldCameraRig3D
 var terrain_mesher: TerrainChunkMesher
 var mesh_manager: TerrainMeshManager
 var stream_view: TerrainStreamView
+var far_terrain_backdrop: FarTerrainBackdrop
 var atmosphere: WorldAtmosphere
 var static_prop_batcher: StaticPropBatcher
 var mover_renderer: MoverRenderer3D
@@ -59,6 +60,27 @@ var picking: PickingProjector3D
 var fx: WorldFx3D
 var debug: WorldRenderDebug
 var preview_tools: WorldRenderPreviewTools
+
+# Opt-in per-subsystem frame timing (`-- --perf-probe`). Zero-cost when off: the timestamps are
+# captured unconditionally (a few cheap get_ticks_usec calls) but only accumulated when on.
+var _probe_on := false
+const _PROBE_KEYS := ["caches", "pixel", "cam", "stream", "demand", "atmos", "mesh", "far", "mover", "fish", "props", "outline", "fx", "total"]
+var _probe_accum: Dictionary = {}
+var _probe_frames := 0
+
+
+## Drain the accumulated mean per-subsystem usec since the last call (probe only).
+func consume_render_timings() -> Dictionary:
+	var n := maxi(1, _probe_frames)
+	var out: Dictionary = {}
+	for k: String in _PROBE_KEYS:
+		out[k] = int(float(_probe_accum.get(k, 0.0)) / float(n))
+	out["frames"] = _probe_frames
+	if mesh_manager != null and mesh_manager.has_method("consume_sub"):
+		out.merge(mesh_manager.consume_sub())
+	_probe_accum.clear()
+	_probe_frames = 0
+	return out
 
 # Editor / FX compatibility properties (the editor + WorldFx3D set/read these via the coordinator;
 # they delegate to the owning subsystem so external call sites don't change).
@@ -128,6 +150,7 @@ func setup(w: Node2D) -> void:
 	if DisplayServer.get_name() == "headless" and not ("--force3d" in OS.get_cmdline_user_args()):
 		return
 	_active = true
+	_probe_on = "--perf-probe" in OS.get_cmdline_user_args()
 	_build()
 	_hide_2d()
 
@@ -144,10 +167,10 @@ func _build() -> void:
 	terrain_mesher.setup(world, _ground_mat, _water_mat)
 	mesh_manager = TerrainMeshManager.new()
 	mesh_manager.setup(world, terrain_root, terrain_mesher)
+	mesh_manager.probe = _probe_on
 	# Camera (needs the height field to follow the ground + project the footprint).
 	camera_rig = WorldCameraRig3D.new()
 	camera_rig.setup(world, world3d, presenter, Callable(terrain_mesher, "height_at_iso"))
-	camera_rig.set_coverage_query(_terrain_loaded_at)
 	cam = camera_rig.get_camera()
 	# Atmosphere (owns the sun the movers read for shadow direction).
 	atmosphere = WorldAtmosphere.new()
@@ -155,6 +178,8 @@ func _build() -> void:
 	# Visual coverage (camera-footprint chunk sets).
 	stream_view = TerrainStreamView.new()
 	stream_view.setup(world)
+	far_terrain_backdrop = FarTerrainBackdrop.new()
+	far_terrain_backdrop.setup(world, terrain_root, _ground_mat)
 	# Props + movers + picking, wired through shared providers.
 	var height_iso := Callable(terrain_mesher, "height_at_iso")
 	var iso_to_3d_cb := Callable(terrain_mesher, "iso_to_3d")
@@ -269,22 +294,54 @@ func _process(delta: float) -> void:
 	if not _active or world.player == null:
 		return
 	preview_tools.update_if_enabled()
+	var t0 := Time.get_ticks_usec()
 	# Per-frame memo for tile-info/corner sampling (terrain build + every height sample hit the
 	# same tiles thousands of times in a frame). Cleared once here, owned by the mesher.
 	terrain_mesher.clear_frame_caches()
 	presenter.update_pixelation()
+	var t1 := Time.get_ticks_usec()
 	camera_rig.update_input(delta)
 	camera_rig.sync_camera(delta)
+	var t2 := Time.get_ticks_usec()
 	stream_view.update(camera_rig)
+	var t3 := Time.get_ticks_usec()
+	# Detail terrain follows the camera footprint first; the far underlay is only the gap-free
+	# fallback while those chunks hydrate and mesh.
+	world.chunk_manager.set_terrain_data_demand(stream_view.terrain_data_demand())
 	terrain_ring = stream_view.terrain_data_ring()
+	var t4 := Time.get_ticks_usec()
 	atmosphere.update(camera_rig, stream_view)
+	var t5 := Time.get_ticks_usec()
 	mesh_manager.update(stream_view)
+	var t6 := Time.get_ticks_usec()
+	far_terrain_backdrop.update(stream_view)
+	var t7 := Time.get_ticks_usec()
 	mover_renderer.update(delta)
+	var t8 := Time.get_ticks_usec()
 	fishing_decor.update(delta)
+	var t9 := Time.get_ticks_usec()
+	static_prop_batcher.set_keep_chunks(stream_view.keep_chunks())
 	static_prop_batcher.update(mesh_manager.is_terrain_built_this_frame())
+	var t10 := Time.get_ticks_usec()
 	mover_renderer.update_outlines()
+	var t11 := Time.get_ticks_usec()
 	fx.update(delta)
+	var t12 := Time.get_ticks_usec()
 	debug.update_if_enabled()
+	if _probe_on:
+		_probe_add(t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12)
+
+
+func _probe_add(t0: int, t1: int, t2: int, t3: int, t4: int, t5: int, t6: int, t7: int, t8: int, t9: int, t10: int, t11: int, t12: int) -> void:
+	var d := {
+		"caches": t1 - t0, "pixel": 0, "cam": t2 - t1, "stream": t3 - t2,
+		"demand": t4 - t3, "atmos": t5 - t4, "mesh": t6 - t5, "far": t7 - t6,
+		"mover": t8 - t7, "fish": t9 - t8, "props": t10 - t9, "outline": t11 - t10,
+		"fx": t12 - t11, "total": t12 - t0,
+	}
+	for k: String in _PROBE_KEYS:
+		_probe_accum[k] = float(_probe_accum.get(k, 0.0)) + float(d.get(k, 0))
+	_probe_frames += 1
 
 
 # --------------------------------------------------- compatibility API (delegating) ----
@@ -367,11 +424,3 @@ func reset_prop_transforms_in_rect(world_rect: Rect2) -> void:
 func force_static_batches() -> void:
 	if static_prop_batcher != null:
 		static_prop_batcher.force_rebuild()
-
-
-## Is terrain DATA loaded at this grid point? The camera rig's coverage auto-zoom probes this so
-## the view tightens before its footprint reaches past loaded terrain (world edge / streaming).
-func _terrain_loaded_at(grid: Vector2) -> bool:
-	var cx := floori(grid.x / float(WG.CHUNK_TILES))
-	var cy := floori(grid.y / float(WG.CHUNK_TILES))
-	return mesh_manager.data_chunk_by_key(WG.key(world.current_layer, cx, cy)) != null

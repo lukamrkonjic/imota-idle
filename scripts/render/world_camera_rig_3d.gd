@@ -12,23 +12,17 @@ const TILE_S := 1.0
 
 const CAM_SIZE_BASE := 19.5   # ortho size at the default 1.65 zoom
 const CAM_DIST := 31.0
+const AIM_HEIGHT := 0.75
+const SCREEN_GROUND_CLEARANCE := 0.35
 const CAM_YAW_SPEED := 1.7    # rad/sec — Left/Right orbit (full 360°)
 const CAM_PITCH_SPEED := 1.1  # rad/sec — Up/Down tilt
 const CAM_PITCH_MIN := 0.16   # the low (forward/grazing) floor; effective_min_pitch returns this (+ a small view-distance lift)
 const CAM_PITCH_MAX := 1.05   # ~60° — tilted-down overview (lowered from near-top-down to see more forward)
 # Pitch is INDEPENDENT of zoom (see effective_min_pitch): zooming out keeps the current angle
-# instead of forcing the camera top-down. A grazing camera sees more ground, so the terrain budget
-# and the world edge are handled by the coverage auto-zoom (_coverage_zoom_target) + the footprint
-# cap, which tighten the VIEW rather than tilting it.
-const BUDGET_ORTHO_CLOSE := 9.0     # ortho the "hold Down" cinematic eases in to (see ZOOM_CINEMATIC)
-# Up/Down sweep the camera between two coupled poses, eased smoothly (NOT a linear tilt):
-#   hold Up   -> overview  : max zoom-OUT + top-down
-#   hold Down -> cinematic : zoom-IN + lowest pitch
-# PAN_EASE is the smoothing rate (lower = slower, more gradual glide).
+# instead of forcing the camera top-down. Streaming covers the larger ground footprint without
+# changing the player's chosen framing.
+# PAN_EASE is the smoothing rate for pitch changes.
 const PAN_EASE := 1.7
-const ZOOM_OUT_MAX := 0.55                              # matches WorldInputController.ZOOM_MIN (max zoom-out)
-const ZOOM_KEY_RATE := 0.75                             # Up/Down arrow zoom: constant per-second multiplier (gentle at any height)
-const ZOOM_CINEMATIC := CAM_SIZE_BASE / BUDGET_ORTHO_CLOSE   # the zoom-in target for the "hold Down" cinematic pose
 # Radians of yaw/pitch per pixel of middle-mouse drag (before the cam_rotate_speed multiplier).
 const CAM_DRAG_YAW := 0.006
 const CAM_DRAG_PITCH := 0.004
@@ -37,24 +31,16 @@ const CAM_FOLLOW_SPEED := 12.0   # eased-follow rate, matches the 2D Camera2D po
 # ray would otherwise shoot to the far plane and blow the terrain budget; budget-aware pitch
 # normally keeps the footprint well inside this, but the cap is the hard safety bound.
 const MAX_FOOTPRINT_TILES := 224.0   # == TERRAIN_RING_HARD_MAX(14) * CHUNK_TILES(16)
-# Coverage auto-zoom: when the view would reach past LOADED terrain (the finite world's edge, or
-# an area still streaming in), zoom IN so that unmeshed void never enters the screen instead of
-# showing a beige cutoff. Smoothly eased so it reads as the camera tightening, not a snap.
-const COVER_ZOOM_MIN := 0.40         # never auto-zoom tighter than this fraction of the desired size
-const COVER_ZOOM_LERP := 5.0         # ease rate toward the coverage-limited size
-const COVER_SLACK := 0.96            # only zoom in once a corner reaches past 96% of loaded extent
 
 var world: Node2D
 var world3d: Node3D
 var presenter: RenderViewportPresenter
 var cam: Camera3D
 var _height: Callable             # height_at_iso(iso: Vector2) -> float
-var _coverage_query := Callable() # func(grid: Vector2) -> bool : is terrain DATA loaded at this grid pt
 
 var _cam_yaw := PI / 4.0           # orbit angle around the player (Left/Right arrows)
 var _cam_pitch := 0.413            # elevation above horizon (Up/Down arrows); matches old iso
 var _cam_follow := Vector2.INF     # smoothed follow target (iso); INF = uninitialised (snap on first use)
-var _cover_zoom := 1.0             # smoothed coverage zoom factor [COVER_ZOOM_MIN .. 1]
 var editor_cam_target = null       # world editor: Vector2 to pin the camera to (overrides player follow); null = off
 var editor_footprint_chunks := 0   # world editor: raise the footprint reach (chunks) so a far zoom fills the view; 0 = gameplay cap
 
@@ -73,11 +59,6 @@ func setup(w: Node2D, w3d: Node3D, present: RenderViewportPresenter, height_prov
 	_setup_camera()
 
 
-## Inject the terrain-coverage probe used by the auto-zoom (keeps the rig decoupled from terrain).
-func set_coverage_query(cb: Callable) -> void:
-	_coverage_query = cb
-
-
 func _setup_camera() -> void:
 	# Orthographic camera at the game's 2:1 isometric angle (yaw 45, pitch ~30).
 	cam = Camera3D.new()
@@ -88,21 +69,24 @@ func _setup_camera() -> void:
 	world3d.add_child(cam)
 
 
-## Minimum allowed pitch. DECOUPLED from zoom — zooming out no longer lifts the floor toward a
-## top-down overview (that passive re-pitch felt unnatural). The terrain budget and the world edge
-## are instead handled by the coverage auto-zoom (_coverage_zoom_target) + the footprint cap, which
-## tighten the VIEW rather than tilting it. The view-distance setting still lifts the floor a touch,
-## since a lower budget can't afford a fully grazing angle.
+## Minimum allowed pitch. It is deliberately independent from zoom: streaming and the fallback
+## cover the larger footprint instead of altering the player's chosen framing.
 func effective_min_pitch() -> float:
 	var vd := clampf(GameSettings.view_distance, 0.0, 1.0)
 	return clampf(CAM_PITCH_MIN + lerpf(0.10, 0.0, vd), CAM_PITCH_MIN, CAM_PITCH_MAX)
 
 
-## Arrow keys: Left/Right spin the yaw a full 360°. Up/Down sweep the camera smoothly between a
-## top-down OVERVIEW (max zoom-out) and a low CINEMATIC pose (zoomed in) — pitch and zoom are
-## eased toward the held pose together, so holding Down pans all the way down (auto zooming in) and
-## holding Up pans all the way up (auto zooming out to max). Picking adapts automatically because
-## screen_to_iso casts through the live camera.
+## Keep the entire orthographic image plane above terrain at grazing pitch. Moving backward along
+## the view ray preserves framing, but makes every screen ray hit ground in front of the camera.
+func _safe_camera_distance(ortho_size: float) -> float:
+	var rise := maxf(sin(_cam_pitch), 0.01)
+	var bottom_screen_drop := ortho_size * 0.5 * cos(_cam_pitch)
+	var needed := (bottom_screen_drop + SCREEN_GROUND_CLEARANCE - AIM_HEIGHT) / rise
+	return maxf(CAM_DIST, needed)
+
+
+## Arrow keys: Left/Right spin yaw a full 360°. Up/Down ease only pitch; wheel zoom stays
+## independent. Picking adapts automatically because screen_to_iso casts through the live camera.
 func update_input(delta: float) -> void:
 	var spd: float = GameSettings.cam_rotate_speed   # user-tunable orbit/tilt multiplier
 	if Input.is_key_pressed(KEY_LEFT):
@@ -110,28 +94,17 @@ func update_input(delta: float) -> void:
 	if Input.is_key_pressed(KEY_RIGHT):
 		_cam_yaw += CAM_YAW_SPEED * spd * delta
 	if world != null and world._camera != null:
-		var cur_zoom: float = world._camera.zoom.x
-		var tgt_zoom := cur_zoom
 		var tgt_pitch := _cam_pitch
 		if Input.is_key_pressed(KEY_UP):
-			tgt_zoom = ZOOM_OUT_MAX        # overview: ease out to max + tilt top-down
+			# Tilt only. Mouse wheel owns zoom.
 			tgt_pitch = CAM_PITCH_MAX
 		elif Input.is_key_pressed(KEY_DOWN):
-			tgt_zoom = maxf(cur_zoom, ZOOM_CINEMATIC)   # cinematic: ease IN (never pop out) + tilt down
-			tgt_pitch = CAM_PITCH_MIN      # eased to the low forward angle (Down also zooms in)
+			# A low forward-looking angle is a valid persistent camera pose.
+			tgt_pitch = CAM_PITCH_MIN
 		# Frame-rate-independent exponential ease toward the held pose (no-op when neither is held).
 		var k := 1.0 - exp(-PAN_EASE * spd * delta)
-		if not is_equal_approx(tgt_zoom, cur_zoom):
-			# Constant MULTIPLICATIVE zoom rate — NOT a lerp toward the target. A lerp moves fast when
-			# the gap is large, so from a far zoom-out Down used to lurch in. The exp step gives the
-			# same gentle speed at any height; pitch is floor-clamped to the live zoom, so slowing the
-			# zoom slows the tilt with it. Held key eases in/out over ~2s across the full zoom range.
-			var step := exp(ZOOM_KEY_RATE * spd * delta)
-			var nz := (minf(tgt_zoom, cur_zoom * step) if tgt_zoom > cur_zoom else maxf(tgt_zoom, cur_zoom / step))
-			world._camera.zoom = Vector2(nz, nz)
 		_cam_pitch = lerpf(_cam_pitch, tgt_pitch, k)
-	# Keep pitch within [floor, max]. The floor no longer rises with zoom (decoupled), so zooming
-	# out holds the current angle; the world edge is handled by the coverage auto-zoom instead.
+	# Keep pitch within the supported low-forward to overview range without altering zoom.
 	_cam_pitch = clampf(_cam_pitch, effective_min_pitch(), CAM_PITCH_MAX)
 	_cam_yaw = wrapf(_cam_yaw, -PI, PI)
 
@@ -165,79 +138,21 @@ func sync_camera(delta: float) -> void:
 	# Orbit direction from the arrow-key yaw/pitch (default = the original iso angle). The camera
 	# always looks straight at the player so the player stays centred at every tilt/zoom.
 	var dir := Vector3(cos(_cam_pitch) * sin(_cam_yaw), sin(_cam_pitch), cos(_cam_pitch) * cos(_cam_yaw))
-	# A wide editor view spans more ground than the fixed [near, far] frustum can hold at CAM_DIST,
-	# so the foreground (near plane) and the distance (far plane) get clipped to beige. Pull the ORTHO
-	# camera back + deepen the far plane: ortho projection is invariant to position along the view
-	# axis, so this changes ONLY the clip range, not the image (and the editor runs fog-free, so the
-	# depth shift is harmless). Gameplay (editor_footprint_chunks == 0) keeps the original 31 / 400.
-	var cam_dist := CAM_DIST
+	# Pulling an orthographic camera along its view ray preserves the image. It lets the low edge of
+	# a grazing view remain above ground and gives wide editor framing enough clip range.
+	var cam_dist := _safe_camera_distance(desired_size)
+	var reach := _footprint_cap()
+	cam.far = maxf(400.0, cam_dist + reach * 2.0)
 	if editor_footprint_chunks > 0:
 		# Pull back ≥ the view's ground reach so the foreground never falls behind the near plane at
 		# any pitch (the ground's depth half-extent is ≤ reach/2), and deepen far past the distance.
-		var reach := _footprint_cap()
-		cam_dist = maxf(CAM_DIST, reach * 1.5)
+		cam_dist = maxf(cam_dist, reach * 1.5)
 		cam.far = maxf(400.0, cam_dist + reach * 2.0)
-	cam.position = c + dir * cam_dist
-	cam.look_at(c + Vector3(0, 0.75, 0), Vector3.UP)
-	# Coverage auto-zoom: tighten the view so its ground footprint never reaches past loaded
-	# terrain (the world edge / a streaming area) — the user sees the camera zoom in instead of a
-	# beige cutoff. Computed from the footprint at the DESIRED size (set above) so it's stable.
-	var target_cover := _coverage_zoom_target()
-	_cover_zoom = lerpf(_cover_zoom, target_cover, clampf(COVER_ZOOM_LERP * delta, 0.0, 1.0))
-	cam.size = desired_size * _cover_zoom
+	var aim := c + Vector3(0, AIM_HEIGHT, 0)
+	cam.position = aim + dir * cam_dist
+	cam.look_at(aim, Vector3.UP)
+	cam.size = desired_size
 	_snap_camera()
-
-
-## Largest fraction of the desired ortho size that keeps the footprint inside what the renderer
-## can show (1.0 = no zoom needed). Two limits, take the tighter: (a) a fixed terrain BUDGET radius
-## — the camera budget curve's safety backstop so a wide low-pitch view is pulled in even over
-## fully-loaded ground; (b) the actually-LOADED terrain toward each corner (the finite world edge
-## or a streaming area). The eased result is the "pan-down/zoom-out gently pulls the camera in".
-func _coverage_zoom_target() -> float:
-	if editor_cam_target != null:
-		return 1.0   # editor pins a fixed survey framing — don't fight its zoom
-	var poly := get_ground_footprint_polygon()
-	if poly.size() < 4:
-		return 1.0
-	var target := get_target_grid()
-	var budget := _budget_radius_tiles()
-	var factor := 1.0
-	for corner: Vector2 in poly:
-		var off := corner - target
-		var reach := off.length()
-		if reach < 8.0:
-			continue
-		# (a) terrain budget: never let the footprint reach past the affordable radius.
-		if reach > budget:
-			factor = minf(factor, maxf(budget / reach, COVER_ZOOM_MIN))
-		# (b) loaded terrain toward this corner (world edge / still streaming).
-		if _coverage_query.is_valid():
-			var safe := _loaded_reach(target, off / reach, reach)
-			if safe < reach * COVER_SLACK:
-				factor = minf(factor, maxf(safe / reach, COVER_ZOOM_MIN))
-	return factor
-
-
-## The terrain coverage budget (tiles): how far the renderer comfortably meshes from the target.
-## Scales with the view-distance slider; stays under the hard streaming cap so data always covers it.
-func _budget_radius_tiles() -> float:
-	var vd := clampf(GameSettings.view_distance, 0.0, 1.0)
-	return lerpf(96.0, 184.0, vd)
-
-
-## How far loaded terrain DATA extends from `target` along `dir`, up to `max_reach` tiles (stops
-## at the first unloaded sample — the world edge or a not-yet-streamed area).
-func _loaded_reach(target: Vector2, dir: Vector2, max_reach: float) -> float:
-	var step := float(WG.CHUNK_TILES) * 0.5
-	var last := 0.0
-	var d := step
-	while d <= max_reach + step:
-		if _coverage_query.call(target + dir * minf(d, max_reach)):
-			last = minf(d, max_reach)
-			d += step
-		else:
-			break
-	return last
 
 
 ## Pixel-snapped RENDER camera + sub-pixel residual offset ("Stable Pixel Motion").
@@ -300,9 +215,9 @@ func get_ortho_size() -> float:
 	return cam.size if cam != null else 0.0
 
 
-## Current coverage auto-zoom factor (1.0 = none; < 1 = tightened to hide unloaded terrain).
+## Compatibility/debug value. The hybrid renderer never changes player zoom for terrain coverage.
 func get_cover_zoom() -> float:
-	return _cover_zoom
+	return 1.0
 
 
 ## Camera forward direction projected onto the ground, in grid (x,z) coords, normalised.

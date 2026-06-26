@@ -9,6 +9,7 @@ one of these docs — start here, then follow the link.
 | **Game vision & pillars** | this file |
 | **World vision** — tiles, living non-circular geography, seamless expansion | [WORLD_DESIGN.md](WORLD_DESIGN.md) |
 | **World generation** — determinism, passes, snapshots, baking | [WORLDGEN_GUIDE.md](WORLDGEN_GUIDE.md) |
+| **3D camera / terrain coverage** — low forward views, streaming and fallback | [RENDER_DECISIONS.md](RENDER_DECISIONS.md) |
 | **Isometric pixel art** — drawing/adding props, houses, structures, decor | [ART_GUIDE.md](ART_GUIDE.md) |
 | **Shadows** — the one global stylized sun | [SHADOWS.md](SHADOWS.md) |
 | **Code architecture** — sims, autoloads, UI split | [ARCHITECTURE.md](ARCHITECTURE.md), [../README.md](../README.md) |
