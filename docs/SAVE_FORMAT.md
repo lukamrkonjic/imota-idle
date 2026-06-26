@@ -4,26 +4,41 @@
 
 Managed by `SaveManager` + `GameState`. Autosaves every 30s and on quit.
 
-### Schema version 5 (current)
+### Schema version 7 (current)
+
+`SaveMigration.CURRENT_SCHEMA = 7`, `CURRENT_GAME_VERSION = "0.7.0"`. The full shape written by
+`GameState.to_save_dict()` (plus `SaveManager` metadata + `activity` + `farming`):
 
 ```json
 {
-  "schemaVersion": 5,
-  "gameVersion": "0.5.0",
+  "schemaVersion": 7,
+  "gameVersion": "0.7.0",
+  "savedAt": 1710000000.0,
   "skills": { "<skill_id>": { "xp": 0.0, "level": 1 } },
   "inventory": [{ "id": "item.1042", "qty": 5 }],
   "bank": { "item.1042": 20 },
   "equipment": { "Axe": "item.1311", "Weapon": "item.1327" },
   "coins": 0,
   "current_hp": 10,
-  "savedAt": 1710000000.0,
-  "activity": {
-    "kind": "gather",
-    "skill": "woodcutting",
-    "node_id": "node.1023"
-  }
+  "combat_style": "attack",
+  "run_energy": 100.0,
+  "run_enabled": false,
+  "active_prayers": [],
+  "devotion": -1,
+  "slayer_task": {},
+  "slayer_points": 0,
+  "player_pos": [384.0, 384.0],
+
+  "activity": { "kind": "gather", "skill": "woodcutting", "node_id": "node.1023" },
+  "farming": { "plotCount": 3, "plots": [] }
 }
 ```
+
+Notes: `player_pos` is `[x, y]` or `null` (= use spawn). `devotion` of `-1` lazily fills to full on
+first read. `slayer_task` is `{}` (none) or `{ monster, required, done }`. `combat_style` is the
+trained combat skill. `from_save_dict` reads every field with a default, so older/partial saves load
+without crashing (unknown item ids are dropped with a warning; a slayer task for a removed monster is
+dropped; an invalid `combat_style` falls back to `"attack"`).
 
 ### Opaque numeric ids + the id registry (Phase 0)
 
@@ -101,16 +116,17 @@ Managed by `WorldStore`. Written alongside the game save.
 
 ```json
 {
-  "schemaVersion": 2,
-  "generatorVersion": 1,
+  "schemaVersion": 7,
+  "generatorVersion": 20,
   "seed": 7,
   "obelisks": { "0:0:0": { "name": "Obelisk (Zone)", "x": 384.0, "y": 384.0 } },
   "visitedZones": { "zone_id": true },
   "depleted": { "0:0:0": { "0": 1710000025.0 } },
+  "explored": { "0:0": true },
   "chunkSnapshots": {
     "0:0:0": {
       "layer": 0, "cx": 0, "cy": 0,
-      "generatorVersion": 1,
+      "generatorVersion": 20,
       "tiles": [0, 1, 2],
       "biomes": [0, 0, 1],
       "zone": { "req": 1, "name": "Green Timberland" },
@@ -124,9 +140,13 @@ Managed by `WorldStore`. Written alongside the game save.
 ```
 
 - **seed** — world RNG seed (unchanged across sessions).
-- **depleted** — gather site respawn timers (absolute unix time).
-- **chunkSnapshots** — frozen chunk data for explored areas. See `docs/WORLDGEN_GUIDE.md`.
-- **generatorVersion** — bump in `WorldStore.GENERATOR_VERSION` when generation logic changes.
+- **depleted** — gather site respawn timers (absolute unix time), per chunk → `{site_index: respawn_at}`.
+- **explored** — `"cx:cy" → true` surface reveal (fog-of-war).
+- **chunkSnapshots** — frozen chunk data for explored areas. A snapshot whose `generatorVersion`
+  doesn't match `WorldStore.GENERATOR_VERSION` is discarded and regenerated. Baked finite-world
+  surface chunks are never snapshotted (authored data wins). See `docs/WORLDGEN_GUIDE.md`.
+- **generatorVersion** — `WorldStore.GENERATOR_VERSION` (currently 20); bump when generation logic
+  changes so stale snapshots regenerate. The world-save `schemaVersion` tracks `SaveMigration.CURRENT_SCHEMA`.
 
 ## Renaming content safely (Phase 3 IP rename)
 

@@ -4,17 +4,21 @@ Things NOT fully verified while writing this wiki. Confirm against source before
 update this file (and the relevant page) when you learn the truth. Do not guess in other docs — put
 uncertainty here.
 
-## Combat formulas
-`scripts/combat/combat_calc.gd` (`CombatCalc`) and `combat_constants.gd` hold the accuracy/max-hit/
-crit/combat-triangle math. The exact formulas were not transcribed here (background in `docs/COMBAT.md`).
-Before changing balance, read `combat_calc.gd` directly; `tools/validate.gd` Phase 5 has the worked
-examples that must keep passing.
-
-## Movement keys (WASD)
-The top-of-screen hint says "WASD / R-drag move". Click-to-walk via `world_path_controller` is the
-confirmed path; whether/where continuous WASD movement is handled (which file, and how it interacts
-with the path controller) was not fully traced. Check `world_input_controller.gd` /
-`world_camera_rig_3d.gd` before relying on WASD.
+## Resolved (verified against source)
+- **Combat formulas** — transcribed exactly from `scripts/combat/combat_calc.gd` +
+  `combat_constants.gd` into `FEATURE_MAP.md` → "Combat formulas". `CombatSim` delegates to
+  `CombatCalc` (confirmed: `combat_sim.gd` preloads it and calls `player_max_hit`/`player_hit_chance`/
+  `max_attack_roll`/`effective_level`). Tune constants in `combat_constants.gd`.
+- **Player movement keys** — confirmed: **no in-game WASD**. The only `KEY_W` is
+  `tools/world_editor.gd:3225` (editor aerial-camera fly-over). In-game the player is click-to-walk;
+  arrow keys drive the in-game CAMERA (`world_camera_rig_3d.gd:update_input`: Left/Right yaw,
+  Up overview, Down cinematic). Documented in `INPUT_ACTIONS.md`.
+- **Editor uses the full game renderer** — confirmed: the editor's "🧊 3D View" embeds the REAL
+  `world.tscn` (`tools/world_editor.gd`: `_GAME_SCENE := preload("res://scenes/world.tscn")`,
+  `_v3d_world` "its render_3d does the 3D"). So `FishingDecor3D`, the `fish_school` static-skip, and
+  all render fixes apply in the editor preview too — there is no separate render path.
+- **`docs/SAVE_FORMAT.md`** — updated to schema **v7** (current example + world-save example +
+  `explored` field). It now matches `SaveMigration.CURRENT_SCHEMA`/`GameState.to_save_dict`.
 
 ## Adding a brand-new SKILL
 `data/skills.json` defines the roster, but a new skill needs sim wiring (gather/production), tool slot
@@ -24,17 +28,6 @@ multi-file change — scope it carefully; prefer adding nodes/recipes to existin
 ## `explored` field in `user://world.json`
 Populated by `WorldStore` (fog-of-war reveal) but the exact consumer (world map vs minimap) wasn't
 pinned down. Verify in `scripts/ui/widgets/minimap.gd` / the world-map code before depending on it.
-
-## `docs/SAVE_FORMAT.md` is stale
-It documents schema **v5**; the code is at **v7** (`SaveMigration.CURRENT_SCHEMA`). Trust the code +
-`SAVE_LOAD_AND_PERSISTENCE.md`. If you touch the save format, update both `docs/SAVE_FORMAT.md` and
-this wiki.
-
-## Editor vs game render parity
-The world editor (`tools/world_editor.gd`) has its own 3D preview path. Whether it runs the full
-`WorldRender3D` (so `FishingDecor3D` bubbles / the `fish_school` static-skip apply there too) was not
-fully confirmed. If a fix shows in Test Level but not the editor preview (or vice-versa), suspect a
-separate render path. Verify in the editor's 3D-view setup.
 
 ## Baked-world file format
 `data/world/baked/<id>.world` is `var_to_str`/`str_to_var` with base64 byte arrays + remap LUTs

@@ -66,6 +66,39 @@ extend safely. Paths are repo-relative. **Read the primary files before editing.
 - **Extend:** add to `data/enemies.json` + items; place via monsters/POI data or the editor Creatures
   tool. Tune formulas in `combat_calc.gd` carefully (validate Phase 5 covers them).
 
+### Combat formulas (exact — `scripts/combat/combat_calc.gd` + `combat_constants.gd`)
+`CombatSim` delegates ALL math to the pure static `CombatCalc` (verified: `combat_sim.gd` preloads it
+and calls `player_max_hit`/`player_hit_chance`/etc. through it). **Tune the constants in
+`combat_constants.gd`, never hardcode numbers in `combat_sim.gd`.** OSRS-inspired; values are ours.
+
+Constants (`CombatConstants`): `EFFECTIVE_PLAYER_LEVEL_BASE=8`, `EFFECTIVE_NPC_DEFENCE_BASE=9`,
+`EQUIPMENT_ROLL_BASE=64`, `MAX_HIT_DIVISOR=640.0`, `MAX_HIT_ROUNDING_OFFSET=0.5`,
+`TICK_DURATION_MS=600`, `GLOBAL_DAMAGE_CAP=9999`, `DEFAULT_CRIT_CHANCE=0.05`,
+`DEFAULT_CRIT_MULTIPLIER=1.5`, `MAX_CRIT_CHANCE=0.50`, `MAX_CRIT_MULTIPLIER=3.0`.
+
+Formulas:
+- **Effective level** (for accuracy AND max hit): `floor(level × prayer_mult) + temp_bonus +
+  style_bonus + 8`.
+- **Player max attack roll**: `effective_attack × (relevant_attack_bonus + 64)`.
+- **Enemy max defence roll**: `(defence_level + 9) × (relevant_defence_bonus + 64)`.
+- **Hit chance** (clamped [0,1]): if `attack_roll > defence_roll`:
+  `1 − (defence_roll + 2) / (2 × (attack_roll + 1))`; else `attack_roll / (2 × (defence_roll + 1))`.
+- **Max hit**: `floor(0.5 + effective_strength × (strength_bonus + 64) / 640)`.
+- **Base damage roll**: uniform integer in `[0, max_hit]` (a landed hit can still roll 0).
+- **Damage pipeline** (`finalize_damage`): `floor(base × crit × special × player_mult ×
+  enemy_taken_mult)` then **subtract flat reduction** then clamp `[0, 9999]` (flat reduction is
+  applied AFTER flooring the multiplied damage).
+- **Crit** (`roll_crit`): if `rng < clamp(crit_chance, 0, 0.50)` → multiplier `clamp(crit_mult, 1, 3)`.
+- **Avg crit multiplier**: `1 + crit_chance × (crit_mult − 1)`.
+- **Expected damage/attack**: `hit_chance × (max_hit / 2) × avg_crit_mult`; **DPS** = that ÷
+  `attack_ticks × 0.6s`.
+- **Combat level** (`combat_level(att,str,def,hp,ranged,magic,prayer)`):
+  `floor(0.25·(def + hp + floor(prayer/2)) + max(meleeM, rangedM, magicM))` where
+  `meleeM = 0.325·(att + str)`, `rangedM = 0.325·(floor(ranged/2) + ranged)`,
+  `magicM = 0.325·(floor(magic/2) + magic)`.
+Weak weapons stay weak via a low **strength bonus**, never a per-weapon damage cap. Enemy stats from
+`data/enemies.json` (`EnemyDef`); drops resolved by `scripts/combat/drop_roller.gd`.
+
 ## Stations / Production (cooking, smithing, firemaking, fletching, crafting, alchemy)
 - **Purpose:** craft items at stations.
 - **Primary files:** `autoload/recipe_sim.gd` (`RecipeSim`), `data/recipes.json`,

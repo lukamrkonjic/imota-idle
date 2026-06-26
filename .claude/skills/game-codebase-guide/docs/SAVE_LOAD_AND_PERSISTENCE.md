@@ -58,5 +58,5 @@ Run `godot --headless --path . res://tools/validate.tscn`. Relevant phases:
 - Never store a node/scene/model reference in a save — only data.
 - Never change a `data/*.json` `id`/`name`, a skill key, or a save key without a migration.
 - Honor `suppress` flags in any new persistence path (tools/tests must not write real saves).
-- Background doc `docs/SAVE_FORMAT.md` exists but lags (shows v5); trust the code + this page, and fix
-  it if you touch the format.
+- Background doc `docs/SAVE_FORMAT.md` is maintained at schema v7 (matches the code); keep it in sync
+  with this page if you change the format.
