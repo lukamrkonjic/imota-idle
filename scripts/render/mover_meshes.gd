@@ -228,8 +228,12 @@ static func apply_equipment(rig: Node3D, loadout: Dictionary) -> void:
 		var holder: Node3D
 		if kind == "cape":
 			# A cape is a segmented chain so the renderer can ripple a cheap wave down
-			# it (real flow, not a rigid plank swing) — see _flow_cloth.
-			holder = build_cape(equip_material(str(spec.get("material", "cloth")), spec.get("tint", Color(0, 0, 0, 0))), profile)
+			# it (real flow, not a rigid plank swing) — see _flow_cloth. Its silhouette
+			# comes from an explicit `style`, else a sensible default per material so gear
+			# tiers look different (cloth stays the plain "full" drape — the hero's look).
+			var cmat := str(spec.get("material", "cloth"))
+			var cstyle := str(spec.get("style", _cape_style_for(cmat)))
+			holder = build_cape(equip_material(cmat, spec.get("tint", Color(0, 0, 0, 0))), profile, cstyle)
 		else:
 			var parts := equip_parts(slot, kind, str(spec.get("material", "iron")), spec.get("tint", Color(0, 0, 0, 0)), profile)
 			if parts.is_empty():
@@ -563,6 +567,27 @@ static func equip_parts(slot: String, kind: String, mat_key: String, tint: Color
 				PropMeshes._part(PropMeshes._box("eq_belt", Vector3(w + 0.1, 0.1, d + 0.08)), strap, Vector3(0, -hh * 0.42, 0)),
 				PropMeshes._part(PropMeshes._box("eq_belt_buckle", Vector3(0.1, 0.1, 0.04)), buckle, Vector3(0, -hh * 0.42, d * 0.5 + 0.05)),
 				PropMeshes._part(PropMeshes._box("eq_pouch", Vector3(0.13, 0.14, 0.08)), hide, Vector3(0.18, -hh * 0.5, d * 0.5 + 0.03))]
+		"scale", "chain", "hauberk":
+			# Mid-tier scale hauberk — overlapping rows of small scales over a torso shell, simple
+			# gorget + belt, modest shoulder caps. Reads between the leather jerkin and full plate.
+			var w := torso.x
+			var hh := torso.y
+			var d := torso.z
+			var sc: Array = [
+				PropMeshes._part(PropMeshes._box("eq_sc_shell_" + mat_key, Vector3(w + 0.07, hh + 0.0, d + 0.09)), m, Vector3(0, 0, 0)),
+				PropMeshes._part(PropMeshes._box("eq_sc_gorget_" + mat_key, Vector3(w * 0.6, 0.12, d * 0.9)), m, Vector3(0, hh * 0.46, 0.0)),
+				PropMeshes._part(PropMeshes._box("eq_sc_belt", Vector3(w + 0.06, 0.09, d + 0.1)), dark, Vector3(0, -hh * 0.34, 0.0))]
+			# Three rows of staggered scales across the chest (alternating offset per row).
+			for row: int in 4:
+				var ry := hh * (0.3 - 0.16 * float(row))
+				var off := 0.06 if row % 2 == 1 else 0.0
+				for sxn: int in range(-1, 2):
+					sc.append(PropMeshes._part(PropMeshes._box("eq_scale_%d_%d" % [row, sxn + 1], Vector3(0.11, 0.09, 0.04)),
+						m, Vector3(float(sxn) * 0.16 + off, ry, d * 0.5 + 0.03)))
+			# Modest rounded shoulder caps (no big spikes).
+			for ssc: int in [-1, 1]:
+				sc.append(PropMeshes._part(PropMeshes._sphere("eq_sc_pauld", 0.2), m, Vector3((shoulder * 0.5) * ssc, hh * 0.4, 0.0), Vector3(1.2, 0.8, 1.25)))
+			return sc
 		"robe_top":
 			# A full robe that encloses the torso, a shoulder mantle + high collar that
 			# hide the neck gap, a red scarf, and a couple of belt straps for layering.
@@ -607,12 +632,23 @@ static func equip_parts(slot: String, kind: String, mat_key: String, tint: Color
 ## cheap traveling sine wave down the chain (a few sin() calls, no physics, no
 ## per-vertex work) so the cape billows and trails — cheap enough for potato builds.
 ## Sized to the wearer (shoulder width, torso length) so it drapes right on any rig.
-static func build_cape(m: Material, profile: Dictionary) -> Node3D:
+## Default cape silhouette per material so a loadout that doesn't pin a style still varies by tier:
+## cloth = the plain full drape (unchanged hero look), leather = a short cloak, mid metals get a
+## gold-trimmed cape, high metals a hooded one. An item can override via its render `style`.
+static func _cape_style_for(mat_key: String) -> String:
+	match mat_key:
+		"leather", "bronze": return "short"
+		"iron", "steel": return "trim"
+		"mithril", "adamant", "rune", "gold": return "hooded"
+		_: return "full"
+
+
+static func build_cape(m: Material, profile: Dictionary, style := "full") -> Node3D:
 	var shoulder: float = float(profile.get("shoulder", 0.64))
 	var cw := shoulder * 1.02
-	# A long, full cape: enough links to reach the ground and pool/drag behind the
-	# heels. The renderer's _flow_cape curves it down (gravity) and ripples it gently.
-	var segs := 6
+	# Style tweaks the silhouette: "short" = a shoulder cloak (fewer links), "trim"/"hooded"/
+	# "tattered" = full length with extra dressing. All ripple via the same segment chain.
+	var segs := 3 if style == "short" else 6
 	var seg_len := 0.3
 	var root := Node3D.new()
 	# Static gold clasp at the collar.
@@ -622,8 +658,17 @@ static func build_cape(m: Material, profile: Dictionary) -> Node3D:
 	clasp.position = Vector3(0, 0.12, -0.02)
 	clasp.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(clasp)
+	# A soft hood bunched at the collar for the "hooded" cloak.
+	if style == "hooded":
+		var hood := MeshInstance3D.new()
+		hood.mesh = PropMeshes._box("eq_cape_hood", Vector3(cw * 0.78, 0.34, 0.34))
+		hood.material_override = m
+		hood.position = Vector3(0, 0.34, 0.04)
+		hood.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(hood)
 	# The chain: each segment hangs off the bottom of the previous one. A gentle flare
 	# toward the hem so it reads as a full, heavy, majestic cape.
+	var trim_mat := equip_material("gold")
 	var parent := root
 	for i: int in segs:
 		var pivot := Node3D.new()
@@ -631,12 +676,33 @@ static func build_cape(m: Material, profile: Dictionary) -> Node3D:
 		pivot.position = Vector3(0, 0.06, -0.05) if i == 0 else Vector3(0, -seg_len, 0)
 		parent.add_child(pivot)
 		var width := cw * (0.94 + 0.04 * float(i))
-		var mi := MeshInstance3D.new()
-		mi.mesh = PropMeshes._box("eq_cape_seg%d" % i, Vector3(width, seg_len + 0.03, 0.05))
-		mi.material_override = m
-		mi.position = Vector3(0, -seg_len * 0.5, 0)
-		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		pivot.add_child(mi)
+		var last := i == segs - 1
+		if style == "tattered" and last:
+			# Frayed hem: split the bottom into two ragged tails instead of one straight edge.
+			for tx: int in [-1, 1]:
+				var tail := MeshInstance3D.new()
+				tail.mesh = PropMeshes._box("eq_cape_tail%d" % tx, Vector3(width * 0.4, seg_len + 0.06, 0.05))
+				tail.material_override = m
+				tail.position = Vector3(width * 0.24 * tx, -seg_len * 0.55, 0)
+				tail.rotation = Vector3(0, 0, 0.18 * tx)
+				tail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				pivot.add_child(tail)
+		else:
+			var mi := MeshInstance3D.new()
+			mi.mesh = PropMeshes._box("eq_cape_seg%d" % i, Vector3(width, seg_len + 0.03, 0.05))
+			mi.material_override = m
+			mi.position = Vector3(0, -seg_len * 0.5, 0)
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			pivot.add_child(mi)
+		# A contrasting gold border running down both edges of the "trim" cape.
+		if style == "trim":
+			for ex: int in [-1, 1]:
+				var edge := MeshInstance3D.new()
+				edge.mesh = PropMeshes._box("eq_cape_trim%d_%d" % [i, ex], Vector3(0.05, seg_len + 0.04, 0.055))
+				edge.material_override = trim_mat
+				edge.position = Vector3(width * 0.5 * ex, -seg_len * 0.5, 0.002)
+				edge.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				pivot.add_child(edge)
 		parent = pivot
 	root.set_meta("cape_segments", segs)
 	return root
@@ -752,6 +818,15 @@ static func enemy_body_type(name: String) -> String:
 		return "mole"
 	if n.contains("chicken") or n.contains("hen") or n.contains("rooster") or n.contains("fowl") or n.contains("chick"):
 		return "bird"
+	for kw: String in ["golem", "construct", "colossus", "gargoyle", "automaton"]:
+		if n.contains(kw):
+			return "golem"
+	for kw: String in ["treant", "spriggan", "dryad", "greenman", "woodling", "leshy"]:
+		if n.contains(kw):
+			return "treant"
+	for kw: String in ["imp", "gremlin", "pixie", "fairy", "fae"]:
+		if n.contains(kw):
+			return "imp"
 	return "humanoid"
 
 
@@ -763,6 +838,16 @@ static func enemy_rig(e: Node) -> Node3D:
 	var type := enemy_body_type(name)
 	var n := name.to_lower()
 	var boss := bool(e.get("is_boss"))
+	# Bespoke flagship-boss models: a few named bosses get a unique rig instead of a scaled archetype.
+	# They animate via the humanoid pose (biped skeleton) and still get the boss regalia/idle.
+	if boss:
+		var bespoke := _bespoke_boss_rig(n)
+		if bespoke != null:
+			bespoke.set_meta("body3d", "humanoid")
+			bespoke.set_meta("base_scale", _variant_size(n) * 1.5)
+			bespoke.set_meta("boss", true)
+			_add_boss_regalia(bespoke, "humanoid", n)
+			return bespoke
 	var rider := n.contains("rider")
 	# Per-species base size (a human ≈ 1.0): cows tower, chickens and moles are small.
 	var size := 1.0
@@ -779,18 +864,23 @@ static func enemy_rig(e: Node) -> Node3D:
 			node = quadruped_rig({
 				"hide": hide, "belly": hide.darkened(0.12), "ears": "perk", "tail": "short",
 				"snout": 0.22, "tusks": not pinkish, "humped": not pinkish, "snout_pink": pinkish})
+			node.set_meta("gait_style", "trot_quick")
 			size = 0.9 if pinkish else 1.05
 		"cow":
 			node = quadruped_rig({"hide": Color(0.66, 0.46, 0.32), "belly": Color(0.84, 0.81, 0.76), "ears": "floppy", "horns": "cow", "tail": "tuft", "snout": 0.2})
+			node.set_meta("gait_style", "graze")
 			size = 1.4
 		"sheep":
 			node = quadruped_rig({"hide": Color(0.92, 0.91, 0.88), "belly": Color(0.88, 0.87, 0.84), "ears": "floppy", "tail": "short", "snout": 0.14, "wool": true, "head_dark": true})
+			node.set_meta("gait_style", "graze")
 			size = 0.98
 		"goat":
 			node = quadruped_rig({"hide": Color(0.80, 0.78, 0.80), "belly": Color(0.88, 0.87, 0.86), "ears": "perk", "horns": "goat", "tail": "short", "snout": 0.16, "beard": true})
+			node.set_meta("gait_style", "graze")
 			size = 0.9
 		"mole":
 			node = quadruped_rig({"hide": Color(0.34, 0.27, 0.31), "belly": Color(0.46, 0.39, 0.42), "ears": "none", "tail": "short", "snout": 0.22})
+			node.set_meta("gait_style", "scurry")
 			size = 0.6
 		"bird":
 			var brown := n.contains("mumma") or n.contains("momma")
@@ -831,7 +921,21 @@ static func enemy_rig(e: Node) -> Node3D:
 		"bear":
 			var bt := _enemy_tint(n, Color(0.36, 0.27, 0.22))
 			node = quadruped_rig({"hide": bt, "belly": bt.lightened(0.24), "ears": "perk", "tail": "short", "snout": 0.24})
+			node.set_meta("gait_style", "lumber")
 			size = 1.35
+		"golem":
+			# Built on the biped skeleton, animated by the humanoid pose; posture metas make it stand
+			# stiff and heavy (no idle stoop, arms hang straight).
+			node = golem_rig({"rock": _enemy_tint(n, Color(0.46, 0.46, 0.5)), "core": Color(1.0, 0.55, 0.18) if not (n.contains("frost") or n.contains("ice")) else Color(0.4, 0.7, 1.0)})
+			node.set_meta("lean", 0.0); node.set_meta("hunch", 0.0); node.set_meta("arm_rest", 0.02); node.set_meta("crouch", 0.05)
+			size = 1.4
+		"treant":
+			node = treant_rig({"bark": _enemy_tint(n, Color(0.34, 0.25, 0.16)), "leaf": Color(0.3, 0.5, 0.26)})
+			node.set_meta("lean", 0.0); node.set_meta("hunch", 0.06); node.set_meta("arm_rest", 0.12); node.set_meta("crouch", 0.04)
+			size = 1.5
+		"imp":
+			node = imp_rig({"skin": _enemy_tint(n, Color(0.7, 0.22, 0.2))})
+			size = 0.55
 		_:
 			type = "humanoid"
 			if n.contains("gnoll"):
@@ -849,7 +953,10 @@ static func enemy_rig(e: Node) -> Node3D:
 	if rider and type == "wolf":
 		_add_rider(node)
 	node.set_meta("body3d", type)
-	node.set_meta("base_scale", size * (1.22 if boss else 1.0))
+	node.set_meta("base_scale", size * (1.3 if boss else 1.0))
+	if boss:
+		node.set_meta("boss", true)
+		_add_boss_regalia(node, type, n)
 	# Characteristic posture: goblins stoop forward with arms hanging low; gnolls
 	# (beastman) are hunched brutes; skeletons lurch a little; others stand looser.
 	# Posture is a curved BACK (hunch at the spine), not a whole-body forward tilt:
@@ -1021,6 +1128,45 @@ static func _add_rider(node: Node3D) -> void:
 		_attach(node, PropMeshes._cone("r_ear", 0.05, 0.005, 0.13), rskin, Vector3(0.15 * sx, 1.34, -0.04), Vector3.ONE, Vector3(0, 0, 0.6 * sx))
 
 
+## Boss regalia — makes ANY archetype read as a boss without a bespoke model: a glowing ground aura
+## ring (universal, height-agnostic) tinted by the boss's element, plus a crown of bony horns for
+## bosses that have a head socket (upright humanoids). The base also breathes (see MoverRenderer3D).
+static func _add_boss_regalia(node: Node3D, _type: String, n: String) -> void:
+	var aura := Color(0.78, 0.14, 0.12)                                   # default: hellish red
+	if n.contains("frost") or n.contains("ice") or n.contains("ghost") or n.contains("wraith") or n.contains("spectre"):
+		aura = Color(0.35, 0.62, 0.96)
+	elif n.contains("toxic") or n.contains("poison") or n.contains("venom") or n.contains("plague"):
+		aura = Color(0.5, 0.88, 0.32)
+	elif n.contains("shadow") or n.contains("void") or n.contains("dark") or n.contains("night"):
+		aura = Color(0.58, 0.3, 0.88)
+	elif n.contains("gold") or n.contains("sun") or n.contains("radiant") or n.contains("holy"):
+		aura = Color(0.96, 0.78, 0.3)
+	var am := StandardMaterial3D.new()
+	am.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	am.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	am.albedo_color = Color(aura.r, aura.g, aura.b, 0.42)
+	am.emission_enabled = true
+	am.emission = aura
+	am.emission_energy_multiplier = 1.5
+	# A flat ground ring + a smaller inner glow for depth.
+	_attach(node, PropMeshes._cyl("boss_aura_o", 0.92, 0.92, 0.02), am, Vector3(0, 0.025, 0))
+	var am2 := am.duplicate()
+	am2.albedo_color = Color(aura.r, aura.g, aura.b, 0.6)
+	_attach(node, PropMeshes._cyl("boss_aura_i", 0.5, 0.5, 0.02), am2, Vector3(0, 0.04, 0))
+	# Crown of bony horns, only where the rig exposes a head socket (upright humanoid bosses).
+	var head: Node = node.find_child("socket_head", true, false)
+	if head != null and head is Node3D:
+		var horn := PropMeshes._mat_from(Color(0.13, 0.12, 0.14), Color(0.05, 0.05, 0.06), Color(0.34, 0.31, 0.28))
+		for i: int in 5:
+			var ang := (float(i) - 2.0) * 0.62
+			var c := MeshInstance3D.new()
+			c.mesh = PropMeshes._cone("boss_horn", 0.045, 0.0, 0.24)
+			c.material_override = horn
+			c.position = Vector3(sin(ang) * 0.13, 0.2, cos(ang) * 0.04 - 0.02)
+			c.rotation = Vector3(-0.25, 0.0, -sin(ang) * 0.7)
+			(head as Node3D).add_child(c)
+
+
 ## Reusable two-legged bird (chicken). Legs hang off leg_l/leg_r hip pivots.
 static func bird_rig(spec: Dictionary) -> Node3D:
 	var body: Color = spec.get("body", Color(0.93, 0.89, 0.8))
@@ -1102,6 +1248,165 @@ static func _biped_arm(root: Node3D, side: int, shoulder: Vector3, upper: Vector
 
 static func _tri_mat(c: Color) -> ShaderMaterial:
 	return PropMeshes._mat_from(c, c.darkened(0.34), c.lightened(0.2))
+
+
+## Stone golem — a blocky humanoid built on the standard biped skeleton (leg_l/r, knee_l/r, arm_l/r,
+## elbow_l/r, spine) so the proven humanoid pose walks/attacks it; the look is heavy craggy rock with
+## a glowing molten core. Posture metas (set in enemy_rig) make it stand stiff and lumber.
+static func golem_rig(spec: Dictionary) -> Node3D:
+	var rock: Color = spec.get("rock", Color(0.46, 0.46, 0.5))
+	var core: Color = spec.get("core", Color(1.0, 0.55, 0.18))
+	var stone := _tri_mat(rock)
+	var stone_d := _tri_mat(rock.darkened(0.2))
+	var root := Node3D.new()
+	# Stumpy two-segment legs (chunky thigh + shin) on the biped hip/knee pivots.
+	for side: int in [-1, 1]:
+		var knee := _biped_leg(root, side, Vector3(0.18 * side, 0.86, 0), Vector3(0.26, 0.4, 0.28), Vector3(0.24, 0.4, 0.26), stone, "gol_leg")
+		_attach(knee, PropMeshes._box("gol_foot", Vector3(0.3, 0.18, 0.36)), stone_d, Vector3(0, -0.46, 0.04))
+	_attach(root, PropMeshes._box("gol_hips", Vector3(0.5, 0.22, 0.34)), stone_d, Vector3(0, 0.9, 0))
+	var spine := _limb(root, "spine", Vector3(0, 0.95, 0))
+	# Massive boulder torso + a small craggy head sunk between the shoulders (no neck).
+	_attach(spine, PropMeshes._box("gol_torso", Vector3(0.62, 0.6, 0.42)), stone, Vector3(0, 0.32, 0))
+	_attach(spine, PropMeshes._box("gol_chest_rock", Vector3(0.3, 0.26, 0.2)), stone_d, Vector3(-0.16, 0.42, 0.16))
+	_attach(spine, PropMeshes._box("gol_head", Vector3(0.3, 0.28, 0.3)), stone_d, Vector3(0, 0.74, 0))
+	# Glowing molten core in the chest + a couple of glowing cracks.
+	var glow := StandardMaterial3D.new()
+	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	glow.albedo_color = core
+	glow.emission_enabled = true
+	glow.emission = core
+	glow.emission_energy_multiplier = 1.8
+	_attach(spine, PropMeshes._sphere("gol_core", 0.12), glow, Vector3(0, 0.34, 0.2))
+	_attach(spine, PropMeshes._box("gol_crack", Vector3(0.04, 0.22, 0.03)), glow, Vector3(0.12, 0.3, 0.21))
+	# Big stone arms hanging off the shoulders (biped arm pivots → swing + elbow bend).
+	for side2: int in [-1, 1]:
+		var el := _biped_arm(spine, side2, Vector3(0.4 * side2, 0.5, 0), Vector3(0.2, 0.36, 0.22), Vector3(0.22, 0.36, 0.24), stone, stone_d, "gol_arm")
+		_attach(el, PropMeshes._box("gol_fist", Vector3(0.3, 0.28, 0.3)), stone, Vector3(0, -0.34, 0))
+		_socket(el, "socket_mainhand" if side2 > 0 else "socket_offhand", Vector3(HAND_SOCKET_POS.x * side2, HAND_SOCKET_POS.y, HAND_SOCKET_POS.z))
+	root.set_meta("body_profile", {"torso": Vector3(0.66, 0.6, 0.42), "head": Vector3(0.32, 0.3, 0.32), "shoulder": 0.8, "hips": Vector3(0.5, 0.22, 0.34)})
+	return root
+
+
+## Treant — a walking tree on the biped skeleton: a trunk torso, root-claw feet, gnarled branch arms,
+## and a leafy canopy crown. Animated by the humanoid pose (slow, with a creaking sway via posture
+## metas). The canopy uses the foliage wind material so it rustles.
+static func treant_rig(spec: Dictionary) -> Node3D:
+	var bark: Color = spec.get("bark", Color(0.34, 0.25, 0.16))
+	var leaf: Color = spec.get("leaf", Color(0.30, 0.5, 0.26))
+	var wood := _tri_mat(bark)
+	var wood_d := _tri_mat(bark.darkened(0.22))
+	var foliage := PropMeshes._foliage_mat(leaf)   # toon + wind sway, so the canopy rustles
+	var root := Node3D.new()
+	for side: int in [-1, 1]:
+		var knee := _biped_leg(root, side, Vector3(0.2 * side, 0.88, 0), Vector3(0.22, 0.42, 0.24), Vector3(0.2, 0.42, 0.22), wood, "tre_leg")
+		# Root-claw foot: a few splayed root prongs.
+		for rp: int in [-1, 0, 1]:
+			_attach(knee, PropMeshes._cone("tre_root", 0.07, 0.01, 0.26), wood_d, Vector3(0.12 * rp, -0.46, 0.08), Vector3.ONE, Vector3(1.2, 0, -0.4 * rp))
+	_attach(root, PropMeshes._box("tre_hips", Vector3(0.4, 0.2, 0.3)), wood_d, Vector3(0, 0.92, 0))
+	var spine := _limb(root, "spine", Vector3(0, 0.95, 0))
+	# Trunk torso (a tapering cylinder) with a knothole face.
+	_attach(spine, PropMeshes._cyl("tre_trunk", 0.28, 0.34, 0.78), wood, Vector3(0, 0.36, 0))
+	var eye := _tri_mat(Color(0.95, 0.82, 0.3))
+	for ex: int in [-1, 1]:
+		_attach(spine, PropMeshes._sphere("tre_eye", 0.05), eye, Vector3(0.1 * ex, 0.52, 0.28))
+	# Leafy canopy crown sitting on top of the trunk.
+	_attach(spine, PropMeshes._sphere("tre_canopy", 0.42), foliage, Vector3(0, 0.86, 0), Vector3(1.2, 0.9, 1.2))
+	_attach(spine, PropMeshes._sphere("tre_canopy2", 0.3), foliage, Vector3(-0.22, 0.74, 0.04))
+	_attach(spine, PropMeshes._sphere("tre_canopy3", 0.28), foliage, Vector3(0.24, 0.78, -0.06))
+	# Gnarled branch arms on the biped arm pivots.
+	for side2: int in [-1, 1]:
+		var el := _biped_arm(spine, side2, Vector3(0.32 * side2, 0.5, 0), Vector3(0.14, 0.36, 0.16), Vector3(0.12, 0.38, 0.14), wood, wood_d, "tre_arm")
+		_attach(el, PropMeshes._cone("tre_twig", 0.07, 0.01, 0.22), wood_d, Vector3(0, -0.36, 0), Vector3.ONE, Vector3(0.4, 0, 0))
+		_socket(el, "socket_mainhand" if side2 > 0 else "socket_offhand", Vector3(HAND_SOCKET_POS.x * side2, HAND_SOCKET_POS.y, HAND_SOCKET_POS.z))
+	root.set_meta("body_profile", {"torso": Vector3(0.56, 0.6, 0.4), "head": Vector3(0.4, 0.4, 0.4), "shoulder": 0.64, "hips": Vector3(0.4, 0.2, 0.3)})
+	return root
+
+
+## Imp — a small winged demon, animated by the bat pose (hover + fast wing-beat). Pivots: wing_l,
+## wing_r. A round body, horned head, little arms and a barbed tail.
+static func imp_rig(spec: Dictionary) -> Node3D:
+	var skin: Color = spec.get("skin", Color(0.7, 0.22, 0.2))
+	var sm := _tri_mat(skin)
+	var sm_d := _tri_mat(skin.darkened(0.25))
+	var horn := _tri_mat(Color(0.18, 0.16, 0.18))
+	var root := Node3D.new()
+	_attach(root, PropMeshes._sphere("imp_body", 0.2), sm, Vector3(0, 0.52, 0), Vector3(1.0, 1.1, 0.95))
+	_attach(root, PropMeshes._sphere("imp_head", 0.15), sm, Vector3(0, 0.74, 0.04))
+	# Glowing eyes + two little horns.
+	var eye := StandardMaterial3D.new()
+	eye.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	eye.albedo_color = Color(1.0, 0.85, 0.3)
+	eye.emission_enabled = true
+	eye.emission = Color(1.0, 0.7, 0.2)
+	eye.emission_energy_multiplier = 1.6
+	for ex: int in [-1, 1]:
+		_attach(root, PropMeshes._sphere("imp_eye", 0.03), eye, Vector3(0.05 * ex, 0.76, 0.16))
+		_attach(root, PropMeshes._cone("imp_horn", 0.04, 0.002, 0.14), horn, Vector3(0.07 * ex, 0.86, 0.0), Vector3.ONE, Vector3(-0.2, 0, -0.5 * ex))
+	# Little dangling arms + legs.
+	for sx: int in [-1, 1]:
+		_attach(root, PropMeshes._box("imp_arm", Vector3(0.06, 0.18, 0.06)), sm_d, Vector3(0.2 * sx, 0.5, 0.02), Vector3.ONE, Vector3(0, 0, 0.5 * sx))
+		_attach(root, PropMeshes._box("imp_leg", Vector3(0.06, 0.16, 0.06)), sm_d, Vector3(0.08 * sx, 0.34, 0))
+	# Barbed tail.
+	_attach(root, PropMeshes._cyl("imp_tail", 0.04, 0.02, 0.34), sm_d, Vector3(0, 0.46, -0.18), Vector3.ONE, Vector3(0.9, 0, 0))
+	_attach(root, PropMeshes._cone("imp_barb", 0.06, 0.005, 0.12), horn, Vector3(0, 0.36, -0.34))
+	# Bat wings on wing_l/wing_r pivots so the bat pose flaps them.
+	for wsd: int in [-1, 1]:
+		var wing := _limb(root, "wing_l" if wsd < 0 else "wing_r", Vector3(0.16 * wsd, 0.56, -0.04))
+		_attach(wing, PropMeshes._box("imp_wing", Vector3(0.28, 0.22, 0.03)), sm_d, Vector3(0.14 * wsd, 0.0, 0))
+	return root
+
+
+## Bespoke flagship-boss rigs, keyed by name. Returns a unique Node3D (built on the biped skeleton so
+## the humanoid pose animates it) or null to fall back to the scaled archetype + regalia. Add a named
+## boss its own model by adding a branch here. (See docs/ASSET_CHECKLIST.md — bosses.)
+static func _bespoke_boss_rig(n: String) -> Node3D:
+	if n.contains("pumpkin") or n.contains("jack o"):
+		return _pumpkin_jack_rig()
+	return null
+
+
+## "Pumpkin Jack" — a ragged-robed figure with a glowing carved jack-o'-lantern head and a crooked
+## witch hat. Biped skeleton (leg_l/r, arm_l/r, spine) → walks/attacks via the humanoid pose.
+static func _pumpkin_jack_rig() -> Node3D:
+	var robe := _tri_mat(Color(0.18, 0.16, 0.22))
+	var robe_d := _tri_mat(Color(0.11, 0.10, 0.14))
+	var pumpkin := _tri_mat(Color(0.88, 0.44, 0.12))
+	var stalk := _tri_mat(Color(0.32, 0.4, 0.2))
+	var glow := StandardMaterial3D.new()
+	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	glow.albedo_color = Color(1.0, 0.74, 0.2)
+	glow.emission_enabled = true
+	glow.emission = Color(1.0, 0.62, 0.16)
+	glow.emission_energy_multiplier = 1.9
+	var root := Node3D.new()
+	for side: int in [-1, 1]:
+		var knee := _biped_leg(root, side, Vector3(0.12 * side, 0.86, 0), Vector3(0.17, 0.42, 0.18), Vector3(0.15, 0.42, 0.16), robe_d, "pj_leg")
+		_attach(knee, PropMeshes._box("pj_foot", Vector3(0.18, 0.12, 0.26)), robe_d, Vector3(0, -0.46, 0.04))
+	_attach(root, PropMeshes._box("pj_hips", Vector3(0.42, 0.18, 0.27)), robe_d, Vector3(0, 0.92, 0))
+	var spine := _limb(root, "spine", Vector3(0, 0.95, 0))
+	# Ragged robe torso, a touch wider at the shoulders.
+	_attach(spine, PropMeshes._box("pj_torso", Vector3(0.46, 0.6, 0.3)), robe, Vector3(0, 0.3, 0))
+	_attach(spine, PropMeshes._box("pj_yoke", Vector3(0.54, 0.14, 0.33)), robe_d, Vector3(0, 0.52, 0))
+	# Carved pumpkin head: a ribbed orange sphere, glowing triangular eyes + a jagged grin, green stalk.
+	_attach(spine, PropMeshes._sphere("pj_head", 0.26), pumpkin, Vector3(0, 0.84, 0), Vector3(1.15, 0.92, 1.1))
+	for ex: int in [-1, 1]:
+		_attach(spine, PropMeshes._cone("pj_eye", 0.07, 0.002, 0.1), glow, Vector3(0.1 * ex, 0.9, 0.2), Vector3.ONE, Vector3(1.5708, 0, 0))
+	_attach(spine, PropMeshes._cone("pj_nose", 0.05, 0.002, 0.08), glow, Vector3(0, 0.84, 0.24), Vector3.ONE, Vector3(1.5708, 0, 0))
+	for mx: int in range(-2, 3):
+		var th := 0.06 if mx % 2 == 0 else 0.04
+		_attach(spine, PropMeshes._box("pj_tooth%d" % mx, Vector3(0.045, th, 0.03)), glow, Vector3(0.07 * float(mx), 0.74, 0.25))
+	_attach(spine, PropMeshes._cyl("pj_stalk", 0.035, 0.02, 0.12), stalk, Vector3(0, 1.02, 0))
+	# Crooked witch hat perched on top.
+	_attach(spine, PropMeshes._cyl("pj_hatbrim", 0.32, 0.32, 0.03), robe_d, Vector3(0, 1.04, 0), Vector3.ONE, Vector3(0.08, 0, 0.1))
+	_attach(spine, PropMeshes._cone("pj_hat", 0.19, 0.008, 0.52), robe_d, Vector3(0.05, 1.28, -0.02), Vector3.ONE, Vector3(-0.16, 0, 0.16))
+	# Spindly arms.
+	for side2: int in [-1, 1]:
+		var el := _biped_arm(spine, side2, Vector3(0.3 * side2, 0.48, 0), Vector3(0.1, 0.32, 0.11), Vector3(0.09, 0.32, 0.1), robe, robe_d, "pj_arm")
+		_attach(el, PropMeshes._box("pj_hand", Vector3(0.1, 0.1, 0.12)), robe_d, Vector3(0, -0.32, 0))
+		_socket(el, "socket_mainhand" if side2 > 0 else "socket_offhand", Vector3(HAND_SOCKET_POS.x * side2, HAND_SOCKET_POS.y, HAND_SOCKET_POS.z))
+	root.set_meta("hunch", 0.08)   # a slight spooky stoop
+	root.set_meta("body_profile", {"torso": Vector3(0.5, 0.6, 0.32), "head": Vector3(0.5, 0.5, 0.5), "shoulder": 0.62, "hips": Vector3(0.42, 0.18, 0.27)})
+	return root
 
 
 ## Winged dragon / drake / wyvern. Pivots: neck, wing_l, wing_r, tail (+tail2), leg_*.

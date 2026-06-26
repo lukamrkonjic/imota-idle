@@ -33,14 +33,16 @@ icon — see §2). Approximate, grounded in this audit:
   kinds (~120 in `prop_meshes.decor_parts`), town/furniture props (~70 in `_city_prop_parts`),
   hike-diorama dressing (~30), tree species (canopy_pine/maple/birch/palm/saguaro/deadtree/acacia +
   alpine_pine), held weapon kinds (~14), held tool kinds (axe/pickaxe/fishing_rod), enemy body
-  archetypes (5: humanoid/bird/dragon/serpent/slime), gather poses (7), combat lunges, walk/idle gait,
+  archetypes (~19: humanoid/dragon/serpent/slime/wraith/eye/spider/scarab/crawler/crab/bat/bear/wolf/
+  boar/cow/sheep/goat/mole/bird), boss regalia, gather poses (7), combat lunges, walk/idle gait,
   several VFX (leaf puff, rock chip, tree fall/grow, fishing bubbles, blob shadows).
 - **Missing (`[ ]`):** ALL audio files (system hooked, ~empty `data/audio.json`); several VFX (water
   splash on cast/catch, level-up flourish, item-pickup pop, ripple, generic resource-depletion);
   optional `.glb` upgrades for hero buildings.
 - **Placeholder / needs improvement (`[~]`):** item-icon distinctiveness (976 items share ~33 shape
-  templates + material tints; many read alike); a few props reuse meshes; NPC variety (only 1 entry
-  in `data/npcs.json`); dialogue portraits (none).
+  templates + material tints; many read alike); a few props reuse meshes; only 1 NPC entry in
+  `data/npcs.json` (the `kind:"npc"` model now varies robe/skin/headwear per id via
+  `prop_meshes._npc_figure`, so adding NPC defs yields visible variety for free); dialogue portraits (none).
 - **Critical missing:** none blocks play (procedural art covers everything). Highest-value gaps are
   **audio**, **item-icon variety**, and a few **feedback VFX**. See "Missing Assets To Make".
 
@@ -116,6 +118,10 @@ All procedural via `prop_meshes.gd` unless noted. Placeable via the world editor
 
 ### Terrain & World Props
 - [x] Mineable rocks (`rock`, `geode`, `cairn`) — procedural; mining sites use `kind:"rock"`. Critical.
+  **Ore veins are SEPARATE meshes** (`prop_meshes._rock_parts(ore)`): a grey boulder base + colour/glow
+  shards keyed off the ore's display name (`_ore_vein_style`: copper/tin/coal/iron/silver = matte,
+  gold/mithril/adamant/rune/dragon/gems/lava = emissive glow via `_ore_vein_mat`). A depleted (dimmed)
+  rock renders base-only. Add a new ore's colour by adding a row to `_ore_vein_style`.
 - [x] Trees (canopy_pine/maple/birch/palm/saguaro/deadtree/acacia, `alpine_pine`, `hike_conifer`,
   `hike_deciduous`, `mossy_log`, `hike_log`, `hike_stump`) — procedural; species from
   `data/world/tree_species.json`. Critical. **Leaves vs trunk:** separate parts within the procedural
@@ -175,7 +181,14 @@ shield/cape) + `equip_loadout.gd` (cloth/leather/metal materials, cape/robe tint
 - [x] Helmet, Chest (body), Legs, Boots, Gloves, Shield, Cape — procedural worn meshes + icons. High.
 - [x] Robes/wizard hat/hood (cloth set), cape/robe color tints — procedural, color-swappable via
   loadout tints. Medium.
-- [~] Distinct armor *sets* per material tier — material-tinted, not unique silhouettes. `[~]`.
+- [x] **Cape silhouettes** — `build_cape(m, profile, style)` supports `full` / `short` (shoulder
+  cloak) / `trim` (gold-edged) / `hooded` / `tattered` (frayed twin-tail hem). An item pins it via a
+  `style` field; otherwise `_cape_style_for(material)` picks one per tier (cloth = the plain hero
+  drape, unchanged). All ripple via the same segment chain.
+- [x] **Body silhouettes** — `chest` (ornate full plate w/ pauldrons), `jerkin` (leather vest),
+  `scale`/`chain`/`hauberk` (NEW mid-tier scale mail), `robe_top` (mage). Distinct shapes, not just tints.
+- [~] Distinct armor *sets* per material tier — bodies/capes now vary by shape; per-slot matched
+  "sets" (themed helm+body+legs+cape) are still tint-driven. `[~]`.
 - [ ] Backpack — not modelled. Low.
 - [?] Rings/amulets visible on the body — equippable + iconned, but not shown on the 3D rig. Confirm
   if visible jewellery is wanted.
@@ -184,21 +197,32 @@ shield/cape) + `equip_loadout.gd` (cloth/leather/metal materials, cape/robe tint
 
 ### Enemies & Creatures
 Enemy rigs are procedural archetypes in `mover_meshes.gd` (`enemy_rig`), animated by `mover_rig.gd`.
-**5 body archetypes**, chosen from the enemy name by keyword: `humanoid` (default), `bird`, `dragon`,
-`serpent`, `slime` (`mover_meshes.gd:707-755`). 120 enemies in `data/enemies.json` map onto these.
+**~19 body archetypes** chosen from the enemy name by keyword (`enemy_body_type`): `humanoid`
+(default, + goblin/gnoll gaits), `dragon`, `serpent`, `slime`, `wraith`, `eye`, `spider`, `scarab`,
+`crawler`, `crab`, `bat`, `bear`, `wolf`, `boar`, `cow`, `sheep`, `goat`, `mole`, `bird`. The renderer
+dispatches each to a pose: `_pose_humanoid/goblin/gnoll/bird/dragon/serpent/slime/float/scuttle/crab/
+bat/quadruped` (`mover_renderer_3d.gd` match). 120 enemies in `data/enemies.json` map onto these.
 - [x] Humanoid enemies (goblins/skeletons/bandits/…) — `humanoid` rig (+ goblin/gnoll gaits). Critical.
-- [x] Dragons/drakes/wyverns — `dragon` rig. High.
-- [x] Serpents/snakes/nagas — `serpent` rig. Medium.
-- [x] Slimes/oozes/elementals — `slime` rig. Medium.
-- [x] Birds — `bird` rig. Low.
-- [x] Animations: idle, walk (gait), combat attack lunge, hit flash + shake, **death topple** —
-  `mover_rig.gd` + `mover_renderer_3d.gd`. High.
-- [~] Distinct per-enemy silhouettes — 120 enemies share 5 archetypes (size/tint/gait vary). `[~]`
-  for visual variety; add archetypes (quadruped, insect, fish-creature) if desired.
-- [ ] Quadruped / livestock / fish-as-creature / pet rigs — no dedicated archetype. Medium/Low.
+- [x] Dragons/drakes/wyverns; serpents/nagas; slimes/oozes; wraiths/ghosts (float); floating eyes;
+  spiders/scarabs (scuttle); crawlers/worms; crabs; bats; bears/wolves/boars/cows/sheep/goats/moles
+  (quadruped variants via `quadruped_rig` spec); birds. All have dedicated rigs. High→Low.
+- [x] Animations: idle, walk (gait per archetype), combat attack lunge, hit flash + shake, **death
+  topple** — `mover_rig.gd` + `mover_renderer_3d.gd`. High.
+- [x] Distinct quadruped gaits — `_pose_quadruped` reads a `gait_style` meta: bear=`lumber` (slow,
+  heavy roll), cow/sheep/goat=`graze` (placid, head dips), boar=`trot_quick`, mole=`scurry`; wolves
+  keep the default even trot. Set per species in `enemy_rig`.
+- [x] New archetypes **golem / treant / imp** — `golem_rig` (stone biped w/ glowing core),
+  `treant_rig` (tree-man w/ leafy wind-swayed canopy), `imp_rig` (small winged flyer). Golem/treant
+  ride the humanoid pose via the biped skeleton; imp uses the bat pose. Keywords in `enemy_body_type`.
+- [ ] Further archetypes (centaur/hydra/kraken) — add a rig builder + keyword + pose the same way. Low.
 - [x] Loot/drop icons — drops are items → procedural `item_icon.gd`. Covered.
 - [ ] Enemy-specific VFX/sounds (roar, cast) — none beyond generic hitsplats. Low.
-- [?] Bosses — `is_boss` enemies use the same archetypes scaled up; no unique boss models. Confirm.
+- [x] **Bosses read as bosses** — `is_boss` enemies get `_add_boss_regalia` (a glowing ground aura
+  ring tinted by element + a bony horn crown on humanoids) + a bigger base scale (×1.3) + a slow
+  breathing idle (`mover_renderer_3d` boss-swell). Universal across every archetype, no bespoke model.
+- [~] **Bespoke flagship-boss models** — `_bespoke_boss_rig(name)` returns a unique rig for named
+  bosses (built so far: **Pumpkin Jack** — glowing carved jack-o'-lantern head + witch hat). Add a
+  branch there to give any of the other ~34 bosses (Aurelion, Vaerthrax, etc.) its own model.
 
 ### NPCs & Characters
 - [x] Sim players (ambient NPC crowd) — use the PLAYER rig with deterministic looks/loadouts
@@ -363,7 +387,7 @@ Per `docs/GLB_IMPORT_GUIDE.md`, keep these as SEPARATE meshes/materials:
 | Medium | [ ] | Level-up flourish | Procedural VFX | `world_fx_3d.gd` / HUD | Progression feedback | chat-only today |
 | Medium | [~] | NPC roles + outfits (banker/shopkeeper/trainer/…) | Data + procedural | `data/npcs.json` + sim loadouts | Town life / dialogue | only 1 npc def |
 | Medium | [ ] | Dialogue portraits | 2D art | `assets/portraits/` | NPC dialogue UI | none today |
-| Medium | [~] | Enemy archetype variety (quadruped/insect/fish) | Procedural 3D | `mover_meshes.gd` enemy_rig | 120 enemies, 5 shapes | bosses reuse archetypes |
+| Low | [~] | Enemy archetype variety | Procedural 3D | `mover_meshes.gd` enemy_rig | 120 enemies, ~22 rigs (incl. golem/treant/imp) + per-species gaits | bosses get regalia; 1 bespoke (Pumpkin Jack) |
 | Medium | [ ] | Foraging held tool (lens/sickle) mesh | Procedural 3D | `mover_meshes.gd` | Foraging readability | currently bare-handed |
 | Low | [ ] | Item-pickup / loot sparkle VFX | Procedural VFX | `world_fx_3d.gd` | Loot feedback | on `loot_gained` |
 | Low | [ ] | Buff/debuff HUD icons | Procedural 2D | `scripts/ui/` | Prayer/boosts | none today |

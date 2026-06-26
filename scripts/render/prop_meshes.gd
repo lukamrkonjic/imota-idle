@@ -52,11 +52,15 @@ static func entity_parts(e: Node) -> Array:
 				return _maple_parts(_maple_mat())
 			return _tree_parts(_canopy_mat(e))
 		"npc":
-			# A robed humanoid NPC (Slayer Master etc.) — reuse the figure model with a
-			# distinct robe/skin so it reads as a person, not a monster.
-			return figure_parts(PixelPalette.pal("outfit_b"), PixelPalette.pal("skin_a"))
+			# Townsfolk / quest-givers — varied robe, skin and headwear per NPC so a settlement
+			# reads as a crowd of distinct people rather than clones of one robed figure.
+			return _npc_figure(e)
 		"rock":
-			return _rock_parts()
+			# A depleted (dimmed) rock renders base-only — its ore vein is "mined out". A live ore site
+			# passes its node name so the vein takes that ore's colour/glow.
+			if bool(e.get("dimmed")):
+				return _rock_parts()
+			return _rock_parts(str(e.get("label")))
 		"bush", "node":
 			return _bush_parts()
 		"fish":
@@ -773,10 +777,67 @@ static func _bush_parts() -> Array:
 		_part(_sphere("bush_r", 0.36), leaf, Vector3(0.4, 0.3, -0.1), Vector3(1.1, 0.8, 1.1))]
 
 
-static func _rock_parts() -> Array:
-	# Mining-rock boulder: grey stone, a touch larger than the decor boulders, faceted and
-	# grounded (no more floating octahedron pyramids).
-	return _rock_cluster("ore", 0, _mat("stone_a", "stone_b", "ore"), _mat("stone_b", "shadow", "stone_a"), 1.12)
+static func _rock_parts(ore := "") -> Array:
+	# Mining-rock boulder: grey stone base. The ORE VEIN is built as SEPARATE crystal-shard meshes on
+	# top (own parts) — coloured (and, for precious/magic ores, glowing) per the ore — so different
+	# ores read distinctly and a depleted rock can drop just the veins (entity_parts renders a dimmed
+	# rock base-only). `ore` is the gather node's display name (e.g. "Mithril Ore"); "" = plain boulder.
+	var parts := _rock_cluster("ore", 0, _mat("stone_a", "stone_b", "ore"), _mat("stone_b", "shadow", "stone_a"), 1.12)
+	if ore.is_empty():
+		return parts
+	var style := _ore_vein_style(ore)
+	var vmat := _ore_vein_mat(style["color"], bool(style["glow"]))
+	# A few faceted shards poking from the boulder; shared mesh, per-ore material (batches well).
+	const VEIN_SPOTS := [
+		[Vector3(0.20, 0.74, 0.14), 0.15], [Vector3(-0.34, 0.54, -0.10), 0.12],
+		[Vector3(0.08, 0.96, -0.26), 0.13], [Vector3(-0.14, 0.46, 0.34), 0.11],
+		[Vector3(0.34, 0.40, 0.06), 0.10]]
+	for i: int in VEIN_SPOTS.size():
+		var spot: Vector3 = VEIN_SPOTS[i][0]
+		var s: float = float(VEIN_SPOTS[i][1])
+		parts.append(_part(_octa("ore_vein"), vmat, spot, Vector3(s, s * 1.5, s), Vector3(0.5 * i, 0.8 * i, 0.3 * i)))
+	return parts
+
+
+## Per-ore vein look: {color, glow}. Keyed by the gather node's display name (case-insensitive
+## substring) so new ores get a fitting tint by name. Precious/magic ores GLOW. Add a row to give a
+## new ore its own colour. (See docs/ASSET_CHECKLIST.md — ore veins.)
+static func _ore_vein_style(ore: String) -> Dictionary:
+	var n := ore.to_lower()
+	var table := [
+		["copper", Color(0.83, 0.46, 0.22), false], ["tin", Color(0.78, 0.79, 0.74), false],
+		["coal", Color(0.16, 0.16, 0.19), false], ["iron", Color(0.66, 0.38, 0.28), false],
+		["silver", Color(0.86, 0.88, 0.93), false], ["gold", Color(0.93, 0.77, 0.28), true],
+		["mithril", Color(0.34, 0.48, 0.86), true], ["adamant", Color(0.27, 0.64, 0.46), true],
+		["rune", Color(0.30, 0.74, 0.80), true], ["dragon", Color(0.84, 0.22, 0.20), true],
+		["azur", Color(0.30, 0.62, 0.90), true], ["ceruli", Color(0.30, 0.62, 0.90), true],
+		["sapphire", Color(0.28, 0.46, 0.92), true], ["emerald", Color(0.24, 0.78, 0.46), true],
+		["ruby", Color(0.86, 0.20, 0.30), true], ["diamond", Color(0.82, 0.92, 0.98), true],
+		["amethyst", Color(0.62, 0.36, 0.86), true], ["topaz", Color(0.92, 0.74, 0.30), true],
+		["onyx", Color(0.22, 0.20, 0.26), true], ["gem", Color(0.70, 0.45, 0.92), true],
+		["crystal", Color(0.62, 0.86, 0.95), true], ["lava", Color(0.92, 0.42, 0.16), true],
+	]
+	for row: Array in table:
+		if n.contains(str(row[0])):
+			return {"color": row[1], "glow": bool(row[2])}
+	return {"color": Color(0.55, 0.55, 0.60), "glow": false}   # plain grey ore fleck
+
+
+## Vein material. Glow → an UNSHADED emissive StandardMaterial (reads as a glowing crystal through the
+## toon/posterize pass); otherwise a normal toon material that shades with the scene. Cached per look.
+static func _ore_vein_mat(color: Color, glow: bool) -> Material:
+	if not glow:
+		return _mat_from(color, color.darkened(0.45), color.lightened(0.35))
+	var ck := "ore_glow|%s" % color
+	if not _mat_cache.has(ck):
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.albedo_color = color
+		m.emission_enabled = true
+		m.emission = color
+		m.emission_energy_multiplier = 1.7
+		_mat_cache[ck] = m
+	return _mat_cache[ck]
 
 
 ## A half-timbered medieval cottage: stone footing, cream plaster walls crossed by
@@ -1689,6 +1750,63 @@ static func _fern_parts() -> Array:
 
 ## Blocky humanoid matching the 2D player silhouette (legs/torso/arms/head/hair),
 ## ported to the 3D toon style. body = outfit color, head = skin color.
+## A varied robed person for `kind:"npc"`. Robe colour, skin tone and headwear (hood / brim hat /
+## pointed hat / cap / bare) are picked deterministically from the NPC's id+name, so the same NPC
+## always looks the same but the cast as a whole is varied. `type` nudges the look (slayer_master →
+## dark hood; merchant/shop → apron; mage/wizard → pointed hat).
+static func _npc_figure(e: Node) -> Array:
+	var act: Dictionary = e.get("action") if e.get("action") is Dictionary else {}
+	var npc_id := str(act.get("npc", ""))
+	var ntype := str(Dictionary(DataRegistry.npcs.get(npc_id, {})).get("type", ""))
+	var s := absi(hash(npc_id + "|" + str(e.get("label"))))
+	const ROBES := [
+		Color(0.36, 0.30, 0.52), Color(0.55, 0.22, 0.20), Color(0.24, 0.40, 0.30),
+		Color(0.28, 0.34, 0.48), Color(0.58, 0.46, 0.24), Color(0.44, 0.44, 0.48),
+		Color(0.20, 0.36, 0.42), Color(0.50, 0.34, 0.46), Color(0.30, 0.30, 0.32)]
+	const SKINS := [
+		Color(0.86, 0.68, 0.54), Color(0.74, 0.55, 0.42), Color(0.58, 0.41, 0.30),
+		Color(0.92, 0.78, 0.66), Color(0.47, 0.34, 0.26)]
+	var robe: Color = ROBES[s % ROBES.size()]
+	var skin: Color = SKINS[(s / 7) % SKINS.size()]
+	var head_kind: String = ["hood", "brim", "cap", "bare", "bare"][(s / 13) % 5]
+	# Type flavour overrides.
+	if ntype == "slayer_master":
+		robe = Color(0.22, 0.20, 0.26); head_kind = "hood"
+	elif ntype.contains("mage") or ntype.contains("wizard") or ntype.contains("sage"):
+		head_kind = "pointed"
+	elif ntype.contains("shop") or ntype.contains("merchant") or ntype.contains("store"):
+		head_kind = "cap"
+	var parts := figure_parts(robe, skin)
+	_npc_headwear(parts, head_kind, robe)
+	# Merchants get a simple apron panel over the robe so the trade role reads at a glance.
+	if ntype.contains("shop") or ntype.contains("merchant") or ntype.contains("store"):
+		var apron := _mat_from(Color(0.78, 0.72, 0.6), Color(0.6, 0.55, 0.44), Color(0.9, 0.86, 0.74))
+		parts.append(_part(_box("npc_apron", Vector3(0.34, 0.5, 0.06)), apron, Vector3(0, 0.74, 0.16)))
+	return parts
+
+
+## Append headwear to an NPC part list (head box sits ~y1.3, hair ~y1.53).
+static func _npc_headwear(parts: Array, kind: String, robe: Color) -> void:
+	match kind:
+		"hood":
+			var hm := _mat_from(robe.darkened(0.2), robe.darkened(0.45), robe.lightened(0.1))
+			parts.append(_part(_box("npc_hood", Vector3(0.46, 0.44, 0.46)), hm, Vector3(0, 1.42, -0.02)))
+			parts.append(_part(_box("npc_hood_drape", Vector3(0.4, 0.34, 0.12)), hm, Vector3(0, 1.18, -0.2)))
+		"brim":
+			var fm := _mat_from(Color(0.34, 0.24, 0.15), Color(0.22, 0.15, 0.09), Color(0.46, 0.34, 0.22))
+			parts.append(_part(_cyl("npc_brim", 0.34, 0.34, 0.05), fm, Vector3(0, 1.52, 0)))
+			parts.append(_part(_cone("npc_crown", 0.2, 0.04, 0.3), fm, Vector3(0, 1.7, 0)))
+		"pointed":
+			var pm := _mat_from(Color(0.3, 0.26, 0.46), Color(0.18, 0.15, 0.3), Color(0.46, 0.4, 0.66))
+			parts.append(_part(_cyl("npc_pbrim", 0.32, 0.32, 0.04), pm, Vector3(0, 1.52, 0)))
+			parts.append(_part(_cone("npc_point", 0.22, 0.005, 0.6), pm, Vector3(0.02, 1.86, -0.02), Vector3.ONE, Vector3(-0.18, 0, 0.08)))
+		"cap":
+			var cm := _mat_from(robe.darkened(0.1), robe.darkened(0.4), robe.lightened(0.16))
+			parts.append(_part(_box("npc_cap", Vector3(0.43, 0.16, 0.45)), cm, Vector3(0, 1.55, -0.01)))
+		_:
+			pass   # "bare" — keep the figure's own hair
+
+
 static func figure_parts(body: Color, head: Color) -> Array:
 	var outfit := _mat_from(body, body.darkened(0.35), body.lightened(0.18))
 	var legm := _mat_from(body.darkened(0.28), body.darkened(0.5), body.lightened(0.05))

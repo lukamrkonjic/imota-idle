@@ -148,13 +148,24 @@ func show_structure(part: Dictionary, label: String) -> void:
 	_frame_to_model(1.0)
 
 
-func show_creature(name: String) -> void:
-	_reshow = func() -> void: show_creature(name)
+func show_loadout(loadout: Dictionary, label: String) -> void:
+	_reshow = func() -> void: show_loadout(loadout, label)
+	_clear_model()
+	_tint_ground(Color(0.30, 0.34, 0.42))
+	var rig: Node3D = MoverMeshes.sim_rig(Color(0.86, 0.68, 0.54), loadout)
+	_model_root.add_child(rig)
+	_caption.text = label
+	_frame_to_model(1.4)
+
+
+func show_creature(name: String, boss := false) -> void:
+	_reshow = func() -> void: show_creature(name, boss)
 	_clear_model()
 	_tint_ground(Color(0.32, 0.42, 0.27))
 	var e := WorldEntity.new()
 	e.kind = "enemy"
 	e.label = name
+	e.is_boss = boss
 	e.enemy_shape = IsoSprites.enemy_shape(name)
 	e.display_size = 40.0
 	var enemy: Dictionary = DataRegistry.get_enemy(name)

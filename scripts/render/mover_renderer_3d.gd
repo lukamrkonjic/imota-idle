@@ -407,6 +407,10 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 	var face_ready := (not gather_face) or (not moving and absf(wrapf(gather_desired - yaw, -PI, PI)) < 0.3)
 	var phase := float(absi(hash(key)) % 1000) * 0.006283
 	var base: float = float(node.get_meta("base_scale", 1.0))
+	# Bosses breathe — a slow heavy swell on the base scale so they read as looming and alive even
+	# when idle (the menacing-idle anim that plain scaled archetypes lacked).
+	if node.get_meta("boss", false):
+		base *= 1.0 + sin(t * 1.6 + phase) * 0.035
 	var atk := _attack_progress(key, t)
 	# Woodcutting: a dedicated overhead axe chop (windup → snappy downswing → impact hold → slow
 	# recovery), driven separately from the combat lunge so the feet stay planted while the player
@@ -461,8 +465,11 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 			MoverRig._pose_scuttle(node, pos3, yaw, walk, t, phase, base, atk)
 		"crab":
 			MoverRig._pose_crab(node, pos3, yaw, walk, t, phase, base, atk)
-		"bat":
+		"bat", "imp":
 			MoverRig._pose_bat(node, pos3, yaw, walk, t, phase, base, atk)
+		"golem", "treant":
+			# Biped skeletons → the proven humanoid pose (posture metas give them their heavy/creaky feel).
+			MoverRig._pose_humanoid(node, pos3, yaw, walk, t, phase, base, atk, chop, work_kind, work_amt, gait)
 		_:
 			MoverRig._pose_quadruped(node, pos3, yaw, walk, t, phase, base, atk)
 	# Resting: the player folds down to sit on the ground (right-click the run orb).
@@ -587,8 +594,10 @@ func _shadow_footprint(btype: String) -> Vector2:
 			return Vector2(1.18, 1.18)           # wide leg-spread
 		"scarab":
 			return Vector2(0.92, 1.04)
-		"wraith", "eye", "bat":
+		"wraith", "eye", "bat", "imp":
 			return Vector2(0.5, 0.5)             # floaters: a small, faint shadow under them
+		"golem", "treant":
+			return Vector2(0.92, 0.98)           # heavy bipeds: a broad squarish print
 		_:
 			return Vector2(1.05, 1.62)  # four-legged: a longer oval along the spine
 

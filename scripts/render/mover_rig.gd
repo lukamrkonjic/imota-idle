@@ -492,22 +492,34 @@ static func _pose_gnoll(node: Node3D, pos3: Vector3, yaw: float, walk: float, t:
 ## whole body in for a headbutt/bite.
 static func _pose_quadruped(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float) -> void:
 	var rest := 1.0 - walk
+	# Per-species gait flavour (meta set in enemy_rig): a bear lumbers slow and heavy, cattle graze
+	# placidly, a boar trots brisk and choppy, a mole scurries on fast tiny steps. Default ("") keeps
+	# the original even trot (wolves etc.).
+	var cad := 1.0      # stride rate (leg frequency)
+	var bobm := 1.0     # body up/down bob amplitude
+	var swingm := 1.0   # leg swing reach
+	var grazem := 1.0   # idle head-dip strength
+	match str(node.get_meta("gait_style", "")):
+		"lumber":     cad = 0.72; bobm = 1.7; swingm = 0.85; grazem = 0.4
+		"graze":      cad = 0.9;  bobm = 0.85; swingm = 0.95; grazem = 1.6
+		"trot_quick": cad = 1.28; bobm = 1.15; swingm = 1.18; grazem = 0.5
+		"scurry":     cad = 1.6;  bobm = 0.6;  swingm = 1.2;  grazem = 0.3
 	# Idle life: slow breathing, a gentle side-to-side weight shift, and a periodic
 	# head-down graze dip so a standing beast never just freezes.
 	var breathe := rest * sin(t * 1.5 + phase) * 0.022
 	var sway := rest * sin(t * 0.85 + phase) * 0.035
-	var graze := rest * maxf(0.0, sin(t * 0.45 + phase) - 0.4) * 0.32
+	var graze := rest * maxf(0.0, sin(t * 0.45 + phase) - 0.4) * 0.32 * grazem
 	node.rotation = Vector3(-0.28 * sin(atk * PI) + graze, yaw, sway)
-	var stride := t * 7.6 + phase
+	var stride := t * 7.6 * cad + phase
 	# A clear up/down body bob while moving + a gentle idle breathing sway at rest;
 	# a small ground lift so the hooves sit on the floor, not through it.
-	var bob := absf(sin(stride)) * 0.06 * walk + rest * (0.5 + 0.5 * sin(t * 2.0 + phase)) * 0.02
+	var bob := absf(sin(stride)) * 0.06 * bobm * walk + rest * (0.5 + 0.5 * sin(t * 2.0 + phase)) * 0.02
 	node.position = pos3 + Vector3(0, bob + 0.07, 0)
 	var sq := sin(stride * 2.0) * 0.03 * walk
 	node.scale = Vector3(base * (1.0 + sq * 0.4), base * (1.0 - sq * 0.5 + breathe), base * (1.0 + sq * 0.4))
 	# Diagonal trot: FL+BR swing together, FR+BL opposite. Each knee folds through
 	# its swing so the legs articulate (lift + reach) instead of swinging as posts.
-	var swing := sin(stride) * 0.7 * walk
+	var swing := sin(stride) * 0.7 * swingm * walk
 	var idle_leg := rest * sin(t * 1.1 + phase) * 0.04
 	var knee_a := 0.12 + walk * (0.18 + 0.5 * maxf(0.0, sin(stride + 1.1)))
 	var knee_b := 0.12 + walk * (0.18 + 0.5 * maxf(0.0, sin(stride + PI + 1.1)))
