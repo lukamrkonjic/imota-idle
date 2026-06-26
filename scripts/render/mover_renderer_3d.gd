@@ -365,17 +365,23 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 			desired = atan2(vel.x, vel.z)
 			want = true
 	# Gathering: square up to the node being worked (tree/rock/bush/…) so the player faces it.
+	var gather_face := false
+	var gather_desired := 0.0
 	if key == "player" and TickSim.active and TickSim.skill != "fishing" and not world.gather_ref.is_empty():
 		var te: Object = world.gather_ref.get("entity")
 		if is_instance_valid(te):
 			var t3: Vector3 = _iso_to_3d.call((te as Node2D).position, 0.0)
 			desired = atan2(t3.x - pos3.x, t3.z - pos3.z)
 			want = true
+			gather_face = true
+			gather_desired = desired
 	# Fishing: turn to face the water spot you're casting/reaching into.
 	if key == "player" and _is_fishing():
 		var c3: Vector3 = _iso_to_3d.call(world.player.fish_cast_pos, 0.0)
 		desired = atan2(c3.x - pos3.x, c3.z - pos3.z)
 		want = true
+		gather_face = true
+		gather_desired = desired
 	var face: Variant = _combat_face_pos(key, moving)
 	if face != null:
 		var f3: Vector3 = _iso_to_3d.call(face, 0.0)
@@ -389,6 +395,9 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 		yaw = wrapf(yaw + yvel * sdt, -PI, PI)
 		_mover_yaw_vel[key] = yvel
 		_mover_yaw[key] = yaw
+	# Don't start the gather/skill motion until the player has TURNED to face the node/water and has
+	# stopped walking — walk → square up → then animate (like facing a foe before swinging).
+	var face_ready := (not gather_face) or (not moving and absf(wrapf(gather_desired - yaw, -PI, PI)) < 0.3)
 	var phase := float(absi(hash(key)) % 1000) * 0.006283
 	var base: float = float(node.get_meta("base_scale", 1.0))
 	var atk := _attack_progress(key, t)
@@ -396,7 +405,7 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 	# recovery), driven separately from the combat lunge so the feet stay planted while the player
 	# hacks at the tree.
 	var chop := 0.0
-	if (key == "player" and _chopping) or gathering:
+	if (key == "player" and _chopping and face_ready) or gathering:
 		chop = fmod(t * CHOP_RATE, 1.0)
 		atk = 0.0   # no combat step-in; the chop/work pose moves the body
 	# Per-skill gather motion (player, non-woodcutting): mining swing, fishing cast/kneel, foraging
@@ -412,7 +421,7 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 			"thieving": work = "steal"
 		if work != "":
 			atk = 0.0
-			work_target = 1.0
+			work_target = 1.0 if face_ready else 0.0   # turn to face first, then animate
 			_mover_work_kind[key] = work
 	var work_amt: float = lerpf(float(_mover_work.get(key, 0.0)), work_target, clampf(dt * 8.0, 0.0, 1.0))
 	_mover_work[key] = work_amt

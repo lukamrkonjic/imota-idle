@@ -8,11 +8,11 @@ class_name FishingDecor3D
 
 const PropMeshes := preload("res://scripts/render/prop_meshes.gd")
 
-const BUBBLES := 14
-const SPOT_RADIUS := 0.62        # cluster radius on the water surface (3D world units)
-const RISE_HEIGHT := 0.3         # how high a bubble climbs before it pops
-const RISE_SPEED := 0.55         # base rise cycles/sec (varied per bubble)
-const BUBBLE_SIZE := 0.09        # peak bubble radius
+const BUBBLES := 26
+const SPOT_RADIUS := 0.6         # cluster radius on the water surface (3D world units)
+const RISE_HEIGHT := 0.26        # how high a bubble climbs before it pops
+const RISE_SPEED := 0.6          # base rise cycles/sec (varied per bubble)
+const BUBBLE_SIZE := 0.08        # peak bubble radius (varied per bubble)
 const SURFACE_LIFT := 0.03       # sit just above the water plane
 
 var _props_root: Node3D
@@ -73,19 +73,21 @@ func _build_rig() -> Node3D:
 func _animate(rig: Node3D, iso: Vector2, t: float, variant: float) -> void:
 	var y: float = _height.call(iso) + SURFACE_LIFT
 	rig.position = _iso_to_3d.call(iso, y)
-	for i: int in rig.get_child_count():
+	var n := rig.get_child_count()
+	for i: int in n:
 		var b: Node3D = rig.get_child(i)
-		# Deterministic per-bubble layout (golden-angle spread) + rise phase/speed, offset by the
-		# spot's variant so neighbouring spots bubble out of sync.
 		var fi := float(i)
+		# Golden-angle spread across the spot; deterministic per-bubble radius, size and rise speed.
 		var ang := fi * 2.39996 + variant * 0.017
 		var rad := SPOT_RADIUS * sqrt(fposmod(fi * 0.413 + 0.13, 1.0))
-		var speed := RISE_SPEED * (0.7 + 0.6 * fposmod(fi * 0.37, 1.0))
-		var ph := fposmod(fi * 0.61 + variant * 0.013, 1.0)
+		var speed := RISE_SPEED * (0.6 + 0.8 * fposmod(fi * 0.37, 1.0))
+		var size := BUBBLE_SIZE * (0.45 + 0.75 * fposmod(fi * 0.53 + 0.2, 1.0))
+		# EVENLY-spread phases (i/n) + a little jitter, so at every instant bubbles exist at all
+		# stages of the climb — the cluster fizzes continuously with no visible loop seam.
+		var ph := fposmod(fi / float(n) + fposmod(fi * 0.197, 1.0) * 0.25 + variant * 0.013, 1.0)
 		var rise := fposmod(t * speed + ph, 1.0)
-		# A little sideways wobble as it climbs.
-		var wob := sin(t * 2.0 + fi) * 0.03
+		var wob := sin(t * 2.3 + fi * 1.7) * 0.025   # sideways drift as it climbs
 		b.position = Vector3(cos(ang) * rad + wob, rise * RISE_HEIGHT, sin(ang) * rad * 0.6)
-		# Swell in from nothing, peak mid-climb, pop to nothing at the top.
-		var sc := BUBBLE_SIZE * sin(rise * PI)
+		# Swell in from nothing, peak mid-climb, pop to nothing at the top (continuous spawn + fizz).
+		var sc := size * sin(rise * PI)
 		b.scale = Vector3.ONE * maxf(sc, 0.0001)

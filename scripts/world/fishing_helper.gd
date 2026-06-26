@@ -53,19 +53,23 @@ static func best_stand(player_pos: Vector2, chunk: RefCounted, site: Dictionary)
 	var water := water_tile_global(chunk, site)
 	if water.x < 0:
 		return chunk.tile_world(int(site["tx"]), int(site["ty"]))
+	# Stand at the WATER'S EDGE: prefer the walkable tile closest to the water (ring distance 1
+	# first), tie-broken by closeness to the player — so the player fishes from right beside the
+	# water, not from up to CAST_TILES away (which left the rod/kneel reaching over dry land).
 	var best: Vector2 = chunk.tile_world(int(site["tx"]), int(site["ty"]))
-	var best_d := player_pos.distance_squared_to(best)
+	var best_score := INF
 	for dy: int in range(-CAST_TILES, CAST_TILES + 1):
 		for dx: int in range(-CAST_TILES, CAST_TILES + 1):
-			if maxi(absi(dx), absi(dy)) > CAST_TILES or (dx == 0 and dy == 0):
+			var ring := maxi(absi(dx), absi(dy))
+			if ring == 0 or ring > CAST_TILES:
 				continue
 			var stand := Vector2i(water.x + dx, water.y + dy)
 			var world := WG.tile_to_world(stand.x, stand.y)
 			if not WorldGen.is_walkable_world(world):
 				continue
-			var d := player_pos.distance_squared_to(world)
-			if d < best_d:
-				best_d = d
+			var score := float(ring) * 1.0e7 + player_pos.distance_squared_to(world)
+			if score < best_score:
+				best_score = score
 				best = world
 	return best
 
