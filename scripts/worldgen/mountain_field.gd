@@ -98,7 +98,8 @@ func mountain_height_field(tx: float, ty: float) -> float:
 	return clampf(total / weight, 0.0, 1.20)
 
 
-const ELEV_MAX_STEPS := 64       # summit height in steps — large, impressive alpine peaks
+const ELEV_MAX_STEPS := 128      # summit height in steps (×ELEV_H 0.25 = 32 world units) — tall, dramatic peaks.
+                                 # KEEP IN SYNC: BiomeClassifier._ELEV_MAX, TerrainStyle.ALPINE_SUMMIT.
 const ELEV_FOOT_THRESHOLD := 0.18
 const ELEV_PEAK_THRESHOLD := 0.96
 func elevation_steps(tx: float, ty: float) -> int:

@@ -97,7 +97,7 @@ var _tiles_per_mask_px := 1.0
 # elevation and rivers/lakes traced from the reference art (tools/trace_world.py).
 # When present they DRIVE biome/elevation/water directly — the procedural
 # climate/orography/hydrology models are bypassed.
-const _ELEV_MAX := 64            # mirrors MountainField.ELEV_MAX_STEPS (tall, dramatic peaks)
+const _ELEV_MAX := 128           # mirrors MountainField.ELEV_MAX_STEPS (tall, dramatic peaks)
 var _has_biome_mask := false
 var _has_elev_mask := false
 var _has_river_mask := false

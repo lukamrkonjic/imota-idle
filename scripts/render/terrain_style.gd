@@ -20,7 +20,7 @@ const HOSTILE_TILES := ["dead_grass", "scorched_earth", "obsidian", "blight_pool
 
 # Alpine colour ramp (A Short Hike-style): grass -> olive -> ochre dirt -> warm rock -> cool
 # high rock -> snow, as ONE continuous ramp so a mountain never reads as a flat single tone.
-const ALPINE_SUMMIT := 64.0                      # ELEV_MAX_STEPS — height normaliser
+const ALPINE_SUMMIT := 128.0                     # = ELEV_MAX_STEPS — height normaliser (grass→rock→snow span)
 const ALP_MEADOW := Color(0.42, 0.55, 0.31)      # grassy foothill green
 const ALP_OLIVE := Color(0.53, 0.55, 0.33)       # dry mid-slope olive
 const ALP_DIRT := Color(0.60, 0.47, 0.30)        # ochre worn earth / scree
