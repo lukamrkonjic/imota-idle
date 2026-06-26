@@ -218,10 +218,11 @@ var _place_off := Vector2.ZERO   # sub-tile iso offset for free (non-grid) struc
 var _struct_open: Dictionary = {}   # structure-accordion: category name → expanded?
 var _sel_stamp := 0
 var _sel_creature := ""
-# Skills tool: which skill section ("combat" or a gather-skill key) + the chosen node/creature.
-var _sel_skill := "fishing"
+# Skills tool: which skill ("combat" or a gather-skill key) + the chosen node/creature. Each skill
+# is its own sidebar button (all select Tool.SKILL); the options panel lists that skill's objects.
+var _sel_skill := ""
 var _sel_skill_item := ""
-var _skill_open: Dictionary = {}    # skills-accordion: section name → expanded?
+var _skill_tool_buttons: Dictionary = {}   # skill key → sidebar Button
 var _creature_count := 3          # pack size dropped per click (scattered across the spawn area)
 var _creature_wander := 4         # roam radius, tiles
 var _creature_aggro := 0          # engage distance, tiles (0 = global default)
@@ -644,7 +645,7 @@ func _handle_key(event: InputEventKey) -> void:
 		KEY_E: _set_tool(Tool.ELEVATE)    # Elevate / raise into hills & mountains
 		KEY_T: _set_tool(Tool.FOREST)     # Trees brush (biome-aware species)
 		KEY_C: _set_tool(Tool.CLUTTER)    # Clutter brush (biome-aware ground detail)
-		KEY_G: _set_tool(Tool.SKILL)      # Gather/skill resource placement (trees/fish/rocks/monsters)
+		KEY_G: _select_skill_tool("combat" if _sel_skill.is_empty() else _sel_skill)   # Skills placement
 
 
 func _zoom_at(factor: float) -> void:
@@ -1892,7 +1893,7 @@ func _build_ui() -> void:
 	_tool_group(lb, "Sculpt", [[Tool.ELEVATE, "E  Elevate"], [Tool.SMOOTHEN, "H  Smoothen"]], true)
 	_tool_group(lb, "Nature", [[Tool.FOREST, "T  Trees"], [Tool.CLUTTER, "C  Clutter"], [Tool.STAMP, "4  Stamp"]], false)
 	_tool_group(lb, "Build", [[Tool.STRUCTURE, "5  Structure"], [Tool.SETTLEMENT, "0  Settlement"], [Tool.ROAD, "9  Roads"]], false)
-	_tool_group(lb, "Skills", [[Tool.SKILL, "G  Skills"]], false)
+	_build_skill_tool_group(lb)
 	_tool_group(lb, "Live", [[Tool.CREATURE, "8  Creatures"], [Tool.SPAWN, "7  Set Spawn"]], false)
 	_tool_group(lb, "Edit", [[Tool.PAN, "1  Pan / View"], [Tool.ERASE, "6  Erase"]], false)
 
@@ -1956,6 +1957,51 @@ func _tool_group(parent: Control, title: String, tools: Array, open: bool) -> vo
 		b.pressed.connect(func() -> void: _set_tool(tl))
 		body.add_child(b)
 		_tool_buttons[tl] = b
+
+
+## The "Skills" sidebar group: one button per skill (Combat + each gather skill). All select the
+## Skills tool, but each pins a different skill so its OBJECTS show in the options panel — one click
+## to a skill instead of selecting "Skills" then expanding it.
+func _build_skill_tool_group(parent: Control) -> void:
+	var body := _collapsible(parent, "Skills", false)
+	_add_skill_button(body, "combat", "Combat")
+	for skill: String in SKILL_PLACE_ORDER:
+		_add_skill_button(body, skill, str(SKILL_DISPLAY.get(skill, skill.capitalize())))
+
+
+func _add_skill_button(body: Control, skill: String, label: String) -> void:
+	var b := Button.new()
+	b.text = "    " + label
+	b.toggle_mode = true
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.custom_minimum_size = Vector2(SIDEBAR_W - 16, 0)
+	b.pressed.connect(func() -> void: _select_skill_tool(skill))
+	body.add_child(b)
+	_skill_tool_buttons[skill] = b
+
+
+## Pick a skill: activate the Skills tool with this skill, defaulting the selection to its first
+## object so the options panel and ghost are ready to place immediately.
+func _select_skill_tool(skill: String) -> void:
+	_sel_skill = skill
+	_sel_skill_item = _first_skill_item(skill)
+	if skill == "combat":
+		_sel_creature = _sel_skill_item
+	_set_tool(Tool.SKILL)
+
+
+## The default object for a skill: the first creature (Combat) or the lowest-level node (gather).
+func _first_skill_item(skill: String) -> String:
+	if skill == "combat":
+		var lst := _creature_list()
+		return str(lst[0]["name"]) if not lst.is_empty() else ""
+	var best := ""
+	var best_lv := 1 << 30
+	for e: Dictionary in _reg.node_table.get(skill, []):
+		if int(e["level"]) < best_lv:
+			best_lv = int(e["level"])
+			best = str(e["name"])
+	return best
 
 
 ## Floating panel pinned right of the sidebar: the ACTIVE tool's options + the brush controls,
@@ -3297,6 +3343,9 @@ func _set_tool(t: int) -> void:
 	_tool = t
 	for k: int in _tool_buttons:
 		(_tool_buttons[k] as Button).button_pressed = (k == t)
+	# The Skills group has one button per skill (all map to Tool.SKILL); highlight the active skill.
+	for sk: String in _skill_tool_buttons:
+		(_skill_tool_buttons[sk] as Button).button_pressed = (t == Tool.SKILL and sk == _sel_skill)
 	if t == Tool.SMOOTHEN or t == Tool.ELEVATE:
 		_show_elevation = true   # so you can see height change live as you brush
 		if _elev_check != null:
@@ -3364,7 +3413,7 @@ func _refresh_palette() -> void:
 		Tool.STRUCTURE:
 			_build_structure_accordion()
 		Tool.SKILL:
-			_build_skill_accordion()
+			_build_skill_nodes()
 		Tool.CREATURE:
 			_header(_palette_box, "Enemy spawn")
 			_note("Click a walkable tile to drop a spawn of the selected creature. The pack scatters\nacross the spawn area and wanders it; set how far it roams, how close you must get to\nbe attacked, and how far you can drag it before it gives up.")
@@ -3427,14 +3476,16 @@ func _refresh_palette() -> void:
 	_update_preview()
 
 
-## Skills palette: a per-skill accordion. "Combat" drops monster spawns; each gather skill lists its
-## nodes (trees / rocks / fish / herbs / …). Picking a node + clicking a tile places a working site.
-func _build_skill_accordion() -> void:
-	_note("Pick a skill, choose a node, then click a tile to place a WORKING resource.\nGather nodes become harvestable; Combat drops a wandering monster pack.")
-	# --- Combat (monster spawns) ---
-	var c_open := bool(_skill_open.get("Combat", _sel_skill == "combat"))
-	_skill_header("Combat", c_open, _creature_list().size())
-	if c_open:
+## Skills palette: the OBJECTS for the skill picked in the sidebar. Combat shows the spawn controls
+## + the bestiary; each gather skill lists its nodes by level. Clicking a tile places the selection.
+func _build_skill_nodes() -> void:
+	if _sel_skill.is_empty():
+		_note("Pick a skill from the sidebar (Combat / Woodcutting / Mining / …).")
+		return
+	if _sel_skill == "combat":
+		if _opts_title != null:
+			_opts_title.text = "Skills · Combat"
+		_note("Click a walkable tile to drop a pack of the selected creature.")
 		_param_slider("Pack size: %d", _creature_count, 1, 12, func(v: int) -> void: _creature_count = v)
 		_param_slider("Wander radius: %d", _creature_wander, 1, 24, func(v: int) -> void: _creature_wander = v)
 		_param_slider("Aggro dist (0=auto): %d", _creature_aggro, 0, 24, func(v: int) -> void: _creature_aggro = v)
@@ -3444,49 +3495,31 @@ func _build_skill_accordion() -> void:
 		ck.button_pressed = _creature_aggressive
 		ck.toggled.connect(func(on: bool) -> void: _creature_aggressive = on)
 		_palette_box.add_child(ck)
+		_header(_palette_box, "Creature")
 		for e: Dictionary in _creature_list():
 			var nm := str(e["name"])
-			var sel := _sel_skill == "combat" and _sel_skill_item == nm
-			_choice("  %s  ·  Lv%d" % [nm, int(e["level"])], nm, sel,
+			_choice("%s  ·  Lv%d" % [nm, int(e["level"])], nm, _sel_skill_item == nm,
 				func(id: String) -> void:
-					_sel_skill = "combat"
 					_sel_skill_item = id
 					_sel_creature = id
 					_update_preview())
-	# --- Gather skills ---
-	for skill: String in SKILL_PLACE_ORDER:
-		var nodes: Array = _reg.node_table.get(skill, [])
-		if nodes.is_empty():
-			continue
-		var disp := str(SKILL_DISPLAY.get(skill, skill.capitalize()))
-		var open := bool(_skill_open.get(disp, _sel_skill == skill))
-		_skill_header(disp, open, nodes.size())
-		if not open:
-			continue
-		var sorted := nodes.duplicate()
-		sorted.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a["level"]) < int(b["level"]))
-		var sk := skill
-		for e: Dictionary in sorted:
-			var nm := str(e["name"])
-			var sel := _sel_skill == sk and _sel_skill_item == nm
-			_choice("  %s  ·  Lv%d" % [nm, int(e["level"])], nm, sel,
-				func(id: String) -> void:
-					_sel_skill = sk
-					_sel_skill_item = id
-					_update_preview())
-
-
-## Accordion header for the Skills tool (toggles _skill_open, mirrors _accordion_header).
-func _skill_header(cat: String, open: bool, count: int) -> void:
-	var b := Button.new()
-	b.text = ("▾ " if open else "▸ ") + cat + "  (%d)" % count
-	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	b.custom_minimum_size = Vector2(176, 0)
-	b.add_theme_color_override("font_color", Color(0.85, 0.72, 0.3))
-	b.pressed.connect(func() -> void:
-		_skill_open[cat] = not open
-		_refresh_palette())
-	_palette_box.add_child(b)
+		return
+	# Gather skill: list its nodes by level.
+	var disp := str(SKILL_DISPLAY.get(_sel_skill, _sel_skill.capitalize()))
+	if _opts_title != null:
+		_opts_title.text = "Skills · " + disp
+	if _sel_skill == "fishing":
+		_note("Click a SHORE tile next to water to place a fishing spot (it auto-binds the water).")
+	else:
+		_note("Click a tile to place a working %s node." % disp.to_lower())
+	var sorted: Array = _reg.node_table.get(_sel_skill, []).duplicate()
+	sorted.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a["level"]) < int(b["level"]))
+	for e: Dictionary in sorted:
+		var nm := str(e["name"])
+		_choice("%s  ·  Lv%d" % [nm, int(e["level"])], nm, _sel_skill_item == nm,
+			func(id: String) -> void:
+				_sel_skill_item = id
+				_update_preview())
 
 
 ## Place the selected skill resource at a tile: a monster pack (Combat) or a functional gather site.
