@@ -5,11 +5,12 @@ const ValidateContent := preload("res://tools/validate_content.gd")
 # Re-pinned for the water-system rework: despeckled river mask + elevation carved flat
 # under water, biome-modulated sand banks around inland water, wider ocean beach.
 # Re-pinned again when the summit height doubled (ELEV_MAX_STEPS 64→128 for taller mountains):
-# biome tiles unchanged, elevation sum scaled ~2× (84357→168810). Then re-pinned for the sharp-alpine
-# ridge carving (mask_elev_steps); then again when the carving was cranked up (deeper couloirs, two
-# octaves): sum 168810→153759→141232.
+# biome tiles unchanged, elevation sum scaled ~2× (84357→168810). The sharp-alpine ridge carving was
+# then added and later REVERTED (procedural terrain back to the smooth gamma) — so the sum is the
+# smooth-128 value 168810 again. (Absolute ceiling raised to 250 for hand-built peaks, but the
+# PROCEDURAL summit stays 128, so generated elevation is unchanged.)
 const WORLDGEN_TILES_HASH := 954904775
-const WORLDGEN_ELEV_SUM := 141232
+const WORLDGEN_ELEV_SUM := 168810
 const ContentId := preload("res://scripts/content/content_id.gd")
 const SaveMigration := preload("res://autoload/save_migration.gd")
 const SkillRemap := preload("res://scripts/content/skill_remap.gd")

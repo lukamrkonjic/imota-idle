@@ -23,7 +23,6 @@ var _dune: FastNoiseLite
 var _volcanic_rift: FastNoiseLite
 var _domain_warp: FastNoiseLite
 var _surface_detail: FastNoiseLite
-var _alpine_ridge: FastNoiseLite  # ridged noise that carves sharp peaks/couloirs into high alpine terrain
 var _region: FastNoiseLite       # blends geographic biome-region boundaries
 var _mtn: MountainField          # orography (mountains/elevation/snow), see mountain_field.gd
 var _continent: FastNoiseLite    # big landmass blobs (low freq) — peninsulas/gulfs
@@ -143,7 +142,6 @@ func setup(p_reg: RefCounted, p_seed: int) -> void:
 	_volcanic_rift = _noise(p_seed + 707, 0.0011, 2)
 	_domain_warp = _noise(p_seed + 1201, 0.0032, 2)
 	_surface_detail = _noise(p_seed + 1202, 0.11, 1)
-	_alpine_ridge = _noise(p_seed + 1303, 0.035, 4)   # ~28-tile ridge spacing — bold jagged alpine ridges
 	_t_deep = int(reg.tile_index["deep_water"])
 	_t_water = int(reg.tile_index["water"])
 	_t_shallow = int(reg.tile_index["shallow"])
@@ -481,22 +479,9 @@ func mask_elev_steps(tx: float, ty: float) -> int:
 	var v := float(_elev_data[pi]) / 255.0
 	# Steeper gamma (1.8) keeps lowland + mid elevation where it was while letting the high
 	# painted areas soar toward the raised ceiling — so peaks get huge without lifting valleys.
-	var h := pow(v, 1.8)   # base height 0..1
-	# ── Sharp alpine zone ──────────────────────────────────────────────────────────
-	# The painted high country is a smooth plateau; carve it into DRAMATIC jagged peaks. Two octaves of
-	# ridged noise (1-|n|, crests→1 troughs→0) cut DEEP couloirs while leaving narrow sharp crests high.
-	# The deep snow-crest / bare-rock-couloir contrast also makes the range read as jagged from the
-	# near-top-down camera. Gated to high terrain so valleys/lowland stay smooth.
-	var alpine := smoothstep(0.48, 0.82, v)
-	if alpine > 0.0:
-		var r1 := 1.0 - absf(_alpine_ridge.get_noise_2d(tx, ty))
-		r1 = r1 * r1                                                                  # narrow the crests → sharper ridges
-		var r2 := 1.0 - absf(_alpine_ridge.get_noise_2d(tx * 2.7 + 80.0, ty * 2.7 - 40.0))   # finer detail octave
-		var ridge := r1 * 0.68 + r2 * 0.32
-		h -= (1.0 - ridge) * 0.52 * alpine                                           # deep couloirs (was 0.34)
-		h = lerpf(h, pow(v, 2.7), alpine * 0.35)                                     # mild overall steepening
-		h = maxf(h, 0.0)
-	return clampi(int(round(clampf(h, 0.0, 1.0) * float(_ELEV_MAX))), 0, _ELEV_MAX)
+	# Steeper gamma (1.8) keeps lowland + mid elevation where it was while letting the high
+	# painted areas soar toward the raised ceiling — so peaks get huge without lifting valleys.
+	return clampi(int(round(pow(v, 1.8) * float(_ELEV_MAX))), 0, _ELEV_MAX)
 
 
 func has_river_mask() -> bool:

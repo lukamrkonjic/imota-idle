@@ -98,7 +98,13 @@ func mountain_height_field(tx: float, ty: float) -> float:
 	return clampf(total / weight, 0.0, 1.20)
 
 
-const ELEV_MAX_STEPS := 128      # summit height in steps (×ELEV_H 0.25 = 32 world units) — tall, dramatic peaks.
+const ELEV_MAX_STEPS := 250      # ABSOLUTE elevation ceiling (×ELEV_H 0.25 = 62.5 world units) — the most a
+                                 # tile can ever be, and the cap the world-editor Elevate brush builds up
+                                 # to, so you can sculpt very tall mountains by hand. HARD LIMIT 255:
+                                 # chunk.elev is a PackedByteArray (0..255), so this must stay ≤ 255.
+const PROCEDURAL_SUMMIT := 128   # height the PROCEDURAL generator (mask + non-mask) raises mountains to,
+                                 # and the snowline reference. Half the absolute ceiling so generated
+                                 # terrain keeps its scale while hand-built peaks have headroom above it.
                                  # KEEP IN SYNC: BiomeClassifier._ELEV_MAX, TerrainStyle.ALPINE_SUMMIT.
 const ELEV_FOOT_THRESHOLD := 0.18
 const ELEV_PEAK_THRESHOLD := 0.96
@@ -127,7 +133,7 @@ func elevation_steps(tx: float, ty: float) -> int:
 	# The painted hiking trail is also a physical ramp: restore the continuous
 	# pre-shelf slope along it so shelf cliffs never seal off the upper mountain.
 	shaped = lerpf(shaped, continuous, alpine_trail01(tx, ty, shaped) * 0.92)
-	return clampi(int(round(clampf(shaped, 0.0, 1.0) * float(ELEV_MAX_STEPS))), 0, ELEV_MAX_STEPS)
+	return clampi(int(round(clampf(shaped, 0.0, 1.0) * float(PROCEDURAL_SUMMIT))), 0, PROCEDURAL_SUMMIT)
 
 
 ## Flatten a short segment of one shoulder without creating a closed elevation
@@ -162,7 +168,7 @@ func snow01(tx: float, ty: float, e: int) -> float:
 	# Snowline (in steps): high up on southern slopes, dropping toward the far north.
 	# Even the cold north keeps snow on the summit crown rather than painting
 	# every upper shoulder white; exposed cliff and alpine grass remain visible.
-	var snowline := lerpf(0.96, 0.64, north) * float(ELEV_MAX_STEPS)
+	var snowline := lerpf(0.96, 0.64, north) * float(PROCEDURAL_SUMMIT)
 	return clampf((float(e) - snowline) / SNOW_BLEND_STEPS, 0.0, 1.0)
 
 

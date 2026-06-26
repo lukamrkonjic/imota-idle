@@ -12,7 +12,7 @@ const ELEV_H := ELEV_STEP_PX / TILE        # 3D world units per elevation step (
                                            # Single source for the step height: the render
                                            # layer's gameplay floor and the logic layer's
                                            # height authority both derive from this.
-const MAX_REACHABLE_ELEV := 128            # = summit height (ELEV_MAX_STEPS): the whole mountain is climbable,
+const MAX_REACHABLE_ELEV := 250            # = absolute ceiling (ELEV_MAX_STEPS): the whole mountain is climbable,
                                            # so the player can hike to the top. Sheer faces are
                                            # still natural barriers via MAX_CLIMB_STEP (a >2-step
                                            # drop between tiles isn't linked), so cliffs stay
