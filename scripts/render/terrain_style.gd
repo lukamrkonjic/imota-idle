@@ -75,48 +75,35 @@ static func biome_tinted(base: Color, tile: String, tint: Color, strength: float
 			return base.lerp(tint, strength * 0.5)
 
 
-## A Short Hike-style painterly ground variation: blends the graded tile colour through soft,
-## BROAD noise blobs toward lighter/darker shades of itself, plus a rare biome accent (heather,
-## leaf-litter, lichen, dry grass…). So each biome reads as patches of closely-related tones
-## instead of one flat colour. Low-frequency only (no high-freq texture); strength scales by
-## surface family so grass varies most and snow/rock barely. Sampled in GLOBAL tile space so the
-## blobs are continuous across chunks (no grid), and corner-averaging in the mesher softens it.
+## A Short Hike-style painterly ground variation: a broad, soft, VALUE-ONLY brush texture — gentle
+## sunlit/shaded sweeps of the SAME colour, never a hue/saturation shift. This is the key fix for
+## the dark-green "splotches": the old version pushed shaded blobs toward a cooler, more-saturated
+## green, so they read as a stray dark biome. Now it only lifts/drops brightness a few percent, so
+## variation reads as light on one coherent ground. Low-frequency only; strength scales by surface
+## family. Plus a rare, faint flower/lichen accent on living ground (flavour, not a patch).
 static func terrain_patch(base: Color, tile: String, biome_id: String, gx: int, gy: int) -> Color:
 	var fam := surface_family(tile)
 	if fam == "water" or fam == "path":
 		return base
-	var amt := 1.0
+	var amt := 0.0
 	match fam:
 		"grass": amt = 1.0
-		"rock", "sand": amt = 0.5
-		"snow": amt = 0.28
-		_: amt = 0.6
-	# Broad soft blobs (~24-tile period) with a little finer variation -> organic painterly patches.
-	var big := WG._smooth_val(0, gx, gy, 24.0, 700) * 0.72 + WG._smooth_val(0, gx, gy, 9.0, 701) * 0.28
-	var shifted: Color
-	if big < 0.5:
-		shifted = _patch_dark(base).lerp(base, clampf(big * 2.0, 0.0, 1.0))
-	else:
-		shifted = base.lerp(_patch_light(base), clampf((big - 0.5) * 2.0, 0.0, 1.0))
-	var col := base.lerp(shifted, amt)
-	# Rare, soft accent patches on living ground (heather / flowers / lichen / leaf-litter).
+		"rock", "sand": amt = 0.7
+		"snow": amt = 0.4
+		_: amt = 0.7
+	# One broad, soft brush field (~32-tile period) mapped to a small symmetric value swing.
+	var brush := WG._smooth_val(0, gx, gy, 32.0, 700) * 0.8 + WG._smooth_val(0, gx, gy, 13.0, 701) * 0.2
+	var v := 1.0 + (brush - 0.5) * 2.0 * 0.07 * amt   # at most ±7% brightness on grass
+	var col := Color(clampf(base.r * v, 0.0, 1.0), clampf(base.g * v, 0.0, 1.0), clampf(base.b * v, 0.0, 1.0), base.a)
+	# Rare, soft accent patches on living ground (heather / flowers / lichen / leaf-litter). Kept
+	# faint and sparse so it's painterly flavour, never a dark island.
 	if fam == "grass":
 		var acc := WG._smooth_val(0, gx, gy, 6.5, 702)
-		if acc > 0.82:
+		if acc > 0.88:
 			var accent := _biome_accent(biome_id)
 			if accent.a > 0.0:
-				col = col.lerp(accent, clampf((acc - 0.82) * 3.0, 0.0, 1.0) * 0.42)
+				col = col.lerp(accent, clampf((acc - 0.88) * 4.0, 0.0, 1.0) * 0.24)
 	return col
-
-
-## Lighter + slightly WARMER shade of a ground colour (sunlit patch).
-static func _patch_light(c: Color) -> Color:
-	return Color.from_hsv(wrapf(c.h - 0.02, 0.0, 1.0), maxf(c.s * 0.92, 0.0), minf(c.v * 1.17, 1.0))
-
-
-## Darker + slightly COOLER shade of a ground colour (shaded / mossy patch).
-static func _patch_dark(c: Color) -> Color:
-	return Color.from_hsv(wrapf(c.h + 0.02, 0.0, 1.0), minf(c.s * 1.08, 1.0), c.v * 0.82)
 
 
 ## A sparse rare-accent colour per biome family (transparent = no accent).
@@ -206,13 +193,16 @@ static func grade(col: Color, tile: String, gtx: int, gty: int, elev: int = 0, s
 		# Paved stone plaza — keep the cool grey, just lit (not green).
 		c = c.lightened(bright * 0.10).darkened((1.0 - band2) * 0.06)
 	else:
-		# Deep-forest grass gradient: mid foliage -> sunlit grass, drifting to leaf/forest
-		# green in shade and a moss highlight elsewhere. No lime.
-		var grass := PixelPalette.pal("mid_foliage").lerp(PixelPalette.pal("sunlit_grass"), bright)
-		grass = grass.lerp(PixelPalette.pal("leaf_green"), (1.0 - band2) * 0.45)
-		grass = grass.lerp(PixelPalette.pal("forest_green"), (1.0 - bright) * 0.2)
-		grass = grass.lerp(PixelPalette.pal("moss_hi"), warm * 0.18)
-		c = c.lerp(grass, 0.82)
+		# Grass stays in ONE coherent light-green family. A broad, soft value gradient between
+		# mid-foliage and sunlit grass reads as gentle sun/shade across the meadow; a faint moss
+		# highlight adds painterly life. We deliberately do NOT drift toward leaf/forest green
+		# here — that band-driven darkening manufactured dark-green "splotches" that looked like
+		# stray biomes. Forest depth comes from the biome tint (applied by the mesher), which only
+		# darkens where a forest biome actually is, and fades smoothly at its edges.
+		var lit := clampf(bright * 0.68 + band2 * 0.32, 0.0, 1.0)
+		var grass := PixelPalette.pal("mid_foliage").lerp(PixelPalette.pal("sunlit_grass"), lit)
+		grass = grass.lerp(PixelPalette.pal("moss_hi"), warm * 0.10)
+		c = c.lerp(grass, 0.85)
 	return c
 
 

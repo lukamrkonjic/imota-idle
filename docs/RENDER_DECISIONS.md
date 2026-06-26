@@ -57,6 +57,43 @@ describes ownership, while this one records the player-facing rendering choices.
 - **Consequence:** These systems never mint, rename, remove, or serialize
   content IDs. They must not require a save migration.
 
+## D5 — Painterly terrain colour: readable biome families, soft transitions, no "splotches"
+
+- **Target:** An *A Short Hike*-style look — large readable colour regions, soft
+  natural biome transitions, subtle brush-like variation that reads as sunlight and
+  hand-painted texture. No hard per-tile colour swaps, no high-frequency noise, no
+  dark-green islands that look like accidental biomes.
+- **Decision (three independent fixes, all cosmetic):**
+  1. **Grass stays one light-green family** (`terrain_style.grade`, grass branch). The
+     old gradient drifted broad low-frequency bands toward `leaf_green`/`forest_green`
+     (up to 45 %), manufacturing dark-green regions inside plain meadow. Removed: grass
+     now interpolates only between `mid_foliage` and `sunlit_grass` (a gentle value
+     sun/shade sweep) plus a faint moss highlight. **Forest depth no longer comes from
+     this band** — it comes from the biome tint, which only darkens where a forest biome
+     actually is.
+  2. **Painterly patches are value-only** (`terrain_style.terrain_patch`). The old patch
+     pass pushed shaded blobs toward a cooler, *more-saturated* green (a hue/sat shift),
+     so they read as a second biome. Now it applies a single broad, soft brush field as a
+     symmetric brightness swing of at most ±7 % on the *same* colour — never a hue/sat
+     change. The rare flower/lichen accent is kept but fainter and sparser. Helpers
+     `_patch_dark`/`_patch_light` were deleted.
+  3. **Biome tint is weight-blended over a wide, organic edge**
+     (`terrain_chunk_mesher._blended_biome_tint`). Instead of a hard per-tile tint, the
+     tint is a distance-weighted average of nearby biome tints over two sample rings
+     (≈ ±16 tiles), with the sample point domain-warped by low-frequency noise so the
+     boundary is an organic painted edge. A biome **interior** stays pure (every tap
+     agrees → no neighbour-biome bleed deep inside another biome); only **borders** blend.
+     Flat-grass tint strength is `0.30` (raised modestly now that grass carries no false
+     forest darkening, so biome families read clearly through the soft blend).
+- **Why:** Stacked together, the band-driven grass darkening, the high-contrast hue-shifting
+  patch noise, and the hard per-tile biome tint produced dark-green "splotches" that looked
+  like stray biomes on uniform meadow.
+- **Consequence:** Cosmetic only — same tiles, walkability, and gather sites; no gameplay or
+  save impact. The 2D map bakers (`world_bake.gd`, `world_editor.gd`) keep their own
+  deliberately stronger `0.55` tint and are unaffected. Per-tile biome tints are cached
+  (`_bt_cache`, cleared each frame), so the wider blend adds only a small fixed tap loop per
+  vertex on the build path.
+
 ## Validation
 
 Run the normal headless suite and its 3D smoke path after changes here:

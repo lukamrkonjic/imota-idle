@@ -55,6 +55,7 @@ var _vfh_cache: Dictionary = {}   # Vector2i tile -> visual floor height
 var _ccl_cache: Dictionary = {}   # Vector2i corner -> smoothed corner height
 var _vcy_cache: Dictionary = {}   # Vector2i corner -> final VISUAL corner height (shore-ramped)
 var _sf_cache: Dictionary = {}    # Vector2i tile -> shore-flatten factor (0 inland .. 1 at water)
+var _bt_cache: Dictionary = {}    # Vector2i tile -> raw (sub-)biome tint Color (per-frame)
 var _chunk_resolve: Dictionary = {}  # Vector2i(cx,cy) -> chunk RefCounted (per-frame, current layer)
 
 # Precomputed coastline-kernel weights. Both _coast_wf and _shore_flat01 convolve a FIXED
@@ -136,6 +137,7 @@ func clear_frame_caches() -> void:
 	_ccl_cache.clear()
 	_vcy_cache.clear()
 	_sf_cache.clear()
+	_bt_cache.clear()
 	_chunk_resolve.clear()
 
 
@@ -430,10 +432,12 @@ func _tile_info_compute(gtx: int, gty: int) -> Dictionary:
 	var curve: int = _tile_curvature_steps(gtx, gty, elev) if (not water and elev > 0) else 0
 	var col: Color = SHORE if water else TerrainStyle.grade(tdef["colors"][0], tile_name, gtx, gty, elev, slope, curve)
 	if not water:
-		# Shift toward the effective (sub-)biome's tint so biomes read distinctly; lighter on
-		# raised ground so mountains keep their alpine look.
-		var eff: int = chunk.biome_at(lx, ly)
-		col = TerrainStyle.biome_tinted(col, tile_name, WorldGen.reg.biome_tint(eff), 0.10 if elev > 0 else 0.34)
+		# Shift toward the (sub-)biome's tint so biomes read distinctly; lighter on raised ground
+		# so mountains keep their alpine look. The tint is blended across a small neighbourhood
+		# (see _blended_biome_tint) so biome edges fade over several tiles into a gradient instead
+		# of switching on a single tile line.
+		var tint: Color = _blended_biome_tint(gtx, gty)
+		col = TerrainStyle.biome_tinted(col, tile_name, tint, 0.10 if elev > 0 else 0.30)
 		# A Short Hike-style painterly patches: soft broad blobs of lighter/darker shades + a
 		# rare biome accent, so the ground isn't one flat colour.
 		col = TerrainStyle.terrain_patch(col, tile_name, biome_id, gtx, gty)
@@ -444,6 +448,57 @@ func _tile_info_compute(gtx: int, gty: int) -> Dictionary:
 		"biome": biome_id,
 		"col": col,
 	}
+
+
+## Raw (sub-)biome tint for one global tile, memoised per frame. Neighbouring taps share tiles,
+## so the cache keeps the wide blend below cheap. Returns WHITE (no shift) for unloaded tiles.
+func _biome_tint_at(gtx: int, gty: int) -> Color:
+	var k := Vector2i(gtx, gty)
+	if _bt_cache.has(k):
+		return _bt_cache[k]
+	var ck := WG.tile_to_chunk(k)
+	var c: RefCounted = _chunk_at(ck)
+	var t: Color = Color.WHITE
+	if c != null:
+		var lx: int = gtx - ck.x * WG.CHUNK_TILES
+		var ly: int = gty - ck.y * WG.CHUNK_TILES
+		t = WorldGen.reg.biome_tint(c.biome_at(lx, ly))
+	_bt_cache[k] = t
+	return t
+
+
+## Weight-blended (sub-)biome tint: a wide, distance-weighted average of nearby biome tints so a
+## biome edge fades into a gradient over ~16 tiles, while a biome INTERIOR stays pure (every tap
+## agrees → no neighbour-biome bleed deep inside another biome). The sample point is domain-warped
+## by low-frequency noise so the boundary reads as an organic painted edge, not a tile line.
+## Per-tile tints are cached (`_biome_tint_at`); only the small tap loop runs per vertex.
+func _blended_biome_tint(gtx: int, gty: int) -> Color:
+	# Organic boundary: nudge the whole sample cluster by a soft low-freq offset (~±5 tiles).
+	var wx := gtx + int(round((WG._smooth_val(0, gtx, gty, 26.0, 911) - 0.5) * 10.0))
+	var wy := gty + int(round((WG._smooth_val(0, gtx, gty, 26.0, 922) - 0.5) * 10.0))
+	# Center-weighted taps at two rings (R and 2R) in 8 directions -> ~±16-tile soft transition.
+	const R := 4
+	const TAPS := [
+		[Vector2i(0, 0), 3.0],
+		[Vector2i(R, 0), 1.6], [Vector2i(-R, 0), 1.6], [Vector2i(0, R), 1.6], [Vector2i(0, -R), 1.6],
+		[Vector2i(R, R), 1.2], [Vector2i(-R, -R), 1.2], [Vector2i(R, -R), 1.2], [Vector2i(-R, R), 1.2],
+		[Vector2i(2 * R, 0), 0.7], [Vector2i(-2 * R, 0), 0.7], [Vector2i(0, 2 * R), 0.7], [Vector2i(0, -2 * R), 0.7],
+	]
+	var r := 0.0
+	var g := 0.0
+	var b := 0.0
+	var wsum := 0.0
+	for tap in TAPS:
+		var off: Vector2i = tap[0]
+		var w: float = tap[1]
+		var t: Color = _biome_tint_at(wx + off.x, wy + off.y)
+		r += t.r * w
+		g += t.g * w
+		b += t.b * w
+		wsum += w
+	if wsum <= 0.0:
+		return Color.WHITE
+	return Color(r / wsum, g / wsum, b / wsum)
 
 
 func _visual_floor_height(gtx: int, gty: int, info: Dictionary) -> float:
