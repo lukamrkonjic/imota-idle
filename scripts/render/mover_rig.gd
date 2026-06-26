@@ -186,7 +186,7 @@ static func _weapon_attack_pose(
 ## Jointed biped: knees and elbows flex for a natural bent-leg walk, and a `crouch`
 ## meta gives a bent-kneed standing stance (goblins stoop, the gnoll sneaks low).
 ## `lean` hunches the body, `arm_rest` keeps arms a touch forward (never ramrod).
-static func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float, chop: float = 0.0, fish: float = 0.0, kneel: float = 0.0) -> void:
+static func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float, chop: float = 0.0, work: String = "", work_amt: float = 0.0) -> void:
 	var rest := 1.0 - walk
 	var lean: float = float(node.get_meta("lean", 0.04))
 	# `hunch` curves the upper back forward at the spine pivot (an old-lady stoop) —
@@ -256,45 +256,8 @@ static func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float,
 	elif holds_onehand:
 		arm_r = -0.1 + idle_arm * 0.14 + sin(stride) * 0.05 * walk
 		elbow_r = -0.22
-	if fish > 0.01:
-		# Rod fishing: the rod is held forward over the water with a calm idle bob, and every few
-		# seconds a gentle cast — wind the rod up and back, flick it forward, then settle and wait
-		# (with a tiny reel jitter). Feet stay planted; the off hand rides near the grip.
-		var cast := fmod(t * 0.3, 1.0)                 # one cast cycle every ~3.3s
-		var rod_bob := sin(t * 1.6 + phase) * 0.05     # rod tip breathing while waiting
-		var f_arm_r := -0.58 + rod_bob
-		var f_elbow_r := -0.5
-		var f_arm_l := -0.42
-		var f_elbow_l := -0.72
-		var f_spine := 0.13                            # lean a little toward the water
-		if cast < 0.12:
-			var u := cast / 0.12                       # windup: raise/pull the rod back
-			f_arm_r = lerpf(-0.58, -1.02, u)
-			f_spine = lerpf(0.13, -0.04, u)
-		elif cast < 0.24:
-			var u := (cast - 0.12) / 0.12              # flick: whip the rod forward
-			f_arm_r = lerpf(-1.02, -0.36, u)
-			f_spine = lerpf(-0.04, 0.2, u)
-		_set_pivot(node, "spine", lerpf(hunch, f_spine, fish))
-		_set_pivot(node, "arm_r", lerpf(arm_r, f_arm_r, fish))
-		_set_pivot(node, "arm_r/elbow_r", lerpf(elbow_r, f_elbow_r, fish))
-		_set_pivot(node, "arm_l", lerpf(arm_l, f_arm_l, fish))
-		_set_pivot(node, "arm_l/elbow_l", lerpf(elbow_l, f_elbow_l, fish))
-		return
-	if kneel > 0.01:
-		# Lobster/cage fishing: kneel at the water's edge and reach both hands into the water with a
-		# slow scooping paddle. Body sinks, back bends forward, legs fold under.
-		node.position.y -= kneel * 0.34 * base
-		var scoop := sin(t * 2.2 + phase) * 0.13 * kneel
-		_set_pivot(node, "spine", lerpf(hunch, 0.52, kneel))
-		_set_pivot(node, "leg_l", lerpf(hip + hip_crouch, -0.85, kneel))
-		_set_pivot(node, "leg_r", lerpf(-hip + hip_crouch, -0.85, kneel))
-		_set_pivot(node, "leg_l/knee_l", lerpf(knee_l, 1.85, kneel))
-		_set_pivot(node, "leg_r/knee_r", lerpf(knee_r, 1.85, kneel))
-		_set_pivot(node, "arm_l", lerpf(arm_l, -0.72 + scoop, kneel))
-		_set_pivot(node, "arm_r", lerpf(arm_r, -0.72 - scoop, kneel))
-		_set_pivot(node, "arm_l/elbow_l", lerpf(elbow_l, -0.55, kneel))
-		_set_pivot(node, "arm_r/elbow_r", lerpf(elbow_r, -0.55, kneel))
+	if work_amt > 0.01 and not work.is_empty():
+		_pose_gather_work(node, work, clampf(work_amt, 0.0, 1.0), t, phase, base, hunch, hip, hip_crouch, knee_l, knee_r, arm_l, arm_r, elbow_l, elbow_r)
 		return
 	if chop > 0.0:
 		# Woodcutting chop, swung like a real axe into a tree: the axe is carried OUT TO THE RIGHT
@@ -329,6 +292,80 @@ static func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float,
 	_set_pivot(node, "arm_r", arm_r)
 	_set_pivot(node, "arm_l/elbow_l", elbow_l)   # elbows are nested under the shoulder pivots
 	_set_pivot(node, "arm_r/elbow_r", elbow_r)
+
+
+## Per-skill gathering motion for the PLAYER (woodcutting keeps its own `chop` path). `w` is the
+## ease-in blend (0..1); each motion loops off global time `t`. Feet stay planted; only the upper
+## body / reach moves, blended over the standing pose so it eases in and out cleanly.
+static func _pose_gather_work(node: Node3D, work: String, w: float, t: float, phase: float, base: float, hunch: float, hip: float, hip_crouch: float, knee_l: float, knee_r: float, arm_l: float, arm_r: float, elbow_l: float, elbow_r: float) -> void:
+	match work:
+		"fish_rod":
+			# Hold the rod out over the water with a calm bob; every few seconds wind up + flick a cast.
+			var cast := fmod(t * 0.3, 1.0)
+			var rod_bob := sin(t * 1.6 + phase) * 0.05
+			var ar := -0.58 + rod_bob
+			var sp := 0.13
+			if cast < 0.12:
+				var u := cast / 0.12
+				ar = lerpf(-0.58, -1.02, u); sp = lerpf(0.13, -0.04, u)
+			elif cast < 0.24:
+				var u := (cast - 0.12) / 0.12
+				ar = lerpf(-1.02, -0.36, u); sp = lerpf(-0.04, 0.2, u)
+			_set_pivot(node, "spine", lerpf(hunch, sp, w))
+			_set_pivot(node, "arm_r", lerpf(arm_r, ar, w))
+			_set_pivot(node, "arm_r/elbow_r", lerpf(elbow_r, -0.5, w))
+			_set_pivot(node, "arm_l", lerpf(arm_l, -0.42, w))
+			_set_pivot(node, "arm_l/elbow_l", lerpf(elbow_l, -0.72, w))
+		"fish_kneel":
+			# Kneel at the edge, both hands paddling in the water (lobster/cage fishing).
+			node.position.y -= w * 0.34 * base
+			var scoop := sin(t * 2.2 + phase) * 0.13
+			_set_pivot(node, "spine", lerpf(hunch, 0.52, w))
+			_set_pivot(node, "leg_l", lerpf(hip + hip_crouch, -0.85, w))
+			_set_pivot(node, "leg_r", lerpf(-hip + hip_crouch, -0.85, w))
+			_set_pivot(node, "leg_l/knee_l", lerpf(knee_l, 1.85, w))
+			_set_pivot(node, "leg_r/knee_r", lerpf(knee_r, 1.85, w))
+			_set_pivot(node, "arm_l", lerpf(arm_l, -0.72 + scoop, w))
+			_set_pivot(node, "arm_r", lerpf(arm_r, -0.72 - scoop, w))
+			_set_pivot(node, "arm_l/elbow_l", lerpf(elbow_l, -0.55, w))
+			_set_pivot(node, "arm_r/elbow_r", lerpf(elbow_r, -0.55, w))
+		"mine":
+			# Pickaxe swing: raise overhead-back, strike down-forward into the rock, recover.
+			var s := clampf(_chop_swing(fmod(t * 1.25, 1.0)), 0.0, 1.0)
+			_set_pivot(node, "spine", lerpf(hunch, lerpf(-0.05, 0.24, s), w))
+			_set_pivot(node, "arm_r", lerpf(arm_r, lerpf(-1.5, 0.18, s), w))   # overhead -> down-forward
+			_set_pivot(node, "arm_r/elbow_r", lerpf(elbow_r, lerpf(-0.3, -0.05, s), w))
+			_set_pivot(node, "arm_l", lerpf(arm_l, lerpf(-1.15, -0.15, s), w)) # off hand follows the haft
+			_set_pivot(node, "arm_l/elbow_l", lerpf(elbow_l, lerpf(-0.5, -0.18, s), w))
+		"forage":
+			# Bend at the waist and pick from the ground with a gentle repeated pluck.
+			var dip := 0.5 - 0.5 * cos(fmod(t * 0.9, 1.0) * TAU)
+			_set_pivot(node, "spine", lerpf(hunch, 0.52 + dip * 0.12, w))
+			_set_pivot(node, "arm_l", lerpf(arm_l, -0.82 - dip * 0.16, w))
+			_set_pivot(node, "arm_r", lerpf(arm_r, -0.82 - dip * 0.16, w))
+			_set_pivot(node, "arm_l/elbow_l", lerpf(elbow_l, -0.45, w))
+			_set_pivot(node, "arm_r/elbow_r", lerpf(elbow_r, -0.45, w))
+		"trap":
+			# Hunter: crouch low and set a trap on the ground in front, both hands placing it.
+			node.position.y -= w * 0.14 * base
+			var set_t := 0.5 - 0.5 * cos(fmod(t * 0.6, 1.0) * TAU)
+			_set_pivot(node, "spine", lerpf(hunch, 0.42 + set_t * 0.1, w))
+			_set_pivot(node, "leg_l", lerpf(hip + hip_crouch, -0.5, w))
+			_set_pivot(node, "leg_r", lerpf(-hip + hip_crouch, -0.5, w))
+			_set_pivot(node, "leg_l/knee_l", lerpf(knee_l, 1.1, w))
+			_set_pivot(node, "leg_r/knee_r", lerpf(knee_r, 1.1, w))
+			_set_pivot(node, "arm_l", lerpf(arm_l, -0.7 - set_t * 0.12, w))
+			_set_pivot(node, "arm_r", lerpf(arm_r, -0.7 - set_t * 0.12, w))
+			_set_pivot(node, "arm_l/elbow_l", lerpf(elbow_l, -0.5, w))
+			_set_pivot(node, "arm_r/elbow_r", lerpf(elbow_r, -0.5, w))
+		"steal":
+			# Thieving: a furtive forward lean, the right hand darting out and back (pickpocket).
+			var reach := 0.5 - 0.5 * cos(fmod(t * 1.4, 1.0) * TAU)
+			_set_pivot(node, "spine", lerpf(hunch, 0.2, w))
+			_set_pivot(node, "arm_r", lerpf(arm_r, lerpf(-0.2, -0.95, reach), w))
+			_set_pivot(node, "arm_r/elbow_r", lerpf(elbow_r, lerpf(-0.7, -0.1, reach), w))
+			_set_pivot(node, "arm_l", lerpf(arm_l, 0.12, w))
+			_set_pivot(node, "arm_l/elbow_l", lerpf(elbow_l, -0.5, w))
 
 
 ## Chop phase (0..1) -> swing position: <0 extra-raised (windup anticipation), 0 overhead-ready,

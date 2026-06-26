@@ -36,9 +36,9 @@ var editor_plain_player := false
 
 var _player_node: Node3D
 var _chopping := false                # player is mid-woodcutting (drives the chop swing + axe-in-hand)
-var _rodding := false                 # player is rod-fishing (drives the rod-in-hand swap + cast pose)
-var _mover_fish: Dictionary = {}      # key -> smoothed rod-fishing amount 0..1
-var _mover_kneel: Dictionary = {}     # key -> smoothed lobster-kneel amount 0..1
+var _gather_tool := ""                # which tool is currently in hand: "axe" / "pick" / "rod" / ""
+var _mover_work: Dictionary = {}      # key -> smoothed gather-motion amount 0..1
+var _mover_work_kind: Dictionary = {} # key -> last gather motion ("mine"/"fish_rod"/… kept during ease-out)
 var _fish_line: MeshInstance3D        # the cast line, rod tip -> water (rod fishing only)
 var _fish_bobber: MeshInstance3D      # the float where the line meets the water
 var _mover_nodes: Dictionary = {}    # moving entity id -> Node3D (player/enemies)
@@ -103,8 +103,8 @@ func update(delta: float) -> void:
 		var psh: Node3D = _shadow_nodes.get("player")
 		if psh != null:
 			psh.visible = true
-		_refresh_chop_weapon()
-		_refresh_fish_rod()
+		_chopping = _is_chopping()
+		_refresh_gather_tool()
 		_animate_mover(_player_node, "player", world.player.position, t, dt)
 	var live := {}
 	for e: Node in world.entities:
@@ -167,28 +167,43 @@ func _apply_player_equipment(_a := "", _b := "") -> void:
 	_disable_cast_shadows(_player_node)
 
 
-## The player is mid-woodcutting. (An axe is required to start a chop, so this also implies one
-## is equipped.) Drives the continuous chop swing + the axe-in-hand swap.
+## The player is mid-woodcutting (drives the chop swing + axe-in-hand).
 func _is_chopping() -> bool:
 	return TickSim.active and TickSim.skill == "woodcutting"
 
 
-## While chopping, show the equipped AXE in hand (not the player's sword/staff); restore the
-## normal loadout when they stop. Only re-applies on the start/stop transition.
-func _refresh_chop_weapon() -> void:
+## Put the right TOOL in the player's hand for the active gather skill — axe (woodcutting),
+## pickaxe (mining), rod (rod-fishing) — and restore normal gear otherwise. Only the equipped
+## tier is used where a tool item exists; foraging/hunter/thieving are bare-handed. Acts on the
+## start/stop/skill-change transition only.
+func _refresh_gather_tool() -> void:
 	if _player_node == null:
 		return
-	var now := _is_chopping()
-	if now == _chopping:
+	var want := ""
+	if TickSim.active:
+		match TickSim.skill:
+			"woodcutting": want = "axe"
+			"mining": want = "pick"
+			"fishing": want = "rod" if _fish_method() == "rod" else ""
+	if want == _gather_tool:
 		return
-	_chopping = now
-	if now:
-		var axe := _axe_loadout()
-		if not axe.is_empty():
-			MoverMeshes.apply_equipment(_player_node, axe)
+	_gather_tool = want
+	match want:
+		"axe":
+			var axe := _axe_loadout()
+			if not axe.is_empty():
+				MoverMeshes.apply_equipment(_player_node, axe)
+				_disable_cast_shadows(_player_node)
+				return
+			_apply_player_equipment()
+		"pick":
+			MoverMeshes.apply_equipment(_player_node, _pick_loadout())
 			_disable_cast_shadows(_player_node)
-			return
-	_apply_player_equipment()   # stopped chopping (or no axe slot) -> back to normal gear
+		"rod":
+			MoverMeshes.apply_equipment(_player_node, _rod_loadout())
+			_disable_cast_shadows(_player_node)
+		_:
+			_apply_player_equipment()   # stopped gathering -> back to normal gear
 
 
 ## The player's loadout with the mainhand forced to the equipped axe (its own tier/material).
@@ -199,6 +214,17 @@ func _axe_loadout() -> Dictionary:
 	var ld := EquipLoadout.for_player(GameState.equipment)
 	var def = DataRegistry.item_def(axe_id)
 	ld["mainhand"] = {"kind": "axe", "material": EquipLoadout._material(def, DataRegistry.item_display_name(axe_id))}
+	return ld
+
+
+## The player's loadout with the mainhand forced to a pickaxe (equipped tier if any, else iron).
+func _pick_loadout() -> Dictionary:
+	var ld := {} if editor_plain_player else EquipLoadout.for_player(GameState.equipment)
+	var pick_id := str(GameState.equipment.get("Pickaxe", ""))
+	var mat := "iron"
+	if not pick_id.is_empty():
+		mat = EquipLoadout._material(DataRegistry.item_def(pick_id), DataRegistry.item_display_name(pick_id))
+	ld["mainhand"] = {"kind": "pickaxe", "material": mat}
 	return ld
 
 
@@ -214,22 +240,6 @@ func _fish_method() -> String:
 	if n.contains("lobster") or n.contains("crab") or n.contains("crayfish"):
 		return "cage"
 	return "rod"
-
-
-## Put a fishing rod in hand while rod-fishing; restore normal gear on stop. Cage (lobster) fishing
-## uses bare hands, so no rod swap there. Only acts on the start/stop transition.
-func _refresh_fish_rod() -> void:
-	if _player_node == null:
-		return
-	var want_rod := _is_fishing() and _fish_method() == "rod"
-	if want_rod == _rodding:
-		return
-	_rodding = want_rod
-	if want_rod:
-		MoverMeshes.apply_equipment(_player_node, _rod_loadout())
-		_disable_cast_shadows(_player_node)
-	else:
-		_apply_player_equipment()   # stopped fishing -> back to normal gear
 
 
 ## The player's loadout with the mainhand forced to a plain wooden fishing rod.
@@ -354,8 +364,8 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 		else:
 			desired = atan2(vel.x, vel.z)
 			want = true
-	# Woodcutting: square up to the tree being chopped, so the player always faces it.
-	if key == "player" and _chopping and not world.gather_ref.is_empty():
+	# Gathering: square up to the node being worked (tree/rock/bush/…) so the player faces it.
+	if key == "player" and TickSim.active and TickSim.skill != "fishing" and not world.gather_ref.is_empty():
 		var te: Object = world.gather_ref.get("entity")
 		if is_instance_valid(te):
 			var t3: Vector3 = _iso_to_3d.call((te as Node2D).position, 0.0)
@@ -389,21 +399,26 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 	if (key == "player" and _chopping) or gathering:
 		chop = fmod(t * CHOP_RATE, 1.0)
 		atk = 0.0   # no combat step-in; the chop/work pose moves the body
-	# Fishing: a smoothed rod-cast (most fish) or lobster-kneel (cage) overlay, player only.
-	var fish_target := 0.0
-	var kneel_target := 0.0
-	if key == "player" and _is_fishing():
-		atk = 0.0
-		if _fish_method() == "cage":
-			kneel_target = 1.0
-		else:
-			fish_target = 1.0
-	var fish: float = lerpf(float(_mover_fish.get(key, 0.0)), fish_target, clampf(dt * 8.0, 0.0, 1.0))
-	var kneel: float = lerpf(float(_mover_kneel.get(key, 0.0)), kneel_target, clampf(dt * 8.0, 0.0, 1.0))
-	_mover_fish[key] = fish
-	_mover_kneel[key] = kneel
+	# Per-skill gather motion (player, non-woodcutting): mining swing, fishing cast/kneel, foraging
+	# pick, hunter trap-set, thieving reach — a smoothed overlay that eases in and out.
+	var work := ""
+	var work_target := 0.0
+	if key == "player" and TickSim.active:
+		match TickSim.skill:
+			"mining": work = "mine"
+			"fishing": work = "fish_kneel" if _fish_method() == "cage" else "fish_rod"
+			"foraging": work = "forage"
+			"hunter": work = "trap"
+			"thieving": work = "steal"
+		if work != "":
+			atk = 0.0
+			work_target = 1.0
+			_mover_work_kind[key] = work
+	var work_amt: float = lerpf(float(_mover_work.get(key, 0.0)), work_target, clampf(dt * 8.0, 0.0, 1.0))
+	_mover_work[key] = work_amt
+	var work_kind := str(_mover_work_kind.get(key, ""))   # kept during ease-out so it doesn't pop
 	if key == "player":
-		_update_fish_line(pos3, yaw, fish)
+		_update_fish_line(pos3, yaw, work_amt if work_kind == "fish_rod" else 0.0)
 	var btype := str(node.get_meta("body3d", "humanoid"))
 	match btype:
 		"bird":
@@ -417,7 +432,7 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 				"gnoll":
 					MoverRig._pose_gnoll(node, pos3, yaw, walk, t, phase, base, atk)
 				_:
-					MoverRig._pose_humanoid(node, pos3, yaw, walk, t, phase, base, atk, chop, fish, kneel)
+					MoverRig._pose_humanoid(node, pos3, yaw, walk, t, phase, base, atk, chop, work_kind, work_amt)
 		"dragon":
 			MoverRig._pose_dragon(node, pos3, yaw, walk, t, phase, base, atk)
 		"serpent", "crawler":

@@ -325,6 +325,12 @@ static func weapon_profile(kind: String) -> Dictionary:
 				"pos": Vector3.ZERO,
 				"rot": Vector3(2.35, 0.0, 0.0),
 			}
+		"pickaxe":
+			return {
+				"pose": "onehand", "attack": "none",
+				"pos": Vector3.ZERO,
+				"rot": Vector3(1.78, 0.0, -0.46),
+			}
 		_:
 			return {
 				"pose": "onehand", "attack": "slash",
@@ -439,6 +445,14 @@ static func equip_parts(slot: String, kind: String, mat_key: String, tint: Color
 				PropMeshes._part(PropMeshes._cyl("eq_rod_grip", 0.03, 0.034, 0.18), rcork, Vector3(0, 0.02, 0.0)),
 				PropMeshes._part(PropMeshes._cyl("eq_rod_reel", 0.055, 0.055, 0.03), dark, Vector3(0.05, 0.12, 0.0), Vector3.ONE, Vector3(0, 0, 1.5708)),
 				PropMeshes._part(PropMeshes._sphere("eq_rod_tip", 0.012), equip_material("cloth", Color(0.9, 0.92, 0.85)), Vector3(0, 1.27, 0.0))]
+		"pickaxe":
+			# Wooden haft with a metal head: a horizontal bar tapering to a point on each side.
+			var pwood := equip_material("wood")
+			return [
+				PropMeshes._part(PropMeshes._cyl("eq_pick_haft", 0.028, 0.034, 0.74), pwood, Vector3(0, 0.18, 0.0)),
+				PropMeshes._part(PropMeshes._box("eq_pick_collar_" + mat_key, Vector3(0.07, 0.07, 0.07)), m, Vector3(0, 0.56, 0.0)),
+				PropMeshes._part(PropMeshes._cone("eq_pick_pt_a_" + mat_key, 0.05, 0.004, 0.26), m, Vector3(0.2, 0.58, 0.0), Vector3.ONE, Vector3(0, 0, 1.5708)),
+				PropMeshes._part(PropMeshes._cone("eq_pick_pt_b_" + mat_key, 0.05, 0.004, 0.26), m, Vector3(-0.2, 0.58, 0.0), Vector3.ONE, Vector3(0, 0, -1.5708))]
 		"spear":
 			return [
 				PropMeshes._part(PropMeshes._cyl("eq_spearhaft", 0.03, 0.035, 1.75), equip_material("wood"), Vector3(0, 0.34, 0.0)),

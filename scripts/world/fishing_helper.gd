@@ -31,7 +31,7 @@ static func water_world_pos(chunk: RefCounted, site: Dictionary) -> Vector2:
 static func can_cast_from(player_pos: Vector2, chunk: RefCounted, site: Dictionary) -> bool:
 	if not WorldGen.is_walkable_world(player_pos):
 		return false
-	var water := water_tile(chunk, site)
+	var water := water_tile_global(chunk, site)
 	if water.x < 0:
 		return false
 	var pt := WG.world_to_tile(player_pos)
@@ -39,8 +39,18 @@ static func can_cast_from(player_pos: Vector2, chunk: RefCounted, site: Dictiona
 	return dist >= 1 and dist <= CAST_TILES
 
 
+## GLOBAL tile coords of the spot's water tile (water_tile is chunk-LOCAL). can_cast_from and
+## best_stand work in global tile space, so they must convert — mixing the two was why casting
+## always failed ("stand on the shore") even stood right next to the water.
+static func water_tile_global(chunk: RefCounted, site: Dictionary) -> Vector2i:
+	var w := water_tile(chunk, site)
+	if w.x < 0:
+		return Vector2i(-1, -1)
+	return Vector2i(chunk.cx * WG.CHUNK_TILES + w.x, chunk.cy * WG.CHUNK_TILES + w.y)
+
+
 static func best_stand(player_pos: Vector2, chunk: RefCounted, site: Dictionary) -> Vector2:
-	var water := water_tile(chunk, site)
+	var water := water_tile_global(chunk, site)
 	if water.x < 0:
 		return chunk.tile_world(int(site["tx"]), int(site["ty"]))
 	var best: Vector2 = chunk.tile_world(int(site["tx"]), int(site["ty"]))

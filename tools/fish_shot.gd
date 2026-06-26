@@ -54,32 +54,68 @@ func _run() -> void:
 	_world.player.stop_walking()
 	_world.chunk_manager.update_center(_world.player.position)
 	if cam != null:
-		cam.zoom = Vector2(2.4, 2.4)
+		cam.zoom = Vector2(3.2, 3.2)
 		cam.reset_smoothing()
 	for i: int in 30:
 		await get_tree().process_frame
 
-	await _capture_fishing("Sardine", "fish_rod")     # rod cast + line
-	await _capture_fishing("Lobster", "fish_lobster")  # kneel, hands in water
+	# Inject a fishing-spot water-decor node at the cast water tile so the 3D bubbles render, then
+	# frame just the water for a clear look at the bubbling.
+	var WorldWaterDecor := load("res://scripts/world/world_water_decor.gd")
+	var decor: Node2D = WorldWaterDecor.new()
+	decor.kind = "fish_school"
+	decor.variant = 0
+	decor.position = _cast
+	decor.visible = false
+	_world.add_child(decor)
+	_world._water_decor_nodes.append(decor)
+	var cam0: Camera2D = _world.get("_camera")
+	for n: int in 2:
+		for i: int in 30:
+			if cam0 != null:
+				cam0.zoom = Vector2(4.5, 4.5)
+			_world.player.position = WG.tile_to_world(shore.x, shore.y)
+			_world.chunk_manager.update_center(_world.player.position)
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		var bimg: Image = get_viewport().get_texture().get_image()
+		var bpath := _out_dir.path_join("bubbles_%d.png" % n)
+		if bimg.save_png(bpath) == OK:
+			_saved.append(ProjectSettings.globalize_path(bpath))
+			print("  saved %s" % ProjectSettings.globalize_path(bpath))
+
+	# One capture per skill so every gather pose can be eyeballed.
+	await _capture("fishing", "Sardine", "fish_rod")        # rod cast + line
+	await _capture("fishing", "Lobster", "fish_lobster")    # kneel, hands in water
+	await _capture("mining", "Copper Ore", "mine")          # pickaxe swing
+	await _capture("foraging", "Brightberry Bush", "forage")
+	await _capture("hunter", "Rabbit Burrow", "trap")
+	await _capture("thieving", "Market Stall", "steal")
 
 	print("\n=== FISH RESULT ===")
 	print(JSON.stringify({"tool": "fish_shot", "saved": _saved, "shore": str(shore)}))
 	get_tree().quit(0)
 
 
-## Force the fishing state for a node and grab two frames (the pose eases in + the cast animates).
-func _capture_fishing(node_name: String, tag: String) -> void:
+var _cast := Vector2.ZERO
+
+
+## Force a gather state for a skill and grab two frames (the pose eases in + the motion cycles).
+func _capture(skill: String, node_name: String, tag: String) -> void:
 	var nd := GatherNodeDef.new()
 	nd.name = node_name
 	nd.display_name = node_name
-	_world.player.set_fish_cast(_water_for_player())
 	for n: int in 2:
 		# Re-assert each frame so the activity sim's own ticks can't stop it mid-capture.
-		for i: int in 36:
+		var cam: Camera2D = _world.get("_camera")
+		for i: int in 34:
 			TickSim.node = nd
-			TickSim.skill = "fishing"
+			TickSim.skill = skill
 			TickSim.active = true
-			_world.player.set_fish_cast(_water_for_player())
+			if cam != null:
+				cam.zoom = Vector2(4.5, 4.5)   # force max zoom-in each frame (the rig mirrors this)
+			if skill == "fishing":
+				_world.player.set_fish_cast(_cast)
 			await get_tree().process_frame
 		await RenderingServer.frame_post_draw
 		var img: Image = get_viewport().get_texture().get_image()
@@ -88,13 +124,6 @@ func _capture_fishing(node_name: String, tag: String) -> void:
 			_saved.append(ProjectSettings.globalize_path(path))
 			print("  saved %s" % ProjectSettings.globalize_path(path))
 	TickSim.active = false
-
-
-var _cast := Vector2.ZERO
-
-
-func _water_for_player() -> Vector2:
-	return _cast
 
 
 ## Scan loaded chunks for a dry, walkable tile with a water 4-neighbour. Returns [shore_tile, water_pos].
