@@ -42,7 +42,7 @@ const MountainField := preload("res://scripts/worldgen/mountain_field.gd")
 
 const OUT_DIR := "res://data/world/baked/"
 
-enum Tool { PAN, BIOME, TERRAIN, STAMP, STRUCTURE, ERASE, SPAWN, CREATURE, ROAD, SETTLEMENT, SMOOTHEN, ELEVATE, FOREST, CLUTTER, SKILL }
+enum Tool { PAN, BIOME, TERRAIN, STAMP, STRUCTURE, ERASE, SPAWN, CREATURE, ROAD, SETTLEMENT, SMOOTHEN, ELEVATE, FOREST, CLUTTER, SKILL, GRASS, SELECT }
 
 # Display name per tool, shown as the floating options-panel title.
 const TOOL_NAMES := {
@@ -51,7 +51,12 @@ const TOOL_NAMES := {
 	Tool.SPAWN: "Set Spawn", Tool.CREATURE: "Creatures", Tool.ROAD: "Roads",
 	Tool.SETTLEMENT: "Settlement", Tool.SMOOTHEN: "Smoothen", Tool.ELEVATE: "Elevate",
 	Tool.FOREST: "Trees", Tool.CLUTTER: "Clutter", Tool.SKILL: "Skills",
+	Tool.GRASS: "Grass", Tool.SELECT: "Select / Move",
 }
+
+# Structures rotate freely in fine steps (settlements/stamps stay on the 90° tile grid since they're
+# multi-tile). STRUCT_ROT_STEPS=24 → 15° per scroll/R press; pick from many more sides.
+const STRUCT_ROT_STEPS := 24
 
 # Gather skills exposed by the Skills tool, in palette order. Combat (monster spawns) is shown
 # first as its own accordion section. Each places a FUNCTIONAL resource: a harvestable gather site
@@ -230,6 +235,11 @@ var _creature_leash := 0          # give-up/leave distance, tiles (0 = global de
 var _creature_aggressive := true
 var _stamp_variant := 0
 var _stamp_rot := 0
+var _struct_rot := 0              # STRUCTURE yaw step (0..STRUCT_ROT_STEPS-1), 15° each — granular
+# Select/Move tool: the placed object currently grabbed (chunk + index into chunk.structures).
+var _sel_chunk: RefCounted = null
+var _sel_index := -1
+var _sel_moving := false          # true after "Move" pressed: next click relocates the selection
 var _stamp_flip := false
 var _sel_road_style := "road"
 var _road_width := 3              # road width in tiles (diameter); the Road tool's slider sets it
@@ -645,6 +655,8 @@ func _handle_key(event: InputEventKey) -> void:
 		KEY_E: _set_tool(Tool.ELEVATE)    # Elevate / raise into hills & mountains
 		KEY_T: _set_tool(Tool.FOREST)     # Trees brush (biome-aware species)
 		KEY_C: _set_tool(Tool.CLUTTER)    # Clutter brush (biome-aware ground detail)
+		KEY_V: _set_tool(Tool.GRASS)      # Grass brush (lush short meadow grass)
+		KEY_Q: _set_tool(Tool.SELECT)     # Select / move / rescale / delete a placed object
 		KEY_G: _select_skill_tool("combat" if _sel_skill.is_empty() else _sel_skill)   # Skills placement
 
 
@@ -676,7 +688,7 @@ func _process(_delta: float) -> void:
 	if t.x != -2147483648 and t != _hover_tile:
 		_hover_tile = t
 		_update_coords()
-	if _painting and not _ui_hover and _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE, Tool.SMOOTHEN, Tool.ELEVATE, Tool.FOREST, Tool.CLUTTER]:
+	if _painting and not _ui_hover and _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE, Tool.SMOOTHEN, Tool.ELEVATE, Tool.FOREST, Tool.CLUTTER, Tool.GRASS]:
 		_apply_tool(false)
 	if _painting and not _ui_hover and _tool == Tool.ROAD and _road_drawing:
 		if _road_pts.is_empty() or _road_pts[_road_pts.size() - 1] != _hover_tile:
@@ -716,6 +728,13 @@ func _apply_tool(just_pressed: bool) -> void:
 		Tool.ELEVATE: _elevate_brush()
 		Tool.FOREST: _paint(func(x: int, y: int) -> void: _place_decor(x, y, true))
 		Tool.CLUTTER: _paint(func(x: int, y: int) -> void: _place_decor(x, y, false))
+		Tool.GRASS: _paint(_place_grass)
+		Tool.SELECT:
+			if just_pressed:
+				if _sel_moving:
+					_move_selection_to(_hover_tile)
+				else:
+					_select_object_at(_hover_tile)
 		Tool.STAMP:
 			if just_pressed:
 				_place_stamp(_hover_tile)
@@ -834,6 +853,136 @@ func _weighted_kind(kinds: Array) -> String:
 		if roll <= 0.0:
 			return str(k["kind"])
 	return str(kinds[0]["kind"])
+
+
+## Grass brush: paint a LUSH meadow by dropping several short wind-swayed grass tufts per tile. Uses
+## the `hike_grass` decor (short blades; its foliage material already sways in the wind) and is batched
+## by StaticPropBatcher into one MultiMesh per chunk, so dense grass stays cheap. Biome-agnostic so you
+## can carpet anywhere; skips water/paths/floors. Records to chunk.structures (saved + undoable).
+const GRASS_PROP := "hike_grass"
+const GRASS_SCALE := 0.7          # short — meadow grass, not tall reeds
+
+func _place_grass(gtx: int, gty: int) -> void:
+	var chunk: RefCounted = _chunk_at_tile(gtx, gty)
+	if chunk == null:
+		return
+	var tkey := "%d:%d" % [gtx, gty]
+	if _decor_placed.has(tkey):
+		return                                   # one tuft-cluster per tile per stroke
+	_decor_placed[tkey] = true
+	var lx: int = gtx - chunk.cx * WG.CHUNK_TILES
+	var ly: int = gty - chunk.cy * WG.CHUNK_TILES
+	var tname: String = str(_reg.tile_order[chunk.tile_id(lx, ly)])
+	if bool(_reg.tile_def(chunk.tile_id(lx, ly)).get("water", false)) \
+			or TerrainStyle.is_path(tname) or tname in ["plaza", "plank_floor", "building_wall"]:
+		return
+	# 2..3 tufts per tile (Density nudges the third) for a lush carpet, jittered off-grid.
+	var tufts := 2 + (1 if randf() < _decor_density else 0)
+	for _i: int in tufts:
+		var part := {
+			"kind": "decor", "prop": GRASS_PROP, "tx": lx, "ty": ly, "label": "",
+			"yaw": randf() * TAU, "variant": randi() % 9973,
+			"ox": randf_range(-11.0, 11.0), "oy": randf_range(-11.0, 11.0),
+			"scale": GRASS_SCALE * _place_scale * randf_range(0.85, 1.12),
+		}
+		chunk.structures.append(part)
+		_stroke["added"].append({"key": "%d:%d" % [chunk.cx, chunk.cy], "arr": "structures", "item": part})
+
+
+# ───────────────────────── Select / Move tool (edit placed objects) ─────────────────────────
+
+## Grab the placed object nearest the clicked tile (searches the tile + its 8 neighbours across
+## chunks, by sub-tile world position). Decor/structures/trees/grass all live in chunk.structures, so
+## all are selectable; the palette then offers move / rescale / rotate (R) / delete.
+func _select_object_at(tile: Vector2i) -> void:
+	var target := WG.tile_to_world(tile.x, tile.y)
+	var best_chunk: RefCounted = null
+	var best_i := -1
+	var best_d := INF
+	for dy: int in [-1, 0, 1]:
+		for dx: int in [-1, 0, 1]:
+			var ch: RefCounted = _chunk_at_tile(tile.x + dx, tile.y + dy)
+			if ch == null:
+				continue
+			var lx: int = (tile.x + dx) - ch.cx * WG.CHUNK_TILES
+			var ly: int = (tile.y + dy) - ch.cy * WG.CHUNK_TILES
+			for i: int in ch.structures.size():
+				var s: Dictionary = ch.structures[i]
+				if int(s.get("tx", -999)) != lx or int(s.get("ty", -999)) != ly:
+					continue
+				var wp: Vector2 = ch.tile_world(lx, ly) + Vector2(float(s.get("ox", 0.0)), float(s.get("oy", 0.0)))
+				var d := wp.distance_squared_to(target)
+				if d < best_d:
+					best_d = d
+					best_chunk = ch
+					best_i = i
+	_sel_chunk = best_chunk
+	_sel_index = best_i
+	_sel_moving = false
+	if best_chunk == null:
+		_status.text = "Select: nothing here — click a tree / building / decor / grass to grab it."
+	else:
+		var s: Dictionary = best_chunk.structures[best_i]
+		_status.text = "Selected %s — use the panel to Move / rescale / rotate (R) / delete." % str(s.get("prop", s.get("label", s.get("kind", "object"))))
+	_refresh_palette()
+
+
+## Relocate the grabbed object to a new tile (snaps to the tile centre, clears sub-tile jitter; moves
+## it between chunks if needed). Armed by the "Move" button; the next click is the destination.
+func _move_selection_to(tile: Vector2i) -> void:
+	if _sel_chunk == null or _sel_index < 0 or _sel_index >= _sel_chunk.structures.size():
+		_sel_moving = false
+		return
+	var dst: RefCounted = _chunk_at_tile(tile.x, tile.y)
+	if dst == null:
+		return
+	var src := _sel_chunk
+	var old_item: Dictionary = src.structures[_sel_index]
+	var part: Dictionary = old_item.duplicate(true)
+	part["tx"] = tile.x - dst.cx * WG.CHUNK_TILES
+	part["ty"] = tile.y - dst.cy * WG.CHUNK_TILES
+	part["ox"] = 0.0
+	part["oy"] = 0.0
+	_begin_stroke()
+	_stroke["removed"].append({"key": "%d:%d" % [src.cx, src.cy], "arr": "structures", "item": old_item})
+	src.structures.remove_at(_sel_index)
+	dst.structures.append(part)
+	_stroke["added"].append({"key": "%d:%d" % [dst.cx, dst.cy], "arr": "structures", "item": part})
+	_sel_chunk = dst
+	_sel_index = dst.structures.size() - 1
+	_sel_moving = false
+	_commit_stroke()
+	_refresh_struct_chunks([{"key": "%d:%d" % [src.cx, src.cy]}, {"key": "%d:%d" % [dst.cx, dst.cy]}])
+	_status.text = "Moved to (%d, %d)." % [tile.x, tile.y]
+	_refresh_palette()
+
+
+## Delete the grabbed object (undoable via the stroke history).
+func _delete_selection() -> void:
+	if _sel_chunk == null or _sel_index < 0 or _sel_index >= _sel_chunk.structures.size():
+		return
+	var ch := _sel_chunk
+	var key := "%d:%d" % [ch.cx, ch.cy]
+	_begin_stroke()
+	_stroke["removed"].append({"key": key, "arr": "structures", "item": ch.structures[_sel_index]})
+	ch.structures.remove_at(_sel_index)
+	_commit_stroke()
+	_sel_chunk = null
+	_sel_index = -1
+	_sel_moving = false
+	_refresh_struct_chunks([{"key": key}])
+	_status.text = "Deleted."
+	_refresh_palette()
+
+
+## Live-rescale the grabbed object (not pushed to undo — re-select to adjust).
+func _rescale_selection(scale: float) -> void:
+	if _sel_chunk == null or _sel_index < 0 or _sel_index >= _sel_chunk.structures.size():
+		return
+	var part: Dictionary = _sel_chunk.structures[_sel_index]
+	part["scale"] = scale
+	_sel_chunk.structures[_sel_index] = part
+	_refresh_struct_chunks([{"key": "%d:%d" % [_sel_chunk.cx, _sel_chunk.cy]}])
 
 
 # ─────────────────────────────── smoothen tool ──────────────────────────────
@@ -1215,7 +1364,7 @@ func _place_structure(t: Vector2i) -> void:
 	# Match what the hover ghost showed: the rerolled roof colour and the scroll/R rotation.
 	if part["kind"] in ["house", "building", "tent"]:
 		part["color"] = ROOF_COLORS[_ghost_variant % ROOF_COLORS.size()]
-	part["yaw"] = float(_stamp_rot) * (PI * 0.5)
+	part["yaw"] = _struct_yaw()         # fine 15°-step rotation (scroll / R)
 	part["variant"] = _ghost_variant   # spawn the exact model the ghost previewed
 	if _place_off != Vector2.ZERO:
 		part["ox"] = _place_off.x       # free placement: sub-tile iso offset from the tile centre
@@ -1309,7 +1458,7 @@ func _commit_stroke() -> void:
 		_refresh_painted_entities(_stroke["tiles"].keys())
 	# Trees/Clutter brushes + the Creature tool add records to chunk data — respawn the touched
 	# chunks so the new trees/clutter/enemies appear in the 3D view immediately.
-	if _tool in [Tool.FOREST, Tool.CLUTTER, Tool.CREATURE, Tool.SKILL]:
+	if _tool in [Tool.FOREST, Tool.CLUTTER, Tool.GRASS, Tool.CREATURE, Tool.SKILL]:
 		_refresh_struct_chunks(_stroke["added"])
 	if _map_overlay != null:
 		_map_overlay.queue_redraw()   # keep the world-map markers in sync with the edit (no-op when hidden)
@@ -1707,7 +1856,7 @@ func _draw_overlay(c: CanvasItem) -> void:
 	if not _v3d_on and _hover_tile.x != -2147483648:
 		var ctr := Vector2(_hover_tile) - Vector2(_min_tx, _min_ty) + Vector2(0.5, 0.5)
 		var lw := maxf(0.5, 1.5 / zoom)
-		if _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE, Tool.SMOOTHEN, Tool.ELEVATE, Tool.FOREST, Tool.CLUTTER]:
+		if _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE, Tool.SMOOTHEN, Tool.ELEVATE, Tool.FOREST, Tool.CLUTTER, Tool.GRASS]:
 			c.draw_arc(ctr, float(_brush), 0.0, TAU, 48, Color(1.0, 0.92, 0.3, 0.9), lw)
 		elif _tool in [Tool.STAMP, Tool.STRUCTURE, Tool.SETTLEMENT]:
 			var fr := _half_footprint_tiles()
@@ -1891,11 +2040,11 @@ func _build_ui() -> void:
 
 	_tool_group(lb, "Paint", [[Tool.BIOME, "2  Biome"], [Tool.TERRAIN, "3  Terrain"]], true)
 	_tool_group(lb, "Sculpt", [[Tool.ELEVATE, "E  Elevate"], [Tool.SMOOTHEN, "H  Smoothen"]], true)
-	_tool_group(lb, "Nature", [[Tool.FOREST, "T  Trees"], [Tool.CLUTTER, "C  Clutter"], [Tool.STAMP, "4  Stamp"]], false)
+	_tool_group(lb, "Nature", [[Tool.FOREST, "T  Trees"], [Tool.CLUTTER, "C  Clutter"], [Tool.GRASS, "V  Grass"], [Tool.STAMP, "4  Stamp"]], false)
 	_tool_group(lb, "Build", [[Tool.STRUCTURE, "5  Structure"], [Tool.SETTLEMENT, "0  Settlement"], [Tool.ROAD, "9  Roads"]], false)
 	_build_skill_tool_group(lb)
 	_tool_group(lb, "Live", [[Tool.CREATURE, "8  Creatures"], [Tool.SPAWN, "7  Set Spawn"]], false)
-	_tool_group(lb, "Edit", [[Tool.PAN, "1  Pan / View"], [Tool.ERASE, "6  Erase"]], false)
+	_tool_group(lb, "Edit", [[Tool.SELECT, "Q  Select / Move"], [Tool.PAN, "1  Pan / View"], [Tool.ERASE, "6  Erase"]], false)
 
 	# Overlays — its own collapsible section so it never crowds the tools.
 	var ov := _collapsible(lb, "Overlays", false)
@@ -2663,7 +2812,7 @@ func _update_hover_gizmo() -> void:
 	var rend: Node = _v3d_world.get("render_3d")
 	if rend == null or not rend.has_method("iso_to_3d"):
 		return
-	var ring: bool = _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE, Tool.SMOOTHEN, Tool.ELEVATE, Tool.FOREST, Tool.CLUTTER]
+	var ring: bool = _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE, Tool.SMOOTHEN, Tool.ELEVATE, Tool.FOREST, Tool.CLUTTER, Tool.GRASS]
 	var ghost_struct: bool = _tool == Tool.STRUCTURE   # single model at the cursor
 	var ghost_settle: bool = _tool == Tool.SETTLEMENT  # whole building cluster
 	var square: bool = _tool == Tool.STAMP             # terrain stamp: just a footprint
@@ -2689,7 +2838,7 @@ func _update_hover_gizmo() -> void:
 		if _ghost_root != null and is_instance_valid(_ghost_root):
 			# Follow the exact cursor point (free placement drops it there, no grid snap).
 			_ghost_root.visible = true
-			_ghost_root.global_transform = Transform3D(Basis(Vector3.UP, float(_stamp_rot) * (PI * 0.5)).scaled(Vector3.ONE * _place_scale), center)
+			_ghost_root.global_transform = Transform3D(Basis(Vector3.UP, _struct_yaw()).scaled(Vector3.ONE * _place_scale), center)
 		return
 	if ghost_settle:
 		# The whole settlement cluster at the hovered tile (buildings are placed absolutely, so
@@ -3110,7 +3259,7 @@ func _on_v3d_gui_input(event: InputEvent) -> void:
 			if _tool == Tool.ROAD:
 				if event.pressed: _v3d_road_begin()
 				else: _v3d_road_end()
-			elif _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE, Tool.SMOOTHEN, Tool.ELEVATE, Tool.FOREST, Tool.CLUTTER]:
+			elif _tool in [Tool.BIOME, Tool.TERRAIN, Tool.ERASE, Tool.SMOOTHEN, Tool.ELEVATE, Tool.FOREST, Tool.CLUTTER, Tool.GRASS]:
 				# Brush + terrain-sculpt tools paint directly in the 3D view where the
 				# height is visible. _process keeps _hover_tile under the 3D cursor.
 				_v3d_painting = event.pressed
@@ -3187,8 +3336,13 @@ func _v3d_place_at_cursor() -> void:
 		Tool.SKILL:
 			_begin_stroke(); _place_skill(tile); _commit_stroke()
 			_refresh_3d_entities(tile)
+		Tool.SELECT:
+			if _sel_moving:
+				_move_selection_to(tile)
+			else:
+				_select_object_at(tile)
 		_:
-			_status.text = "Pick a Structure/Stamp/Road/Settlement/Creature/Skills tool, then click to place. (%d, %d)" % [tile.x, tile.y]
+			_status.text = "Pick a Structure/Stamp/Road/Settlement/Creature/Skills/Select tool, then click. (%d, %d)" % [tile.x, tile.y]
 
 
 func _v3d_zoom_by(factor: float) -> void:
@@ -3362,17 +3516,32 @@ func _set_brush(v: int) -> void:
 ## Stamps and settlements rotate in 90° steps; the scroll wheel turns them (when one of
 ## those tools is selected) instead of zooming. Structures have no rotation field yet.
 func _is_rotatable_tool() -> bool:
-	return _tool == Tool.STAMP or _tool == Tool.SETTLEMENT or _tool == Tool.STRUCTURE
+	return _tool == Tool.STAMP or _tool == Tool.SETTLEMENT or _tool == Tool.STRUCTURE or _tool == Tool.SELECT
 
 
 func _rotate_placement(dir: int) -> void:
 	if _tool == Tool.SETTLEMENT:
 		_settlement_rot = (_settlement_rot + dir + 4) % 4
 		_status.text = "Settlement rotation: %d° (scroll / R to turn)" % (_settlement_rot * 90)
+	elif _tool == Tool.SELECT:
+		# Rotate the GRABBED object in fine steps and write it straight back.
+		if _sel_chunk != null and _sel_index >= 0 and _sel_index < _sel_chunk.structures.size():
+			var part: Dictionary = _sel_chunk.structures[_sel_index]
+			part["yaw"] = wrapf(float(part.get("yaw", 0.0)) + dir * (TAU / float(STRUCT_ROT_STEPS)), 0.0, TAU)
+			_sel_chunk.structures[_sel_index] = part
+			_refresh_struct_chunks([{"key": "%d:%d" % [_sel_chunk.cx, _sel_chunk.cy]}])
+			_status.text = "Rotated %s to %d°" % [str(part.get("prop", part.get("kind", "object"))), int(round(rad_to_deg(float(part["yaw"]))))]
+	elif _tool == Tool.STRUCTURE:
+		_struct_rot = (_struct_rot + dir + STRUCT_ROT_STEPS) % STRUCT_ROT_STEPS
+		_status.text = "Structure rotation: %d° (scroll / R to turn, 15° steps)" % int(round(_struct_rot * 360.0 / STRUCT_ROT_STEPS))
 	else:
 		_stamp_rot = (_stamp_rot + dir + 4) % 4
-		var what := "Structure" if _tool == Tool.STRUCTURE else "Stamp"
-		_status.text = "%s rotation: %d° (scroll / R to turn)" % [what, _stamp_rot * 90]
+		_status.text = "Stamp rotation: %d° (scroll / R to turn)" % (_stamp_rot * 90)
+
+
+## Yaw (radians) for the STRUCTURE ghost/placement from the fine rotation step.
+func _struct_yaw() -> float:
+	return float(_struct_rot) * (TAU / float(STRUCT_ROT_STEPS))
 
 
 func _refresh_palette() -> void:
@@ -3471,6 +3640,40 @@ func _refresh_palette() -> void:
 		Tool.ELEVATE:
 			_header(_palette_box, "Elevate / raise")
 			_note("Drag (or hold) the brush to raise terrain into hills and mountains. A soft dome falloff means the brush centre rises fastest and the edges feather, building natural peaks — height shades grass→rock→snow on its own. Bigger brush = broader massif. Caps at the alpine summit height. Works in the 2D map and the 3D view. Ctrl+S saves directly (no re-bake).")
+		Tool.GRASS:
+			_header(_palette_box, "Grass (lush meadow)")
+			_note("Drag / hold to carpet the ground in short, wind-swayed meadow grass. Brush size sets the swathe; Density sets how thick; Scale sets blade height. Works in the 2D map and 3D view; skips water, paths and floors. Grass is batched (one MultiMesh per chunk) so big meadows stay cheap. Use the Select tool to pick a tuft back up, or Erase to clear. Ctrl+S saves.")
+		Tool.SELECT:
+			_header(_palette_box, "Select / Move")
+			if _sel_chunk == null or _sel_index < 0 or _sel_index >= _sel_chunk.structures.size():
+				_note("Click a PLACED object (tree, building, decor, grass…) to grab it. Then Move it, rescale it, rotate it (scroll / R), or delete it. Roads aren't grabbed here — their look is data-driven: edit data/world/road_styles.json to restyle every road, or use Erase + Road to redraw.")
+			else:
+				var s: Dictionary = _sel_chunk.structures[_sel_index]
+				_note("Grabbed: %s  (chunk %d:%d)" % [str(s.get("prop", s.get("label", s.get("kind", "object")))), _sel_chunk.cx, _sel_chunk.cy])
+				var move_btn := Button.new()
+				move_btn.text = "Move (then click a tile)" if not _sel_moving else "Click a tile to drop it…"
+				move_btn.pressed.connect(func() -> void:
+					_sel_moving = true
+					_status.text = "Move: click the destination tile."
+					_refresh_palette())
+				_palette_box.add_child(move_btn)
+				var del_btn := Button.new()
+				del_btn.text = "Delete"
+				del_btn.add_theme_color_override("font_color", Color(0.95, 0.5, 0.45))
+				del_btn.pressed.connect(_delete_selection)
+				_palette_box.add_child(del_btn)
+				var rlabel := Label.new()
+				var cur_scale := float(s.get("scale", 1.0))
+				rlabel.text = "Rescale: %d%%" % int(round(cur_scale * 100.0))
+				_palette_box.add_child(rlabel)
+				var rs := HSlider.new()
+				rs.min_value = 25; rs.max_value = 400; rs.step = 5; rs.value = cur_scale * 100.0
+				rs.custom_minimum_size = Vector2(198, 0)
+				rs.value_changed.connect(func(v: float) -> void:
+					rlabel.text = "Rescale: %d%%" % int(v)
+					_rescale_selection(v / 100.0))
+				_palette_box.add_child(rs)
+				_note("Scroll / R rotates the grabbed object in 15° steps. Move snaps it to a tile. Delete is undoable (Ctrl+Z); rescale/rotate are live — re-select to tweak. Ctrl+S saves.")
 		_:
 			_note("Right-drag to pan, wheel to zoom. Pick a tool to edit.")
 	_update_preview()

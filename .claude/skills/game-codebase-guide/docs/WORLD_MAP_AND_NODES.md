@@ -51,8 +51,18 @@ map (toggled with M). They read WorldGen/chunk data + `explored`.
 
 ## The world editor (`tools/world_editor.gd`)
 Authoring tool (`tools/world_editor.tscn`). Tool groups: Paint (biome/terrain), Sculpt (elevate/
-smoothen), Nature (trees/clutter/stamp), Build (structure/settlement/road), **Skills**, Live
-(creatures/spawn), Edit (pan/erase). The **Skills** group has one button per skill (Combat +
+smoothen), Nature (trees/clutter/**grass**/stamp), Build (structure/settlement/road), **Skills**, Live
+(creatures/spawn), Edit (**select**/pan/erase).
+- **Grass brush** (`V`, `_place_grass`) — drag/hold to carpet lush short wind-swayed meadow grass
+  (`hike_grass` decor, batched into MultiMeshes; brush=swathe, density=thickness, scale=height).
+- **Select / Move** (`Q`, `_select_object_at`/`_move_selection_to`/`_delete_selection`/
+  `_rescale_selection`) — click a placed object in `chunk.structures` (tree/building/decor/grass) to
+  reposition (Move → click destination), rescale (slider), rotate (scroll/R, 15° steps), or delete
+  (undoable). Roads aren't grabbed here — their look is data-driven (edit `data/world/road_styles.json`
+  to restyle every road; Erase + Road to redraw).
+- **Granular structure rotation** — STRUCTURE placements rotate in 15° steps (`STRUCT_ROT_STEPS=24`,
+  `_struct_rot`/`_struct_yaw`); stamps/settlements stay on the 90° tile grid.
+- Placed objects persist in `chunk.structures` and are fully re-editable on reload via Select. The **Skills** group has one button per skill (Combat +
 Woodcutting/Mining/Fishing/Foraging/Hunter/Thieving); selecting one shows that skill's nodes/creatures
 in the options panel and clicking a tile places a functional gather site (`_place_skill_site`, sets
 fish water for fishing) or monster pack. Saves to the worldspec (Ctrl+S). Placed sites are authored
