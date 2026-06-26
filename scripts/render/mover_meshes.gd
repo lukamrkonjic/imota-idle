@@ -326,11 +326,12 @@ static func weapon_profile(kind: String) -> Dictionary:
 				"rot": Vector3(2.35, 0.0, 0.0),
 			}
 		"pickaxe":
-			# Yaw the head 45° off the haft so a POINT (not the flat bar) leads down into the rock.
+			# Hold the haft angled diagonally up-and-forward out of the fist; the head's striking point
+			# (built pointing down-forward) then faces the rock. The mine pose lifts it and swings down.
 			return {
 				"pose": "onehand", "attack": "none",
 				"pos": Vector3.ZERO,
-				"rot": Vector3(1.78, 0.785, -0.46),
+				"rot": Vector3(0.7, 0.0, -0.5),
 			}
 		_:
 			return {
@@ -447,13 +448,14 @@ static func equip_parts(slot: String, kind: String, mat_key: String, tint: Color
 				PropMeshes._part(PropMeshes._cyl("eq_rod_reel", 0.055, 0.055, 0.03), dark, Vector3(0.05, 0.12, 0.0), Vector3.ONE, Vector3(0, 0, 1.5708)),
 				PropMeshes._part(PropMeshes._sphere("eq_rod_tip", 0.012), equip_material("cloth", Color(0.9, 0.92, 0.85)), Vector3(0, 1.27, 0.0))]
 		"pickaxe":
-			# Wooden haft with a metal head: a horizontal bar tapering to a point on each side.
+			# Wooden haft (grip at origin, +Y up the shaft) topped by a metal head whose long STRIKING
+			# point angles DOWN-FORWARD (the edge that bites the rock) with a short counter-spike up-back.
 			var pwood := equip_material("wood")
 			return [
-				PropMeshes._part(PropMeshes._cyl("eq_pick_haft", 0.028, 0.034, 0.74), pwood, Vector3(0, 0.18, 0.0)),
-				PropMeshes._part(PropMeshes._box("eq_pick_collar_" + mat_key, Vector3(0.07, 0.07, 0.07)), m, Vector3(0, 0.56, 0.0)),
-				PropMeshes._part(PropMeshes._cone("eq_pick_pt_a_" + mat_key, 0.05, 0.004, 0.26), m, Vector3(0.2, 0.58, 0.0), Vector3.ONE, Vector3(0, 0, 1.5708)),
-				PropMeshes._part(PropMeshes._cone("eq_pick_pt_b_" + mat_key, 0.05, 0.004, 0.26), m, Vector3(-0.2, 0.58, 0.0), Vector3.ONE, Vector3(0, 0, -1.5708))]
+				PropMeshes._part(PropMeshes._cyl("eq_pick_haft", 0.022, 0.03, 0.82), pwood, Vector3(0, 0.22, 0.0)),
+				PropMeshes._part(PropMeshes._box("eq_pick_collar_" + mat_key, Vector3(0.06, 0.08, 0.06)), m, Vector3(0, 0.62, 0.0)),
+				PropMeshes._part(PropMeshes._cone("eq_pick_strike_" + mat_key, 0.05, 0.004, 0.36), m, Vector3(0, 0.6, 0.06), Vector3.ONE, Vector3(2.2, 0, 0)),
+				PropMeshes._part(PropMeshes._cone("eq_pick_back_" + mat_key, 0.04, 0.004, 0.2), m, Vector3(0, 0.63, -0.05), Vector3.ONE, Vector3(-0.7, 0, 0))]
 		"spear":
 			return [
 				PropMeshes._part(PropMeshes._cyl("eq_spearhaft", 0.03, 0.035, 1.75), equip_material("wood"), Vector3(0, 0.34, 0.0)),

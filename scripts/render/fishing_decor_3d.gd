@@ -1,26 +1,29 @@
 extends RefCounted
 class_name FishingDecor3D
-## Marks every fishing spot with a cluster of animated BUBBLES rising off the water — small pale
-## spheres that swell up from the surface, drift, and pop, looping forever so the spot reads clearly
-## as "fish are here, cast in". The 2D world already spawns an invisible `fish_school` water-decor
-## node at each fishing site's water tile (world._water_decor_nodes); this subsystem mirrors each one
-## with a 3D bubble rig and animates it every frame. Pure visual — the clickable site drives fishing.
+## Marks every fishing spot with rising AIR BUBBLES on the water — small translucent cyan rings with
+## a white highlight that spawn at one underwater point, float up with a slight wobble, grow, then
+## burst into an expanding ring and fade, with new ones continuously spawning so the spot always
+## shimmers. Each bubble is a camera-facing (billboard) quad with a procedurally drawn bubble texture,
+## so it reads as a round translucent bubble from the iso camera — not a solid sphere/pebble.
+##
+## The 2D world already spawns an invisible `fish_school` water-decor node at each fishing site's
+## water tile (world._water_decor_nodes); this subsystem mirrors each with a bubble rig.
 
-const PropMeshes := preload("res://scripts/render/prop_meshes.gd")
-
-const BUBBLES := 26
-const SPOT_RADIUS := 0.6         # cluster radius on the water surface (3D world units)
-const RISE_HEIGHT := 0.26        # how high a bubble climbs before it pops
-const RISE_SPEED := 0.6          # base rise cycles/sec (varied per bubble)
-const BUBBLE_SIZE := 0.08        # peak bubble radius (varied per bubble)
-const SURFACE_LIFT := 0.03       # sit just above the water plane
+const BUBBLES := 16
+const RISE_HEIGHT := 0.3          # how high a bubble climbs (3D world units) before it bursts
+const RISE_SPEED := 0.5           # base rise cycles/sec (varied per bubble)
+const SOURCE_SPREAD := 0.24       # how far bubbles drift apart as they rise from the source point
+const BUBBLE_MIN := 0.06          # quad size as it leaves the source
+const BUBBLE_MAX := 0.13          # quad size just before it bursts
+const SURFACE_Y := 0.04           # the source sits a touch below the water plane
 
 var _props_root: Node3D
 var _height: Callable      # height_at_iso(iso: Vector2) -> float (water surface over water)
 var _iso_to_3d: Callable   # iso_to_3d(iso: Vector2, y: float) -> Vector3
 var _world: Node2D
 var _rigs: Dictionary = {}   # water-decor node instance_id -> Node3D rig
-var _bubble_mat: StandardMaterial3D
+var _bubble_tex: ImageTexture
+var _quad: QuadMesh
 
 
 func setup(w: Node2D, props: Node3D, height_provider: Callable, iso_to_3d_provider: Callable) -> void:
@@ -28,11 +31,9 @@ func setup(w: Node2D, props: Node3D, height_provider: Callable, iso_to_3d_provid
 	_props_root = props
 	_height = height_provider
 	_iso_to_3d = iso_to_3d_provider
-	_bubble_mat = StandardMaterial3D.new()
-	_bubble_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_bubble_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_bubble_mat.albedo_color = Color(0.9, 0.97, 1.0, 0.8)   # pale foam-white
-	_bubble_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_bubble_tex = _make_bubble_texture()
+	_quad = QuadMesh.new()
+	_quad.size = Vector2.ONE
 
 
 ## Mirror + animate a bubble rig for every live `fish_school` water-decor node, freeing rigs whose
@@ -63,32 +64,67 @@ func _build_rig() -> Node3D:
 	var rig := Node3D.new()
 	for i: int in BUBBLES:
 		var b := MeshInstance3D.new()
-		b.mesh = PropMeshes._sphere("fish_bubble", 1.0)   # unit sphere; scaled per frame
-		b.material_override = _bubble_mat
+		b.mesh = _quad
+		# Per-bubble material duplicate so each can fade its own alpha independently as it bursts.
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.albedo_texture = _bubble_tex
+		m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED   # always face the camera -> round bubble
+		m.billboard_keep_scale = true
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		m.albedo_color = Color(1, 1, 1, 0)
+		b.material_override = m
 		b.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		rig.add_child(b)
 	return rig
 
 
 func _animate(rig: Node3D, iso: Vector2, t: float, variant: float) -> void:
-	var y: float = _height.call(iso) + SURFACE_LIFT
+	var y: float = _height.call(iso)
 	rig.position = _iso_to_3d.call(iso, y)
 	var n := rig.get_child_count()
 	for i: int in n:
-		var b: Node3D = rig.get_child(i)
+		var b: MeshInstance3D = rig.get_child(i)
 		var fi := float(i)
-		# Golden-angle spread across the spot; deterministic per-bubble radius, size and rise speed.
+		var speed := RISE_SPEED * (0.7 + 0.6 * fposmod(fi * 0.37, 1.0))
+		# Evenly-staggered phases so a bubble is always at every stage — continuous, seamless rise.
+		var off := fi / float(n) + fposmod(fi * 0.19 + variant * 0.013, 1.0) * 0.12
+		var p := fposmod(t * speed + off, 1.0)
+		# Drift outward + wobble as it climbs from the single source point.
 		var ang := fi * 2.39996 + variant * 0.017
-		var rad := SPOT_RADIUS * sqrt(fposmod(fi * 0.413 + 0.13, 1.0))
-		var speed := RISE_SPEED * (0.6 + 0.8 * fposmod(fi * 0.37, 1.0))
-		var size := BUBBLE_SIZE * (0.45 + 0.75 * fposmod(fi * 0.53 + 0.2, 1.0))
-		# EVENLY-spread phases (i/n) + a little jitter, so at every instant bubbles exist at all
-		# stages of the climb — the cluster fizzes continuously with no visible loop seam.
-		var ph := fposmod(fi / float(n) + fposmod(fi * 0.197, 1.0) * 0.25 + variant * 0.013, 1.0)
-		var rise := fposmod(t * speed + ph, 1.0)
-		var wob := sin(t * 2.3 + fi * 1.7) * 0.025   # sideways drift as it climbs
-		b.position = Vector3(cos(ang) * rad + wob, rise * RISE_HEIGHT, sin(ang) * rad * 0.6)
-		# Real-bubble envelope: POP in fast at the surface, hold near full size while rising, then
-		# POP out near the top. (Not a slow symmetric swell — a quick appear + a quick burst.)
-		var env := smoothstep(0.0, 0.1, rise) * (1.0 - smoothstep(0.82, 0.96, rise))
-		b.scale = Vector3.ONE * maxf(size * env, 0.0001)
+		var spread := SOURCE_SPREAD * p
+		var wob := sin(t * 3.0 + fi * 1.7) * 0.035 * p
+		# Keep the bubble just ABOVE the water plane (the water mesh writes depth and would clip a
+		# submerged sprite), rising from the source point on the surface.
+		b.position = Vector3(cos(ang) * spread + wob, SURFACE_Y + p * RISE_HEIGHT, sin(ang) * spread * 0.6)
+		# Grow as it rises, then EXPAND hard in the burst window (reads as a ring/ripple pop).
+		var size := lerpf(BUBBLE_MIN, BUBBLE_MAX, p)
+		if p > 0.8:
+			size *= 1.0 + (p - 0.8) / 0.2 * 1.4
+		b.scale = Vector3(size, size, size)
+		# Fade in fast at the source, hold while rising, fade out through the burst -> seamless loop.
+		var alpha := smoothstep(0.0, 0.07, p) * (1.0 - smoothstep(0.8, 1.0, p))
+		var mat: StandardMaterial3D = b.material_override
+		mat.albedo_color.a = alpha
+
+
+## A small round bubble: a translucent pale-cyan ring (hollow centre) with a bright white highlight
+## pixel near the top-left. Expanded in the burst window it reads as a ripple ring.
+func _make_bubble_texture() -> ImageTexture:
+	var s := 16
+	var img := Image.create(s, s, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var c := Vector2(float(s) * 0.5 - 0.5, float(s) * 0.5 - 0.5)
+	var cyan := Color(0.72, 0.93, 1.0)
+	for yy: int in s:
+		for xx: int in s:
+			var d := Vector2(xx, yy).distance_to(c) / (float(s) * 0.5)
+			if d >= 1.0:
+				continue
+			var ring := smoothstep(1.0, 0.74, d) * smoothstep(0.5, 0.82, d)  # bright shell ~0.78
+			var fill := (1.0 - d) * 0.14                                     # faint translucent body
+			img.set_pixel(xx, yy, Color(cyan.r, cyan.g, cyan.b, clampf(ring * 0.85 + fill, 0.0, 0.9)))
+	img.set_pixel(int(s * 0.34), int(s * 0.3), Color(1, 1, 1, 0.95))   # highlight glint
+	img.set_pixel(int(s * 0.34) + 1, int(s * 0.3), Color(1, 1, 1, 0.6))
+	return ImageTexture.create_from_image(img)
