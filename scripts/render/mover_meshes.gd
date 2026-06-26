@@ -832,9 +832,12 @@ static func enemy_body_type(name: String) -> String:
 
 ## Build the right rig for an enemy node and tag it for animation.
 static func enemy_rig(e: Node) -> Node3D:
-	var name := str(e.get("label"))
+	# Archetype/bespoke detection keys off the FROZEN internal name (action.name) — its English
+	# keywords drive enemy_body_type — NOT the player-facing label, which is the renamed displayName.
+	# (Falls back to label for tools like the preview that set only a label.)
+	var name := str(Dictionary(e.get("action")).get("name", ""))
 	if name.is_empty():
-		name = str(Dictionary(e.get("action")).get("name", ""))
+		name = str(e.get("label"))
 	var type := enemy_body_type(name)
 	var n := name.to_lower()
 	var boss := bool(e.get("is_boss"))

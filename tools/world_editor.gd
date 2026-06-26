@@ -246,6 +246,12 @@ var _road_width := 3              # road width in tiles (diameter); the Road too
 var _road_width_label: Label
 var _decor_density := 0.25        # Trees/Clutter brush: per-tile place chance (the Density slider)
 var _density_slider: HSlider
+# Elevate brush shaping (the Elevate tool's sliders). Strength scales the per-pass rise; softness
+# widens the falloff so the same peak spreads over a much longer slope; sharpness reshapes the
+# summit profile (flat mesa ↔ rounded ↔ pointed alpine peak). See _elevate_value.
+var _elev_strength := 1.0         # 1.0 = +3 at centre per pass (the original); 0.25..3.0
+var _elev_softness := 0.0         # 0 = steep cliffs (original); 1 = broad rolling hills
+var _elev_sharpness := 0.5        # 0 = flat-topped mesa; 0.5 = rounded (original); 1 = sharp peak
 var _decor_placed := {}           # tiles painted this stroke, so a drag doesn't double-place
 var _place_scale := 1.0           # uniform size for placed structures/trees/clutter (the Scale slider)
 var _road_pts: Array[Vector2i] = []
@@ -1065,27 +1071,40 @@ func _record_elev(gtx: int, gty: int, new_elev: int) -> void:
 
 func _elevate_brush() -> void:
 	var r := _brush - 1
+	# Softness widens the brush's reach: the raised area (and so the slope) spreads up to ~3.5× the
+	# brush radius, while the centre still climbs at the same rate — same peak, far gentler grade.
+	var er := int(round(float(maxi(r, 1)) * (1.0 + _elev_softness * 2.5)))
+	er = mini(er, 80)   # cap the footprint so an extreme brush+softness stroke stays responsive
 	var edits: Array = []
-	for dy: int in range(-r, r + 1):
-		for dx: int in range(-r, r + 1):
+	for dy: int in range(-er, er + 1):
+		for dx: int in range(-er, er + 1):
 			var d2 := dx * dx + dy * dy
-			if d2 > r * r + r:
+			if d2 > er * er + er:
 				continue
 			var gx := _hover_tile.x + dx
 			var gy := _hover_tile.y + dy
-			var ne := _elevate_value(gx, gy, d2, r)
+			var ne := _elevate_value(gx, gy, d2, er)
 			if ne >= 0 and ne != _elev_at(gx, gy):
 				edits.append([gx, gy, ne])
 	for e: Array in edits:
 		_record_elev(int(e[0]), int(e[1]), int(e[2]))
 
 
-func _elevate_value(gtx: int, gty: int, d2: int, r: int) -> int:
-	var falloff := 1.0 - sqrt(float(d2)) / float(maxi(r, 1) + 1)   # 1 centre .. ~0 rim
-	if falloff <= 0.0:
+func _elevate_value(gtx: int, gty: int, d2: int, er: int) -> int:
+	# Linear distance ramp over the (softness-widened) effective radius: 1 at the centre → 0 at the rim.
+	var f := 1.0 - sqrt(float(d2)) / float(maxi(er, 1) + 1)
+	if f <= 0.0:
 		return -1
+	# Sharpness reshapes the curve via an exponent on f, touching the summit profile but not the
+	# footprint (f still hits 0 at the same rim): p<1 → broad flat top (mesa), p=1 → rounded dome
+	# (the original), p>1 → narrow pointed alpine peak. 0%→0.45, 50%→1.0, 100%→~2.24.
+	var p := pow(5.0, _elev_sharpness - 0.5)
+	var shaped := pow(f, p)
+	# Strength sets the centre's per-pass climb (3 steps at 100%); the rim always nudges +1 so broad
+	# strokes still feather. round() keeps it integer-stepped like the original.
+	var max_rise := 3.0 * _elev_strength
+	var rise := 1 + int(round(shaped * (max_rise - 1.0)))
 	var cur := _elev_at(gtx, gty)
-	var rise := 1 + int(round(falloff * 2.0))   # +1 at the rim .. +3 at the centre per pass
 	return clampi(cur + rise, 0, MountainField.ELEV_MAX_STEPS)
 
 
@@ -3639,7 +3658,14 @@ func _refresh_palette() -> void:
 			_note("Drag the brush over raised ground to lower and smooth it back toward the surroundings. Each pass steps the height down, so sweep (or hold) to melt a bump — or a whole mountain — down to flat. Never raises terrain. Works in both the 2D map and the 3D view. The 'Elevation' overlay turns on automatically so you can watch height drop. Ctrl+S saves directly to the world (no re-bake).")
 		Tool.ELEVATE:
 			_header(_palette_box, "Elevate / raise")
-			_note("Drag (or hold) the brush to raise terrain into hills and mountains. A soft dome falloff means the brush centre rises fastest and the edges feather, building natural peaks — height shades grass→rock→snow on its own. Bigger brush = broader massif. Caps at the alpine summit height. Works in the 2D map and the 3D view. Ctrl+S saves directly (no re-bake).")
+			# Live shaping controls — every stroke re-reads these, so the effect is immediate.
+			_param_slider("Strength: %d%%", int(round(_elev_strength * 100.0)), 25, 300,
+				func(v: int) -> void: _elev_strength = float(v) / 100.0)
+			_param_slider("Softness (falloff): %d%%", int(round(_elev_softness * 100.0)), 0, 100,
+				func(v: int) -> void: _elev_softness = float(v) / 100.0)
+			_param_slider("Mountain sharpness: %d%%", int(round(_elev_sharpness * 100.0)), 0, 100,
+				func(v: int) -> void: _elev_sharpness = float(v) / 100.0)
+			_note("Drag (or hold) the brush to raise hills and mountains; height shades grass→rock→snow on its own.\n• Strength — how fast the centre climbs per pass.\n• Softness — low = steep cliffs; high = the peak spreads over a long, walkable slope (broad rolling hills).\n• Sharpness — 0% flat-topped mesa, 50% rounded hill, 100% sharp alpine peak (footprint unchanged).\nCombine them: low softness + high sharpness = steep alpine; high softness + low sharpness = mesas/plateaus. Caps at the summit height. Ctrl+S saves directly (no re-bake).")
 		Tool.GRASS:
 			_header(_palette_box, "Grass (lush meadow)")
 			_note("Drag / hold to carpet the ground in short, wind-swayed meadow grass. Brush size sets the swathe; Density sets how thick; Scale sets blade height. Works in the 2D map and 3D view; skips water, paths and floors. Grass is batched (one MultiMesh per chunk) so big meadows stay cheap. Use the Select tool to pick a tuft back up, or Erase to clear. Ctrl+S saves.")

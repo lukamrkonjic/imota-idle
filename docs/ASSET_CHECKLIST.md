@@ -221,8 +221,9 @@ bat/quadruped` (`mover_renderer_3d.gd` match). 120 enemies in `data/enemies.json
   ring tinted by element + a bony horn crown on humanoids) + a bigger base scale (×1.3) + a slow
   breathing idle (`mover_renderer_3d` boss-swell). Universal across every archetype, no bespoke model.
 - [~] **Bespoke flagship-boss models** — `_bespoke_boss_rig(name)` returns a unique rig for named
-  bosses (built so far: **Pumpkin Jack** — glowing carved jack-o'-lantern head + witch hat). Add a
-  branch there to give any of the other ~34 bosses (Aurelion, Vaerthrax, etc.) its own model.
+  bosses (built so far: the jack-o'-lantern boss, frozen id `Pumpkin Jack`, shown to players as
+  **"Hollow Jack"**). The keyword keys off the FROZEN id (action.name), so renames don't break it. Add
+  a branch there to give any of the other ~34 bosses (Solheim, Nyxthrax, etc.) its own model.
 
 ### NPCs & Characters
 - [x] Sim players (ambient NPC crowd) — use the PLAYER rig with deterministic looks/loadouts

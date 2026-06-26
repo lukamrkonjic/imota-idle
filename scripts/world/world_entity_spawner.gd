@@ -649,7 +649,9 @@ func _spawn_poi_part(chunk: RefCounted, poi: Dictionary, part: Dictionary, conta
 				return
 			e.enemy_shape = IsoSprites.enemy_shape(enemy_name)
 			e.tier_color = tier_color(int(enemy["level"]))
-			e.label = enemy_name
+			# Show the renamed displayName to the player; the frozen id lives on in action.name (used
+			# for combat lookups + the renderer's archetype keywords).
+			e.label = DataRegistry.enemy_display_name(enemy_name)
 			if is_boss:
 				e.is_boss = true
 				e.display_size = 50.0
@@ -784,7 +786,8 @@ func _spawn_monster(chunk: RefCounted, m: Dictionary, container: Node2D) -> void
 	e.enemy_shape = IsoSprites.enemy_shape(name)
 	e.display_size = 34.0
 	e.tier_color = tier_color(int(m["level"]))
-	e.label = name
+	# Player-facing name = renamed displayName; action.name keeps the frozen id for logic + rendering.
+	e.label = DataRegistry.enemy_display_name(name)
 	e.sub_label = "Lvl %d" % int(m["level"])
 	e.variant = absi(hash(name + chunk.key())) % 1000
 	e.click_radius = 26.0
