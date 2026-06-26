@@ -3,6 +3,13 @@ extends Node
 
 const SaveMigration := preload("res://autoload/save_migration.gd")
 const PrayerLore := preload("res://scripts/skills/prayer_lore.gd")
+# Path-based preloads (NOT bare class_name refs) so this autoload still compiles with a cold
+# class cache (fresh clone / no .godot/). Member initializers below run at autoload instantiation,
+# the earliest point — a missing cache there nulls out GameState and cascades everywhere.
+const PrayerState := preload("res://scripts/state/prayer_state.gd")
+const SlayerState := preload("res://scripts/state/slayer_state.gd")
+const RunEnergyState := preload("res://scripts/state/run_energy_state.gd")
+const ItemDef := preload("res://scripts/content/item_def.gd")
 ## All mutation goes through methods here so EventBus signals stay accurate.
 
 # OSRS-style 22-skill roster (Imota spec §2). Bloobs skill keys are migrated to

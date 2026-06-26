@@ -7,13 +7,13 @@ recreated from the Bloobs Adventure Idle data export.
 
 ```powershell
 # Play
-C:\Dev\Godot\Godot_v4.6.3-stable_win64.exe --path C:\Dev\bloobs-godot
+C:\Dev\Godot\Godot_v4.6.3-stable_win64.exe --path C:\Dev\imota-idle
 
 # Re-import game data from the export (writes res://data/*.json)
-C:\Dev\Godot\Godot_v4.6.3-stable_win64_console.exe --headless --path C:\Dev\bloobs-godot --script res://tools/import_bloobs_data.gd
+C:\Dev\Godot\Godot_v4.6.3-stable_win64_console.exe --headless --path C:\Dev\imota-idle --script res://tools/import_bloobs_data.gd
 
 # Headless test suite (49 checks across data, gathering, combat, crafting, save, UI)
-C:\Dev\Godot\Godot_v4.6.3-stable_win64_console.exe --headless --path C:\Dev\bloobs-godot res://tools/validate.tscn
+C:\Dev\Godot\Godot_v4.6.3-stable_win64_console.exe --headless --path C:\Dev\imota-idle res://tools/validate.tscn
 ```
 
 ## Architecture

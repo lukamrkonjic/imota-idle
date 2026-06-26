@@ -1,4 +1,4 @@
-extends ActivitySim
+extends "res://scripts/activity_sim.gd"  # ActivitySim, by path so it compiles with a cold class cache
 ## Continuous combat simulation, ported from CombatManager + BasicEnemy.
 ##
 ## Player attack loop fires every ATTACK_INTERVAL (CombatManager's combat
@@ -11,6 +11,7 @@ const CombatStyles := preload("res://scripts/combat/combat_styles.gd")
 const DropRoller := preload("res://scripts/combat/drop_roller.gd")
 const CombatCalc := preload("res://scripts/combat/combat_calc.gd")
 const AttackStyles := preload("res://scripts/combat/attack_styles.gd")
+const EnemyDef := preload("res://scripts/content/enemy_def.gd")  # path preload: cold-cache safe
 
 const ATTACK_INTERVAL := 3.0  # default; per-weapon speed comes from GameState.attack_interval()
 const PLAYER_BASE_CRIT := 0.01

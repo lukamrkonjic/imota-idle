@@ -1,6 +1,8 @@
-extends ActivitySim
+extends "res://scripts/activity_sim.gd"  # ActivitySim, by path so it compiles with a cold class cache
 ## Production-skill crafting loop (Recipe.cs subclasses): consume inputs,
 ## wait the recipe timer, grant output + XP, auto-repeat while inputs last.
+
+const RecipeDef := preload("res://scripts/content/recipe_def.gd")  # path preload: cold-cache safe
 
 # `active` + register + _process come from ActivitySim.
 var recipe: RecipeDef = RecipeDef.new()

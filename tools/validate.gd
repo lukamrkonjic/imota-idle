@@ -21,7 +21,7 @@ const DropRoller := preload("res://scripts/combat/drop_roller.gd")
 const WG := preload("res://scripts/worldgen/wg.gd")
 const Chunk := preload("res://scripts/worldgen/chunk.gd")
 const PathFinder := preload("res://scripts/worldgen/path_finder.gd")
-##   godot --headless --path C:/Dev/bloobs-godot res://tools/validate.tscn
+##   godot --headless --path C:/Dev/imota-idle res://tools/validate.tscn
 ## Drives the sims with synthetic delta time, so it completes in milliseconds.
 
 var failures := 0

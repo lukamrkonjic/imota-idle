@@ -2,7 +2,12 @@ extends Node
 ## Loads the imported Bloobs data (res://data/*.json) and indexes it by stable id.
 
 const ContentId := preload("res://scripts/content/content_id.gd")
-# ItemDef is a global class_name (scripts/content/item_def.gd).
+# Path-based preloads (NOT bare class_name refs) so this autoload compiles with a cold class
+# cache. Return-type annotations below resolve at parse time, so they need these to be present.
+const ItemDef := preload("res://scripts/content/item_def.gd")
+const EnemyDef := preload("res://scripts/content/enemy_def.gd")
+const RecipeDef := preload("res://scripts/content/recipe_def.gd")
+const GatherNodeDef := preload("res://scripts/content/gather_node_def.gd")
 
 var items: Dictionary = {}           # display name -> item dict (legacy key)
 var items_by_id: Dictionary = {}     # stable id -> item dict

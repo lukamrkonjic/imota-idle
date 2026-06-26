@@ -1,4 +1,4 @@
-# Agent instructions (Imota / bloobs-godot)
+# Agent instructions (Imota)
 
 ## ⚠️ Save-game safety — NON-NEGOTIABLE (Steam Early Access)
 
@@ -44,24 +44,63 @@ When you complete a feature, bug fix, or refactor that touches game code or data
 
 1. Run the headless test suite and confirm it passes:
    ```powershell
-   & "C:\Dev\Godot\Godot_v4.6.3-stable_win64_console.exe" --headless --path "C:\Dev\bloobs-godot" res://tools/validate.tscn
+   & "C:\Dev\Godot\Godot_v4.6.3-stable_win64_console.exe" --headless --path "C:\Dev\imota-idle" res://tools/validate.tscn
    ```
 2. Fix any failing tests before marking the task done.
 3. Launch the game for a quick smoke test:
    ```powershell
-   & "C:\Dev\Godot\Godot_v4.6.3-stable_win64.exe" --path "C:\Dev\bloobs-godot"
+   & "C:\Dev\Godot\Godot_v4.6.3-stable_win64.exe" --path "C:\Dev\imota-idle"
    ```
 
 Skip verify/play only for documentation-only edits or when the user asks not to.
 
 ## Project paths
 
-- Project root: `C:\Dev\bloobs-godot`
+- Project root: `C:\Dev\imota-idle`
 - Godot editor: `C:\Dev\Godot\Godot_v4.6.3-stable_win64.exe`
 - Godot headless: `C:\Dev\Godot\Godot_v4.6.3-stable_win64_console.exe`
 - Tests: `res://tools/validate.tscn`
 
 See `README.md` for architecture and data import commands.
+
+## Windows: run the game (and the cold-cache gotcha)
+
+`.godot/` (the class cache) is gitignored, so a **fresh clone has no cache**. Running the
+game before the cache exists fails to resolve global `class_name`s, which nulls out the
+autoloads (you'll see `GameState`-is-Nil / `prayer_sim.gd` errors spamming every frame).
+macOS rebuilds it via `dev.sh`; on Windows use the committed batch scripts:
+
+- **`run.bat`** — launches the game. If `.godot/` is missing it rebuilds the cache once
+  first, then plays. This is the normal way to run on Windows.
+- **`import.bat`** — just rebuilds the cache (`--import`). Re-run it after adding a new
+  `class_name` or a new `.glb`.
+
+Both default to the engine paths above; override with the `GODOT` / `GODOT_CONSOLE` env
+vars. (The autoloads are also hardened with path-based `preload()`s instead of bare
+`class_name` refs, so a cold cache degrades more gracefully — but the cache should still
+be built.)
+
+## World build tools
+
+The fixed overworld is **authored, then compiled** — it never generates at runtime.
+Two tools own that pipeline (both run via the editor binary with `--path .`):
+
+- **World editor** — `res://tools/world_editor.tscn` (the production designer for the
+  finite world). Top-down 1px/tile view of the baked world with hand-authoring brushes:
+  biome, terrain, structures, erase, set-spawn. Edits are undoable; "Generate World"
+  rebuilds the continent via the shared `FiniteWorldGenerator`; Save writes
+  `data/world/baked/<id>.world` (+ map + spawn). A "🧊 3D View" button docks the real
+  game renderer for live in-game preview.
+  ```powershell
+  & "C:\Dev\Godot\Godot_v4.6.3-stable_win64.exe" --path "C:\Dev\imota-idle" res://tools/world_editor.tscn
+  ```
+- **World baker** — `res://tools/world_bake.tscn` (offline world compiler). Regenerates
+  the finite world from the active worldspec and rewrites
+  `res://data/world/baked/<id>.world` + `<id>_map.png`. Headless is fine (tiles are
+  CPU-only). **Re-run this after any worldspec edit** — the overworld is fixed/baked.
+  ```powershell
+  & "C:\Dev\Godot\Godot_v4.6.3-stable_win64_console.exe" --headless --path "C:\Dev\imota-idle" res://tools/world_bake.tscn
+  ```
 
 ## Design & decisions — read before building
 

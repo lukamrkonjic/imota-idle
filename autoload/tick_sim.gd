@@ -1,4 +1,4 @@
-extends ActivitySim
+extends "res://scripts/activity_sim.gd"  # ActivitySim, by path so it compiles with a cold class cache
 ## Gathering simulation, OSRS-faithful: gathering skills (Woodcutting, Mining,
 ## Fishing, Foraging) roll a binary success check every GATHER_TICKS game ticks.
 ## On success you get the resource + its XP; on a failed roll nothing happens and
@@ -9,6 +9,8 @@ extends ActivitySim
 ## previously tuned economy (old model: each ~1.495s action dealt tool "progress"
 ## damage; 100 damage = 1 resource), so average yields are unchanged — only the
 ## delivery is now a per-roll OSRS-style success instead of a filling bar.
+
+const GatherNodeDef := preload("res://scripts/content/gather_node_def.gd")  # path preload: cold-cache safe
 
 const GATHER_TICKS := 4  # one success roll every 4 ticks (2.4s), like OSRS WC
 

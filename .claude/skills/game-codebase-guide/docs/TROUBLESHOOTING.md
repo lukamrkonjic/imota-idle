@@ -8,6 +8,17 @@ A new `class_name` isn't in Godot's global-class cache yet. Run once:
 `godot --headless --path . --import`. (Seen this session when adding `FishingDecor3D`.) Same for a new
 `.glb` (regenerates its `.import`).
 
+## Fresh clone / Windows: autoloads are Nil, `prayer_sim.gd:8` spams every frame
+Symptom: `Invalid access to property 'active_prayers' on a base object of type 'Nil'` (or any
+`<Autoload>`-is-Nil error) repeating once per frame at startup. Cause: `.godot/` (the class cache) is
+gitignored, so a fresh clone has no cache; an autoload that references a bare global `class_name` then
+fails to compile and instantiates as Nil, cascading to everything that reads it. macOS rebuilds the
+cache via `dev.sh`; **on Windows run `run.bat`** (it builds the cache once if `.godot/` is missing, then
+launches) or `import.bat` (cache only). Equivalent manual fix: `godot --headless --path . --import`,
+then run. The core autoloads (`GameState`, the sims, `DataRegistry`) are also hardened to use
+path-based `preload()`s instead of bare `class_name` refs so they degrade gracefully — but the cache
+should still be built. See `AGENTS.md` → "Windows: run the game".
+
 ## Parse error after an edit
 - Variable shadowing: re-declaring a name that already exists in the function (e.g. a local `bob`
   when the pose already has `bob`). Rename your local.
