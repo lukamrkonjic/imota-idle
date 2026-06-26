@@ -14,18 +14,13 @@ const CAM_SIZE_BASE := 19.5   # ortho size at the default 1.65 zoom
 const CAM_DIST := 31.0
 const CAM_YAW_SPEED := 1.7    # rad/sec — Left/Right orbit (full 360°)
 const CAM_PITCH_SPEED := 1.1  # rad/sec — Up/Down tilt
-const CAM_PITCH_MIN := 0.16   # absolute floor; the EFFECTIVE min is budget-aware (effective_min_pitch)
-const CAM_PITCH_MAX := 1.40   # near top-down (kept off the gimbal pole)
-# Camera BUDGET CURVE — zoom and pitch are NOT independent: a low (cinematic) pitch and a far
-# zoom-out are competing features the renderer can't afford together (a grazing camera sees far
-# more ground). So the minimum allowed pitch is coupled to the live zoom: zoomed IN allows a low
-# cinematic angle (small footprint, cheap); zoomed OUT forces a higher, more top-down angle (a
-# RuneScape-style overview) so the footprint never outruns the terrain budget. ORTHO span here is
-# the real zoom range (size = CAM_SIZE_BASE/zoom, zoom in [0.55..4.5] -> ortho ~4.3..35.5).
-const BUDGET_ORTHO_CLOSE := 9.0     # at/below this ortho (zoomed in) the lowest pitch is allowed
-const BUDGET_ORTHO_FAR := 30.0      # at/above this ortho (zoomed out) the top-down floor applies
-const BUDGET_PITCH_CLOSE := 0.24    # ~14° — cinematic low angle, allowed only when zoomed in
-const BUDGET_PITCH_FAR := 0.62      # ~36° — strategic top-down floor when zoomed far out
+const CAM_PITCH_MIN := 0.16   # the low (forward/grazing) floor; effective_min_pitch returns this (+ a small view-distance lift)
+const CAM_PITCH_MAX := 1.05   # ~60° — tilted-down overview (lowered from near-top-down to see more forward)
+# Pitch is INDEPENDENT of zoom (see effective_min_pitch): zooming out keeps the current angle
+# instead of forcing the camera top-down. A grazing camera sees more ground, so the terrain budget
+# and the world edge are handled by the coverage auto-zoom (_coverage_zoom_target) + the footprint
+# cap, which tighten the VIEW rather than tilting it.
+const BUDGET_ORTHO_CLOSE := 9.0     # ortho the "hold Down" cinematic eases in to (see ZOOM_CINEMATIC)
 # Up/Down sweep the camera between two coupled poses, eased smoothly (NOT a linear tilt):
 #   hold Up   -> overview  : max zoom-OUT + top-down
 #   hold Down -> cinematic : zoom-IN + lowest pitch
@@ -33,7 +28,7 @@ const BUDGET_PITCH_FAR := 0.62      # ~36° — strategic top-down floor when zo
 const PAN_EASE := 1.7
 const ZOOM_OUT_MAX := 0.55                              # matches WorldInputController.ZOOM_MIN (max zoom-out)
 const ZOOM_KEY_RATE := 0.75                             # Up/Down arrow zoom: constant per-second multiplier (gentle at any height)
-const ZOOM_CINEMATIC := CAM_SIZE_BASE / BUDGET_ORTHO_CLOSE   # zoom-in where the lowest pitch unlocks
+const ZOOM_CINEMATIC := CAM_SIZE_BASE / BUDGET_ORTHO_CLOSE   # the zoom-in target for the "hold Down" cinematic pose
 # Radians of yaw/pitch per pixel of middle-mouse drag (before the cam_rotate_speed multiplier).
 const CAM_DRAG_YAW := 0.006
 const CAM_DRAG_PITCH := 0.004
@@ -93,22 +88,14 @@ func _setup_camera() -> void:
 	world3d.add_child(cam)
 
 
-## Minimum allowed pitch for the CURRENT zoom (the camera budget curve). Driven by the user's
-## DESIRED zoom (the 2D camera), not the live coverage-shrunk ortho, so it's a stable input: as
-## you zoom out the floor rises toward a top-down overview; as you zoom in it drops to a cinematic
-## low angle. This is what makes "far zoom-out + low pitch" an unreachable state — you trade one
-## for the other. The view-distance slider tightens it further (less terrain budget -> higher floor).
+## Minimum allowed pitch. DECOUPLED from zoom — zooming out no longer lifts the floor toward a
+## top-down overview (that passive re-pitch felt unnatural). The terrain budget and the world edge
+## are instead handled by the coverage auto-zoom (_coverage_zoom_target) + the footprint cap, which
+## tighten the VIEW rather than tilting it. The view-distance setting still lifts the floor a touch,
+## since a lower budget can't afford a fully grazing angle.
 func effective_min_pitch() -> float:
-	var zoom := 1.65
-	if world != null and world._camera != null and world._camera.zoom.x > 0.01:
-		zoom = world._camera.zoom.x
-	var ortho := CAM_SIZE_BASE / zoom
-	var f := clampf((ortho - BUDGET_ORTHO_CLOSE) / (BUDGET_ORTHO_FAR - BUDGET_ORTHO_CLOSE), 0.0, 1.0)
-	var floor_pitch := lerpf(BUDGET_PITCH_CLOSE, BUDGET_PITCH_FAR, f)
-	# Low view distance can afford even less terrain, so lift the whole curve a touch.
 	var vd := clampf(GameSettings.view_distance, 0.0, 1.0)
-	floor_pitch += lerpf(0.10, 0.0, vd)
-	return clampf(floor_pitch, CAM_PITCH_MIN, CAM_PITCH_MAX)
+	return clampf(CAM_PITCH_MIN + lerpf(0.10, 0.0, vd), CAM_PITCH_MIN, CAM_PITCH_MAX)
 
 
 ## Arrow keys: Left/Right spin the yaw a full 360°. Up/Down sweep the camera smoothly between a
@@ -131,7 +118,7 @@ func update_input(delta: float) -> void:
 			tgt_pitch = CAM_PITCH_MAX
 		elif Input.is_key_pressed(KEY_DOWN):
 			tgt_zoom = maxf(cur_zoom, ZOOM_CINEMATIC)   # cinematic: ease IN (never pop out) + tilt down
-			tgt_pitch = CAM_PITCH_MIN      # the floor clamp below pins pitch to the live budget floor
+			tgt_pitch = CAM_PITCH_MIN      # eased to the low forward angle (Down also zooms in)
 		# Frame-rate-independent exponential ease toward the held pose (no-op when neither is held).
 		var k := 1.0 - exp(-PAN_EASE * spd * delta)
 		if not is_equal_approx(tgt_zoom, cur_zoom):
@@ -143,8 +130,8 @@ func update_input(delta: float) -> void:
 			var nz := (minf(tgt_zoom, cur_zoom * step) if tgt_zoom > cur_zoom else maxf(tgt_zoom, cur_zoom / step))
 			world._camera.zoom = Vector2(nz, nz)
 		_cam_pitch = lerpf(_cam_pitch, tgt_pitch, k)
-	# Clamp to the live budget floor (reflecting the eased zoom) so the world edge can't be exposed;
-	# this is also what pins the descending pitch to the floor while Down zooms in.
+	# Keep pitch within [floor, max]. The floor no longer rises with zoom (decoupled), so zooming
+	# out holds the current angle; the world edge is handled by the coverage auto-zoom instead.
 	_cam_pitch = clampf(_cam_pitch, effective_min_pitch(), CAM_PITCH_MAX)
 	_cam_yaw = wrapf(_cam_yaw, -PI, PI)
 
