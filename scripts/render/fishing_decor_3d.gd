@@ -9,12 +9,14 @@ class_name FishingDecor3D
 ## The 2D world already spawns an invisible `fish_school` water-decor node at each fishing site's
 ## water tile (world._water_decor_nodes); this subsystem mirrors each with a bubble rig.
 
+const PropMeshes := preload("res://scripts/render/prop_meshes.gd")
+
 const BUBBLES := 16
 const RISE_HEIGHT := 0.3          # how high a bubble climbs (3D world units) before it bursts
 const RISE_SPEED := 0.5           # base rise cycles/sec (varied per bubble)
 const SOURCE_SPREAD := 0.24       # how far bubbles drift apart as they rise from the source point
-const BUBBLE_MIN := 0.06          # quad size as it leaves the source
-const BUBBLE_MAX := 0.13          # quad size just before it bursts
+const BUBBLE_MIN := 0.09          # quad size as it leaves the source
+const BUBBLE_MAX := 0.18          # quad size just before it bursts
 const SURFACE_Y := 0.04           # the source sits a touch below the water plane
 
 var _props_root: Node3D
@@ -22,8 +24,7 @@ var _height: Callable      # height_at_iso(iso: Vector2) -> float (water surface
 var _iso_to_3d: Callable   # iso_to_3d(iso: Vector2, y: float) -> Vector3
 var _world: Node2D
 var _rigs: Dictionary = {}   # water-decor node instance_id -> Node3D rig
-var _bubble_tex: ImageTexture
-var _quad: QuadMesh
+var _bubble_mesh: Mesh
 
 
 func setup(w: Node2D, props: Node3D, height_provider: Callable, iso_to_3d_provider: Callable) -> void:
@@ -31,9 +32,7 @@ func setup(w: Node2D, props: Node3D, height_provider: Callable, iso_to_3d_provid
 	_props_root = props
 	_height = height_provider
 	_iso_to_3d = iso_to_3d_provider
-	_bubble_tex = _make_bubble_texture()
-	_quad = QuadMesh.new()
-	_quad.size = Vector2.ONE
+	_bubble_mesh = PropMeshes._sphere("fish_bubble", 1.0)
 
 
 ## Mirror + animate a bubble rig for every live `fish_school` water-decor node, freeing rigs whose
@@ -64,16 +63,15 @@ func _build_rig() -> Node3D:
 	var rig := Node3D.new()
 	for i: int in BUBBLES:
 		var b := MeshInstance3D.new()
-		b.mesh = _quad
-		# Per-bubble material duplicate so each can fade its own alpha independently as it bursts.
+		b.mesh = _bubble_mesh
+		# Per-bubble material duplicate so each fades its own alpha independently as it bursts. A
+		# LOW-alpha, bright pale-cyan unshaded sphere reads as a see-through air bubble (not a solid
+		# pebble — that was an opaque pale sphere). Billboard quads refused to render in this pipeline.
 		var m := StandardMaterial3D.new()
 		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		m.albedo_texture = _bubble_tex
-		m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED   # always face the camera -> round bubble
-		m.billboard_keep_scale = true
+		m.albedo_color = Color(0.78, 0.95, 1.0, 0.0)
 		m.cull_mode = BaseMaterial3D.CULL_DISABLED
-		m.albedo_color = Color(1, 1, 1, 0)
 		b.material_override = m
 		b.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		rig.add_child(b)
@@ -103,28 +101,8 @@ func _animate(rig: Node3D, iso: Vector2, t: float, variant: float) -> void:
 		if p > 0.8:
 			size *= 1.0 + (p - 0.8) / 0.2 * 1.4
 		b.scale = Vector3(size, size, size)
-		# Fade in fast at the source, hold while rising, fade out through the burst -> seamless loop.
-		var alpha := smoothstep(0.0, 0.07, p) * (1.0 - smoothstep(0.8, 1.0, p))
+		# Fade in fast at the source, hold (translucent) while rising, fade out through the burst ->
+		# seamless loop. Peak alpha kept low so it reads as a see-through bubble, not a solid blob.
+		var alpha := smoothstep(0.0, 0.07, p) * (1.0 - smoothstep(0.8, 1.0, p)) * 0.55
 		var mat: StandardMaterial3D = b.material_override
 		mat.albedo_color.a = alpha
-
-
-## A small round bubble: a translucent pale-cyan ring (hollow centre) with a bright white highlight
-## pixel near the top-left. Expanded in the burst window it reads as a ripple ring.
-func _make_bubble_texture() -> ImageTexture:
-	var s := 16
-	var img := Image.create(s, s, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0, 0, 0, 0))
-	var c := Vector2(float(s) * 0.5 - 0.5, float(s) * 0.5 - 0.5)
-	var cyan := Color(0.72, 0.93, 1.0)
-	for yy: int in s:
-		for xx: int in s:
-			var d := Vector2(xx, yy).distance_to(c) / (float(s) * 0.5)
-			if d >= 1.0:
-				continue
-			var ring := smoothstep(1.0, 0.74, d) * smoothstep(0.5, 0.82, d)  # bright shell ~0.78
-			var fill := (1.0 - d) * 0.14                                     # faint translucent body
-			img.set_pixel(xx, yy, Color(cyan.r, cyan.g, cyan.b, clampf(ring * 0.85 + fill, 0.0, 0.9)))
-	img.set_pixel(int(s * 0.34), int(s * 0.3), Color(1, 1, 1, 0.95))   # highlight glint
-	img.set_pixel(int(s * 0.34) + 1, int(s * 0.3), Color(1, 1, 1, 0.6))
-	return ImageTexture.create_from_image(img)

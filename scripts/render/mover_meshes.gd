@@ -326,12 +326,13 @@ static func weapon_profile(kind: String) -> Dictionary:
 				"rot": Vector3(2.35, 0.0, 0.0),
 			}
 		"pickaxe":
-			# Hold the haft angled diagonally up-and-forward out of the fist; the head's striking point
-			# (built pointing down-forward) then faces the rock. The mine pose lifts it and swings down.
+			# Haft points up out of the fist IN THE SAGITTAL PLANE (no roll — rolling it was what made
+			# the head read sideways). The mine pose then raises it overhead and swings it straight down,
+			# the head's striking point (built down-forward) leading into the rock.
 			return {
 				"pose": "onehand", "attack": "none",
 				"pos": Vector3.ZERO,
-				"rot": Vector3(0.7, 0.0, -0.5),
+				"rot": Vector3(1.9, 0.0, 0.0),
 			}
 		_:
 			return {

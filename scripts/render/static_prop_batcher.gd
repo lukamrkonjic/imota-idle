@@ -112,6 +112,10 @@ func _start_staged_rebuild(sig: String) -> void:
 	for d: Node in world._decor_nodes:
 		_rb_list.append([0, d])
 	for d: Node in world._water_decor_nodes:
+		# fish_school nodes are rendered as animated bubbles by FishingDecor3D — skip the old static
+		# squashed-sphere mesh here (it read as grey pebbles sitting on the water).
+		if str(d.get("kind")) == "fish_school":
+			continue
 		_rb_list.append([1, d])
 	for e: Node in world.entities:
 		if is_instance_valid(e) and not PropMeshes.is_moving(e):

@@ -28,6 +28,14 @@ func setup(ctx) -> void:
 	EventBus.wc_log_chopped.connect(_on_wc_log)
 	EventBus.wc_tree_felled.connect(_on_wc_felled)
 	EventBus.wc_tree_grew.connect(_on_wc_grew)
+	EventBus.mining_struck.connect(_on_mining_struck)
+
+
+## One ore mined: a tight burst of grey rock chips / dust off the top of the rock where the
+## pickaxe strikes.
+func _on_mining_struck(pos: Vector2) -> void:
+	var top: Vector3 = _ctx.iso_to_3d(pos, _ctx.height_at(pos) + 0.45)
+	_leaves_burst(top, 4, Color(0.5, 0.5, 0.53), 0.3, 0.8)
 
 
 ## One log obtained: a small puff of leaves shaken loose from the canopy.

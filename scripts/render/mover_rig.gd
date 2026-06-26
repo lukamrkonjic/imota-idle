@@ -332,14 +332,15 @@ static func _pose_gather_work(node: Node3D, work: String, w: float, t: float, ph
 			_set_pivot(node, "arm_l/elbow_l", lerpf(elbow_l, -0.55, w))
 			_set_pivot(node, "arm_r/elbow_r", lerpf(elbow_r, -0.55, w))
 		"mine":
-			# Two-handed pickaxe swing: hold it lifted above + slightly in FRONT (head cocked back over
-			# the shoulder), then swing down-forward so the point bites the rock, and recover.
-			var s := clampf(_chop_swing(fmod(t * 1.2, 1.0)), 0.0, 1.0)
-			_set_pivot(node, "spine", lerpf(hunch, lerpf(-0.08, 0.26, s), w))
-			_set_pivot(node, "arm_r", lerpf(arm_r, lerpf(-1.15, 0.3, s), w))    # raised-forward -> struck down
-			_set_pivot(node, "arm_r/elbow_r", lerpf(elbow_r, lerpf(-0.7, -0.05, s), w))  # cocked -> extended
-			_set_pivot(node, "arm_l", lerpf(arm_l, lerpf(-0.95, -0.1, s), w))   # off hand grips the haft
-			_set_pivot(node, "arm_l/elbow_l", lerpf(elbow_l, lerpf(-0.6, -0.18, s), w))
+			# Overhead two-handed pickaxe swing in the SAGITTAL plane: wind up high behind the shoulder
+			# (handle near-vertical, head cocked up-back), swing straight down-forward so the head bites
+			# the rock, then recover. Pure pitch on the shoulders => no sideways hold.
+			var s := clampf(_chop_swing(fmod(t * 1.1, 1.0)), 0.0, 1.0)
+			_set_pivot(node, "spine", lerpf(hunch, lerpf(-0.12, 0.32, s), w))   # arch back -> drive forward
+			_set_pivot(node, "arm_r", lerpf(arm_r, lerpf(-1.7, 0.55, s), w))    # overhead-back -> struck down-forward
+			_set_pivot(node, "arm_r/elbow_r", lerpf(elbow_r, lerpf(-0.85, 0.0, s), w))  # cocked -> extended into the hit
+			_set_pivot(node, "arm_l", lerpf(arm_l, lerpf(-1.25, 0.05, s), w))   # off hand grips the haft, follows the swing
+			_set_pivot(node, "arm_l/elbow_l", lerpf(elbow_l, lerpf(-0.8, -0.05, s), w))
 		"forage":
 			# Bend at the waist and PICK: both hands sweep from the waist down to the ground (reach +
 			# straighten), then back up (bend, as if pocketing the find), over and over.

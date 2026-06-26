@@ -84,10 +84,10 @@ func _run() -> void:
 			_saved.append(ProjectSettings.globalize_path(bpath))
 			print("  saved %s" % ProjectSettings.globalize_path(bpath))
 
-	# One capture per skill so every gather pose can be eyeballed.
+	# One capture per skill so every gather pose can be eyeballed. (Mining first for quick iteration.)
+	await _capture("mining", "Copper Ore", "mine")          # pickaxe swing
 	await _capture("fishing", "Sardine", "fish_rod")        # rod cast + line
 	await _capture("fishing", "Lobster", "fish_lobster")    # kneel, hands in water
-	await _capture("mining", "Copper Ore", "mine")          # pickaxe swing
 	await _capture("foraging", "Brightberry Bush", "forage")
 	await _capture("hunter", "Rabbit Burrow", "trap")
 	await _capture("thieving", "Market Stall", "steal")

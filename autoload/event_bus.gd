@@ -56,3 +56,4 @@ signal rest_requested                     # rest orb → fully halt the player (
 signal wc_log_chopped(pos: Vector2, species: String)   # one log obtained — small leaves puff
 signal wc_tree_felled(entity: Node, species: String)   # tree depleted — fall over + pop + leaves
 signal wc_tree_grew(entity: Node, species: String)     # tree respawned — grow back up from the stump
+signal mining_struck(pos: Vector2)                     # one ore mined — small rock-chip / dust puff

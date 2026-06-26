@@ -360,6 +360,9 @@ func on_xp_gained(skill: String, amount: float) -> void:
 		# Woodcutting feedback: a small leaves puff each log; a fall + pop when the tree depletes.
 		if skill == "woodcutting" and is_instance_valid(entity):
 			EventBus.wc_log_chopped.emit(entity.position, str(entity.get("prop_kind")))
+		# Mining feedback: a small rock-chip / dust puff at the rock each ore.
+		elif skill == "mining" and is_instance_valid(entity):
+			EventBus.mining_struck.emit(entity.position)
 		if int(site["remaining"]) <= 0:
 			WorldGen.deplete_site(chunk, i)
 			TickSim.stop("depleted")
