@@ -54,6 +54,7 @@ var stream_view: TerrainStreamView
 var atmosphere: WorldAtmosphere
 var static_prop_batcher: StaticPropBatcher
 var mover_renderer: MoverRenderer3D
+var fishing_decor: FishingDecor3D
 var picking: PickingProjector3D
 var fx: WorldFx3D
 var debug: WorldRenderDebug
@@ -161,6 +162,8 @@ func _build() -> void:
 	static_prop_batcher.setup(world, batches_root, height_iso, iso_to_3d_cb)
 	mover_renderer = MoverRenderer3D.new()
 	mover_renderer.setup(world, props_root, _outlines_root, height_iso, iso_to_3d_cb, Callable(atmosphere, "get_sun"))
+	fishing_decor = FishingDecor3D.new()
+	fishing_decor.setup(world, props_root, height_iso, iso_to_3d_cb)
 	picking = PickingProjector3D.new()
 	picking.setup(world, camera_rig, presenter, height_iso, Callable(terrain_mesher, "height_at_grid"), iso_to_3d_cb)
 	_setup_overlay()
@@ -277,6 +280,7 @@ func _process(delta: float) -> void:
 	atmosphere.update(camera_rig, stream_view)
 	mesh_manager.update(stream_view)
 	mover_renderer.update(delta)
+	fishing_decor.update(delta)
 	static_prop_batcher.update(mesh_manager.is_terrain_built_this_frame())
 	mover_renderer.update_outlines()
 	fx.update(delta)
