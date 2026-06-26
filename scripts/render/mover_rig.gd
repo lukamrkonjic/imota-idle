@@ -186,7 +186,7 @@ static func _weapon_attack_pose(
 ## Jointed biped: knees and elbows flex for a natural bent-leg walk, and a `crouch`
 ## meta gives a bent-kneed standing stance (goblins stoop, the gnoll sneaks low).
 ## `lean` hunches the body, `arm_rest` keeps arms a touch forward (never ramrod).
-static func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float, chop: float = 0.0, work: String = "", work_amt: float = 0.0) -> void:
+static func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float, chop: float = 0.0, work: String = "", work_amt: float = 0.0, gait_phase: float = -1.0) -> void:
 	var rest := 1.0 - walk
 	var lean: float = float(node.get_meta("lean", 0.04))
 	# `hunch` curves the upper back forward at the spine pivot (an old-lady stoop) —
@@ -203,7 +203,9 @@ static func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float,
 	var holds_onehand := weapon_pose == "onehand"
 	var breathe := rest * sin(t * 1.9 + phase) * 0.03
 	var sway := rest * sin(t * 1.15 + phase) * 0.05
-	var stride := t * 6.0 + phase
+	# Gait phase: speed-scaled accumulated stride when supplied (legs step in time with actual
+	# walk/run speed — no slow-mo run), else a fixed cadence.
+	var stride := (gait_phase if gait_phase >= 0.0 else t * 6.0) + phase
 	# The life of the walk is in the BODY, not just the limbs: it rocks side-to-side
 	# toward the planted foot (the `roll`, once per stride), bobs up and settles on
 	# each footfall (twice per stride — the little "shake" on every step), and leans

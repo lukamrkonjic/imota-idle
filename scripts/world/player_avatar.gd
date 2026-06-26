@@ -8,8 +8,8 @@ extends Node2D
 
 signal arrived
 
-const WALK_SPEED := 34.0   # ~1.8 tiles/sec — OSRS walk pace
-const RUN_SPEED := 68.0    # 2x walk, gated on run toggle + energy
+const WALK_SPEED := 42.0   # brisker walk
+const RUN_SPEED := 88.0    # a touch over 2x walk, gated on run toggle + energy
 const ACCEL := 460.0   # px/s² — eases up to full speed in ~0.2s (a little inertia)
 var _speed := 0.0      # current eased speed
 

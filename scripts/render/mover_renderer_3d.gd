@@ -46,6 +46,7 @@ var _mover_prev: Dictionary = {}     # key -> last 3D pos (for walk detection)
 var _mover_yaw: Dictionary = {}      # key -> facing yaw (turned with spring inertia)
 var _mover_yaw_vel: Dictionary = {}  # key -> angular velocity for the turn spring
 var _mover_walk: Dictionary = {}     # key -> smoothed walk amount 0..1
+var _mover_gait: Dictionary = {}     # key -> accumulated stride phase (advances with ground speed)
 var _mover_sit: Dictionary = {}      # key -> smoothed sit amount 0..1 (player resting)
 var _attack_t: Dictionary = {}       # key -> time (s) the last attack lunge started
 var _hurt_t: Dictionary = {}         # key -> time (s) a body last took a hit (red flash + shake)
@@ -126,7 +127,7 @@ func update(delta: float) -> void:
 			if is_instance_valid(n):
 				n.queue_free()
 			_mover_nodes.erase(id)
-			_mover_prev.erase(id); _mover_yaw.erase(id); _mover_yaw_vel.erase(id); _mover_walk.erase(id)
+			_mover_prev.erase(id); _mover_yaw.erase(id); _mover_yaw_vel.erase(id); _mover_walk.erase(id); _mover_gait.erase(str(id))
 			_mover_death.erase(str(id)); _hurt_t.erase(str(id))
 			_free_shadow(str(id))
 
@@ -346,6 +347,12 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 	var target_walk := clampf(speed / 3.0, 0.0, 1.0)
 	var walk: float = lerpf(float(_mover_walk.get(key, 0.0)), target_walk, clampf(dt * 10.0, 0.0, 1.0))
 	_mover_walk[key] = walk
+	# Stride cadence scales with ground speed (~1x at walk, ~2x+ at run) so the legs step in time with
+	# how fast the body actually moves — no slow-motion run / foot-sliding. Accumulated (not t*rate) so
+	# changing speed never jumps the phase. Floored a touch so a slow drift still reads as steps.
+	var gait_rate := clampf(speed / 3.0, 0.45, 2.6)
+	var gait: float = float(_mover_gait.get(key, 0.0)) + dt * 6.0 * gait_rate
+	_mover_gait[key] = gait
 	# Desired heading: face where you're moving; in a fight the foe's bearing wins.
 	var yaw: float = float(_mover_yaw.get(key, 0.0))
 	var moving := speed > 0.35
@@ -441,7 +448,7 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 				"gnoll":
 					MoverRig._pose_gnoll(node, pos3, yaw, walk, t, phase, base, atk)
 				_:
-					MoverRig._pose_humanoid(node, pos3, yaw, walk, t, phase, base, atk, chop, work_kind, work_amt)
+					MoverRig._pose_humanoid(node, pos3, yaw, walk, t, phase, base, atk, chop, work_kind, work_amt, gait)
 		"dragon":
 			MoverRig._pose_dragon(node, pos3, yaw, walk, t, phase, base, atk)
 		"serpent", "crawler":
