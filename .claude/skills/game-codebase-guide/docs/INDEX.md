@@ -28,6 +28,7 @@ inspect the actual source.
 | `TROUBLESHOOTING.md` | Debugging signals, scene refs, animation/tool issues. |
 | `OPEN_QUESTIONS.md` | Unverified/risky areas — read before trusting them. |
 | `FILE_OWNERSHIP_MAP.md` | Which file owns which responsibility. |
+| `ASSET_CHECKLIST.md` | Full list of required & existing 3D models, GLB assets, icons, UI art, animation assets, materials, textures, and VFX (points to `docs/ASSET_CHECKLIST.md`). |
 | `GLOSSARY.md` | Project-specific terms. |
 
 ## Quick facts

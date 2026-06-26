@@ -35,6 +35,11 @@ You may skip the skill only for trivial, non-gameplay edits (a comment/typo, thi
    `scripts/render/` is cosmetic.
 6. **Update the wiki** whenever you change architecture, file ownership, signals, save fields, or
    feature behavior (`FEATURE_MAP.md`, `FILE_OWNERSHIP_MAP.md`, the system doc, `OPEN_QUESTIONS.md`).
+7. **Assets:** Before adding, changing, renaming, or generating any model, sprite, icon, UI art,
+   animation, material, texture, or VFX asset, check **`docs/ASSET_CHECKLIST.md`** and update it after
+   the asset is added or verified (tick `[x]` with the exact path). Note: most art is **procedural**
+   (in `scripts/render/` + `scripts/ui/item_icon.gd`), so reuse/extend the existing generator rather
+   than adding duplicate files; for file-based 3D follow `docs/GLB_IMPORT_GUIDE.md`.
 
 ## Validate every change
 
