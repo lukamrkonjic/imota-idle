@@ -1075,37 +1075,43 @@ func _elevate_brush() -> void:
 	# brush radius, while the centre still climbs at the same rate — same peak, far gentler grade.
 	var er := int(round(float(maxi(r, 1)) * (1.0 + _elev_softness * 2.5)))
 	er = mini(er, 80)   # cap the footprint so an extreme brush+softness stroke stays responsive
+	var p := _elev_sharpness_exp()
+	var step := maxi(1, int(round(_elev_strength * 3.0)))   # how many steps the centre climbs per pass
+	# Sculpt toward a TARGET dome rather than adding height forever: each tile's goal is
+	# falloff(distance)^sharpness × the centre's height. Tiles rise toward that goal and stop, so the
+	# mountain KEEPS its profile as it grows — a sharp peak stays sharp instead of saturating into a
+	# flat-topped mesa once everything hits the height cap (the old additive+clamp bug). The centre
+	# climbs `step` per pass until it reaches the summit cap, and the whole dome scales up with it.
+	var hc := _elev_at(_hover_tile.x, _hover_tile.y)
+	var center_target := clampi(hc + step, 0, MountainField.ELEV_MAX_STEPS)
 	var edits: Array = []
 	for dy: int in range(-er, er + 1):
 		for dx: int in range(-er, er + 1):
 			var d2 := dx * dx + dy * dy
 			if d2 > er * er + er:
 				continue
+			var f := 1.0 - sqrt(float(d2)) / float(er + 1)   # 1 at the centre → 0 at the rim
+			if f <= 0.0:
+				continue
+			var target := int(round(pow(f, p) * float(center_target)))
 			var gx := _hover_tile.x + dx
 			var gy := _hover_tile.y + dy
-			var ne := _elevate_value(gx, gy, d2, er)
-			if ne >= 0 and ne != _elev_at(gx, gy):
-				edits.append([gx, gy, ne])
+			var cur := _elev_at(gx, gy)
+			if target > cur:
+				var ne := mini(cur + step, target)   # ease up toward the dome (never overshoot, never lower)
+				if ne != cur:
+					edits.append([gx, gy, ne])
 	for e: Array in edits:
 		_record_elev(int(e[0]), int(e[1]), int(e[2]))
 
 
-func _elevate_value(gtx: int, gty: int, d2: int, er: int) -> int:
-	# Linear distance ramp over the (softness-widened) effective radius: 1 at the centre → 0 at the rim.
-	var f := 1.0 - sqrt(float(d2)) / float(maxi(er, 1) + 1)
-	if f <= 0.0:
-		return -1
-	# Sharpness reshapes the curve via an exponent on f, touching the summit profile but not the
-	# footprint (f still hits 0 at the same rim): p<1 → broad flat top (mesa), p=1 → rounded dome
-	# (the original), p>1 → narrow pointed alpine peak. 0%→0.45, 50%→1.0, 100%→~2.24.
-	var p := pow(5.0, _elev_sharpness - 0.5)
-	var shaped := pow(f, p)
-	# Strength sets the centre's per-pass climb (3 steps at 100%); the rim always nudges +1 so broad
-	# strokes still feather. round() keeps it integer-stepped like the original.
-	var max_rise := 3.0 * _elev_strength
-	var rise := 1 + int(round(shaped * (max_rise - 1.0)))
-	var cur := _elev_at(gtx, gty)
-	return clampi(cur + rise, 0, MountainField.ELEV_MAX_STEPS)
+## Mountain-sharpness → falloff exponent. p<1 keeps the top broad and high (flat-topped mesa); p≈0.8
+## is a rounded hill; p≫1 pinches the upper slopes into a sharp pointed summit. 0% → 0.30 (mesa),
+## 50% → 0.80 (rounded), 100% → 3.0 (alpine spike).
+func _elev_sharpness_exp() -> float:
+	if _elev_sharpness < 0.5:
+		return lerpf(0.30, 0.80, _elev_sharpness / 0.5)
+	return lerpf(0.80, 3.0, (_elev_sharpness - 0.5) / 0.5)
 
 
 func _chunk_at_tile(gtx: int, gty: int) -> RefCounted:
@@ -3665,7 +3671,7 @@ func _refresh_palette() -> void:
 				func(v: int) -> void: _elev_softness = float(v) / 100.0)
 			_param_slider("Mountain sharpness: %d%%", int(round(_elev_sharpness * 100.0)), 0, 100,
 				func(v: int) -> void: _elev_sharpness = float(v) / 100.0)
-			_note("Drag (or hold) the brush to raise hills and mountains; height shades grass→rock→snow on its own.\n• Strength — how fast the centre climbs per pass.\n• Softness — low = steep cliffs; high = the peak spreads over a long, walkable slope (broad rolling hills).\n• Sharpness — 0% flat-topped mesa, 50% rounded hill, 100% sharp alpine peak (footprint unchanged).\nCombine them: low softness + high sharpness = steep alpine; high softness + low sharpness = mesas/plateaus. Caps at the summit height. Ctrl+S saves directly (no re-bake).")
+			_note("Drag (or hold) to sculpt hills and mountains toward a dome shape; height shades grass→rock→snow on its own. Hold to grow taller — the shape is kept, it won't flatten into a plateau.\n• Strength — how fast the summit climbs per pass.\n• Softness — low = steep cliffs over a small base; high = the slope spreads wide and walkable (broad rolling hills).\n• Sharpness — 0% flat-topped mesa, 50% rounded hill, 100% sharp pointed alpine peak (reshapes the summit).\nCombine them: low softness + high sharpness = steep alpine spire; high softness + low sharpness = broad mesa/plateau; high+high = huge mountain with long slopes to a sharp peak. Caps at the summit height. Ctrl+S saves directly (no re-bake).")
 		Tool.GRASS:
 			_header(_palette_box, "Grass (lush meadow)")
 			_note("Drag / hold to carpet the ground in short, wind-swayed meadow grass. Brush size sets the swathe; Density sets how thick; Scale sets blade height. Works in the 2D map and 3D view; skips water, paths and floors. Grass is batched (one MultiMesh per chunk) so big meadows stay cheap. Use the Select tool to pick a tuft back up, or Erase to clear. Ctrl+S saves.")
