@@ -1,23 +1,26 @@
 extends RefCounted
 class_name FishingDecor3D
-## Marks every fishing spot with rising AIR BUBBLES on the water — small translucent cyan rings with
-## a white highlight that spawn at one underwater point, float up with a slight wobble, grow, then
-## burst into an expanding ring and fade, with new ones continuously spawning so the spot always
-## shimmers. Each bubble is a camera-facing (billboard) quad with a procedurally drawn bubble texture,
-## so it reads as a round translucent bubble from the iso camera — not a solid sphere/pebble.
+## Marks every fishing spot with translucent BUBBLES on the water surface — small round pale-cyan
+## bubbles that rise from points around the spot, grow, and pop/fade, staggered so the patch keeps
+## bubbling in a continuous, seamless loop. Each bubble is a slightly-flattened sphere with a
+## per-instance translucent material (so it reads as a round, see-through bubble sitting on the
+## water — NOT a solid grey pebble) and renders reliably from the iso camera.
 ##
 ## The 2D world already spawns an invisible `fish_school` water-decor node at each fishing site's
-## water tile (world._water_decor_nodes); this subsystem mirrors each with a bubble rig.
+## water tile (world._water_decor_nodes); this subsystem mirrors each with a bubble rig. The old
+## static squashed-sphere mesh (water_decor_parts "fish_school") is skipped by StaticPropBatcher so
+## the grey "pebbles" never render.
 
 const PropMeshes := preload("res://scripts/render/prop_meshes.gd")
 
-const BUBBLES := 16
-const RISE_HEIGHT := 0.3          # how high a bubble climbs (3D world units) before it bursts
-const RISE_SPEED := 0.5           # base rise cycles/sec (varied per bubble)
-const SOURCE_SPREAD := 0.24       # how far bubbles drift apart as they rise from the source point
-const BUBBLE_MIN := 0.09          # quad size as it leaves the source
-const BUBBLE_MAX := 0.18          # quad size just before it bursts
-const SURFACE_Y := 0.04           # the source sits a touch below the water plane
+const BUBBLES := 14
+const SPOT_RADIUS := 0.55         # how far across the bubbling patch is (3D world units)
+const RISE_HEIGHT := 0.16         # small upward float before the bubble pops
+const CYCLE_SPEED := 0.7          # bloom/rise cycles/sec (varied per bubble)
+const BUBBLE_MIN := 0.07          # bubble radius at the start of a cycle
+const BUBBLE_MAX := 0.16          # bubble radius at full size
+const SURFACE_LIFT := 0.03        # sit just above the water plane so it isn't depth-clipped
+const PEAK_ALPHA := 0.6           # translucency at full bloom (see-through, not solid)
 
 var _props_root: Node3D
 var _height: Callable      # height_at_iso(iso: Vector2) -> float (water surface over water)
@@ -64,13 +67,12 @@ func _build_rig() -> Node3D:
 	for i: int in BUBBLES:
 		var b := MeshInstance3D.new()
 		b.mesh = _bubble_mesh
-		# Per-bubble material duplicate so each fades its own alpha independently as it bursts. A
-		# LOW-alpha, bright pale-cyan unshaded sphere reads as a see-through air bubble (not a solid
-		# pebble — that was an opaque pale sphere). Billboard quads refused to render in this pipeline.
+		# Per-bubble material so each fades its own alpha independently. Bright pale-cyan, unshaded,
+		# translucent, double-sided -> a round see-through bubble on the water (never a solid pebble).
 		var m := StandardMaterial3D.new()
 		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		m.albedo_color = Color(0.78, 0.95, 1.0, 0.0)
+		m.albedo_color = Color(0.82, 0.96, 1.0, 0.0)
 		m.cull_mode = BaseMaterial3D.CULL_DISABLED
 		b.material_override = m
 		b.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -79,30 +81,24 @@ func _build_rig() -> Node3D:
 
 
 func _animate(rig: Node3D, iso: Vector2, t: float, variant: float) -> void:
-	var y: float = _height.call(iso)
+	var y: float = _height.call(iso) + SURFACE_LIFT
 	rig.position = _iso_to_3d.call(iso, y)
 	var n := rig.get_child_count()
 	for i: int in n:
 		var b: MeshInstance3D = rig.get_child(i)
 		var fi := float(i)
-		var speed := RISE_SPEED * (0.7 + 0.6 * fposmod(fi * 0.37, 1.0))
-		# Evenly-staggered phases so a bubble is always at every stage — continuous, seamless rise.
-		var off := fi / float(n) + fposmod(fi * 0.19 + variant * 0.013, 1.0) * 0.12
-		var p := fposmod(t * speed + off, 1.0)
-		# Drift outward + wobble as it climbs from the single source point.
+		# Each bubble rises at a FIXED point around the spot (deterministic angle + radius), so the
+		# patch reads as several spots bubbling. Evenly-staggered phases => always some at every stage.
 		var ang := fi * 2.39996 + variant * 0.017
-		var spread := SOURCE_SPREAD * p
-		var wob := sin(t * 3.0 + fi * 1.7) * 0.035 * p
-		# Keep the bubble just ABOVE the water plane (the water mesh writes depth and would clip a
-		# submerged sprite), rising from the source point on the surface.
-		b.position = Vector3(cos(ang) * spread + wob, SURFACE_Y + p * RISE_HEIGHT, sin(ang) * spread * 0.6)
-		# Grow as it rises, then EXPAND hard in the burst window (reads as a ring/ripple pop).
-		var size := lerpf(BUBBLE_MIN, BUBBLE_MAX, p)
-		if p > 0.8:
-			size *= 1.0 + (p - 0.8) / 0.2 * 1.4
-		b.scale = Vector3(size, size, size)
-		# Fade in fast at the source, hold (translucent) while rising, fade out through the burst ->
-		# seamless loop. Peak alpha kept low so it reads as a see-through bubble, not a solid blob.
-		var alpha := smoothstep(0.0, 0.07, p) * (1.0 - smoothstep(0.8, 1.0, p)) * 0.55
+		var rad := SPOT_RADIUS * sqrt(fposmod(fi * 0.413 + 0.13, 1.0))
+		var speed := CYCLE_SPEED * (0.7 + 0.6 * fposmod(fi * 0.37, 1.0))
+		var off := fi / float(n) + fposmod(fi * 0.19 + variant * 0.013, 1.0) * 0.1
+		var p := fposmod(t * speed + off, 1.0)   # 0..1 bubble cycle
+		b.position = Vector3(cos(ang) * rad, p * RISE_HEIGHT, sin(ang) * rad * 0.6)
+		# Grow the bubble from min->max (round, sitting on the surface).
+		var r := lerpf(BUBBLE_MIN, BUBBLE_MAX, smoothstep(0.0, 0.7, p))
+		b.scale = Vector3(r, r, r)
+		# Appear fast, hold (translucent), pop away near the top -> bubbles continuously, seamless.
+		var alpha := smoothstep(0.0, 0.12, p) * (1.0 - smoothstep(0.7, 1.0, p)) * PEAK_ALPHA
 		var mat: StandardMaterial3D = b.material_override
 		mat.albedo_color.a = alpha
