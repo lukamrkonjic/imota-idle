@@ -36,6 +36,11 @@ var editor_plain_player := false
 
 var _player_node: Node3D
 var _chopping := false                # player is mid-woodcutting (drives the chop swing + axe-in-hand)
+var _rodding := false                 # player is rod-fishing (drives the rod-in-hand swap + cast pose)
+var _mover_fish: Dictionary = {}      # key -> smoothed rod-fishing amount 0..1
+var _mover_kneel: Dictionary = {}     # key -> smoothed lobster-kneel amount 0..1
+var _fish_line: MeshInstance3D        # the cast line, rod tip -> water (rod fishing only)
+var _fish_bobber: MeshInstance3D      # the float where the line meets the water
 var _mover_nodes: Dictionary = {}    # moving entity id -> Node3D (player/enemies)
 var _mover_prev: Dictionary = {}     # key -> last 3D pos (for walk detection)
 var _mover_yaw: Dictionary = {}      # key -> facing yaw (turned with spring inertia)
@@ -99,6 +104,7 @@ func update(delta: float) -> void:
 		if psh != null:
 			psh.visible = true
 		_refresh_chop_weapon()
+		_refresh_fish_rod()
 		_animate_mover(_player_node, "player", world.player.position, t, dt)
 	var live := {}
 	for e: Node in world.entities:
@@ -196,6 +202,106 @@ func _axe_loadout() -> Dictionary:
 	return ld
 
 
+## The player is mid-fishing (drives the rod-in-hand swap, cast/kneel pose + cast line).
+func _is_fishing() -> bool:
+	return TickSim.active and TickSim.skill == "fishing"
+
+
+## How the current catch is fished: "cage" (lobster/crab/crayfish — kneel, hands in the water) or
+## "rod" (everything else — rod cast). Derived from the node name so no extra data is needed.
+func _fish_method() -> String:
+	var n := TickSim.node.name.to_lower() if TickSim.node != null else ""
+	if n.contains("lobster") or n.contains("crab") or n.contains("crayfish"):
+		return "cage"
+	return "rod"
+
+
+## Put a fishing rod in hand while rod-fishing; restore normal gear on stop. Cage (lobster) fishing
+## uses bare hands, so no rod swap there. Only acts on the start/stop transition.
+func _refresh_fish_rod() -> void:
+	if _player_node == null:
+		return
+	var want_rod := _is_fishing() and _fish_method() == "rod"
+	if want_rod == _rodding:
+		return
+	_rodding = want_rod
+	if want_rod:
+		MoverMeshes.apply_equipment(_player_node, _rod_loadout())
+		_disable_cast_shadows(_player_node)
+	else:
+		_apply_player_equipment()   # stopped fishing -> back to normal gear
+
+
+## The player's loadout with the mainhand forced to a plain wooden fishing rod.
+func _rod_loadout() -> Dictionary:
+	var ld := {} if editor_plain_player else EquipLoadout.for_player(GameState.equipment)
+	ld["mainhand"] = {"kind": "fishing_rod", "material": "wood"}
+	return ld
+
+
+## Draw (or hide) the cast line from the rod tip to the water spot, plus a little float where it
+## lands. Only while actively rod-fishing; cage fishing has no line.
+func _update_fish_line(pos3: Vector3, yaw: float, fish: float) -> void:
+	if _player_node == null:
+		return
+	if fish < 0.5 or not _is_fishing() or _fish_method() != "rod":
+		if _fish_line != null:
+			_fish_line.visible = false
+		if _fish_bobber != null:
+			_fish_bobber.visible = false
+		return
+	_ensure_fish_line()
+	var base: float = float(_player_node.get_meta("base_scale", 1.0))
+	var fwd := Vector3(sin(yaw), 0.0, cos(yaw))               # the direction the player faces
+	var tip := pos3 + Vector3(0.0, 1.28 * base, 0.0) + fwd * (0.55 * base)   # ~rod tip over the water
+	var wp: Vector3 = _iso_to_3d.call(world.player.fish_cast_pos, _height.call(world.player.fish_cast_pos))
+	var tt := Time.get_ticks_msec() / 1000.0
+	wp.y += 0.02 + sin(tt * 2.0) * 0.012                     # the float bobs on the surface
+	_place_segment(_fish_line, tip, wp)
+	_fish_bobber.visible = true
+	_fish_bobber.position = wp
+	_fish_bobber.scale = Vector3.ONE * base
+
+
+func _ensure_fish_line() -> void:
+	if _fish_line == null:
+		_fish_line = MeshInstance3D.new()
+		_fish_line.mesh = PropMeshes._cyl("fish_line_seg", 0.006, 0.006, 1.0)
+		var lm := StandardMaterial3D.new()
+		lm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		lm.albedo_color = Color(0.12, 0.14, 0.14)
+		_fish_line.material_override = lm
+		_fish_line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		props_root.add_child(_fish_line)
+	if _fish_bobber == null:
+		_fish_bobber = MeshInstance3D.new()
+		_fish_bobber.mesh = PropMeshes._sphere("fish_bobber", 0.035)
+		var bm := StandardMaterial3D.new()
+		bm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		bm.albedo_color = Color(0.86, 0.28, 0.24)   # classic red float
+		_fish_bobber.material_override = bm
+		_fish_bobber.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		props_root.add_child(_fish_bobber)
+
+
+## Orient a unit +Y cylinder mesh to span `from`→`to` (length only; thickness stays the mesh's).
+func _place_segment(mi: MeshInstance3D, from: Vector3, to: Vector3) -> void:
+	var d := to - from
+	var seg_len := d.length()
+	if seg_len < 0.001:
+		mi.visible = false
+		return
+	mi.visible = true
+	var up := d / seg_len
+	var b: Basis
+	var axis := Vector3.UP.cross(up)
+	if axis.length() < 0.0001:
+		b = Basis() if up.y >= 0.0 else Basis(Vector3(1, 0, 0), PI)
+	else:
+		b = Basis(axis.normalized(), Vector3.UP.angle_to(up))
+	mi.transform = Transform3D(b.scaled(Vector3(1.0, seg_len, 1.0)), (from + to) * 0.5)
+
+
 func _disable_cast_shadows(node: Node) -> void:
 	if node is MeshInstance3D:
 		(node as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -255,6 +361,11 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 			var t3: Vector3 = _iso_to_3d.call((te as Node2D).position, 0.0)
 			desired = atan2(t3.x - pos3.x, t3.z - pos3.z)
 			want = true
+	# Fishing: turn to face the water spot you're casting/reaching into.
+	if key == "player" and _is_fishing():
+		var c3: Vector3 = _iso_to_3d.call(world.player.fish_cast_pos, 0.0)
+		desired = atan2(c3.x - pos3.x, c3.z - pos3.z)
+		want = true
 	var face: Variant = _combat_face_pos(key, moving)
 	if face != null:
 		var f3: Vector3 = _iso_to_3d.call(face, 0.0)
@@ -278,6 +389,21 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 	if (key == "player" and _chopping) or gathering:
 		chop = fmod(t * CHOP_RATE, 1.0)
 		atk = 0.0   # no combat step-in; the chop/work pose moves the body
+	# Fishing: a smoothed rod-cast (most fish) or lobster-kneel (cage) overlay, player only.
+	var fish_target := 0.0
+	var kneel_target := 0.0
+	if key == "player" and _is_fishing():
+		atk = 0.0
+		if _fish_method() == "cage":
+			kneel_target = 1.0
+		else:
+			fish_target = 1.0
+	var fish: float = lerpf(float(_mover_fish.get(key, 0.0)), fish_target, clampf(dt * 8.0, 0.0, 1.0))
+	var kneel: float = lerpf(float(_mover_kneel.get(key, 0.0)), kneel_target, clampf(dt * 8.0, 0.0, 1.0))
+	_mover_fish[key] = fish
+	_mover_kneel[key] = kneel
+	if key == "player":
+		_update_fish_line(pos3, yaw, fish)
 	var btype := str(node.get_meta("body3d", "humanoid"))
 	match btype:
 		"bird":
@@ -291,7 +417,7 @@ func _animate_mover(node: Node3D, key: String, pos2d: Vector2, t: float, dt: flo
 				"gnoll":
 					MoverRig._pose_gnoll(node, pos3, yaw, walk, t, phase, base, atk)
 				_:
-					MoverRig._pose_humanoid(node, pos3, yaw, walk, t, phase, base, atk, chop)
+					MoverRig._pose_humanoid(node, pos3, yaw, walk, t, phase, base, atk, chop, fish, kneel)
 		"dragon":
 			MoverRig._pose_dragon(node, pos3, yaw, walk, t, phase, base, atk)
 		"serpent", "crawler":

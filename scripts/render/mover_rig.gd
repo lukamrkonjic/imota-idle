@@ -186,7 +186,7 @@ static func _weapon_attack_pose(
 ## Jointed biped: knees and elbows flex for a natural bent-leg walk, and a `crouch`
 ## meta gives a bent-kneed standing stance (goblins stoop, the gnoll sneaks low).
 ## `lean` hunches the body, `arm_rest` keeps arms a touch forward (never ramrod).
-static func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float, chop: float = 0.0) -> void:
+static func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float, t: float, phase: float, base: float, atk: float, chop: float = 0.0, fish: float = 0.0, kneel: float = 0.0) -> void:
 	var rest := 1.0 - walk
 	var lean: float = float(node.get_meta("lean", 0.04))
 	# `hunch` curves the upper back forward at the spine pivot (an old-lady stoop) —
@@ -256,6 +256,46 @@ static func _pose_humanoid(node: Node3D, pos3: Vector3, yaw: float, walk: float,
 	elif holds_onehand:
 		arm_r = -0.1 + idle_arm * 0.14 + sin(stride) * 0.05 * walk
 		elbow_r = -0.22
+	if fish > 0.01:
+		# Rod fishing: the rod is held forward over the water with a calm idle bob, and every few
+		# seconds a gentle cast — wind the rod up and back, flick it forward, then settle and wait
+		# (with a tiny reel jitter). Feet stay planted; the off hand rides near the grip.
+		var cast := fmod(t * 0.3, 1.0)                 # one cast cycle every ~3.3s
+		var rod_bob := sin(t * 1.6 + phase) * 0.05     # rod tip breathing while waiting
+		var f_arm_r := -0.58 + rod_bob
+		var f_elbow_r := -0.5
+		var f_arm_l := -0.42
+		var f_elbow_l := -0.72
+		var f_spine := 0.13                            # lean a little toward the water
+		if cast < 0.12:
+			var u := cast / 0.12                       # windup: raise/pull the rod back
+			f_arm_r = lerpf(-0.58, -1.02, u)
+			f_spine = lerpf(0.13, -0.04, u)
+		elif cast < 0.24:
+			var u := (cast - 0.12) / 0.12              # flick: whip the rod forward
+			f_arm_r = lerpf(-1.02, -0.36, u)
+			f_spine = lerpf(-0.04, 0.2, u)
+		_set_pivot(node, "spine", lerpf(hunch, f_spine, fish))
+		_set_pivot(node, "arm_r", lerpf(arm_r, f_arm_r, fish))
+		_set_pivot(node, "arm_r/elbow_r", lerpf(elbow_r, f_elbow_r, fish))
+		_set_pivot(node, "arm_l", lerpf(arm_l, f_arm_l, fish))
+		_set_pivot(node, "arm_l/elbow_l", lerpf(elbow_l, f_elbow_l, fish))
+		return
+	if kneel > 0.01:
+		# Lobster/cage fishing: kneel at the water's edge and reach both hands into the water with a
+		# slow scooping paddle. Body sinks, back bends forward, legs fold under.
+		node.position.y -= kneel * 0.34 * base
+		var scoop := sin(t * 2.2 + phase) * 0.13 * kneel
+		_set_pivot(node, "spine", lerpf(hunch, 0.52, kneel))
+		_set_pivot(node, "leg_l", lerpf(hip + hip_crouch, -0.85, kneel))
+		_set_pivot(node, "leg_r", lerpf(-hip + hip_crouch, -0.85, kneel))
+		_set_pivot(node, "leg_l/knee_l", lerpf(knee_l, 1.85, kneel))
+		_set_pivot(node, "leg_r/knee_r", lerpf(knee_r, 1.85, kneel))
+		_set_pivot(node, "arm_l", lerpf(arm_l, -0.72 + scoop, kneel))
+		_set_pivot(node, "arm_r", lerpf(arm_r, -0.72 - scoop, kneel))
+		_set_pivot(node, "arm_l/elbow_l", lerpf(elbow_l, -0.55, kneel))
+		_set_pivot(node, "arm_r/elbow_r", lerpf(elbow_r, -0.55, kneel))
+		return
 	if chop > 0.0:
 		# Woodcutting chop, swung like a real axe into a tree: the axe is carried OUT TO THE RIGHT
 		# (arm abducted, not overhead), then swung in a horizontal/diagonal arc ACROSS the body into

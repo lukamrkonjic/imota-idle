@@ -1,7 +1,7 @@
 extends Node
-## fish_shot — windowed verification capture for the animated fishing-spot school. Spawns the real
-## world, hunts for a `fish` gather site by streaming around coastal chunks, frames it close, and
-## saves a few frames so the swimming animation can be eyeballed. Usage:
+## fish_shot — windowed verification capture for the fishing visuals. Spawns the real world, finds a
+## shore tile beside water, stands the player there, then FORCES the fishing state (rod, then cage)
+## so the rod-cast pose + line and the lobster kneel can be eyeballed. Usage:
 ##   godot --path . res://tools/fish_shot.tscn -- --out=/tmp/fish/
 
 const WG := preload("res://scripts/worldgen/wg.gd")
@@ -30,56 +30,90 @@ func _run() -> void:
 	await get_tree().process_frame
 	var cam: Camera2D = _world.get("_camera")
 
-	# Sites populate at chunk ACTIVATION (streaming), not raw get_chunk. Sweep coastal chunks,
-	# stream each, and scan the chunk-manager's loaded chunks for a fishing site.
-	var target := Vector2.ZERO
-	var found := false
-	var swept := 0
-	for r: int in range(0, 12):
-		for cy: int in range(-r, r + 1):
-			for cx: int in range(-r, r + 1):
-				if absi(cx) != r and absi(cy) != r:
-					continue
-				var pos := WG.tile_to_world(cx * WG.CHUNK_TILES + 8, cy * WG.CHUNK_TILES + 8)
-				_world.player.position = pos
-				_world.chunk_manager.update_center(pos)
-				swept += 1
-				for i: int in 14:
-					await get_tree().process_frame
-				for ch: RefCounted in _world.chunk_manager.loaded_chunks():
-					for s: Dictionary in ch.sites:
-						if str(s.get("skill", "")) == "fishing":
-							target = ch.tile_world(int(s["tx"]), int(s["ty"]))
-							found = true
-							break
-					if found: break
-				if found: break
-			if found: break
-		if found: break
+	# Stream a few coastal spots, then find a shore tile (dry, walkable, water next to it).
+	var shore := Vector2i(-9999, -9999)
+	var water_pos := Vector2.ZERO
+	for c: Vector2i in [Vector2i(0, 0), Vector2i(2, 1), Vector2i(-2, 1), Vector2i(1, -2), Vector2i(3, 0), Vector2i(-3, -1)]:
+		var pos := WG.tile_to_world(c.x * WG.CHUNK_TILES + 8, c.y * WG.CHUNK_TILES + 8)
+		_world.player.position = pos
+		_world.chunk_manager.update_center(pos)
+		for i: int in 24:
+			await get_tree().process_frame
+		var found := _find_shore()
+		if found[0].x > -9999:
+			shore = found[0]
+			water_pos = found[1]
+			break
 
-	if not found:
-		print("  NO FISHING SITE FOUND (swept=%d chunks)" % swept)
+	if shore.x <= -9999:
+		print("  NO SHORE FOUND")
 		get_tree().quit(1)
 		return
 
-	# Frame the spot close-up.
-	_world.player.position = target + Vector2(0, WG.TILE * 2.0)
-	_world.chunk_manager.update_center(target)
+	_world.player.position = WG.tile_to_world(shore.x, shore.y)
+	_world.player.stop_walking()
+	_world.chunk_manager.update_center(_world.player.position)
 	if cam != null:
-		cam.zoom = Vector2(2.2, 2.2)
+		cam.zoom = Vector2(2.4, 2.4)
 		cam.reset_smoothing()
-	for i: int in 40:
+	for i: int in 30:
 		await get_tree().process_frame
-	# Three frames spaced out so the orbiting school is visibly in different positions.
-	for n: int in 3:
-		await get_tree().create_timer(0.45).timeout
+
+	await _capture_fishing("Sardine", "fish_rod")     # rod cast + line
+	await _capture_fishing("Lobster", "fish_lobster")  # kneel, hands in water
+
+	print("\n=== FISH RESULT ===")
+	print(JSON.stringify({"tool": "fish_shot", "saved": _saved, "shore": str(shore)}))
+	get_tree().quit(0)
+
+
+## Force the fishing state for a node and grab two frames (the pose eases in + the cast animates).
+func _capture_fishing(node_name: String, tag: String) -> void:
+	var nd := GatherNodeDef.new()
+	nd.name = node_name
+	nd.display_name = node_name
+	_world.player.set_fish_cast(_water_for_player())
+	for n: int in 2:
+		# Re-assert each frame so the activity sim's own ticks can't stop it mid-capture.
+		for i: int in 36:
+			TickSim.node = nd
+			TickSim.skill = "fishing"
+			TickSim.active = true
+			_world.player.set_fish_cast(_water_for_player())
+			await get_tree().process_frame
 		await RenderingServer.frame_post_draw
 		var img: Image = get_viewport().get_texture().get_image()
-		var path := _out_dir.path_join("fish_%d.png" % n)
+		var path := _out_dir.path_join("%s_%d.png" % [tag, n])
 		if img.save_png(path) == OK:
 			_saved.append(ProjectSettings.globalize_path(path))
 			print("  saved %s" % ProjectSettings.globalize_path(path))
+	TickSim.active = false
 
-	print("\n=== FISH RESULT ===")
-	print(JSON.stringify({"tool": "fish_shot", "saved": _saved, "at": str(target)}))
-	get_tree().quit(0)
+
+var _cast := Vector2.ZERO
+
+
+func _water_for_player() -> Vector2:
+	return _cast
+
+
+## Scan loaded chunks for a dry, walkable tile with a water 4-neighbour. Returns [shore_tile, water_pos].
+func _find_shore() -> Array:
+	var reg: RefCounted = WorldGen.reg
+	for ch: RefCounted in _world.chunk_manager.loaded_chunks():
+		for ly: int in WG.CHUNK_TILES:
+			for lx: int in WG.CHUNK_TILES:
+				var td: Dictionary = reg.tile_def(ch.tile_id(lx, ly))
+				if bool(td.get("water", false)) or not bool(td.get("walkable", true)):
+					continue
+				for off: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+					var nx: int = lx + off.x
+					var ny: int = ly + off.y
+					if nx < 0 or ny < 0 or nx >= WG.CHUNK_TILES or ny >= WG.CHUNK_TILES:
+						continue
+					if bool(reg.tile_def(ch.tile_id(nx, ny)).get("water", false)):
+						var gx: int = ch.cx * WG.CHUNK_TILES + lx
+						var gy: int = ch.cy * WG.CHUNK_TILES + ly
+						_cast = ch.tile_world(nx, ny)
+						return [Vector2i(gx, gy), _cast]
+	return [Vector2i(-9999, -9999), Vector2.ZERO]

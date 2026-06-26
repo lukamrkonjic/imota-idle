@@ -317,6 +317,14 @@ static func weapon_profile(kind: String) -> Dictionary:
 				"pos": Vector3.ZERO,
 				"rot": Vector3(1.72, 0.0, -0.38),
 			}
+		"fishing_rod":
+			# Held forward + angled up so the long shaft reaches out over the water. The cast/idle
+			# motion lives in the humanoid fishing pose; this just sets the resting grip angle.
+			return {
+				"pose": "onehand", "attack": "none",
+				"pos": Vector3.ZERO,
+				"rot": Vector3(2.35, 0.0, 0.0),
+			}
 		_:
 			return {
 				"pose": "onehand", "attack": "slash",
@@ -421,6 +429,16 @@ static func equip_parts(slot: String, kind: String, mat_key: String, tint: Color
 			return [
 				PropMeshes._part(PropMeshes._cyl("eq_macehaft", 0.035, 0.045, 0.7), dark, Vector3(0, 0.2, 0.0)),
 				PropMeshes._part(PropMeshes._sphere("eq_macehead_" + mat_key, 0.13), m, Vector3(0, 0.58, 0.0))]
+		"fishing_rod":
+			# Slim tapering wooden rod (grip at origin → tip up +Y), a small reel by the grip, and a
+			# pale tip ferrule the cast line anchors near. No blade/material tier — always wood.
+			var rwood := equip_material("wood")
+			var rcork := equip_material("leather")
+			return [
+				PropMeshes._part(PropMeshes._cyl("eq_rod_shaft", 0.008, 0.026, 1.35), rwood, Vector3(0, 0.6, 0.0)),
+				PropMeshes._part(PropMeshes._cyl("eq_rod_grip", 0.03, 0.034, 0.18), rcork, Vector3(0, 0.02, 0.0)),
+				PropMeshes._part(PropMeshes._cyl("eq_rod_reel", 0.055, 0.055, 0.03), dark, Vector3(0.05, 0.12, 0.0), Vector3.ONE, Vector3(0, 0, 1.5708)),
+				PropMeshes._part(PropMeshes._sphere("eq_rod_tip", 0.012), equip_material("cloth", Color(0.9, 0.92, 0.85)), Vector3(0, 1.27, 0.0))]
 		"spear":
 			return [
 				PropMeshes._part(PropMeshes._cyl("eq_spearhaft", 0.03, 0.035, 1.75), equip_material("wood"), Vector3(0, 0.34, 0.0)),

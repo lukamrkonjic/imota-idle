@@ -87,9 +87,16 @@ func play_no() -> void:
 	pass
 
 
-func set_fish_cast(_world_pos: Vector2) -> void:
-	pass
+## Fishing: where the line lands on the water (2D iso world pos). The 3D renderer reads `fishing`
+## + `fish_cast_pos` to face the spot, play the rod-cast (or lobster-kneel) pose, and draw the line.
+var fishing := false
+var fish_cast_pos := Vector2.ZERO
+
+
+func set_fish_cast(world_pos: Vector2) -> void:
+	fish_cast_pos = world_pos
+	fishing = true
 
 
 func clear_fish_cast() -> void:
-	pass
+	fishing = false
