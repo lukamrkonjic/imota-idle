@@ -490,11 +490,12 @@ func _build_settings_popup() -> void:
 	_settings_volume_slider = volume_row[0] as HSlider
 	_settings_volume_value = volume_row[1] as Label
 
-	# Pixelation: 0 = native (no pixelation), 1 = really crunchy (A Short Hike-style).
-	_add_settings_slider_row(
-		box, "Pixelation", 0.0, 1.0, 0.01, GameSettings.pixelation,
-		func(v: float) -> String: return "Native" if v < 0.01 else "%d%%" % int(roundf(v * 100.0)),
-		func(v: float) -> void: GameSettings.set_pixelation(v))
+	# Pixel size: discrete chunkiness levels (Off = native, up to Max). A dropdown beats a
+	# raw % slider here — each step is an exact integer, DPI-aware pixel block, so the look
+	# stays crisp (no mushy fractional scaling) on any display.
+	_add_settings_option_row(
+		box, "Pixel size", GameSettings.PIXEL_SIZE_OPTIONS, GameSettings.pixel_level(),
+		func(level: int) -> void: GameSettings.set_pixel_level(level))
 
 	# View distance: how far the world renders before fading into the haze. Higher
 	# costs more; the label shows the approximate visible radius in tiles.
@@ -511,6 +512,10 @@ func _build_settings_popup() -> void:
 
 	_settings_fullscreen = _add_settings_checkbox(box, "Fullscreen", GameSettings.fullscreen,
 		func(on: bool) -> void: GameSettings.set_fullscreen(on))
+	# Resolution: windowed render size (Auto = maximized). Applies when Fullscreen is off.
+	_add_settings_option_row(
+		box, "Resolution", GameSettings.RESOLUTION_OPTIONS, GameSettings.resolution_index(),
+		func(idx: int) -> void: GameSettings.set_resolution_index(idx))
 	_settings_vsync = _add_settings_checkbox(box, "VSync", GameSettings.vsync,
 		func(on: bool) -> void: GameSettings.set_vsync(on))
 	_settings_zone_banner = _add_settings_checkbox(box, "Zone banner", GameSettings.show_zone_banner,

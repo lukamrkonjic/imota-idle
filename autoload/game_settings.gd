@@ -10,7 +10,7 @@ const UI_SCALE_MAX := 2.0
 const DEFAULT_UI_SCALE := 1.0
 const DEFAULT_MASTER_VOLUME := 0.8
 const DEFAULT_FPS_LIMIT := 60
-const DEFAULT_PIXELATION := 0.2   # 0 = native (no pixelation), 1 = really crunchy
+const DEFAULT_PIXELATION := 0.5   # picked via the "Pixel size" dropdown; 0 = native, 1 = chunkiest
 const DEFAULT_VIEW_DISTANCE := 0.55   # longer than the old fixed range by default
 const DEFAULT_CAM_ROTATE_SPEED := 1.0   # arrow-key camera orbit/tilt speed multiplier (1 = default)
 const CAM_ROTATE_SPEED_MIN := 0.25
@@ -24,6 +24,36 @@ const FPS_LIMIT_OPTIONS := [
 	{"value": 0, "label": "Unlimited"},
 ]
 
+# "Pixel size" dropdown: discrete render-chunkiness levels (small -> large pixel blocks).
+# `value` is the level INDEX; it maps onto RenderViewportPresenter.PIXEL_LEVELS (keep both
+# the same length). The index is stored as the 0..1 `pixelation` float (value / max index)
+# so existing saves keep working — see pixel_level() / set_pixel_level(). Level 0 = "Off"
+# renders at native window resolution; the renderer makes higher levels DPI-aware so a block
+# is a consistent, crisp on-screen size on Retina and standard displays alike.
+const PIXEL_SIZE_OPTIONS := [
+	{"value": 0, "label": "Off — crisp render"},
+	{"value": 1, "label": "Fine"},
+	{"value": 2, "label": "Medium"},
+	{"value": 3, "label": "Chunky (recommended)"},
+	{"value": 4, "label": "Chunkier"},
+	{"value": 5, "label": "Very chunky"},
+	{"value": 6, "label": "Max"},
+]
+
+# "Resolution" dropdown: the windowed render size (independent of Pixel size — this scales the
+# whole game window, Pixel size sets how chunky the pixels are within it). `value` is the option
+# index; `w`/`h` are the target window size in pixels (0,0 = "Auto" = maximized / fit the screen).
+# Sizes larger than the display are clamped. "Fullscreen" (maximized) takes priority — a concrete
+# resolution only applies in windowed mode. See resolution_index() / set_resolution_index().
+const RESOLUTION_OPTIONS := [
+	{"value": 0, "label": "Auto (fit window)", "w": 0, "h": 0},
+	{"value": 1, "label": "1280 × 720", "w": 1280, "h": 720},
+	{"value": 2, "label": "1600 × 900", "w": 1600, "h": 900},
+	{"value": 3, "label": "1920 × 1080", "w": 1920, "h": 1080},
+	{"value": 4, "label": "2560 × 1440", "w": 2560, "h": 1440},
+	{"value": 5, "label": "3200 × 1800", "w": 3200, "h": 1800},
+]
+
 # Rebindable key bindings. Add an entry here and the settings menu grows a rebind
 # row for it automatically; handlers read the bound key via keybind(id).
 const KEYBIND_ACTIONS := [
@@ -35,6 +65,8 @@ var suppress := false  # headless tests set this so they never touch settings
 var ui_scale: float = DEFAULT_UI_SCALE
 var master_volume: float = DEFAULT_MASTER_VOLUME
 var fullscreen: bool = true   # windowed-fullscreen (maximized + title bar) by default
+var res_w: int = 0   # explicit windowed resolution; 0,0 = Auto (maximized / fit screen)
+var res_h: int = 0
 var vsync: bool = true
 var show_zone_banner: bool = true
 var show_chat: bool = true
@@ -73,6 +105,8 @@ func load_settings() -> void:
 	ui_scale = clampf(float(data.get("ui_scale", DEFAULT_UI_SCALE)), UI_SCALE_MIN, UI_SCALE_MAX)
 	master_volume = clampf(float(data.get("master_volume", DEFAULT_MASTER_VOLUME)), 0.0, 1.0)
 	fullscreen = bool(data.get("fullscreen", true))
+	res_w = maxi(0, int(data.get("res_w", 0)))
+	res_h = maxi(0, int(data.get("res_h", 0)))
 	vsync = bool(data.get("vsync", true))
 	show_zone_banner = bool(data.get("show_zone_banner", true))
 	show_chat = bool(data.get("show_chat", true))
@@ -101,6 +135,8 @@ func save_settings() -> void:
 		"ui_scale": ui_scale,
 		"master_volume": master_volume,
 		"fullscreen": fullscreen,
+		"res_w": res_w,
+		"res_h": res_h,
 		"vsync": vsync,
 		"show_zone_banner": show_zone_banner,
 		"show_chat": show_chat,
@@ -136,6 +172,18 @@ func set_pixelation(value: float) -> void:
 	changed.emit(&"pixelation")
 
 
+# Bridge the "Pixel size" dropdown (discrete level index) to the stored `pixelation` float,
+# so the dropdown is the UI but saves stay a plain 0..1 number (no save-format change).
+func pixel_level() -> int:
+	var max_idx := PIXEL_SIZE_OPTIONS.size() - 1
+	return clampi(int(round(pixelation * float(max_idx))), 0, max_idx)
+
+
+func set_pixel_level(idx: int) -> void:
+	var max_idx := PIXEL_SIZE_OPTIONS.size() - 1
+	set_pixelation(float(clampi(idx, 0, max_idx)) / float(max_idx))
+
+
 func set_view_distance(value: float) -> void:
 	view_distance = clampf(value, 0.0, 1.0)
 	save_settings()
@@ -166,6 +214,25 @@ func set_fullscreen(enabled: bool) -> void:
 	save_settings()
 	_apply_display()
 	changed.emit(&"fullscreen")
+
+
+# Which RESOLUTION_OPTIONS entry the current res_w/res_h matches (0 = Auto).
+func resolution_index() -> int:
+	for opt: Dictionary in RESOLUTION_OPTIONS:
+		if int(opt["w"]) == res_w and int(opt["h"]) == res_h:
+			return int(opt["value"])
+	return 0
+
+
+func set_resolution_index(idx: int) -> void:
+	for opt: Dictionary in RESOLUTION_OPTIONS:
+		if int(opt["value"]) == idx:
+			res_w = int(opt["w"])
+			res_h = int(opt["h"])
+			break
+	save_settings()
+	_apply_display()
+	changed.emit(&"resolution")
 
 
 func set_vsync(enabled: bool) -> void:
@@ -256,16 +323,40 @@ var _display_applied_once := false
 func _apply_display() -> void:
 	# "Fullscreen" here means windowed-fullscreen (a MAXIMIZED window that keeps the OS
 	# title bar) — never borderless exclusive fullscreen. Off = a normal resizable window.
-	# The game ALWAYS launches maximized: the first apply (at startup) ignores a saved
-	# windowed preference so a stale save can never shrink it back to the small window;
-	# the toggle only takes effect for in-session changes after that.
+	# The game ALWAYS launches maximized UNLESS an explicit Resolution is saved: the first
+	# apply (at startup) otherwise ignores a saved windowed preference so a stale save can
+	# never shrink it back to the small window; the toggle only takes effect in-session.
 	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
-	var maximize := fullscreen or not _display_applied_once
+	var first_apply := not _display_applied_once
 	_display_applied_once = true
-	DisplayServer.window_set_mode(
-		DisplayServer.WINDOW_MODE_MAXIMIZED if maximize else DisplayServer.WINDOW_MODE_WINDOWED)
+	var concrete := res_w > 0 and res_h > 0
+	if fullscreen or (first_apply and not concrete):
+		# Fullscreen (maximized) wins over a windowed resolution while it's on.
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_MAXIMIZED)
+	elif concrete:
+		_apply_windowed_resolution()
+	else:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 	DisplayServer.window_set_vsync_mode(
 		DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED)
+
+
+# Size the window to the chosen Resolution (clamped to the display) and centre it. Window size
+# is in pixels — on a HiDPI screen those are physical pixels (the screen reports e.g. 3456 wide),
+# so the listed sizes scale the game smaller/larger within that. Skips gracefully on headless,
+# where screen metrics are zero.
+func _apply_windowed_resolution() -> void:
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+	var screen := DisplayServer.screen_get_usable_rect(DisplayServer.window_get_current_screen())
+	var w := res_w
+	var h := res_h
+	if screen.size.x > 0 and screen.size.y > 0:
+		w = mini(w, int(screen.size.x))
+		h = mini(h, int(screen.size.y))
+	var size := Vector2i(maxi(640, w), maxi(360, h))
+	DisplayServer.window_set_size(size)
+	if screen.size.x > 0 and screen.size.y > 0:
+		DisplayServer.window_set_position(Vector2i(screen.position) + (Vector2i(screen.size) - size) / 2)
 
 
 func _apply_fps() -> void:

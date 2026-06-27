@@ -41,7 +41,12 @@ Project-specific terms, grounded in the code.
 - **Mover** — an animated 3D rig (player/enemy) drawn by `mover_renderer_3d.gd`. **Decor/prop** —
   static batched mesh from `prop_meshes.gd`/`static_prop_batcher.gd`.
 - **Presenter / pixelation** — the low-res SubViewport upscale + palette posterize in
-  `render_viewport_presenter.gd` that makes the pixel-art look.
+  `render_viewport_presenter.gd` that makes the pixel-art look. The display scale is an exact
+  **integer, DPI-aware** ratio (`_scale_from_setting` multiplies by `screen_get_scale()` so a pixel
+  block is a consistent on-screen size on Retina/standard alike — otherwise it looks mushy/blurry).
+  Chosen via the Settings **"Pixel size"** dropdown (`GameSettings.PIXEL_SIZE_OPTIONS`; level 0 = Off /
+  native). Stored as the 0..1 `pixelation` float (`pixel_level`/`set_pixel_level` bridge), so saves
+  are unchanged.
 - **`fish_school` node** — an invisible water-decor marker per fishing spot; rendered as bubbles by
   `FishingDecor3D` (the old static mesh is skipped).
 - **Zone / layer** — a level band region / a vertical world level (surface = layer 0, caves below).

@@ -177,4 +177,5 @@ Weak weapons stay weak via a low **strength bonus**, never a per-weapon damage c
 ## Weather / Day-night / Audio
 - `autoload/weather.gd`, `autoload/day_night.gd` (`DayNight.time01`, sun colour/energy; sun direction
   is pinned — see `world_atmosphere.gd`), `autoload/audio.gd`. `autoload/game_settings.gd` holds
-  pixelation, UI scale, volumes, keybinds, auto-eat.
+  pixelation (Pixel size dropdown), window Resolution (`res_w`/`res_h`; `_apply_display`), UI scale,
+  volumes, keybinds, auto-eat.

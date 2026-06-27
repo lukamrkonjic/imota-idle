@@ -100,8 +100,19 @@ func _scale_from_setting(v: float) -> int:
 	# Verification override: `-- --crisp` renders near-native so detail is legible in shots.
 	if "--crisp" in OS.get_cmdline_args() or "--crisp" in OS.get_cmdline_user_args():
 		return 1
-	var idx := int(round(clampf(v, 0.0, 1.0) * float(PIXEL_LEVELS.size() - 1)))
-	return PIXEL_LEVELS[clampi(idx, 0, PIXEL_LEVELS.size() - 1)]
+	var idx := clampi(int(round(clampf(v, 0.0, 1.0) * float(PIXEL_LEVELS.size() - 1))), 0, PIXEL_LEVELS.size() - 1)
+	# Level 0 = "Off": render at native window resolution (no chunky blocks, just the colour
+	# grade). Don't DPI-scale it, or "Off" would still show a 2x pixel block on Retina.
+	if idx == 0:
+		return 1
+	var base: int = PIXEL_LEVELS[idx]
+	# DPI-AWARE pixel size. The scale is in WINDOW pixels, but on a HiDPI/Retina display those are
+	# PHYSICAL pixels — so a "3" block is only ~1.5 on-screen POINTS and the chunky pixel look
+	# dissolves into a soft, mushy near-blur (this is why it looked blurry-but-pixelated). Multiply by
+	# the display's pixel ratio so each block is a consistent, bold VISUAL size on any display — the
+	# crisp A Short Hike look. Still an exact INTEGER scale, so nearest-neighbour stays pin-sharp.
+	var dpi := maxi(1, int(round(DisplayServer.screen_get_scale())))
+	return base * dpi
 
 
 ## Size the SubViewport to an INTEGER fraction of the window and present it at that exact
