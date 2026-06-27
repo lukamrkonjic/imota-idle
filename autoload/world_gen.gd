@@ -89,7 +89,12 @@ func _source_chunk(layer: int, cx: int, cy: int) -> RefCounted:
 			return generator.generate(0, cx, cy)
 		if baked.has(cx, cy):
 			return baked.build_chunk(cx, cy)
-		# In bounds but not yet baked: fall back so the game runs before a bake.
+		# In bounds but NOT baked. With a loaded bake the baked data is authoritative and the bake is
+		# SPARSE (the reserved ocean margin beyond the authored canvas is intentionally not baked) —
+		# so serve the free all-ocean chunk, exactly like beyond-bounds. Only when no bake is loaded
+		# (pre-bake dev) do we fall back to generating, so the game still runs uncompiled.
+		if baked.loaded:
+			return baked.ocean_chunk(cx, cy)
 		return generator.generate(0, cx, cy)
 	var above: RefCounted = null
 	if layer < 0:

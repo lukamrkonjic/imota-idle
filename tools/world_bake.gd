@@ -13,6 +13,7 @@ extends Node
 const WG := preload("res://scripts/worldgen/wg.gd")
 const BakedWorldStore := preload("res://scripts/worldgen/baked_world_store.gd")
 const FiniteWorldGenerator := preload("res://scripts/worldgen/finite_world_generator.gd")
+const BiomeClassifier := preload("res://scripts/worldgen/biome_classifier.gd")
 const TerrainStyle := preload("res://scripts/render/terrain_style.gd")
 const Chunk := preload("res://scripts/worldgen/chunk.gd")
 # Preloaded by PATH (not the global class_name) so a cold class-cache bake still resolves them.
@@ -70,6 +71,11 @@ func _ready() -> void:
 	var tile_w: int = b.size.x * WG.CHUNK_TILES
 	var tile_h: int = b.size.y * WG.CHUNK_TILES
 	var img := Image.create_empty(tile_w, tile_h, false, Image.FORMAT_RGB8)
+	# Pre-fill the whole overview with deep ocean: the sparse bake never paints the reserved margin,
+	# so the un-authored area reads as open sea on the minimap/world map.
+	var ocean_def: Dictionary = reg.tile_def(int(reg.tile_index.get("deep_water", 0)))
+	var ocean_cols: Array = ocean_def.get("colors", [])
+	img.fill(ocean_cols[0] if not ocean_cols.is_empty() else Color(0.07, 0.38, 0.50))
 	var min_tx: int = b.position.x * WG.CHUNK_TILES
 	var min_ty: int = b.position.y * WG.CHUNK_TILES
 	var baked := 0
@@ -144,17 +150,27 @@ func _bake_terrain_meshes(reg: RefCounted, chunks: Dictionary, b: Rect2i, id: St
 	var min_ty: int = b.position.y * WG.CHUNK_TILES
 	var max_tx: int = b.end.x * WG.CHUNK_TILES   # exclusive
 	var max_ty: int = b.end.y * WG.CHUNK_TILES
+	# SPARSE BAKE: only mesh regions that touch the authored canvas (+1 region of coast apron); the
+	# reserved ocean margin gets no static mesh (region meshes carry world-space verts, so skipping
+	# is safe — the loader positions each mesh intrinsically). Empty coverage = mesh everything.
+	var cov: Rect2 = BiomeClassifier.canvas_coverage_tiles(id)
+	var has_cov: bool = cov.size.x > 0.0 and cov.size.y > 0.0
+	var cov_apron := cov.grow(float(span)) if has_cov else Rect2()
 	var tset: Resource = TerrainSet.new()
 	tset.world_id = id
 	tset.region_tiles = span
 	var regions := 0
 	var water_regions := 0
+	var skipped_regions := 0
 	var vtx_total := 0
 	for rty0: int in range(min_ty, max_ty, span):
 		for rtx0: int in range(min_tx, max_tx, span):
 			# Clamp the edge regions so we never emit tiles past the bounds (open sea apron only).
 			var sx: int = mini(span, max_tx - rtx0)
 			var sy: int = mini(span, max_ty - rty0)
+			if has_cov and not cov_apron.intersects(Rect2(float(rtx0), float(rty0), float(sx), float(sy))):
+				skipped_regions += 1
+				continue
 			var res: Dictionary = mesher.build_region_terrain(rtx0, rty0, sx, sy)
 			var gm: ArrayMesh = res["ground"]
 			tset.ground_meshes.append(gm)

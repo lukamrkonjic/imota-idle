@@ -375,6 +375,21 @@ static func land_mask_path(world_id: String) -> String:
 	return _MASK_DIR + world_id + "_land.png"
 
 
+## The authored CANVAS extent in ABSOLUTE tiles (where the mask actually paints), from the mask
+## json: Rect2(maskOrigin, maskSize * tilesPerPixel). Everything outside is open ocean. Used by the
+## bake to skip the reserved ocean margin (sparse bake) so `bounds` can grow generously in any
+## direction for ~free. Returns an EMPTY rect (bake everything) when the world has no such mask json.
+static func canvas_coverage_tiles(world_id: String) -> Rect2:
+	var mj: Dictionary = JsonIO.read_dict(_MASK_DIR + world_id + "_mask.json")
+	var morg: Array = mj.get("maskOrigin", [])
+	var msz: Array = mj.get("maskSize", [])
+	var tpp: Array = mj.get("tilesPerPixel", [])
+	if morg.size() != 2 or msz.size() != 2 or tpp.size() != 2:
+		return Rect2()
+	return Rect2(float(morg[0]), float(morg[1]),
+		float(msz[0]) * float(tpp[0]), float(msz[1]) * float(tpp[1]))
+
+
 ## Load the traced land mask (if any) and precompute its signed-distance field.
 ## The mask covers the full authored bounds 1:1 in tile space.
 func _load_land_mask() -> void:

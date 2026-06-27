@@ -162,9 +162,25 @@ func generate_region(host: Node, progress_cb := Callable()) -> Dictionary:
 			spec.region_for_chunk(cx, cy)
 			spec.anchor_for_chunk(cx, cy)
 
+	# SPARSE BAKE: generate only chunks within the authored CANVAS (mask coverage) + a small ocean
+	# apron. Chunks beyond it are the reserved ocean margin — never generated here, served as the free
+	# `ocean_chunk` at runtime. This lets `bounds` grow generously in any direction for ~free; the
+	# authored continent is unaffected (it's fully inside coverage). Empty coverage = bake everything.
+	var cov: Rect2 = BiomeClassifier.canvas_coverage_tiles(str(spec.id))
+	var has_cov: bool = cov.size.x > 0.0 and cov.size.y > 0.0
+	var cov_chunks := Rect2i()
+	if has_cov:
+		const CANVAS_APRON := 2
+		var ccx0: int = floori(cov.position.x / float(WG.CHUNK_TILES)) - CANVAS_APRON
+		var ccy0: int = floori(cov.position.y / float(WG.CHUNK_TILES)) - CANVAS_APRON
+		var ccx1: int = ceili((cov.position.x + cov.size.x) / float(WG.CHUNK_TILES)) + CANVAS_APRON
+		var ccy1: int = ceili((cov.position.y + cov.size.y) / float(WG.CHUNK_TILES)) + CANVAS_APRON
+		cov_chunks = Rect2i(ccx0, ccy0, ccx1 - ccx0, ccy1 - ccy0)
 	var work: Array = []
 	for cy: int in range(b.position.y, b.end.y):
 		for cx: int in range(b.position.x, b.end.x):
+			if has_cov and not cov_chunks.has_point(Vector2i(cx, cy)):
+				continue
 			work.append(Vector2i(cx, cy))
 	var total := work.size()
 	var nthreads: int = clampi(OS.get_processor_count() - 1, 1, 16)
