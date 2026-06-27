@@ -18,8 +18,17 @@ render_mode unshaded, cull_back, blend_mix;
 // --- palette ------------------------------------------------------------------
 uniform vec4 deep_color : source_color = vec4(0.094, 0.392, 0.612, 1.0);     // #18649C rich deep blue
 uniform vec4 shallow_color : source_color = vec4(0.376, 0.690, 0.875, 1.0);  // #60B0DF light shallow blue
+uniform vec4 deepest_color : source_color = vec4(0.043, 0.247, 0.404, 1.0);  // #0A3F67 deep basin (depth masses)
 uniform vec4 line_color : source_color = vec4(0.659, 0.835, 0.945, 1.0);     // #A8D5F1 pale contour ring
 uniform vec4 foam_color : source_color = vec4(0.918, 0.969, 0.980, 1.0);     // #EAF7FA sea foam
+
+// --- DEPTH MASSES (A Short Hike broad depth variation) ------------------------
+// Broad, soft, low-frequency "how deep" field. NOT noise spam — see the DEPTH block in fragment().
+uniform sampler2D depth_tex : repeat_enable, filter_linear;
+uniform float depth_scale = 0.014;   // world scale of the depth masses (smaller = bigger masses)
+uniform float depth_reach = 5.5;     // cells: how far into a body before it reads fully open/deep (scopes to big bodies)
+uniform float depth_var : hint_range(0.0, 1.5) = 0.85;  // strength of the depth field (darker/lighter masses + near-shore drop-offs)
+uniform float deep_split : hint_range(0.2, 0.95) = 0.62; // depth01 where deep_color hands off to deepest_color
 
 // --- shared coast field (v_wf) ------------------------------------------------
 uniform float sd_scale = 5.2;          // (wf-0.5)*sd_scale -> signed distance to coast, in cells
@@ -98,9 +107,34 @@ void fragment() {
 	}
 	vec2 wp = v_world.xz;
 
-	// --- shallow -> deep colour ramp ---
-	float deep_t = smoothstep(0.0, shallow_cells, sd);
-	vec3 col = mix(shallow_color.rgb, deep_color.rgb, deep_t);
+	// --- DEPTH: A Short Hike broad depth masses -------------------------------------------------
+	// REVERT NOTE — restoring the OLD (pre-depth) water:
+	//   The previous look was a flat 2-tone shallow->deep ramp, no depth masses:
+	//       float deep_t = smoothstep(0.0, shallow_cells, sd);
+	//       vec3 col = mix(shallow_color.rgb, deep_color.rgb, deep_t);
+	//   To revert EXACTLY: replace this whole DEPTH block with those two lines, delete the
+	//   `deepest_color` + `depth_tex`/`depth_scale`/`depth_reach`/`depth_var`/`deep_split` uniforms
+	//   above, and remove the matching set_shader_parameter() calls in world_render_3d.gd (each is
+	//   tagged "// DEPTH:" there, with the old line/colour values noted inline). Nothing else changes.
+	//
+	// `openness` rises as a tile sits deeper INSIDE a water body (sd = cells from its coast). It
+	// scopes the effect to LARGE bodies: a tiny pond's interior never gets far from its own coast,
+	// so it stays shallow/simple. Oceans + big lakes reach full openness in their interior.
+	float openness = smoothstep(shallow_cells, depth_reach, sd);
+	// Broad, soft, low-frequency depth field: two gentle octaves at a big world scale = large
+	// painterly basins, never high-frequency speckle. Sampled in WORLD space (camera-stable) and,
+	// like everything here, rasterised in the low-res viewport so it pixelates with the game.
+	float df = texture(depth_tex, wp * depth_scale).r * 0.68
+	         + texture(depth_tex, wp * depth_scale * 2.1 + vec2(4.7, 2.3)).r * 0.32;
+	// Combine: open water trends deep; the field carves broad darker (and a little lighter) masses.
+	// Gated by `past_shallow` so the readable shallow band at the very edge stays light, BUT the
+	// field is allowed in just past it — so darker DROP-OFFS can also appear near shore.
+	float past_shallow = smoothstep(0.0, shallow_cells, sd);
+	float depth01 = clamp(openness + (df - 0.5) * depth_var * past_shallow, 0.0, 1.0);
+	// 3-tone painterly ramp: shallow band -> deep -> deepest basin. The presenter's posterize steps
+	// this smooth ramp into flat depth zones, so it reads as broad masses, not a smooth gradient.
+	vec3 col = mix(shallow_color.rgb, deep_color.rgb, smoothstep(0.0, deep_split, depth01));
+	col = mix(col, deepest_color.rgb, smoothstep(deep_split, 1.0, depth01));
 
 	// --- illustrated contour loops ---
 	vec2 w1 = wp * (pattern_scale * 0.5) + primary_speed * TIME;

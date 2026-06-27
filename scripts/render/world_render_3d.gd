@@ -250,15 +250,23 @@ func _setup_materials() -> void:
 	# soft PALE-BLUE concentric contour rings (calmer + cleaner than the old swirly teal contours).
 	_water_mat.set_shader_parameter("deep_color", Color(0.094, 0.392, 0.612))     # #18649C rich deep blue
 	_water_mat.set_shader_parameter("shallow_color", Color(0.376, 0.690, 0.875))  # #60B0DF light shallow blue
-	_water_mat.set_shader_parameter("line_color", Color(0.659, 0.835, 0.945))     # #A8D5F1 pale contour ring
+	_water_mat.set_shader_parameter("line_color", Color(0.722, 0.871, 0.961))     # #B8DEF5 bright contour ring
 	_water_mat.set_shader_parameter("foam_color", Color(0.918, 0.969, 0.980))     # #EAF7FA sea foam
+	# DEPTH: A Short Hike broad depth masses. To REVERT to the old flat 2-tone water, remove these 5
+	# lines + the `deepest_color`/`depth_*` block in toon_water.gdshader (see the REVERT NOTE there).
+	_water_mat.set_shader_parameter("deepest_color", Color(0.043, 0.247, 0.404))  # #0A3F67 deep basin
+	_water_mat.set_shader_parameter("depth_tex", TerrainChunkMesher.make_water_noise(1.0, 2, 7))  # broad soft masses
+	_water_mat.set_shader_parameter("depth_scale", 0.014)        # world scale of the depth masses (smaller = bigger)
+	_water_mat.set_shader_parameter("depth_reach", 5.5)          # cells into a body before fully deep (scopes to big bodies)
+	_water_mat.set_shader_parameter("depth_var", 0.85)           # strength of darker/lighter masses + near-shore drop-offs
+	_water_mat.set_shader_parameter("deep_split", 0.62)          # depth where deep -> deepest basin
 	_water_mat.set_shader_parameter("sd_scale", TerrainChunkMesher.SHORE_SD_SCALE)   # (wf-0.5) -> signed cells
 	_water_mat.set_shader_parameter("shore_aa", 0.10)            # AA width of the waterline (cells)
 	_water_mat.set_shader_parameter("shallow_cells", 1.3)        # wider, clearer shallow band (A Short Hike)
 	_water_mat.set_shader_parameter("pattern_scale", 0.038)      # BIG, sparse contour loops (few + far apart)
 	_water_mat.set_shader_parameter("contour_count", 2.1)        # fewer rings
-	_water_mat.set_shader_parameter("line_width", 0.030)         # thin, delicate
-	_water_mat.set_shader_parameter("line_opacity", 0.24)        # MUCH more faded — a whisper of contour
+	_water_mat.set_shader_parameter("line_width", 0.033)         # clean, readable
+	_water_mat.set_shader_parameter("line_opacity", 0.40)        # bright-but-sparse loops (old faded look = 0.24)
 	_water_mat.set_shader_parameter("domain_warp_strength", 0.38) # cleaner concentric loops
 	_water_mat.set_shader_parameter("secondary_strength", 0.0)   # no busy 2nd layer -> calm, sparse water
 	_water_mat.set_shader_parameter("secondary_scale", 1.7)
