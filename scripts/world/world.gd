@@ -404,6 +404,21 @@ func halt_player() -> void:
 func navigate_to(target: Vector2) -> bool:
 	pending_action = {}
 	auto_task = {}
+	# Minimap clicks are coarse — if the picked spot isn't walkable (water, cliff, off-map), route to
+	# the NEAREST walkable tile instead of refusing, so a click always takes the player somewhere
+	# sensible (e.g. the shore nearest a click in the sea). Only reroute when walkable ground is
+	# genuinely nearby (within the search radius); a click far out at open sea finds nothing and just
+	# declines, rather than yanking the player to the home-spawn fallback.
+	if not WorldGen.is_walkable_world(target, current_layer):
+		const SNAP_RINGS := 64
+		var snap: Vector2 = WorldGen.nearest_walkable_world(target, current_layer, SNAP_RINGS)
+		if snap.distance_to(target) <= float(SNAP_RINGS) * WG.TILE + 1.0 \
+				and WorldGen.is_walkable_world(snap, current_layer):
+			target = snap
+		else:
+			EventBus.combat_log.emit("[color=#444]Nowhere to walk near there.[/color]")
+			player.play_no()
+			return false
 	return walk_to_pos(target)
 
 
