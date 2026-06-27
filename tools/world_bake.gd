@@ -14,8 +14,18 @@ const WG := preload("res://scripts/worldgen/wg.gd")
 const BakedWorldStore := preload("res://scripts/worldgen/baked_world_store.gd")
 const FiniteWorldGenerator := preload("res://scripts/worldgen/finite_world_generator.gd")
 const TerrainStyle := preload("res://scripts/render/terrain_style.gd")
+const Chunk := preload("res://scripts/worldgen/chunk.gd")
+# Preloaded by PATH (not the global class_name) so a cold class-cache bake still resolves them.
+const Mesher := preload("res://scripts/render/terrain/terrain_chunk_mesher.gd")
+const TerrainSet := preload("res://scripts/render/terrain/baked_terrain_set.gd")
 
 const OUT_DIR := "res://data/world/baked/"
+
+
+## Minimal stand-in for the live World node: the mesher only reads world.current_layer (the baked
+## continent is layer 0), so this property bag is all it needs to bake terrain meshes offline.
+class _MesherWorld extends Node2D:
+	var current_layer := 0
 
 
 func _ready() -> void:
@@ -93,6 +103,9 @@ func _ready() -> void:
 	f.close()
 	img.save_png(OUT_DIR + str(spec.id) + "_map.png")
 
+	# Static terrain region meshes: the "load once, never re-mesh at runtime" artifact (Option A).
+	_bake_terrain_meshes(reg, chunks, b, str(spec.id))
+
 	print("\n=== BAKE RESULT ===")
 	print(JSON.stringify({
 		"world": ProjectSettings.globalize_path(world_path),
@@ -102,6 +115,83 @@ func _ready() -> void:
 		"took_s": float(Time.get_ticks_msec() - t0) / 1000.0,
 	}))
 	get_tree().quit(0)
+
+
+## Bake the fixed continent into static terrain region meshes (TerrainChunkMesher.build_region_terrain
+## over REGION_TILES blocks) and write them to <id>_terrain.res. At runtime StaticTerrainRegions loads
+## this once and instances every region — no per-frame meshing, streaming, eviction, or seam reconcile.
+func _bake_terrain_meshes(reg: RefCounted, chunks: Dictionary, b: Rect2i, id: String) -> void:
+	var t0 := Time.get_ticks_msec()
+	# Shared lookup (layer 0): every fixed chunk + a 1-chunk OCEAN APRON around the bounds, so the
+	# map-edge coastline smooths identically to runtime (which streams ocean chunks beyond bounds).
+	var lookup: Dictionary = {}
+	for key: String in chunks:
+		var c: RefCounted = chunks[key]
+		lookup[WG.key(0, int(c.cx), int(c.cy))] = c
+	for cy: int in range(b.position.y - 1, b.end.y + 1):
+		for cx: int in range(b.position.x - 1, b.end.x + 1):
+			var k := WG.key(0, cx, cy)
+			if not lookup.has(k):
+				lookup[k] = _ocean_chunk(reg, cx, cy)
+
+	var stub := _MesherWorld.new()
+	var mesher: RefCounted = Mesher.new()
+	mesher.setup(stub, null, null)      # materials are applied at runtime by the loader, not baked in
+	mesher.set_chunk_lookup(lookup)
+
+	var span: int = Mesher.REGION_TILES
+	var min_tx: int = b.position.x * WG.CHUNK_TILES
+	var min_ty: int = b.position.y * WG.CHUNK_TILES
+	var max_tx: int = b.end.x * WG.CHUNK_TILES   # exclusive
+	var max_ty: int = b.end.y * WG.CHUNK_TILES
+	var tset: Resource = TerrainSet.new()
+	tset.world_id = id
+	tset.region_tiles = span
+	var regions := 0
+	var water_regions := 0
+	var vtx_total := 0
+	for rty0: int in range(min_ty, max_ty, span):
+		for rtx0: int in range(min_tx, max_tx, span):
+			# Clamp the edge regions so we never emit tiles past the bounds (open sea apron only).
+			var sx: int = mini(span, max_tx - rtx0)
+			var sy: int = mini(span, max_ty - rty0)
+			var res: Dictionary = mesher.build_region_terrain(rtx0, rty0, sx, sy)
+			var gm: ArrayMesh = res["ground"]
+			tset.ground_meshes.append(gm)
+			tset.water_meshes.append(res["water"])
+			regions += 1
+			if bool(res["has_water"]):
+				water_regions += 1
+			if gm != null and gm.get_surface_count() > 0:
+				vtx_total += gm.surface_get_array_len(0)
+	stub.free()
+
+	var path := OUT_DIR + id + "_terrain.res"
+	var err := ResourceSaver.save(tset, path)
+	if err != OK:
+		push_error("world_bake: failed to save terrain meshes (err %d) -> %s" % [err, path])
+		return
+	print(JSON.stringify({
+		"terrain_res": ProjectSettings.globalize_path(path),
+		"regions": regions,
+		"water_regions": water_regions,
+		"region_tiles": span,
+		"ground_tris": vtx_total / 3,
+		"took_s": float(Time.get_ticks_msec() - t0) / 1000.0,
+	}))
+
+
+## A flat all-ocean chunk for the bake-time apron ring around the bounds (mirrors
+## BakedWorldStore.ocean_chunk; elev stays zero = sea level from Chunk.setup).
+func _ocean_chunk(reg: RefCounted, cx: int, cy: int) -> RefCounted:
+	var chunk: RefCounted = Chunk.new()
+	chunk.setup(0, cx, cy)
+	chunk.tiles.fill(int(reg.tile_index.get("deep_water", 0)))
+	var ocean_biome := int(reg.biome_index.get("ocean", 255))
+	chunk.biomes_t.fill(ocean_biome)
+	chunk.parent_biomes_t.fill(ocean_biome)
+	chunk.sub_biomes_t.fill(255)
+	return chunk
 
 
 func _paint_map(img: Image, chunk: RefCounted, reg: RefCounted, min_tx: int, min_ty: int) -> void:

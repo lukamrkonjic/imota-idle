@@ -65,6 +65,9 @@ a parallel system. "Owner" = the single place that responsibility lives.
 | Camera | `scripts/render/world_camera_rig_3d.gd` |
 | Sun / fog / sky | `scripts/render/world_atmosphere.gd` |
 | Terrain mesh + colour | `scripts/render/terrain/terrain_chunk_mesher.gd` + `terrain_style.gd` + `shaders/toon_*.gdshader` |
+| Terrain mesh GEOMETRY (geometry only) | `terrain_chunk_mesher.gd` — `build_chunk_terrain` (runtime/editor) + `build_region_terrain` (offline bake, indexed) |
+| Static play-mode terrain (load once) | `scripts/render/terrain/static_terrain_regions.gd` (`StaticTerrainRegions`) + baked `data/world/baked/<id>_terrain.res` (`BakedTerrainSet`) |
+| Dynamic terrain (EDITOR / fallback only) | `terrain/terrain_mesh_manager.gd` + `terrain_stream_view.gd` + `terrain/far_terrain_backdrop.gd` — driven only when NOT in static play mode |
 | Static props (batched) | `scripts/render/static_prop_batcher.gd` + `prop_meshes.gd` |
 | Player/enemy rigs + gather/combat poses | `scripts/render/{mover_renderer_3d,mover_rig,mover_meshes,equip_loadout}.gd` |
 | Fishing-spot bubbles | `scripts/render/fishing_decor_3d.gd` |

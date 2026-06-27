@@ -21,6 +21,19 @@ Subsystems (all in `scripts/render/`):
   (1 tile = 1 unit). `terrain_style.gd` colours terrain (biome blend, alpine ramp, snow). Ground/
   water shaders: `shaders/toon_ground.gdshader`, `toon_water.gdshader`. Ground is flat-lit; only
   object cast-shadows darken it (terrain self-shading is minimized via `slope_shading`).
+- **TERRAIN MODE (play vs editor).** In the **standalone game** terrain is a fixed BAKED static-region
+  world: `tools/world_bake.gd` meshes the continent offline in 64×64 regions
+  (`terrain_chunk_mesher.build_region_terrain`, indexed) into `data/world/baked/<id>_terrain.res`
+  (`BakedTerrainSet`); `static_terrain_regions.gd` (`StaticTerrainRegions`) instances them once at
+  startup and there is **no runtime terrain meshing, chunk streaming, eviction, seam reconcile, or
+  far-backdrop** — Godot frustum-culls. `WorldRender3D._init_terrain_mode` picks this on frame 1 when
+  `world.gameplay_active` and the resource exists; the per-frame `mesh_manager.update` is replaced by
+  `mesh_manager.refresh_data_index()` (keeps the height field's data apron current — camera/props/
+  picking still sample it). The **world editor** (embeds the world with `gameplay_active=false`) keeps
+  the FULL dynamic `terrain_mesh_manager` + `terrain_stream_view` + `far_terrain_backdrop` so live
+  brushing re-meshes (`rebuild_chunk`/`rebuild_chunk_instant`). `stream_view` + the chunk DATA demand
+  stay live in BOTH modes (they also stream gameplay data for distant-but-visible props/entities).
+  **Re-bake (`imota bake` / `tools/world_bake.tscn`) to see terrain edits in the shipped game.**
 - `static_prop_batcher.gd` — batches static props + decor into MultiMeshes (mirrors `world.entities`,
   `world._decor_nodes`, `world._water_decor_nodes`). Skips `fish_school` (handled by FishingDecor3D).
 - `mover_renderer_3d.gd` — animated rigs for the player + enemies (gait, turn spring, squash, combat

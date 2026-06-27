@@ -32,6 +32,7 @@ const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 const PropMeshes := preload("res://scripts/render/prop_meshes.gd")
 const CombatBars := preload("res://scripts/world/combat_bars.gd")
 const FarTerrainBackdrop := preload("res://scripts/render/terrain/far_terrain_backdrop.gd")
+const StaticTerrainRegions := preload("res://scripts/render/terrain/static_terrain_regions.gd")
 
 var world: Node2D
 var cam: Camera3D                    # the live render camera (kept for WorldFx3D)
@@ -44,6 +45,10 @@ var _outlines_root: Node3D
 var _ground_mat: ShaderMaterial
 var _water_mat: ShaderMaterial
 var _active := false
+# Terrain mode is decided ONCE on the first _process (after the world + editor flags are settled) and
+# is sticky: the standalone game loads baked static regions; the world editor keeps the dynamic mesher.
+var _terrain_static := false
+var _terrain_mode_inited := false
 
 # Subsystems.
 var presenter: RenderViewportPresenter
@@ -52,6 +57,7 @@ var terrain_mesher: TerrainChunkMesher
 var mesh_manager: TerrainMeshManager
 var stream_view: TerrainStreamView
 var far_terrain_backdrop: FarTerrainBackdrop
+var static_terrain: StaticTerrainRegions    # play-mode baked static regions (null/unused in the editor)
 var atmosphere: WorldAtmosphere
 var static_prop_batcher: StaticPropBatcher
 var mover_renderer: MoverRenderer3D
@@ -180,6 +186,9 @@ func _build() -> void:
 	stream_view.setup(world)
 	far_terrain_backdrop = FarTerrainBackdrop.new()
 	far_terrain_backdrop.setup(world, terrain_root, _ground_mat)
+	# Play-mode static terrain (decided on the first _process; instanced once if a bake exists).
+	static_terrain = StaticTerrainRegions.new()
+	static_terrain.setup(world, terrain_root, _ground_mat, _water_mat)
 	# Props + movers + picking, wired through shared providers.
 	var height_iso := Callable(terrain_mesher, "height_at_iso")
 	var iso_to_3d_cb := Callable(terrain_mesher, "iso_to_3d")
@@ -290,9 +299,28 @@ func _hide_2d() -> void:
 
 # ----------------------------------------------------------------- runtime ----
 
+## Decide terrain mode once, after the world + editor flags have settled (first _process), then stick
+## with it. The standalone game (gameplay_active true + a baked terrain resource present) loads static
+## regions and disables runtime terrain meshing. The world editor embeds the world with
+## gameplay_active = false BEFORE _ready and keeps it false while brushing, so it stays on the dynamic
+## mesher (live edits re-mesh). A later "Test Level" flipping gameplay_active true does NOT switch an
+## editor world to static — the decision is locked in on the first frame, which is always edit mode.
+func _init_terrain_mode() -> void:
+	_terrain_mode_inited = true
+	if not world.gameplay_active:
+		return
+	var id := str(WorldGen.baked.world_id) if WorldGen.baked != null else ""
+	_terrain_static = static_terrain.load_and_instance(id)
+	if _terrain_static:
+		print("[world3d] static terrain: %d region meshes (%d water) — runtime terrain meshing disabled"
+			% [static_terrain.region_count(), static_terrain.water_count()])
+
+
 func _process(delta: float) -> void:
 	if not _active or world.player == null:
 		return
+	if not _terrain_mode_inited:
+		_init_terrain_mode()
 	preview_tools.update_if_enabled()
 	var t0 := Time.get_ticks_usec()
 	# Per-frame memo for tile-info/corner sampling (terrain build + every height sample hit the
@@ -312,9 +340,18 @@ func _process(delta: float) -> void:
 	var t4 := Time.get_ticks_usec()
 	atmosphere.update(camera_rig, stream_view)
 	var t5 := Time.get_ticks_usec()
-	mesh_manager.update(stream_view)
+	# Static terrain (play mode): the baked regions own the geometry — skip all runtime meshing,
+	# streaming-build, eviction, seam reconcile and the far underlay. We only refresh the mesher's
+	# data apron so the HEIGHT FIELD (camera follow, props, picking, movers) stays correct. The
+	# editor/fallback path keeps the full dynamic mesher + far backdrop. Note: stream_view + the
+	# data demand above stay live either way, so props/entities in view still stream and render.
+	if _terrain_static:
+		mesh_manager.refresh_data_index()
+	else:
+		mesh_manager.update(stream_view)
 	var t6 := Time.get_ticks_usec()
-	far_terrain_backdrop.update(stream_view)
+	if not _terrain_static:
+		far_terrain_backdrop.update(stream_view)
 	var t7 := Time.get_ticks_usec()
 	mover_renderer.update(delta)
 	var t8 := Time.get_ticks_usec()

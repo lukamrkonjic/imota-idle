@@ -16,6 +16,10 @@ Key API: `get_chunk(layer, cx, cy)` (baked → snapshot → generated, then appl
 
 > **The world is baked.** Terrain/spawn/authored changes require running the bake (`imota bake` /
 > `tools/world_bake.tscn`) to take effect in play. See repo `docs/WORLDGEN_GUIDE.md`.
+> The bake writes THREE artifacts to `data/world/baked/`: `<id>.world` (chunk data), `<id>_map.png`
+> (overview), and `<id>_terrain.res` (`BakedTerrainSet` — static 64×64 terrain region meshes the
+> standalone game instances once instead of meshing at runtime; see `ANIMATION_AND_SPRITES.md` →
+> TERRAIN MODE). A terrain edit only shows in the shipped game after a re-bake.
 
 ## Chunks (`scripts/worldgen/chunk.gd`, `chunk_manager.gd`)
 A chunk holds per-tile arrays (`tiles`, `biomes`, `parent_biomes`, `sub_biomes`, `elev`, collision),

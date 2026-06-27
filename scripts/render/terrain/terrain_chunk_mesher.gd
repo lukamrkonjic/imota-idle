@@ -15,6 +15,8 @@ const PixelPalette := preload("res://scripts/world/art/core/pixel_palette.gd")
 
 const TILE_S := 1.0                 # 3D units per tile
 const ELEV_H := WG.ELEV_H           # height per elevation step (single source in wg.gd)
+const REGION_TILES := 64            # OFFLINE bake granularity: one static region mesh per 64x64 tiles
+                                    # (= 4x4 chunks). Must be a whole multiple of WG.CHUNK_TILES.
 
 # Water basin model. The surface rides the LOCAL sea-level rolling baseline minus
 # WATER_SINK, so it follows the meadow swells and is always WATER_SINK below the dry
@@ -223,6 +225,50 @@ func build_chunk_terrain(chunk: RefCounted) -> Node3D:
 	dbg_commit_us = Time.get_ticks_usec() - _tcommit
 	dbg_had_water = has_water
 	return root
+
+
+## OFFLINE region bake (tools/world_bake.gd only): build ONE ground + ONE optional water ArrayMesh
+## for a [span_x x span_y] tile block whose min corner is global tile (rtx0, rty0), reusing the exact
+## per-tile emitters build_chunk_terrain uses — so the baked art is byte-for-byte the runtime art,
+## just at region granularity. All chunk data (plus a 1-chunk ocean apron at the map edge) must
+## already be in the shared lookup via set_chunk_lookup(); at bake time the whole continent is
+## resident, so region borders mesh seamlessly with NO runtime reconciliation (shared corners are a
+## pure function of global position). NO materials are assigned — the loader applies the shared mats.
+## Returns {ground: ArrayMesh, water: ArrayMesh|null, has_water: bool}.
+func build_region_terrain(rtx0: int, rty0: int, span_x: int, span_y: int) -> Dictionary:
+	clear_frame_caches()   # bound the global Vector2i memo caches to this region's footprint
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_smooth_group(0)
+	var wst := SurfaceTool.new()
+	wst.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var wfc := {}
+	var wlc := {}
+	var has_water := false
+	for ty: int in span_y:
+		for tx: int in span_x:
+			var gtx := rtx0 + tx
+			var gty := rty0 + ty
+			var info := _tile_info(gtx, gty)
+			var ref_top := float(info["top"]) if not info.is_empty() else 0.0
+			# Same 6-corner winding as build_chunk_terrain (two tris, shared continuous corners).
+			_emit_corner(st, gtx, gty, ref_top, wfc, wlc)
+			_emit_corner(st, gtx + 1, gty, ref_top, wfc, wlc)
+			_emit_corner(st, gtx + 1, gty + 1, ref_top, wfc, wlc)
+			_emit_corner(st, gtx, gty, ref_top, wfc, wlc)
+			_emit_corner(st, gtx + 1, gty + 1, ref_top, wfc, wlc)
+			_emit_corner(st, gtx, gty + 1, ref_top, wfc, wlc)
+			if _water_plane_tile(gtx, gty):
+				has_water = true
+				_emit_water_tile(wst, gtx, gty, wfc, wlc)
+	# Index the static meshes (bake-only): adjacent tiles re-emit identical shared corners, so
+	# indexing collapses them ~3-4x — a big VRAM/disk win for the resident whole-map geometry. The
+	# runtime per-chunk path stays non-indexed (it rebuilds constantly; indexing would be wasted).
+	st.index()
+	wst.index()
+	var ground: ArrayMesh = st.commit()
+	var water: ArrayMesh = wst.commit() if has_water else null
+	return {"ground": ground, "water": water, "has_water": has_water}
 
 
 # A tile the continuous water plane covers: any water tile, or dry land within a few

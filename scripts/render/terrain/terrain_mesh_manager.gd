@@ -223,6 +223,13 @@ func rebuild_chunk_instant(cx: int, cy: int) -> void:
 	_swap_chunk_mesh(WG.key(world.current_layer, cx, cy))
 
 
+## Static-terrain play mode (baked regions own the geometry): the mesher's HEIGHT FIELD still needs
+## the loaded-data apron every frame — camera follow, prop placement, picking and movers all sample
+## it. Refresh ONLY that index; skip all meshing, streaming, eviction, reconcile and visibility work.
+func refresh_data_index() -> void:
+	_reindex_data()
+
+
 ## Refresh the data index so the mesher samples the just-edited tiles (plus the apron ring).
 func _reindex_data() -> void:
 	_chunk_by_key.clear()
