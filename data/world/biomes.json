@@ -1,6 +1,6 @@
 {
  "_doc": [
-  "Whittaker field biomes: domain-warped climate noise \u00e2\u2020\u2019 biome lookup \u00e2\u2020\u2019 smooth.",
+  "Whittaker field biomes: domain-warped climate noise â†’ biome lookup â†’ smooth.",
   "Border art is render-time beveled edges (no transition tile speckle).",
   "neighbors: allowed adjacent parent biomes (enforced by smoothing pass).",
   "transitions: border tile palettes keyed 'a:b' (sorted ids).",
@@ -346,6 +346,11 @@
    },
    "tint": "46a7bf",
    "ground": "1f7898",
+   "patchColors": [
+    "#3aa9c8",
+    "#1f7898",
+    "#12617f"
+   ],
    "music": "ocean",
    "skillWeights": {
     "fishing": 1.0
@@ -384,6 +389,12 @@
    },
    "tint": "f0dc8b",
    "ground": "e6cf79",
+   "patchColors": [
+    "#f2dd8b",
+    "#d8bd68",
+    "#c9cba3",
+    "#f6e7a6"
+   ],
    "music": "coast",
    "skillWeights": {
     "fishing": 3.0,
@@ -450,6 +461,12 @@
    },
    "tint": "7d6b5d",
    "ground": "61534a",
+   "patchColors": [
+    "#6b5b4f",
+    "#4b4035",
+    "#7d6b5d",
+    "#d15b31"
+   ],
    "music": "volcanic",
    "skillWeights": {
     "mining": 3.0,
@@ -524,6 +541,12 @@
    },
    "tint": "bab29d",
    "ground": "9d9582",
+   "patchColors": [
+    "#bbb3a5",
+    "#8b887f",
+    "#a89b85",
+    "#c3c2c6"
+   ],
    "music": "hills",
    "skillWeights": {
     "mining": 5.5,
@@ -613,6 +636,12 @@
    },
    "tint": "d6e9ee",
    "ground": "b8d1dc",
+   "patchColors": [
+    "#f4f8fb",
+    "#d4e4f0",
+    "#b8d1dc",
+    "#c7d8ea"
+   ],
    "music": "tundra",
    "skillWeights": {
     "woodcutting": 1.2,
@@ -700,6 +729,12 @@
    },
    "tint": "e6cf83",
    "ground": "d7bd75",
+   "patchColors": [
+    "#e3cd83",
+    "#c9aa5c",
+    "#b99257",
+    "#d8b76a"
+   ],
    "music": "desert",
    "skillWeights": {
     "mining": 1.6,
@@ -786,6 +821,12 @@
    },
    "tint": "7f8d58",
    "ground": "64754a",
+   "patchColors": [
+    "#7a8b55",
+    "#53633f",
+    "#879060",
+    "#607d6a"
+   ],
    "music": "swamp",
    "skillWeights": {
     "foraging": 2.5,
@@ -878,6 +919,11 @@
    },
    "tint": "d8e1df",
    "ground": "aaa79a",
+   "patchColors": [
+    "#bbb3a5",
+    "#8b887f",
+    "#a89b85"
+   ],
    "music": "tundra",
    "skillWeights": {
     "mining": 3.5,
@@ -963,6 +1009,12 @@
    },
    "tint": "7cac52",
    "ground": "5d7e44",
+   "patchColors": [
+    "#6e9650",
+    "#4c683b",
+    "#789e58",
+    "#5a8758"
+   ],
    "music": "deep_forest",
    "skillWeights": {
     "foraging": 3.2,
@@ -1050,6 +1102,11 @@
    },
    "tint": "6f8b78",
    "ground": "536e5a",
+   "patchColors": [
+    "#67836a",
+    "#405946",
+    "#8f7e5f"
+   ],
    "music": "forest",
    "skillWeights": {
     "woodcutting": 2.6,
@@ -1150,6 +1207,12 @@
    },
    "tint": "d6c56d",
    "ground": "b9a858",
+   "patchColors": [
+    "#c7b762",
+    "#a89957",
+    "#d2bd6a",
+    "#917a48"
+   ],
    "music": "plains",
    "skillWeights": {
     "foraging": 1.6,
@@ -1240,6 +1303,12 @@
    },
    "tint": "d0945d",
    "ground": "b8754c",
+   "patchColors": [
+    "#c58052",
+    "#9d6241",
+    "#d0955c",
+    "#8b6f51"
+   ],
    "music": "desert",
    "skillWeights": {
     "mining": 2.8,
@@ -1315,6 +1384,12 @@
    },
    "tint": "6f873e",
    "ground": "536832",
+   "patchColors": [
+    "#80964b",
+    "#5a7139",
+    "#92a854",
+    "#b8b25d"
+   ],
    "music": "deep_forest",
    "skillWeights": {
     "woodcutting": 4.0,
@@ -1407,6 +1482,11 @@
    },
    "tint": "d7e47f",
    "ground": "9fad58",
+   "patchColors": [
+    "#aabd5e",
+    "#788a43",
+    "#c4bf5b"
+   ],
    "music": "plains",
    "skillWeights": {
     "foraging": 2.2,
@@ -1463,6 +1543,12 @@
    },
    "tint": "97a864",
    "ground": "748257",
+   "patchColors": [
+    "#7a8b55",
+    "#53633f",
+    "#879060",
+    "#607d6a"
+   ],
    "music": "swamp",
    "skillWeights": {
     "fishing": 2.5,
@@ -1523,6 +1609,12 @@
    },
    "tint": "c5bca6",
    "ground": "aaa18d",
+   "patchColors": [
+    "#bbb3a5",
+    "#8b887f",
+    "#a89b85",
+    "#c3c2c6"
+   ],
    "music": "hills",
    "skillWeights": {
     "mining": 4.5,
@@ -1583,6 +1675,9 @@
    },
    "tint": "a8c96a",
    "ground": "7ea25a",
+   "patchColors": [
+    "#e3cd83"
+   ],
    "music": "desert",
    "skillWeights": {
     "foraging": 2.0,
@@ -1643,6 +1738,12 @@
    },
    "tint": "b6cc66",
    "ground": "8aa052",
+   "patchColors": [
+    "#80964b",
+    "#5a7139",
+    "#92a854",
+    "#b8b25d"
+   ],
    "music": "forest",
    "skillWeights": {
     "foraging": 2.0,
@@ -1702,6 +1803,12 @@
    },
    "tint": "a8b968",
    "ground": "809354",
+   "patchColors": [
+    "#6e9650",
+    "#4c683b",
+    "#789e58",
+    "#5a8758"
+   ],
    "music": "deep_forest",
    "skillWeights": {
     "woodcutting": 3.5,
@@ -1761,6 +1868,12 @@
    },
    "tint": "ffffff",
    "ground": "edf3f7",
+   "patchColors": [
+    "#f4f8fb",
+    "#d4e4f0",
+    "#b8d1dc",
+    "#c7d8ea"
+   ],
    "music": "tundra",
    "skillWeights": {
     "foraging": 0.8,
@@ -1812,6 +1925,12 @@
    },
    "tint": "d0c47a",
    "ground": "b9aa62",
+   "patchColors": [
+    "#e3cd83",
+    "#c9aa5c",
+    "#b99257",
+    "#d8b76a"
+   ],
    "music": "desert",
    "skillWeights": {
     "foraging": 1.2,
@@ -1863,6 +1982,12 @@
    },
    "tint": "c6caa8",
    "ground": "aeb894",
+   "patchColors": [
+    "#7a8b55",
+    "#53633f",
+    "#879060",
+    "#607d6a"
+   ],
    "music": "coast",
    "skillWeights": {
     "mining": 2.0,
@@ -1910,6 +2035,12 @@
    },
    "tint": "9b83a8",
    "ground": "756985",
+   "patchColors": [
+    "#67836a",
+    "#405946",
+    "#7b718a",
+    "#8f7e5f"
+   ],
    "music": "hills",
    "skillWeights": {
     "foraging": 1.8,
@@ -1978,6 +2109,12 @@
    },
    "tint": "65714a",
    "ground": "50623f",
+   "patchColors": [
+    "#7a8b55",
+    "#53633f",
+    "#879060",
+    "#607d6a"
+   ],
    "music": "swamp",
    "skillWeights": {
     "foraging": 2.8,
@@ -2037,6 +2174,11 @@
    },
    "tint": "d1d0ac",
    "ground": "b9c0a1",
+   "patchColors": [
+    "#f2dd8b",
+    "#c9cba3",
+    "#f6e7a6"
+   ],
    "music": "coast",
    "skillWeights": {
     "fishing": 2.8,
@@ -2084,6 +2226,11 @@
    },
    "tint": "d3cfb5",
    "ground": "b7b5a0",
+   "patchColors": [
+    "#6b5b4f",
+    "#4b4035",
+    "#7d6b5d"
+   ],
    "music": "volcanic",
    "skillWeights": {
     "mining": 3.5,
@@ -2140,6 +2287,12 @@
    },
    "tint": "c1b565",
    "ground": "a89957",
+   "patchColors": [
+    "#c7b762",
+    "#a89957",
+    "#d2bd6a",
+    "#917a48"
+   ],
    "music": "plains",
    "skillWeights": {
     "foraging": 1.4,
@@ -2195,6 +2348,12 @@
    },
    "tint": "a98760",
    "ground": "8b6f51",
+   "patchColors": [
+    "#c58052",
+    "#9d6241",
+    "#d0955c",
+    "#8b6f51"
+   ],
    "music": "desert",
    "skillWeights": {
     "mining": 3.0,
@@ -2251,6 +2410,11 @@
    },
    "tint": "d3dcc4",
    "ground": "b1b99c",
+   "patchColors": [
+    "#bbb3a5",
+    "#8b887f",
+    "#a89b85"
+   ],
    "music": "tundra",
    "skillWeights": {
     "foraging": 1.0,
@@ -2323,6 +2487,12 @@
    },
    "tint": "8fa850",
    "ground": "6f8542",
+   "patchColors": [
+    "#80964b",
+    "#5a7139",
+    "#92a854",
+    "#b8b25d"
+   ],
    "music": "forest",
    "skillWeights": {
     "woodcutting": 3.0,
@@ -2425,6 +2595,11 @@
    },
    "tint": "c0cf69",
    "ground": "8a994f",
+   "patchColors": [
+    "#aabd5e",
+    "#788a43",
+    "#c4bf5b"
+   ],
    "music": "plains",
    "skillWeights": {
     "woodcutting": 1.2,
@@ -2508,6 +2683,12 @@
    },
    "tint": "ead070",
    "ground": "d0b85b",
+   "patchColors": [
+    "#aabd5e",
+    "#788a43",
+    "#c4bf5b",
+    "#b98645"
+   ],
    "music": "plains",
    "skillWeights": {
     "foraging": 2.4,
@@ -2577,6 +2758,12 @@
    },
    "tint": "8c8066",
    "ground": "756b55",
+   "patchColors": [
+    "#67836a",
+    "#405946",
+    "#7b718a",
+    "#8f7e5f"
+   ],
    "music": "volcanic",
    "skillWeights": {
     "mining": 2.0,
@@ -2642,6 +2829,12 @@
    },
    "tint": "655244",
    "ground": "4b4035",
+   "patchColors": [
+    "#6b5b4f",
+    "#4b4035",
+    "#7d6b5d",
+    "#d15b31"
+   ],
    "music": "volcanic",
    "skillWeights": {
     "mining": 2.0,
@@ -2695,6 +2888,12 @@
    },
    "tint": "4b4352",
    "ground": "36313b",
+   "patchColors": [
+    "#6b5b4f",
+    "#4b4035",
+    "#7d6b5d",
+    "#d15b31"
+   ],
    "music": "volcanic",
    "skillWeights": {
     "mining": 2.0,
@@ -2735,6 +2934,12 @@
    },
    "tint": "777550",
    "ground": "5f683f",
+   "patchColors": [
+    "#7a8b55",
+    "#53633f",
+    "#879060",
+    "#607d6a"
+   ],
    "music": "volcanic",
    "skillWeights": {
     "mining": 2.0,
@@ -2791,6 +2996,12 @@
    },
    "tint": "b8e19a",
    "ground": "86a75c",
+   "patchColors": [
+    "#80964b",
+    "#5a7139",
+    "#92a854",
+    "#b8b25d"
+   ],
    "music": "forest",
    "skillWeights": {
     "foraging": 2.4,
@@ -2850,6 +3061,12 @@
    },
    "tint": "9b9ce4",
    "ground": "66775b",
+   "patchColors": [
+    "#80964b",
+    "#5a7139",
+    "#92a854",
+    "#b8b25d"
+   ],
    "music": "forest",
    "skillWeights": {
     "foraging": 2.0,
@@ -2905,6 +3122,12 @@
    },
    "tint": "6f8a4b",
    "ground": "4f663a",
+   "patchColors": [
+    "#80964b",
+    "#5a7139",
+    "#92a854",
+    "#b8b25d"
+   ],
    "music": "forest",
    "skillWeights": {
     "woodcutting": 3.2,
@@ -2964,6 +3187,12 @@
    },
    "tint": "d7e676",
    "ground": "a0ad58",
+   "patchColors": [
+    "#80964b",
+    "#5a7139",
+    "#92a854",
+    "#b8b25d"
+   ],
    "music": "forest",
    "skillWeights": {
     "foraging": 2.0,
@@ -3020,6 +3249,12 @@
    },
    "tint": "8fe0d2",
    "ground": "6a966f",
+   "patchColors": [
+    "#80964b",
+    "#5a7139",
+    "#92a854",
+    "#b8b25d"
+   ],
    "music": "forest",
    "skillWeights": {
     "foraging": 1.8,
@@ -3075,6 +3310,11 @@
    },
    "tint": "b9cc6c",
    "ground": "83964f",
+   "patchColors": [
+    "#aabd5e",
+    "#788a43",
+    "#c4bf5b"
+   ],
    "music": "hills",
    "skillWeights": {
     "foraging": 1.8,
@@ -3138,6 +3378,11 @@
    },
    "tint": "cbdc83",
    "ground": "91a15a",
+   "patchColors": [
+    "#aabd5e",
+    "#788a43",
+    "#c4bf5b"
+   ],
    "music": "plains",
    "skillWeights": {
     "foraging": 1.6
@@ -3188,6 +3433,11 @@
    },
    "tint": "c2d07a",
    "ground": "879752",
+   "patchColors": [
+    "#aabd5e",
+    "#788a43",
+    "#c4bf5b"
+   ],
    "music": "plains",
    "skillWeights": {
     "foraging": 1.6,
@@ -3243,6 +3493,11 @@
    },
    "tint": "ccd7a7",
    "ground": "929f6a",
+   "patchColors": [
+    "#bbb3a5",
+    "#8b887f",
+    "#a89b85"
+   ],
    "music": "hills",
    "skillWeights": {
     "foraging": 2.0,
@@ -3298,6 +3553,11 @@
    },
    "tint": "85a092",
    "ground": "617d6d",
+   "patchColors": [
+    "#67836a",
+    "#405946",
+    "#8f7e5f"
+   ],
    "music": "forest",
    "skillWeights": {
     "woodcutting": 3.0,
@@ -3365,6 +3625,12 @@
    },
    "tint": "687057",
    "ground": "46593e",
+   "patchColors": [
+    "#80964b",
+    "#5a7139",
+    "#92a854",
+    "#b8b25d"
+   ],
    "music": "swamp",
    "skillWeights": {
     "foraging": 1.2,
@@ -3424,6 +3690,12 @@
    },
    "tint": "777c48",
    "ground": "646f3f",
+   "patchColors": [
+    "#80964b",
+    "#5a7139",
+    "#92a854",
+    "#b8b25d"
+   ],
    "music": "forest",
    "skillWeights": {
     "hunter": 1.4,
@@ -3484,6 +3756,12 @@
    },
    "tint": "918da4",
    "ground": "6f687d",
+   "patchColors": [
+    "#67836a",
+    "#405946",
+    "#7b718a",
+    "#8f7e5f"
+   ],
    "music": "hills",
    "skillWeights": {
     "foraging": 1.2,
@@ -3544,6 +3822,12 @@
    },
    "tint": "bbb287",
    "ground": "96916f",
+   "patchColors": [
+    "#80964b",
+    "#5a7139",
+    "#92a854",
+    "#b8b25d"
+   ],
    "music": "hills",
    "skillWeights": {
     "mining": 1.0,
@@ -3608,6 +3892,12 @@
    },
    "tint": "a5aa99",
    "ground": "80866e",
+   "patchColors": [
+    "#80964b",
+    "#5a7139",
+    "#92a854",
+    "#b8b25d"
+   ],
    "music": "swamp",
    "skillWeights": {
     "foraging": 0.6,
@@ -3667,6 +3957,12 @@
    },
    "tint": "efd98a",
    "ground": "e2cb81",
+   "patchColors": [
+    "#f2dd8b",
+    "#d8bd68",
+    "#c9cba3",
+    "#f6e7a6"
+   ],
    "music": "coast",
    "skillWeights": {
     "foraging": 1.4,
@@ -3718,6 +4014,12 @@
    },
    "tint": "74a66d",
    "ground": "537f55",
+   "patchColors": [
+    "#6e9650",
+    "#4c683b",
+    "#789e58",
+    "#5a8758"
+   ],
    "music": "forest",
    "skillWeights": {
     "foraging": 2.0,
@@ -3777,6 +4079,12 @@
    },
    "tint": "6a7548",
    "ground": "4b6039",
+   "patchColors": [
+    "#6e9650",
+    "#4c683b",
+    "#789e58",
+    "#5a8758"
+   ],
    "music": "forest",
    "skillWeights": {
     "foraging": 1.6,
@@ -3840,6 +4148,11 @@
    },
    "tint": "d0dc78",
    "ground": "95a756",
+   "patchColors": [
+    "#aabd5e",
+    "#788a43",
+    "#c4bf5b"
+   ],
    "music": "plains",
    "skillWeights": {
     "foraging": 2.6,

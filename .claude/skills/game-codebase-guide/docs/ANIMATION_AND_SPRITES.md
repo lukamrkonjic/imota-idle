@@ -29,7 +29,12 @@ Subsystems (all in `scripts/render/`):
   and a rock/snow read BY ELEVATION ONLY (peaks still read). NO per-tile noise, broad bands, painterly
   `terrain_patch`, or wide `biome_tinted` blend — borders soften only ~1 tile via the shared corner
   colour. (The old `grade`/`biome_tinted`/`terrain_patch` remain in `terrain_style.gd` but are no
-  longer used by the 3D ground.) Beaches are one flat sand tone (`toon_ground` `beach_color`). Biome
+  longer used by the 3D ground.) On top of the flat base, `TerrainStyle.patch_overlay` adds BROAD,
+  SOFT painterly splashes (A Short Hike): ~15-20% of a biome drifts toward one of its own
+  `patchColors` (`biomes.json` → `WorldRegistry.biome_patches`) over big low-frequency domain-warped
+  blobs (~40-120 tiles, blurred edges; `PATCH_*` consts tune scale/coverage/strength). DETERMINISTIC +
+  baked — never animated, never sun/weather-driven, never per-tile jitter or high-frequency noise.
+  Beaches are one flat sand tone (`toon_ground` `beach_color`). Biome
   REGIONS are crisp because `biome_map_generator._blend_offset` is now zero (the authored mask is
   sampled at the exact tile — no domain-warp/jitter). Ground/water shaders:
   `shaders/toon_ground.gdshader`, `toon_water.gdshader`. Ground is flat-lit; only object cast-shadows

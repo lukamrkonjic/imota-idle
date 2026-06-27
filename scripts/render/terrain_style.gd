@@ -161,6 +161,51 @@ static func flat_ground(base: Color, tile: String, biome_ground: Color, elev: in
 	return ground
 
 
+# Patch-overlay tuning. BROAD SOFT WASHES — big calm painterly fields, NOT mottled procedural
+# blobs. Large scales + a high, wide coverage band keep patches few, large and gently blurred;
+# NEVER per-tile jitter or high-frequency noise.
+const PATCH_WARP_SCALE := 170.0   # domain-warp field period (tiles) — organic, very gentle outlines
+const PATCH_WARP_AMP := 64.0      # how far the sample is warped (tiles)
+const PATCH_MASK_SCALE := 170.0   # coverage field period (tiles) — washes ~120-340 tiles wide
+const PATCH_PICK_SCALE := 240.0   # colour-selection field period — each wash leans one colour
+const PATCH_COVER_LO := 0.74      # mask band start (high = sparse, ~10% coverage)
+const PATCH_COVER_HI := 0.96      # mask band full (very wide LO..HI = heavily blurred edges)
+const PATCH_STRENGTH := 0.22      # max blend toward a (now ground-harmonised) patch colour — gentle
+
+
+## Broad painterly PATCH SPLASHES (A Short Hike): the flat biome colour is the base, and ~15-20% of
+## the area softly drifts toward one of the biome's own `patchColors` over big low-frequency blobs
+## (~40-120 tiles), with blurred edges. DETERMINISTIC + baked (never animated, never sun/weather
+## driven). NO per-tile jitter, NO high-frequency noise. Skips water + built surfaces. `patches` =
+## WorldRegistry.biome_patches. Called by the mesher/bake AFTER flat_ground.
+static func patch_overlay(ground: Color, tile: String, patches: Array, gx: int, gy: int, elev: int = 0, slope: int = 0) -> Color:
+	# Patches are for LOWLAND VEGETATION only. Sand/snow/rock + water/built stay clean and flat
+	# (beaches, shores, snowfields and cliffs read best as single tones).
+	if patches.is_empty() or tile in WATER_TILES or tile in BUILT_TILES or tile in SAND_TILES \
+			or is_snow(tile) or is_rock(tile):
+		return ground
+	# Patches are a LOWLAND vegetation feature: fade them out where elevation has turned the ground
+	# to bare rock / snow (flat_ground), so a biome's green/heather patch never tints a white peak.
+	var h := clampf(float(elev) / ALPINE_SUMMIT, 0.0, 1.0)
+	var steep := clampf(float(slope) / 5.0, 0.0, 1.0)
+	var lowland := (1.0 - smoothstep(0.18, 0.42, steep + maxf(h - 0.34, 0.0) * 0.8)) * (1.0 - smoothstep(0.66, 0.86, h))
+	if lowland <= 0.0:
+		return ground
+	# Domain-warp the sample point so blob outlines are organic, not grid-aligned.
+	var wx := gx + int((WG._smooth_val(0, gx, gy, PATCH_WARP_SCALE, 8810) - 0.5) * PATCH_WARP_AMP)
+	var wy := gy + int((WG._smooth_val(0, gx, gy, PATCH_WARP_SCALE, 8820) - 0.5) * PATCH_WARP_AMP)
+	# Coverage mask: only the upper band of a broad field drifts to a patch colour; smoothstep blurs
+	# the edge so patches fade in over several tiles (no hard outline).
+	var m := WG._smooth_val(0, wx, wy, PATCH_MASK_SCALE, 8830)
+	var cover := smoothstep(PATCH_COVER_LO, PATCH_COVER_HI, m)
+	if cover <= 0.0:
+		return ground
+	# Pick which patch colour over a BROAD field so each blob leans a single colour (no speckle).
+	var p := WG._smooth_val(0, wx, wy, PATCH_PICK_SCALE, 8840)
+	var idx := clampi(int(p * float(patches.size())), 0, patches.size() - 1)
+	return ground.lerp(patches[idx], cover * PATCH_STRENGTH * lowland)
+
+
 ## Warm + enrich a terrain tile colour with BROAD low-frequency painterly variation, alpine
 ## elevation layering, snow shedding on steep faces, path/trail tinting, and the forest-grass
 ## gradient. (col, tile, gtx, gty, elev, slope, curve) -> final Color.

@@ -203,10 +203,14 @@ func _paint_map(img: Image, chunk: RefCounted, reg: RefCounted, min_tx: int, min
 			var tdef: Dictionary = reg.tile_def(tid)
 			var col: Color = tdef["colors"][0]
 			if not bool(tdef.get("water", false)):
-				# Match the 3D ground: ONE flat colour per biome (overview map = the same regions).
+				# Match the 3D ground: ONE flat colour per biome + the broad painterly patch splashes.
 				var eff: int = chunk.biome_at(lx, ly)
 				var elev: int = chunk.elev[ly * WG.CHUNK_TILES + lx] if chunk.elev.size() > 0 else 0
-				col = TerrainStyle.flat_ground(col, str(reg.tile_order[tid]), reg.biome_ground(eff), elev, 0, 0)
+				var tname: String = str(reg.tile_order[tid])
+				col = TerrainStyle.flat_ground(col, tname, reg.biome_ground(eff), elev, 0, 0)
+				var gtx: int = chunk.cx * WG.CHUNK_TILES + lx
+				var gty: int = chunk.cy * WG.CHUNK_TILES + ly
+				col = TerrainStyle.patch_overlay(col, tname, reg.biome_patches(eff), gtx, gty, elev, 0)
 			img.set_pixel(bx + lx, by + ly, col)
 
 

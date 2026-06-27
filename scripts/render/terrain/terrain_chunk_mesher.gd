@@ -483,6 +483,9 @@ func _tile_info_compute(gtx: int, gty: int) -> Dictionary:
 	var eff_idx: int = chunk.biome_at(lx, ly)
 	var biome_ground: Color = WorldGen.reg.biome_ground(eff_idx)
 	var col: Color = SHORE if water else TerrainStyle.flat_ground(tdef["colors"][0], tile_name, biome_ground, elev, slope, curve)
+	# Broad painterly patch splashes from the biome's palette (subtle, baked, low-frequency).
+	if not water:
+		col = TerrainStyle.patch_overlay(col, tile_name, WorldGen.reg.biome_patches(eff_idx), gtx, gty, elev, slope)
 	return {
 		"top": top,
 		"water": water,

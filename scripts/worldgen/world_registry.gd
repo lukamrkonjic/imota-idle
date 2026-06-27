@@ -123,6 +123,16 @@ func _parse_biomes(raw: Array) -> void:
 		# Single FLAT ground colour for the biome (the "one colour per biome" look). Falls back to
 		# the tint if a biome predates the `ground` field. See TerrainStyle.flat_ground.
 		biomes[i]["_ground"] = _hex(str(biomes[i].get("ground", biomes[i].get("tint", "6a7a4e"))))
+		# Broad painterly PATCH palette (A Short Hike splashes): a few biome-local colours the ground
+		# softly drifts toward over big low-frequency blobs (TerrainStyle.patch_overlay). Defaults to
+		# subtle light/dark value variants of the ground if a biome has no authored `patchColors`.
+		var _g: Color = biomes[i]["_ground"]
+		var _pc: Array = []
+		for hx in biomes[i].get("patchColors", []):
+			_pc.append(_hex(str(hx)))
+		if _pc.is_empty():
+			_pc = [_g.lightened(0.08), _g.darkened(0.08), _g.lightened(0.04)]
+		biomes[i]["_patches"] = _pc
 		if not bool(biomes[i].get("isSubBiome", false)):
 			parent_biome_ids.append(str(biomes[i]["id"]))
 			var nbrs: Array = biomes[i].get("neighbors", [])
@@ -204,6 +214,14 @@ func biome_ground(idx: int) -> Color:
 	if idx < 0 or idx >= biomes.size():
 		return Color(0.43, 0.49, 0.31)
 	return biomes[idx].get("_ground", Color(0.43, 0.49, 0.31))
+
+
+## Broad painterly PATCH palette (Array[Color]) for a biome index — the colours its ground softly
+## drifts toward over big low-frequency blobs. Empty if out of range. See TerrainStyle.patch_overlay.
+func biome_patches(idx: int) -> Array:
+	if idx < 0 or idx >= biomes.size():
+		return []
+	return biomes[idx].get("_patches", [])
 
 
 func biome_by_id(id: String) -> Dictionary:
