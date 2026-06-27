@@ -387,10 +387,21 @@ func _load_land_mask() -> void:
 	if _mask_w < 2 or _mask_h < 2:
 		return
 	var b: Rect2i = reg.spec.bounds
+	# Mask coverage is ANCHORED at bounds.min with a PINNED tiles-per-pixel (stored in the mask
+	# json), NOT normalised by bounds.size. This decouples the mask→tile mapping from the world's
+	# overall extent: growing `bounds.max` (or moving `bounds.min` by a whole mask-tile-block) never
+	# re-floors an existing tile's lookup, so the authored continent stays bit-identical when the
+	# canvas is pre-sized with ocean margin. Tiles beyond the mask's coverage read as open ocean.
+	# Back-compat: a mask without `tilesPerPixel` falls back to the old bounds.size normalisation.
 	_mask_min_tx = float(b.position.x) * WG.CHUNK_TILES
 	_mask_min_ty = float(b.position.y) * WG.CHUNK_TILES
-	_mask_tile_w = float(b.size.x) * WG.CHUNK_TILES
-	_mask_tile_h = float(b.size.y) * WG.CHUNK_TILES
+	var tpp: Array = JsonIO.read_dict(_MASK_DIR + str(reg.spec.id) + "_mask.json").get("tilesPerPixel", [])
+	if tpp.size() == 2:
+		_mask_tile_w = float(_mask_w) * float(tpp[0])
+		_mask_tile_h = float(_mask_h) * float(tpp[1])
+	else:
+		_mask_tile_w = float(b.size.x) * WG.CHUNK_TILES
+		_mask_tile_h = float(b.size.y) * WG.CHUNK_TILES
 	_tiles_per_mask_px = (_mask_tile_w / float(_mask_w) + _mask_tile_h / float(_mask_h)) * 0.5
 	_build_land_sdf(img)
 	_has_land_mask = true
