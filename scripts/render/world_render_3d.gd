@@ -301,6 +301,20 @@ func _setup_overlay() -> void:
 	fx_layer.add_child(bars)
 
 
+## Attach a screen-space 2D overlay (e.g. the weather particles) INSIDE the low-res pixel viewport,
+## so it is rasterised at the internal resolution and nearest-upscaled with the rest of the world —
+## i.e. it shares ONE pixel grid instead of floating as full-res lines on top. Returns false when
+## there's no 3D viewport (headless / 2D substrate), so the caller can fall back to a full-res layer.
+func attach_pixel_overlay(node: Node) -> bool:
+	if presenter == null:
+		return false
+	var sub: SubViewport = presenter.get_subviewport()
+	if sub == null:
+		return false
+	sub.add_child(node)
+	return true
+
+
 ## Hide the 2D world visuals — every CanvasItem child of the world root — while the nodes stay
 ## alive as the logic substrate (positions, pathing, picking).
 func _hide_2d() -> void:

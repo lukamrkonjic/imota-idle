@@ -190,14 +190,6 @@ func _build_scene() -> void:
 	mist.material = mist_mat
 	mist_layer.add_child(mist)
 
-	# Weather overlay on its OWN CanvasLayer above the 3D present (layer 0) and below the HUD, so the
-	# snow/rain/wind particles always composite over the rendered world in screen space.
-	var weather_layer := CanvasLayer.new()
-	weather_layer.name = "WeatherFx"
-	weather_layer.layer = 4
-	add_child(weather_layer)
-	weather_layer.add_child(WorldWeatherFx.new())
-
 	_biome_debug = BiomeDebugOverlay.new()
 	_biome_debug.name = "BiomeDebug"
 	_biome_debug.z_index = 500
@@ -212,6 +204,19 @@ func _build_scene() -> void:
 	render_3d.name = "WorldRender3D"
 	add_child(render_3d)
 	render_3d.setup(self)
+
+	# Weather FX (rain/snow/wind) rendered INSIDE the low-res pixel viewport so it shares the world's
+	# pixel grid — chunky + on-grid, not thin full-res lines floating on top. Falls back to a full-res
+	# CanvasLayer when the 3D pixel pipeline isn't active (2D substrate / headless).
+	var weather_fx := WorldWeatherFx.new()
+	weather_fx.name = "WeatherFx"
+	if render_3d == null or not render_3d.attach_pixel_overlay(weather_fx):
+		var weather_layer := CanvasLayer.new()
+		weather_layer.name = "WeatherFx"
+		weather_layer.layer = 4
+		add_child(weather_layer)
+		weather_layer.add_child(weather_fx)
+
 	PerfStressFixture.populate(self)
 
 
