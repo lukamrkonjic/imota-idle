@@ -252,20 +252,17 @@ func _setup_materials() -> void:
 	_water_mat.set_shader_parameter("shallow_color", Color(0.376, 0.690, 0.875))  # #60B0DF light shallow blue
 	_water_mat.set_shader_parameter("line_color", Color(0.722, 0.871, 0.961))     # #B8DEF5 bright contour ring
 	_water_mat.set_shader_parameter("foam_color", Color(0.918, 0.969, 0.980))     # #EAF7FA sea foam
-	# DEPTH: a CONTINUOUS seabed — shore shallow -> transition -> deep (driven by distance-to-coast),
-	# with the DEEPEST basins only out in open water (a smooth, connected low-freq field). No dark
-	# decals glued to the shoreline; a gentle multi-tier gradient. To REVERT to the old flat water,
-	# remove these DEPTH: lines + the depth block in toon_water.gdshader (see its REVERT NOTE).
-	_water_mat.set_shader_parameter("mid_color", Color(0.227, 0.549, 0.769))      # #3A8CC4 medium transition
-	_water_mat.set_shader_parameter("deepest_color", Color(0.043, 0.247, 0.404))  # #0A3F67 deepest basin
-	_water_mat.set_shader_parameter("depth_tex", TerrainChunkMesher.make_water_noise(0.8, 1, 7))  # smooth, connected
-	_water_mat.set_shader_parameter("deep_reach", 2.2)          # cells: coastal slope length (shore -> open deep)
-	_water_mat.set_shader_parameter("depth_scale", 0.005)       # SMALL = big connected basins
-	_water_mat.set_shader_parameter("depth_warp", 0.30)         # gentle organic edges (high = stampy)
-	_water_mat.set_shader_parameter("basin_lo", 0.48)           # field below = clean deep water (no basin)
-	_water_mat.set_shader_parameter("basin_hi", 0.82)           # field at = deepest basin core
-	_water_mat.set_shader_parameter("basin_open", 0.58)         # v_wf where basins begin -> offshore only (raise = further out)
-	_water_mat.set_shader_parameter("basin_strength", 0.9)      # weight of the deepest tier
+	# DEPTH: CONTINUOUS, distance-from-shore first. The mask is mostly the smooth coast field (one
+	# continuous value per body -> no seams/sectors/stamps); a single very-low-freq field adds gentle
+	# broad variation in open water only. Darkest tier is a real BLUE, not navy. To REVERT to the old
+	# flat water, remove these DEPTH: lines + the depth block in toon_water.gdshader (see its REVERT NOTE).
+	_water_mat.set_shader_parameter("mid_color", Color(0.227, 0.549, 0.769))      # #3A8CC4 medium blue shelf
+	_water_mat.set_shader_parameter("deepest_color", Color(0.067, 0.318, 0.494))  # #11517E darker blue basin (not navy)
+	_water_mat.set_shader_parameter("depth_tex", TerrainChunkMesher.make_water_noise(0.5, 1, 7))  # 1 octave, VERY low freq
+	_water_mat.set_shader_parameter("deep_reach", 2.0)          # cells: coastal shelf length (shore -> open medium-deep)
+	_water_mat.set_shader_parameter("depth_scale", 0.003)       # VERY low freq -> one broad continuous variation (no blobs)
+	_water_mat.set_shader_parameter("basin_depth", 0.42)       # broad darker basins in open water (visible but subtle)
+	_water_mat.set_shader_parameter("line_dark_fade", 0.55)    # contours calmer on the darkest water
 	_water_mat.set_shader_parameter("line_presence_scale", 0.008) # currents come + go across broad stretches
 	_water_mat.set_shader_parameter("line_presence_min", 0.12)
 	_water_mat.set_shader_parameter("sd_scale", TerrainChunkMesher.SHORE_SD_SCALE)   # (wf-0.5) -> signed cells
@@ -273,8 +270,8 @@ func _setup_materials() -> void:
 	_water_mat.set_shader_parameter("shallow_cells", 1.3)        # wider, clearer shallow band (A Short Hike)
 	_water_mat.set_shader_parameter("pattern_scale", 0.024)      # LONG flowing currents (lower = bigger, longer lines)
 	_water_mat.set_shader_parameter("contour_count", 1.7)        # few levels -> wide spacing, fewer tiny loops
-	_water_mat.set_shader_parameter("line_width", 0.044)         # slightly THICKER, readable
-	_water_mat.set_shader_parameter("line_opacity", 0.55)        # the STAR — noticed before the depth shading
+	_water_mat.set_shader_parameter("line_width", 0.042)         # slightly thicker, readable
+	_water_mat.set_shader_parameter("line_opacity", 0.5)         # readable, doesn't fight the depth
 	_water_mat.set_shader_parameter("domain_warp_strength", 0.50) # flowing, breaks repetition
 	_water_mat.set_shader_parameter("secondary_strength", 0.0)   # no busy 2nd layer
 	_water_mat.set_shader_parameter("secondary_scale", 1.7)
