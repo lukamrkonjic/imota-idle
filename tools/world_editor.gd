@@ -361,6 +361,12 @@ var _minimap_marker: ColorRect
 var _map_overlay: Control       # draws placed content (spawn / creatures / buildings / pois / roads) over the map
 var _minimap_check: CheckBox   # Overlays > "World map" — kept in sync with the M key
 var _show_minimap := false   # Overlays > "World map" toggle — OFF by default (don't auto-open the bottom-right map; press M / tick the box to show it)
+# Resizable minimap: drag the top-left GRIP to grow it into the screen (bottom-right stays anchored).
+var _minimap_grip: Control
+var _minimap_w := 440.0          # current minimap width (px, logical/unscaled); user-resizable via the grip
+var _mm_resizing := false
+var _mm_drag_start := Vector2.ZERO
+var _mm_start_w := 0.0
 
 
 func _ready() -> void:
@@ -676,6 +682,15 @@ func _zoom_at(factor: float) -> void:
 func _process(_delta: float) -> void:
 	if _testing:
 		return   # playtesting: the embedded world drives itself; the editor does nothing
+	# Live minimap resize: while the grip is held, grow/shrink from the global mouse (dragging the
+	# corner toward the top-left enlarges the map). Continues even if the cursor outruns the handle.
+	if _mm_resizing:
+		if not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+			_mm_resizing = false
+		else:
+			var m := get_viewport().get_mouse_position()
+			var grow := ((_mm_drag_start.x - m.x) + (_mm_drag_start.y - m.y)) * 0.5
+			_set_minimap_width(_mm_start_w + grow / HUD_SCALE)
 	# 3D world canvas: WASD flies the aerial camera over the map.
 	if _v3d_on:
 		_v3d_wasd(_delta)
@@ -2529,9 +2544,13 @@ func _build_world_minimap() -> void:
 	# serve a stale pre-rebake texture — that makes the map show the wrong world and sends
 	# click-to-go to the wrong place).
 	_minimap_tex.texture = _load_baked_map_texture()
-	var mw := 300.0
-	_minimap_tex.custom_minimum_size = Vector2(mw, mw * float(_h) / float(_w))
+	_minimap_tex.custom_minimum_size = Vector2(_minimap_w, _minimap_w * float(_h) / float(_w))
 	_minimap_tex.stretch_mode = TextureRect.STRETCH_SCALE
+	# IGNORE the texture's native size: the baked map is thousands of px wide (and grows with the
+	# canvas), so the default KEEP_SIZE made this control balloon to the full map size — the panel
+	# then anchored off-screen and the map filled the whole monitor with no reachable close. With
+	# IGNORE_SIZE the texture scales DOWN into the 300px box (custom_minimum_size is now respected).
+	_minimap_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_minimap_tex.mouse_filter = Control.MOUSE_FILTER_STOP
 	_minimap_tex.gui_input.connect(_on_minimap_input)
 	box.add_child(_minimap_tex)
@@ -2546,6 +2565,20 @@ func _build_world_minimap() -> void:
 	_minimap_marker.size = Vector2(8, 8)
 	_minimap_marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_minimap_tex.add_child(_minimap_marker)
+	# Resize GRIP at the map's TOP-LEFT corner: drag it to grow the map into the screen (the
+	# bottom-right stays anchored). A small handle drawn over the corner; top_level so it sits above
+	# the panel and is positioned each frame by _position_minimap.
+	_minimap_grip = ColorRect.new()
+	_minimap_grip.color = Color(0.80, 0.88, 0.82, 0.55)
+	_minimap_grip.custom_minimum_size = Vector2(20, 20)
+	_minimap_grip.size = Vector2(20, 20)
+	_minimap_grip.top_level = true
+	_minimap_grip.visible = false
+	_minimap_grip.mouse_filter = Control.MOUSE_FILTER_STOP
+	_minimap_grip.mouse_default_cursor_shape = Control.CURSOR_FDIAGSIZE
+	_minimap_grip.tooltip_text = "Drag to resize the world map"
+	_minimap_grip.gui_input.connect(_on_minimap_grip_input)
+	_hud.add_child(_minimap_grip)
 
 
 ## Overview markers drawn over the world map: roads, buildings/POIs (with city names), creature
@@ -2630,6 +2663,10 @@ func _apply_minimap_visibility() -> void:
 	if _minimap_panel == null:
 		return
 	_minimap_panel.visible = _v3d_on and _show_minimap
+	if _minimap_grip != null:
+		_minimap_grip.visible = _minimap_panel.visible
+	if not _minimap_panel.visible:
+		_mm_resizing = false
 	if _minimap_panel.visible:
 		_position_minimap.call_deferred()
 		if _map_overlay != null:
@@ -2643,7 +2680,39 @@ func _position_minimap() -> void:
 	var vp := get_viewport().get_visible_rect().size
 	_minimap_panel.reset_size()
 	# size is the logical (unscaled) size; the panel renders at HUD_SCALE, so anchor by the scaled size.
-	_minimap_panel.position = vp - _minimap_panel.size * HUD_SCALE - Vector2(16, 16)
+	# Clamp to >= (8,8) so the panel's top-left (and its controls) can never sit off-screen.
+	var pos := vp - _minimap_panel.size * HUD_SCALE - Vector2(16, 16)
+	pos = Vector2(maxf(pos.x, 8.0), maxf(pos.y, 8.0))
+	_minimap_panel.position = pos
+	# Park the resize grip on the panel's top-left corner (slightly inset so it overlaps the corner).
+	if _minimap_grip != null:
+		_minimap_grip.position = pos - Vector2(2, 2)
+
+
+## Drag the top-left grip to resize the world map. The PRESS starts the drag; _process continues it
+## from the global mouse so the resize keeps working even when the cursor leaves the moving handle.
+func _on_minimap_grip_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			_mm_resizing = true
+			_mm_drag_start = get_viewport().get_mouse_position()
+			_mm_start_w = _minimap_w
+		else:
+			_mm_resizing = false
+		_minimap_grip.accept_event()
+
+
+## Set the minimap width (keeps aspect), clamped so the scaled panel always fits on screen.
+func _set_minimap_width(w: float) -> void:
+	if _minimap_tex == null or _w <= 0:
+		return
+	var vp := get_viewport().get_visible_rect().size
+	var aspect := float(_h) / float(_w)
+	# the panel renders at HUD_SCALE; cap width+height so it never exceeds ~90% of the viewport.
+	var max_w := minf(vp.x, vp.y / aspect) * 0.9 / HUD_SCALE
+	_minimap_w = clampf(w, 200.0, maxf(220.0, max_w))
+	_minimap_tex.custom_minimum_size = Vector2(_minimap_w, _minimap_w * aspect)
+	_position_minimap()
 
 
 ## Click on the minimap -> jump the aerial camera to that world position.
