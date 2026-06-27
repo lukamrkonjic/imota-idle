@@ -258,10 +258,10 @@ func _setup_materials() -> void:
 	# flat water, remove these DEPTH: lines + the depth block in toon_water.gdshader (see its REVERT NOTE).
 	_water_mat.set_shader_parameter("mid_color", Color(0.227, 0.549, 0.769))      # #3A8CC4 medium blue shelf
 	_water_mat.set_shader_parameter("deepest_color", Color(0.067, 0.318, 0.494))  # #11517E darker blue basin (not navy)
-	_water_mat.set_shader_parameter("depth_tex", TerrainChunkMesher.make_water_noise(0.5, 1, 7))  # 1 octave, VERY low freq
-	_water_mat.set_shader_parameter("deep_reach", 2.0)          # cells: coastal shelf length (shore -> open medium-deep)
-	_water_mat.set_shader_parameter("depth_scale", 0.003)       # VERY low freq -> one broad continuous variation (no blobs)
-	_water_mat.set_shader_parameter("basin_depth", 0.42)       # broad darker basins in open water (visible but subtle)
+	_water_mat.set_shader_parameter("depth_tex", TerrainChunkMesher.make_water_noise(0.6, 2, 9))  # 2 octaves -> organic, not round
+	_water_mat.set_shader_parameter("deep_reach", 2.2)          # cells: coastal shelf length (longer = more shore->deep gradient)
+	_water_mat.set_shader_parameter("depth_scale", 0.004)       # low freq -> broad organic basins
+	_water_mat.set_shader_parameter("basin_depth", 0.40)       # interior basins darken gradually toward deepest
 	_water_mat.set_shader_parameter("line_dark_fade", 0.55)    # contours calmer on the darkest water
 	_water_mat.set_shader_parameter("line_presence_scale", 0.008) # currents come + go across broad stretches
 	_water_mat.set_shader_parameter("line_presence_min", 0.12)

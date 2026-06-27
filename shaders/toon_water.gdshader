@@ -128,22 +128,23 @@ void fragment() {
 	//    continuous value per water body -> no chunk seams, sectors, wedges or stamps. Every shore
 	//    gets a clean shallow shelf; open water settles at a medium-deep blue.
 	float shore01 = smoothstep(0.0, deep_reach, sd);
-	// 2) ONE very-low-frequency, world-space, UN-warped, UN-thresholded field adds gentle broad
-	//    variation, ADDED only out in open water (gated by shore01) so the shallow shelf stays clean.
-	//    Tiny amount -> the body reads as one connected mask that dips a little here and there, never
-	//    isolated dark patches.
+	// 2) BASINS live in the INTERIOR only. `interior = shore01^2` fades them away from the coast, so a
+	//    basin can never be a dark patch hugging the shoreline — depth grows INWARD as a gradient.
+	//    The field is an organic 2-octave low-frequency texture (set in GDScript), so basin
+	//    silhouettes are irregular, never round. Only the HIGH side of the field deepens, and it
+	//    ramps GRADUALLY (wide smoothstep), so you always pass through deep before deepest.
+	float interior = shore01 * shore01;
 	float field = texture(depth_tex, wp * depth_scale).r;
-	// broad, smooth, low-freq basins — ADDED only out in open water (gated by shore01) and only on the
-	// HIGH side of the field, so open water mostly stays a clean medium-deep blue with a few broad,
-	// slightly-darker basins (never lightens the sea, never darkens the shallow shelf).
-	float basin = smoothstep(0.42, 0.88, field) * basin_depth * shore01;
-	float depth01 = clamp(shore01 * 0.60 + basin, 0.0, 1.0);
-	// 3) 4-TIER ramp shallow -> mid shelf -> deep -> slightly-darker basin. Overlapping smoothsteps +
-	//    the presenter's posterize = clean flat depth zones with smooth transitions (never pale->black).
+	float basin = smoothstep(0.46, 0.92, field) * interior;
+	// depth01: the coastal SHELF (shore01) ramps shallow->mid->deep across the shore band; basins add
+	// the deepest tier gradually on top of the interior. Never pale->dark instantly.
+	float depth01 = clamp(shore01 * 0.62 + basin * basin_depth, 0.0, 1.0);
+	// 4-TIER ramp with always-at-least-one-mid-step gradient. Overlapping smoothsteps + the
+	// presenter's posterize read as clean flat depth zones with smooth transitions.
 	vec3 col = shallow_color.rgb;
-	col = mix(col, mid_color.rgb,     smoothstep(0.04, 0.34, depth01));
-	col = mix(col, deep_color.rgb,    smoothstep(0.30, 0.62, depth01));
-	col = mix(col, deepest_color.rgb, smoothstep(0.66, 1.00, depth01));
+	col = mix(col, mid_color.rgb,     smoothstep(0.06, 0.40, depth01));
+	col = mix(col, deep_color.rgb,    smoothstep(0.38, 0.70, depth01));
+	col = mix(col, deepest_color.rgb, smoothstep(0.74, 1.00, depth01));
 
 	// --- CONTOUR CURRENTS: long flowing iso-lines (the STAR, ~70%) -------------------------------
 	// Iso-contours of a big smooth field: low frequency + few levels = long, sweeping, varied-spacing
