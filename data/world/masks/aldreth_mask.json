@@ -47,5 +47,10 @@
  "tilesPerPixel": [
   1.5425149700598801,
   1.5472901168969182
- ]
+ ],
+ "maskOrigin": [
+  -1312,
+  -688
+ ],
+ "_canvasModel": "maskOrigin = absolute tile of pixel (0,0); coverage = maskOrigin + maskSize*tilesPerPixel; bounds = baked region; world coords are absolute & independent"
 }

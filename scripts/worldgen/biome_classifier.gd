@@ -387,15 +387,24 @@ func _load_land_mask() -> void:
 	if _mask_w < 2 or _mask_h < 2:
 		return
 	var b: Rect2i = reg.spec.bounds
-	# Mask coverage is ANCHORED at bounds.min with a PINNED tiles-per-pixel (stored in the mask
-	# json), NOT normalised by bounds.size. This decouples the mask→tile mapping from the world's
-	# overall extent: growing `bounds.max` (or moving `bounds.min` by a whole mask-tile-block) never
-	# re-floors an existing tile's lookup, so the authored continent stays bit-identical when the
-	# canvas is pre-sized with ocean margin. Tiles beyond the mask's coverage read as open ocean.
-	# Back-compat: a mask without `tilesPerPixel` falls back to the old bounds.size normalisation.
-	_mask_min_tx = float(b.position.x) * WG.CHUNK_TILES
-	_mask_min_ty = float(b.position.y) * WG.CHUNK_TILES
-	var tpp: Array = JsonIO.read_dict(_MASK_DIR + str(reg.spec.id) + "_mask.json").get("tilesPerPixel", [])
+	# The authored CANVAS has its own identity, independent of the world's coordinate frame and of
+	# `bounds`. The mask json carries `maskOrigin` (absolute TILE coordinate of mask pixel (0,0)) and
+	# `tilesPerPixel`; the mask covers [maskOrigin, maskOrigin + maskSize_px * tilesPerPixel) in
+	# ABSOLUTE tile space. The mask→tile lookup is anchored at maskOrigin with the fixed ratio — NOT
+	# normalised by bounds.size — so the canvas can be padded/grown in ANY direction (west/north too:
+	# pad the image, shift maskOrigin by pad_px * tilesPerPixel) while every existing absolute tile
+	# samples the exact same pixel. World coordinates, saves and placements never move; `bounds` is
+	# just the current baked/exported region. Back-compat: no maskOrigin -> bounds.min; no
+	# tilesPerPixel -> old bounds.size normalisation.
+	var mj: Dictionary = JsonIO.read_dict(_MASK_DIR + str(reg.spec.id) + "_mask.json")
+	var morg: Array = mj.get("maskOrigin", [])
+	if morg.size() == 2:
+		_mask_min_tx = float(morg[0])
+		_mask_min_ty = float(morg[1])
+	else:
+		_mask_min_tx = float(b.position.x) * WG.CHUNK_TILES
+		_mask_min_ty = float(b.position.y) * WG.CHUNK_TILES
+	var tpp: Array = mj.get("tilesPerPixel", [])
 	if tpp.size() == 2:
 		_mask_tile_w = float(_mask_w) * float(tpp[0])
 		_mask_tile_h = float(_mask_h) * float(tpp[1])
