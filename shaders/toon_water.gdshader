@@ -18,19 +18,23 @@ render_mode unshaded, cull_back, blend_mix;
 // --- palette ------------------------------------------------------------------
 uniform vec4 deep_color : source_color = vec4(0.094, 0.392, 0.612, 1.0);     // #18649C rich deep blue
 uniform vec4 shallow_color : source_color = vec4(0.376, 0.690, 0.875, 1.0);  // #60B0DF light shallow blue
-uniform vec4 deepest_color : source_color = vec4(0.043, 0.247, 0.404, 1.0);  // #0A3F67 deep basin (depth masses)
+uniform vec4 mid_color : source_color = vec4(0.227, 0.549, 0.769, 1.0);      // #3A8CC4 medium transition water
+uniform vec4 deepest_color : source_color = vec4(0.043, 0.247, 0.404, 1.0);  // #0A3F67 deepest basin
 uniform vec4 line_color : source_color = vec4(0.659, 0.835, 0.945, 1.0);     // #A8D5F1 pale contour ring
 uniform vec4 foam_color : source_color = vec4(0.918, 0.969, 0.980, 1.0);     // #EAF7FA sea foam
 
-// --- DEPTH MASSES (A Short Hike: a FEW large underwater landforms, background) ---
-// A big low-frequency field, domain-warped + THRESHOLDED so only its strong peaks darken: most of
-// the sea stays clean `deep_color`, with a few large organic basins. NOT an all-over blob texture.
+// --- DEPTH (A Short Hike: a CONTINUOUS seabed, shore shallow -> open deep -> offshore basins) ---
+// Depth is driven first by distance-to-coast (a continuous coastal SLOPE), then deepened further by
+// a smooth, connected, low-frequency field — but only OUT in open water — so the deepest basins read
+// as broad seabed topography, never dark decals glued to the shoreline.
 uniform sampler2D depth_tex : repeat_enable, filter_linear;
-uniform float depth_scale = 0.006;   // world scale of the masses (SMALL = big landforms, few visible at once)
-uniform float depth_warp : hint_range(0.0, 1.5) = 0.45;  // domain warp -> organic basin silhouettes
-uniform float mass_lo : hint_range(0.0, 1.0) = 0.56;     // threshold start: below this = clean water (raise -> fewer/smaller basins)
-uniform float mass_hi : hint_range(0.0, 1.0) = 0.82;     // threshold full: basin core
-uniform float depth_strength : hint_range(0.0, 1.0) = 0.55; // max darkening — keep SUBTLE (depth is background, ~20%)
+uniform float deep_reach = 2.2;      // cells: coastal slope length (shore shallow -> open deep). sd maxes ~2.6
+uniform float depth_scale = 0.005;   // world scale of the seabed field (SMALL = big, connected basins)
+uniform float depth_warp : hint_range(0.0, 1.0) = 0.30;  // gentle organic basin edges (too high = stampy)
+uniform float basin_lo : hint_range(0.0, 1.0) = 0.48;    // field below this = no extra basin (open water stays deep_color)
+uniform float basin_hi : hint_range(0.0, 1.0) = 0.82;    // field at/above = deepest basin core (smooth falloff between)
+uniform float basin_open : hint_range(0.5, 1.0) = 0.58;  // v_wf where basins may begin -> gates them to OPEN water (higher = further offshore)
+uniform float basin_strength : hint_range(0.0, 1.0) = 0.9; // weight of the deepest tier
 // Contour PRESENCE: a slow field makes the line network come and go across broad stretches.
 uniform float line_presence_scale = 0.008;
 uniform float line_presence_min : hint_range(0.0, 1.0) = 0.12;  // lowest line strength in a "clean" stretch
@@ -112,28 +116,37 @@ void fragment() {
 	}
 	vec2 wp = v_world.xz;
 
-	// Base ocean colour — the CLEAN BLUE water: a shallow band at the shore ramping to open deep.
-	float shore_t = smoothstep(0.0, shallow_cells, sd);
-	vec3 col = mix(shallow_color.rgb, deep_color.rgb, shore_t);
-
-	// --- DEPTH MASSES: a FEW large underwater landforms (background, ~20%) -----------------------
+	// --- DEPTH: a CONTINUOUS seabed (shore shallow -> open deep -> offshore basins) --------------
 	// REVERT NOTE — restoring the OLD (pre-depth) water:
-	//   The original look was a flat 2-tone shallow->deep ramp, no depth masses — exactly the two
-	//   lines above (the `shore_t`/`col` mix) with NO `deepest_color` term. To revert: delete this
-	//   whole DEPTH MASSES block, delete the `deepest_color` + depth/mass/line_presence uniforms
-	//   above, and remove the matching set_shader_parameter() calls in world_render_3d.gd (each is
-	//   tagged "// DEPTH:" there, with old values noted). Earlier still it was a 2-octave all-over
-	//   field thresholded by `(df-0.5)*depth_var` — that read as procedural blobs; this version
-	//   thresholds a big warped field into a FEW large basins instead. Nothing else changes.
+	//   The original look was a flat 2-tone shallow->deep ramp, no depth tiers:
+	//       vec3 col = mix(shallow_color.rgb, deep_color.rgb, smoothstep(0.0, shallow_cells, sd));
+	//   To revert: replace this whole DEPTH block with that one line, delete the `mid_color`/
+	//   `deepest_color` + depth/basin uniforms above, and remove the "// DEPTH:" set_shader_parameter
+	//   calls in world_render_3d.gd. (History: v1 = openness*field all-over; v2 = thresholded mass
+	//   decals — both read procedural; THIS version is a continuous distance-to-coast slope + smooth
+	//   offshore basins, i.e. a seabed.)
 	//
-	// Big, low-frequency, domain-warped field, THRESHOLDED so only its strong peaks darken: most of
-	// the sea keeps the clean `deep_color`, with a few large basins of varied size + organic edge.
+	// 1) COASTAL SLOPE — the primary, continuous structure: depth grows smoothly with distance from
+	//    the coast (sd), so every shore reads shallow -> transition -> deep. No instant dark at shore.
+	float seabed = smoothstep(0.0, deep_reach, sd);           // 0 at the waterline .. ~1 toward open water
+	// 2) OFFSHORE BASINS — the deepest tier. A smooth, connected, low-frequency field (gentle warp),
+	//    GATED to open water by v_wf so basins never glue to the shoreline, with a smooth falloff so
+	//    they read as broad connected seabed basins, not stamps. Where the field is low, open water
+	//    just stays `deep_color` (clean). Basins only ride in where the body is genuinely open.
 	vec2 dw = (vec2(texture(warp_tex, wp * depth_scale * 0.6).r,
 	                texture(warp_tex, wp * depth_scale * 0.6 + vec2(8.3, 2.9)).r) - 0.5) * depth_warp;
-	float df = texture(depth_tex, wp * depth_scale + dw).r;
-	float mass = smoothstep(mass_lo, mass_hi, df);          // 0 over open water, 1 in a basin core
-	mass *= smoothstep(0.0, shallow_cells * 0.7, sd);       // keep the shallow band clean (basins MAY still reach near shore)
-	col = mix(col, deepest_color.rgb, mass * depth_strength);
+	float field = texture(depth_tex, wp * depth_scale + dw).r;
+	float open_w = smoothstep(basin_open, 0.94, v_wf);        // 0 near shore .. 1 in open water
+	float basin = smoothstep(basin_lo, basin_hi, field) * open_w;
+	// Combine: the coastal slope fills shallow->mid->deep (up to ~0.66); basins add the deepest tier.
+	float depth01 = clamp(seabed * 0.66 + basin * basin_strength * 0.34, 0.0, 1.0);
+	// 3) 4-TIER smooth ramp — shallow -> mid transition -> deep -> deepest. Overlapping smoothsteps
+	//    give a gentle gradient (never a pale->very-dark jump); the presenter posterizes it into a
+	//    few clean depth zones. Foam/shallows sit on top of this near the waterline.
+	vec3 col = shallow_color.rgb;
+	col = mix(col, mid_color.rgb,     smoothstep(0.05, 0.38, depth01));
+	col = mix(col, deep_color.rgb,    smoothstep(0.34, 0.68, depth01));
+	col = mix(col, deepest_color.rgb, smoothstep(0.66, 1.00, depth01));
 
 	// --- CONTOUR CURRENTS: long flowing iso-lines (the STAR, ~70%) -------------------------------
 	// Iso-contours of a big smooth field: low frequency + few levels = long, sweeping, varied-spacing

@@ -252,17 +252,20 @@ func _setup_materials() -> void:
 	_water_mat.set_shader_parameter("shallow_color", Color(0.376, 0.690, 0.875))  # #60B0DF light shallow blue
 	_water_mat.set_shader_parameter("line_color", Color(0.722, 0.871, 0.961))     # #B8DEF5 bright contour ring
 	_water_mat.set_shader_parameter("foam_color", Color(0.918, 0.969, 0.980))     # #EAF7FA sea foam
-	# DEPTH: A Short Hike depth = a FEW large underwater landforms in the BACKGROUND (~20%), not an
-	# all-over blob texture. A big low-freq field, domain-warped + thresholded -> few large basins,
-	# clean `deep_color` everywhere else. To REVERT to the old flat water, remove these DEPTH: lines +
-	# the depth/mass/line_presence block in toon_water.gdshader (see its REVERT NOTE).
-	_water_mat.set_shader_parameter("deepest_color", Color(0.043, 0.247, 0.404))  # #0A3F67 deep basin
-	_water_mat.set_shader_parameter("depth_tex", TerrainChunkMesher.make_water_noise(1.0, 2, 7))
-	_water_mat.set_shader_parameter("depth_scale", 0.006)        # SMALL = big landforms (few visible at once); was 0.014
-	_water_mat.set_shader_parameter("depth_warp", 0.45)         # organic basin silhouettes
-	_water_mat.set_shader_parameter("mass_lo", 0.56)            # threshold: below = clean water (raise -> fewer basins)
-	_water_mat.set_shader_parameter("mass_hi", 0.82)
-	_water_mat.set_shader_parameter("depth_strength", 0.55)     # SUBTLE darkening — depth is background
+	# DEPTH: a CONTINUOUS seabed — shore shallow -> transition -> deep (driven by distance-to-coast),
+	# with the DEEPEST basins only out in open water (a smooth, connected low-freq field). No dark
+	# decals glued to the shoreline; a gentle multi-tier gradient. To REVERT to the old flat water,
+	# remove these DEPTH: lines + the depth block in toon_water.gdshader (see its REVERT NOTE).
+	_water_mat.set_shader_parameter("mid_color", Color(0.227, 0.549, 0.769))      # #3A8CC4 medium transition
+	_water_mat.set_shader_parameter("deepest_color", Color(0.043, 0.247, 0.404))  # #0A3F67 deepest basin
+	_water_mat.set_shader_parameter("depth_tex", TerrainChunkMesher.make_water_noise(0.8, 1, 7))  # smooth, connected
+	_water_mat.set_shader_parameter("deep_reach", 2.2)          # cells: coastal slope length (shore -> open deep)
+	_water_mat.set_shader_parameter("depth_scale", 0.005)       # SMALL = big connected basins
+	_water_mat.set_shader_parameter("depth_warp", 0.30)         # gentle organic edges (high = stampy)
+	_water_mat.set_shader_parameter("basin_lo", 0.48)           # field below = clean deep water (no basin)
+	_water_mat.set_shader_parameter("basin_hi", 0.82)           # field at = deepest basin core
+	_water_mat.set_shader_parameter("basin_open", 0.58)         # v_wf where basins begin -> offshore only (raise = further out)
+	_water_mat.set_shader_parameter("basin_strength", 0.9)      # weight of the deepest tier
 	_water_mat.set_shader_parameter("line_presence_scale", 0.008) # currents come + go across broad stretches
 	_water_mat.set_shader_parameter("line_presence_min", 0.12)
 	_water_mat.set_shader_parameter("sd_scale", TerrainChunkMesher.SHORE_SD_SCALE)   # (wf-0.5) -> signed cells
