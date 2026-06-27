@@ -252,23 +252,28 @@ func _setup_materials() -> void:
 	_water_mat.set_shader_parameter("shallow_color", Color(0.376, 0.690, 0.875))  # #60B0DF light shallow blue
 	_water_mat.set_shader_parameter("line_color", Color(0.722, 0.871, 0.961))     # #B8DEF5 bright contour ring
 	_water_mat.set_shader_parameter("foam_color", Color(0.918, 0.969, 0.980))     # #EAF7FA sea foam
-	# DEPTH: A Short Hike broad depth masses. To REVERT to the old flat 2-tone water, remove these 5
-	# lines + the `deepest_color`/`depth_*` block in toon_water.gdshader (see the REVERT NOTE there).
+	# DEPTH: A Short Hike depth = a FEW large underwater landforms in the BACKGROUND (~20%), not an
+	# all-over blob texture. A big low-freq field, domain-warped + thresholded -> few large basins,
+	# clean `deep_color` everywhere else. To REVERT to the old flat water, remove these DEPTH: lines +
+	# the depth/mass/line_presence block in toon_water.gdshader (see its REVERT NOTE).
 	_water_mat.set_shader_parameter("deepest_color", Color(0.043, 0.247, 0.404))  # #0A3F67 deep basin
-	_water_mat.set_shader_parameter("depth_tex", TerrainChunkMesher.make_water_noise(1.0, 2, 7))  # broad soft masses
-	_water_mat.set_shader_parameter("depth_scale", 0.014)        # world scale of the depth masses (smaller = bigger)
-	_water_mat.set_shader_parameter("depth_reach", 5.5)          # cells into a body before fully deep (scopes to big bodies)
-	_water_mat.set_shader_parameter("depth_var", 0.85)           # strength of darker/lighter masses + near-shore drop-offs
-	_water_mat.set_shader_parameter("deep_split", 0.62)          # depth where deep -> deepest basin
+	_water_mat.set_shader_parameter("depth_tex", TerrainChunkMesher.make_water_noise(1.0, 2, 7))
+	_water_mat.set_shader_parameter("depth_scale", 0.006)        # SMALL = big landforms (few visible at once); was 0.014
+	_water_mat.set_shader_parameter("depth_warp", 0.45)         # organic basin silhouettes
+	_water_mat.set_shader_parameter("mass_lo", 0.56)            # threshold: below = clean water (raise -> fewer basins)
+	_water_mat.set_shader_parameter("mass_hi", 0.82)
+	_water_mat.set_shader_parameter("depth_strength", 0.55)     # SUBTLE darkening — depth is background
+	_water_mat.set_shader_parameter("line_presence_scale", 0.008) # currents come + go across broad stretches
+	_water_mat.set_shader_parameter("line_presence_min", 0.12)
 	_water_mat.set_shader_parameter("sd_scale", TerrainChunkMesher.SHORE_SD_SCALE)   # (wf-0.5) -> signed cells
 	_water_mat.set_shader_parameter("shore_aa", 0.10)            # AA width of the waterline (cells)
 	_water_mat.set_shader_parameter("shallow_cells", 1.3)        # wider, clearer shallow band (A Short Hike)
-	_water_mat.set_shader_parameter("pattern_scale", 0.038)      # BIG, sparse contour loops (few + far apart)
-	_water_mat.set_shader_parameter("contour_count", 2.1)        # fewer rings
-	_water_mat.set_shader_parameter("line_width", 0.033)         # clean, readable
-	_water_mat.set_shader_parameter("line_opacity", 0.40)        # bright-but-sparse loops (old faded look = 0.24)
-	_water_mat.set_shader_parameter("domain_warp_strength", 0.38) # cleaner concentric loops
-	_water_mat.set_shader_parameter("secondary_strength", 0.0)   # no busy 2nd layer -> calm, sparse water
+	_water_mat.set_shader_parameter("pattern_scale", 0.024)      # LONG flowing currents (lower = bigger, longer lines)
+	_water_mat.set_shader_parameter("contour_count", 1.7)        # few levels -> wide spacing, fewer tiny loops
+	_water_mat.set_shader_parameter("line_width", 0.044)         # slightly THICKER, readable
+	_water_mat.set_shader_parameter("line_opacity", 0.55)        # the STAR — noticed before the depth shading
+	_water_mat.set_shader_parameter("domain_warp_strength", 0.50) # flowing, breaks repetition
+	_water_mat.set_shader_parameter("secondary_strength", 0.0)   # no busy 2nd layer
 	_water_mat.set_shader_parameter("secondary_scale", 1.7)
 	_water_mat.set_shader_parameter("primary_speed", Vector2(0.006, 0.003))
 	_water_mat.set_shader_parameter("secondary_speed", Vector2(-0.003, 0.005))
