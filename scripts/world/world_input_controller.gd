@@ -8,10 +8,23 @@ const ZOOM_MIN := 0.55
 const ZOOM_MAX := 4.5
 const ZOOM_STEP := 0.15
 
+# Hover-pick throttle. The screen-space hover pick projects every entity through the 3D camera each
+# frame (~3 ms while walking) but the highlight/tooltip only needs ~25 Hz. Run the expensive pick on
+# cursor movement (stays responsive) or when this interval elapses (catches camera-follow motion
+# while the mouse is still); otherwise the cached hovered_entity persists. Clicks are NEVER throttled
+# (they re-pick from the live mouse position in handle_input).
+const HOVER_INTERVAL_MS := 40        # ~25 Hz floor for idle/camera-motion refresh
+const HOVER_MOVE_PX_SQ := 4.0        # >2 px cursor move forces an immediate refresh
+
 var world: Node2D
 
 ## True while the middle mouse button is held — drag then orbits the 3D camera.
 var _orbiting := false
+
+# Hover throttle state + a diagnostic counter (expensive picks performed; perf compare).
+var _last_hover_ms := -10000
+var _last_mouse_screen := Vector2(-99999.0, -99999.0)
+var hover_picks := 0
 
 ## Right-click context menu for sim-players (Follow / Examine). Built lazily on the HUD layer.
 var _ctx_menu: PopupMenu
@@ -110,12 +123,24 @@ func handle_input(event: InputEvent) -> void:
 func update_hover() -> void:
 	if _over_ui():
 		# Cursor is on the HUD — clear any world hover so a world entity behind a panel
-		# doesn't keep its tooltip/highlight showing over the UI.
+		# doesn't keep its tooltip/highlight showing over the UI. (Cheap, runs every frame so
+		# moving onto a panel hides the world tooltip instantly.)
 		if world.hovered_entity != null:
 			world.hovered_entity.hovered = false
 			world.hovered_entity = null
 		world.hud.call("update_world_tooltip", null)
+		_last_mouse_screen = Vector2(-99999.0, -99999.0)   # force an immediate refresh on leaving UI
 		return
+	# Throttle the expensive screen-space pick (see HOVER_INTERVAL_MS): skip it while the mouse is
+	# idle and the interval hasn't elapsed; the previously-found hovered_entity stays highlighted.
+	var now := Time.get_ticks_msec()
+	var mscreen: Vector2 = world.get_viewport().get_mouse_position()
+	var moved := mscreen.distance_squared_to(_last_mouse_screen) > HOVER_MOVE_PX_SQ
+	if not moved and now - _last_hover_ms < HOVER_INTERVAL_MS:
+		return
+	_last_hover_ms = now
+	_last_mouse_screen = mscreen
+	hover_picks += 1
 	var mouse: Vector2 = world.mouse_world_pos()
 	var found := entity_at(mouse)
 	if found != world.hovered_entity:

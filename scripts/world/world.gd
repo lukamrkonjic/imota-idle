@@ -65,6 +65,7 @@ var _ambience: Node2D
 var _biome_debug: Node2D
 var _perf_logger: Node
 var _last_bake_gate_pos := Vector2.INF
+var last_hover_us := 0              # diagnostic: cost of update_hover() last frame (perf tools read this)
 
 # --- controllers ---
 var _entity_spawner: RefCounted
@@ -268,6 +269,7 @@ func _process(delta: float) -> void:
 			_sim_director.process_tick(delta)
 		_collision_ctrl.process_tick(delta)
 	var t7 := Time.get_ticks_usec()
+	last_hover_us = t5 - t4
 	if _perf_logger != null:
 		_perf_logger.record(delta, {
 			"chunk": t1 - t0, "stream": t2 - t1, "path": t3 - t2,
