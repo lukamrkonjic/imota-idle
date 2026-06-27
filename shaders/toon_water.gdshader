@@ -16,10 +16,10 @@ shader_type spatial;
 render_mode unshaded, cull_back, blend_mix;
 
 // --- palette ------------------------------------------------------------------
-uniform vec4 deep_color : source_color = vec4(0.067, 0.380, 0.498, 1.0);     // #11617F deep ocean
-uniform vec4 shallow_color : source_color = vec4(0.420, 0.780, 0.760, 1.0);  // #6BC7C2 lit shallow
-uniform vec4 line_color : source_color = vec4(0.290, 0.588, 0.655, 1.0);     // #4A96A7 contour
-uniform vec4 foam_color : source_color = vec4(0.886, 0.953, 0.965, 1.0);     // #E2F3F6 sea foam
+uniform vec4 deep_color : source_color = vec4(0.094, 0.392, 0.612, 1.0);     // #18649C rich deep blue
+uniform vec4 shallow_color : source_color = vec4(0.376, 0.690, 0.875, 1.0);  // #60B0DF light shallow blue
+uniform vec4 line_color : source_color = vec4(0.659, 0.835, 0.945, 1.0);     // #A8D5F1 pale contour ring
+uniform vec4 foam_color : source_color = vec4(0.918, 0.969, 0.980, 1.0);     // #EAF7FA sea foam
 
 // --- shared coast field (v_wf) ------------------------------------------------
 uniform float sd_scale = 5.2;          // (wf-0.5)*sd_scale -> signed distance to coast, in cells
@@ -53,7 +53,7 @@ uniform float foam_sdf_bias = 0.02;    // nudge foam slightly if it sits on land
 uniform sampler2D foam_tex : repeat_enable, filter_linear;
 
 // --- distance detail LOD ------------------------------------------------------
-uniform vec4 distant_color : source_color = vec4(0.231, 0.408, 0.475, 1.0);
+uniform vec4 distant_color : source_color = vec4(0.165, 0.345, 0.500, 1.0);  // muted deep blue (far LOD)
 uniform float detail_fade_begin = 16.0;
 uniform float detail_fade_end = 34.0;
 

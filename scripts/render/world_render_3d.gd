@@ -246,19 +246,21 @@ func _setup_materials() -> void:
 	# wf-driven water on a FINELY TESSELLATED plane: the smoothed coast field (UV.x), sampled
 	# bicubically per sub-vertex, gives a pixel-smooth 0.5 contour decoupled from the coarse
 	# terrain mesh. World-space sampled (camera-stable).
-	_water_mat.set_shader_parameter("deep_color", Color(0.067, 0.380, 0.498))     # #11617F deep ocean
-	_water_mat.set_shader_parameter("shallow_color", Color(0.420, 0.780, 0.760))  # #6BC7C2 lit shallow
-	_water_mat.set_shader_parameter("line_color", Color(0.290, 0.588, 0.655))     # #4A96A7 contour
-	_water_mat.set_shader_parameter("foam_color", Color(0.886, 0.953, 0.965))     # #E2F3F6 sea foam
+	# A Short Hike palette: a RICH BLUE sea (less teal) with a clear lighter-blue shallow band and
+	# soft PALE-BLUE concentric contour rings (calmer + cleaner than the old swirly teal contours).
+	_water_mat.set_shader_parameter("deep_color", Color(0.094, 0.392, 0.612))     # #18649C rich deep blue
+	_water_mat.set_shader_parameter("shallow_color", Color(0.376, 0.690, 0.875))  # #60B0DF light shallow blue
+	_water_mat.set_shader_parameter("line_color", Color(0.659, 0.835, 0.945))     # #A8D5F1 pale contour ring
+	_water_mat.set_shader_parameter("foam_color", Color(0.918, 0.969, 0.980))     # #EAF7FA sea foam
 	_water_mat.set_shader_parameter("sd_scale", TerrainChunkMesher.SHORE_SD_SCALE)   # (wf-0.5) -> signed cells
 	_water_mat.set_shader_parameter("shore_aa", 0.10)            # AA width of the waterline (cells)
-	_water_mat.set_shader_parameter("shallow_cells", 0.9)        # shallow band before the deep ramp
-	_water_mat.set_shader_parameter("pattern_scale", 0.072)       # mid features (dense 0.105 .. sparse 0.032)
-	_water_mat.set_shader_parameter("contour_count", 3.5)         # medium line density / spacing
-	_water_mat.set_shader_parameter("line_width", 0.038)
-	_water_mat.set_shader_parameter("line_opacity", 0.6)
-	_water_mat.set_shader_parameter("domain_warp_strength", 0.6)
-	_water_mat.set_shader_parameter("secondary_strength", 0.28)   # weak secondary detail only
+	_water_mat.set_shader_parameter("shallow_cells", 1.3)        # wider, clearer shallow band (A Short Hike)
+	_water_mat.set_shader_parameter("pattern_scale", 0.038)      # BIG, sparse contour loops (few + far apart)
+	_water_mat.set_shader_parameter("contour_count", 2.1)        # fewer rings
+	_water_mat.set_shader_parameter("line_width", 0.030)         # thin, delicate
+	_water_mat.set_shader_parameter("line_opacity", 0.24)        # MUCH more faded — a whisper of contour
+	_water_mat.set_shader_parameter("domain_warp_strength", 0.38) # cleaner concentric loops
+	_water_mat.set_shader_parameter("secondary_strength", 0.0)   # no busy 2nd layer -> calm, sparse water
 	_water_mat.set_shader_parameter("secondary_scale", 1.7)
 	_water_mat.set_shader_parameter("primary_speed", Vector2(0.006, 0.003))
 	_water_mat.set_shader_parameter("secondary_speed", Vector2(-0.003, 0.005))
