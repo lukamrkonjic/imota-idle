@@ -1,16 +1,19 @@
 shader_type spatial;
-// Toon terrain for the 3D pixel-art port: per-vertex COLOR carries the tile's palette
-// colour (sharp authored transitions, no blend/noise); shadow/light bands are derived by
-// blending toward palette tints. Matches the toon_world banding model.
+// Toon terrain for the 3D pixel-art port. STABLE, ARTIST-AUTHORED ground (A Short Hike): the terrain
+// colour is the baked per-vertex palette colour, shaped by a FIXED stylized form shade and a single
+// uniform global MOOD multiplier. It is deliberately UNSHADED — it does NOT read the scene sun's
+// direction/colour/energy and does NOT receive the directional shadow map, so the ground never
+// recolours or shows jagged shadow crawl as the day/weather changes. (Props/characters/water keep
+// their normal stylized lighting; only the terrain ground is decoupled.)
 //
-// BEACH: where the vertex is flagged as sand (UV.y), the base colour is replaced by a
-// stylised sand treatment computed in WORLD SPACE — large quantised dry/highlight patches
-// (macro variation), a darker+saturated WET band near the water (UV.x), and sparse 1px
-// speckle. The sand/grass boundary is dithered with noise so it doesn't read as a hard
-// tile line. All world-space + deterministic, so it's stable as the camera moves.
+//   final = base_terrain_colour * fixed_form_shade * terrain_mood
+//
+// BEACH: where the vertex is flagged as sand (UV.y), the base colour is replaced by a stylised sand
+// treatment computed in WORLD SPACE (stable as the camera moves). See beach_color().
 
-render_mode specular_disabled, ambient_light_disabled, diffuse_lambert;
+render_mode unshaded, cull_back;
 
+// Fixed form-shade banding tints (toward these on lit / shadowed faces). Cold variants for snow.
 uniform vec4 shadow_tint : source_color = vec4(0.27, 0.34, 0.22, 1.0);
 uniform vec4 light_tint : source_color  = vec4(0.42, 0.47, 0.28, 1.0);
 uniform vec4 cold_shadow_tint : source_color = vec4(0.66, 0.71, 0.78, 1.0);
@@ -21,8 +24,21 @@ uniform float softness : hint_range(0.0, 0.4) = 0.04;
 uniform float ambient : hint_range(0.0, 1.0) = 0.22;
 uniform float posterize_steps : hint_range(2.0, 8.0) = 4.0;
 // How much the terrain's OWN surface normal shades it. Low = flat, even ground (A Short Hike): gentle
-// undulation no longer bands into fake "shadows". The real dark shapes come from object cast shadows.
+// undulation no longer bands into fake "shadows". This is a FIXED form shade (see fixed_light_dir).
 uniform float slope_shading : hint_range(0.0, 1.0) = 0.16;
+// How strongly the lit / shadowed form-shade bands tint the base colour. Subtle = painted, stable.
+uniform float form_light_amt : hint_range(0.0, 1.0) = 0.42;
+uniform float form_shadow_amt : hint_range(0.0, 1.0) = 0.30;
+
+// FIXED fake light direction (WORLD space) for the stylized form shade. This is a constant — NOT the
+// scene sun — so the shading never moves with the day/night cycle or recolours with weather. Points
+// from a high afternoon side so gentle hills read with soft, stable form.
+uniform vec3 fixed_light_dir = vec3(0.35, 0.86, 0.37);
+
+// Global day/night/weather MOOD: ONE uniform multiplier applied evenly to all terrain (set from
+// GDScript by WorldAtmosphere from DayNight/Weather). Directionless, white = neutral day. This is the
+// ONLY way time/weather may touch the terrain — uniform, never per-tile, never the sun's colour.
+uniform vec4 terrain_mood : source_color = vec4(1.0, 1.0, 1.0, 1.0);
 
 // Sand palette + variation controls.
 uniform vec4 sand_dry : source_color = vec4(0.902, 0.800, 0.471, 1.0);    // #E6CC78 main dry
@@ -35,13 +51,15 @@ uniform sampler2D sand_noise : repeat_enable, filter_linear;
 
 varying vec3 v_col;
 varying vec3 v_world;
-varying float v_beach;   // 1 = sand tile (UV.y)
-varying float v_wet;     // 0 dry .. 1 wet, near the waterline (UV.x)
-varying float v_cold;    // snow/frozen surface fraction at this shared corner (UV2.x)
+varying vec3 v_wnormal;   // world-space normal -> STABLE fixed-direction form shade
+varying float v_beach;    // 1 = sand tile (UV.y)
+varying float v_wet;      // 0 dry .. 1 wet, near the waterline (UV.x)
+varying float v_cold;     // snow/frozen surface fraction at this shared corner (UV2.x)
 
 void vertex() {
 	v_col = COLOR.rgb;
 	v_world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	v_wnormal = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 	v_beach = UV.y;
 	v_wet = UV.x;
 	v_cold = UV2.x;
@@ -72,34 +90,24 @@ void fragment() {
 		float bfac = smoothstep(edge_n * 0.5 + 0.12, edge_n * 0.5 + 0.30, v_beach);
 		base = mix(base, sand, bfac);
 	}
-	ALBEDO = base;
+
+	// FIXED stylized FORM SHADE — same banding model as before, but driven by a CONSTANT fake light
+	// direction + the world normal, so it is identical at every time of day and in all weather. No
+	// scene sun, no LIGHT_COLOR, no shadow map. On near-flat ground slope_shading keeps it ~one even
+	// tone; real hillsides get a subtle stable lit/shadow read.
+	vec3 surface_shadow = mix(shadow_tint.rgb, cold_shadow_tint.rgb, v_cold);
+	vec3 surface_light  = mix(light_tint.rgb,  cold_light_tint.rgb,  v_cold);
+	float ndl = clamp(dot(normalize(v_wnormal), normalize(fixed_light_dir)), 0.0, 1.0);
+	float shade = ambient + (1.0 - ambient) * mix(1.0, ndl, slope_shading);
+	shade = floor(shade * posterize_steps + 0.5) / posterize_steps;
+	float lit = smoothstep(light_threshold - softness, light_threshold + softness, shade);
+	float shd = 1.0 - smoothstep(shadow_threshold - softness, shadow_threshold + softness, shade);
+	vec3 col = base;
+	col = mix(col, surface_light, lit * form_light_amt);
+	col = mix(col, surface_shadow, shd * form_shadow_amt);
+
+	// GLOBAL MOOD — uniform day/night/weather multiplier, applied evenly. Unshaded: ALBEDO is output.
+	ALBEDO = col * terrain_mood.rgb;
 	ROUGHNESS = 1.0;
 	SPECULAR = 0.0;
-}
-
-void light() {
-	vec3 base = ALBEDO;
-	vec3 surface_shadow = mix(shadow_tint.rgb, cold_shadow_tint.rgb, v_cold);
-	vec3 surface_light = mix(light_tint.rgb, cold_light_tint.rgb, v_cold);
-	vec3 shad = mix(base, surface_shadow, 0.62);
-	vec3 lite = mix(base, surface_light, 0.42);
-
-	// 1) TERRAIN SELF-SHADING — deliberately near-flat. The old shader folded N·L into the same
-	// term as the cast shadow, so the height-field normals turned every gentle rise into a big dark
-	// patch that read as a shadow cast by nothing. `slope_shading` scales that down to ~flat, so open
-	// ground is one even tone; a touch of it keeps real hillsides legible. NO cast shadow here.
-	float ndl = clamp(dot(normalize(NORMAL), normalize(LIGHT)), 0.0, 1.0);
-	float self = ambient + (1.0 - ambient) * mix(1.0, ndl, slope_shading);
-	self = floor(self * posterize_steps + 0.5) / posterize_steps;
-	float l = smoothstep(light_threshold - softness, light_threshold + softness, self);
-	vec3 ramp = mix(base, lite, l);
-
-	// 2) OBJECT CAST SHADOWS — the ONLY real darkening on the ground (A Short Hike). ATTENUATION is
-	// the directional shadow map: 1 in open sun, 0 under a tree/building. Posterized to a clean,
-	// soft-edged shadow shape that tints toward the surface shadow colour (never pure black).
-	float cast_lit = floor(ATTENUATION * posterize_steps + 0.5) / posterize_steps;
-	float cs = smoothstep(shadow_threshold - softness, shadow_threshold + softness, cast_lit);
-	ramp = mix(shad, ramp, cs);
-
-	DIFFUSE_LIGHT += ramp * mix(vec3(1.0), LIGHT_COLOR.rgb, 0.18);
 }

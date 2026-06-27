@@ -180,7 +180,7 @@ func _build() -> void:
 	cam = camera_rig.get_camera()
 	# Atmosphere (owns the sun the movers read for shadow direction).
 	atmosphere = WorldAtmosphere.new()
-	atmosphere.setup(world3d, _water_mat)
+	atmosphere.setup(world3d, _water_mat, _ground_mat)
 	# Visual coverage (camera-footprint chunk sets).
 	stream_view = TerrainStreamView.new()
 	stream_view.setup(world)

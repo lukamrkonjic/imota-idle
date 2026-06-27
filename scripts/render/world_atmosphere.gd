@@ -11,6 +11,7 @@ const CAM_DIST := WorldCameraRig3D.CAM_DIST
 
 var world3d: Node3D
 var _water_mat: ShaderMaterial
+var _ground_mat: ShaderMaterial      # terrain ground: only its uniform `terrain_mood` is driven here
 var _env: Environment
 var _sun: DirectionalLight3D
 # Clear-weather baselines, captured at setup so the per-frame weather grade lerps from a fixed
@@ -26,9 +27,10 @@ var _base_sun_color: Color
 var editor_no_fog := false      # world editor: kill depth fog so the aerial view shows the whole map
 
 
-func setup(w3d: Node3D, water_mat: ShaderMaterial) -> void:
+func setup(w3d: Node3D, water_mat: ShaderMaterial, ground_mat: ShaderMaterial = null) -> void:
 	world3d = w3d
 	_water_mat = water_mat
+	_ground_mat = ground_mat
 	_setup_environment()
 	_setup_sun()
 	GameSettings.changed.connect(func(p: StringName) -> void:
@@ -219,6 +221,25 @@ func _apply_grade() -> void:
 	# Gentle dusk richening — too much over-saturated the cool snow palette into vivid purple.
 	_env.adjustment_saturation = clampf(1.0 + dusk * 0.32 - (Weather.rain + Weather.snow) * 0.18, 0.7, 1.5)
 	_env.adjustment_contrast = 1.0 + dusk * 0.08
+	# TERRAIN MOOD: the ground is unshaded (see toon_ground.gdshader) — it ignores the sun colour/
+	# direction/shadows entirely. The ONLY time/weather influence on terrain is this single uniform
+	# multiplier, applied evenly so biome colours stay stable while the world still darkens at night.
+	if _ground_mat != null:
+		_ground_mat.set_shader_parameter("terrain_mood", _terrain_mood())
+
+
+## Single UNIFORM day/night/weather multiplier for the terrain ground. Brightness + a faint cool-night
+## bias only — NOT the sun's colour/direction, never per-tile — so terrain stays stable and readable.
+func _terrain_mood() -> Color:
+	var dl := clampf(DayNight.daylight(), 0.0, 1.0)   # 0 night .. 1 day
+	var b := lerpf(0.62, 1.0, dl)                     # day ~1.0, deep night ~0.62
+	b *= 1.0 - Weather.rain * 0.12                    # rain dims a touch
+	b *= 1.0 + Weather.snow * 0.04                    # snow stays bright
+	b = clampf(b, 0.5, 1.05)
+	# A whisper of cool at night (uniform, subtle — day is neutral white) so biome colours stay put.
+	var cool := Color(0.93, 0.97, 1.05)
+	var tint := Color(1.0, 1.0, 1.0).lerp(cool, (1.0 - dl) * 0.5)
+	return Color(b * tint.r, b * tint.g, b * tint.b, 1.0)
 
 
 ## View-distance slider hook. The per-frame update() is the actual driver (it reads the live
