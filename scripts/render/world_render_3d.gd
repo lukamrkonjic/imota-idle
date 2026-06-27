@@ -270,7 +270,7 @@ func _setup_materials() -> void:
 	_water_mat.set_shader_parameter("shallow_cells", 1.3)        # wider, clearer shallow band (A Short Hike)
 	_water_mat.set_shader_parameter("pattern_scale", 0.024)      # LONG flowing currents (lower = bigger, longer lines)
 	_water_mat.set_shader_parameter("contour_count", 1.7)        # few levels -> wide spacing, fewer tiny loops
-	_water_mat.set_shader_parameter("line_width", 0.042)         # slightly thicker, readable
+	_water_mat.set_shader_parameter("line_width", 0.012)         # thinner, finer wave lines (was 0.042)
 	_water_mat.set_shader_parameter("line_opacity", 0.5)         # readable, doesn't fight the depth
 	_water_mat.set_shader_parameter("domain_warp_strength", 0.50) # flowing, breaks repetition
 	_water_mat.set_shader_parameter("secondary_strength", 0.0)   # no busy 2nd layer
