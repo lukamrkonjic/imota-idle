@@ -9,7 +9,10 @@ const ValidateContent := preload("res://tools/validate_content.gd")
 # then added and later REVERTED (procedural terrain back to the smooth gamma) — so the sum is the
 # smooth-128 value 168810 again. (Absolute ceiling raised to 250 for hand-built peaks, but the
 # PROCEDURAL summit stays 128, so generated elevation is unchanged.)
-const WORLDGEN_TILES_HASH := 954904775
+# Re-pinned for the CRISP-BIOME rework: the biome-lookup domain-warp/jitter was removed so the
+# authored mask yields hard, cleanly-mapped regions (one flat colour per biome). Tiles near biome
+# borders therefore changed (954904775→304512085); elevation is untouched (sum still 168810).
+const WORLDGEN_TILES_HASH := 304512085
 const WORLDGEN_ELEV_SUM := 168810
 const ContentId := preload("res://scripts/content/content_id.gd")
 const SaveMigration := preload("res://autoload/save_migration.gd")

@@ -203,7 +203,10 @@ func _paint_map(img: Image, chunk: RefCounted, reg: RefCounted, min_tx: int, min
 			var tdef: Dictionary = reg.tile_def(tid)
 			var col: Color = tdef["colors"][0]
 			if not bool(tdef.get("water", false)):
-				col = TerrainStyle.biome_tinted(col, str(reg.tile_order[tid]), reg.biome_tint(chunk.biome_at(lx, ly)), 0.55)
+				# Match the 3D ground: ONE flat colour per biome (overview map = the same regions).
+				var eff: int = chunk.biome_at(lx, ly)
+				var elev: int = chunk.elev[ly * WG.CHUNK_TILES + lx] if chunk.elev.size() > 0 else 0
+				col = TerrainStyle.flat_ground(col, str(reg.tile_order[tid]), reg.biome_ground(eff), elev, 0, 0)
 			img.set_pixel(bx + lx, by + ly, col)
 
 

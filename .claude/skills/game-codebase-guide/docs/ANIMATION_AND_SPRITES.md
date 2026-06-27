@@ -16,11 +16,24 @@ Subsystems (all in `scripts/render/`):
   (`size = CAM_SIZE_BASE/zoom`, zoom 0.55..4.5), pitch budget vs zoom. Note: it READS `world._camera.zoom`.
 - `world_atmosphere.gd` — `WorldEnvironment` + the directional sun. **Sun direction is pinned**
   (`SUN_DIR_DEG`, `set_sun_direction` for the admin slider); DayNight only changes sun colour/energy,
-  so shadows don't slide.
+  so shadows don't slide. The colour-grade post pass (`Environment.adjustment_*`) is kept **neutral
+  at dusk** (saturation ≤ 1.0, contrast = 1.0): it's a GLOBAL screen pass that also grades the
+  unshaded terrain, and pumping saturation amplified the ground's baked painterly value-variation
+  into shadow-like dark-green blotches that "animated in" at sunset (looked like cast cloud shadows,
+  but nothing casts them). Dusk warmth comes from the sun colour/fog/ambient only — the unshaded
+  ground ignores those, so it stays flat at every time of day. Weather may only DESATURATE.
 - `terrain/terrain_chunk_mesher.gd` + `terrain_mesh_manager` — builds terrain meshes; `TILE_S=1.0`
-  (1 tile = 1 unit). `terrain_style.gd` colours terrain (biome blend, alpine ramp, snow). Ground/
-  water shaders: `shaders/toon_ground.gdshader`, `toon_water.gdshader`. Ground is flat-lit; only
-  object cast-shadows darken it (terrain self-shading is minimized via `slope_shading`).
+  (1 tile = 1 unit). `terrain_style.gd` colours terrain. **ONE FLAT COLOUR PER BIOME** (clean,
+  distinct regions): `TerrainStyle.flat_ground` paints each tile its biome's single curated colour
+  (`biomes.json` `ground` field → `WorldRegistry.biome_ground`), with sand/snow as single flat tones
+  and a rock/snow read BY ELEVATION ONLY (peaks still read). NO per-tile noise, broad bands, painterly
+  `terrain_patch`, or wide `biome_tinted` blend — borders soften only ~1 tile via the shared corner
+  colour. (The old `grade`/`biome_tinted`/`terrain_patch` remain in `terrain_style.gd` but are no
+  longer used by the 3D ground.) Beaches are one flat sand tone (`toon_ground` `beach_color`). Biome
+  REGIONS are crisp because `biome_map_generator._blend_offset` is now zero (the authored mask is
+  sampled at the exact tile — no domain-warp/jitter). Ground/water shaders:
+  `shaders/toon_ground.gdshader`, `toon_water.gdshader`. Ground is flat-lit; only object cast-shadows
+  darken it. **Re-bake after any terrain-colour or biome-assignment change.**
 - **TERRAIN MODE (play vs editor).** In the **standalone game** terrain is a fixed BAKED static-region
   world: `tools/world_bake.gd` meshes the continent offline in 64×64 regions
   (`terrain_chunk_mesher.build_region_terrain`, indexed) into `data/world/baked/<id>_terrain.res`

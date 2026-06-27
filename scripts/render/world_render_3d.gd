@@ -233,7 +233,7 @@ func _setup_materials() -> void:
 	_ground_mat.set_shader_parameter("softness", 0.03)
 	# Beach sand: warm golden tones + world-space macro/speckle variation (toon_ground applies
 	# these only where a vertex is flagged as sand via UV.y; wetness via UV.x).
-	_ground_mat.set_shader_parameter("sand_dry", Color(0.835, 0.768, 0.566))   # soft tan
+	_ground_mat.set_shader_parameter("sand_dry", Color(0.902, 0.812, 0.475))   # warm yellow sand (matches SAND_FLAT)
 	_ground_mat.set_shader_parameter("sand_hi", Color(0.890, 0.835, 0.650))    # pale highlight
 	_ground_mat.set_shader_parameter("sand_wet", Color(0.737, 0.660, 0.486))   # wet sand
 	_ground_mat.set_shader_parameter("sand_macro_scale", 0.045)

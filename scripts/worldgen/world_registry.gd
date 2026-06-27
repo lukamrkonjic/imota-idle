@@ -120,6 +120,9 @@ func _parse_biomes(raw: Array) -> void:
 			resolved.append([int(tile_index[tid]), float(tw[tid])])
 		biomes[i]["_tile_weights"] = resolved
 		biomes[i]["_tint"] = _hex(str(biomes[i].get("tint", "ffffff")))
+		# Single FLAT ground colour for the biome (the "one colour per biome" look). Falls back to
+		# the tint if a biome predates the `ground` field. See TerrainStyle.flat_ground.
+		biomes[i]["_ground"] = _hex(str(biomes[i].get("ground", biomes[i].get("tint", "6a7a4e"))))
 		if not bool(biomes[i].get("isSubBiome", false)):
 			parent_biome_ids.append(str(biomes[i]["id"]))
 			var nbrs: Array = biomes[i].get("neighbors", [])
@@ -193,6 +196,14 @@ func biome_tint(idx: int) -> Color:
 	if idx < 0 or idx >= biomes.size():
 		return Color.WHITE
 	return biomes[idx].get("_tint", Color.WHITE)
+
+
+## Single FLAT ground colour for a biome index (the "one colour per biome" look). A mid grass
+## green if out of range (e.g. unmapped/ocean tile). See TerrainStyle.flat_ground.
+func biome_ground(idx: int) -> Color:
+	if idx < 0 or idx >= biomes.size():
+		return Color(0.43, 0.49, 0.31)
+	return biomes[idx].get("_ground", Color(0.43, 0.49, 0.31))
 
 
 func biome_by_id(id: String) -> Dictionary:

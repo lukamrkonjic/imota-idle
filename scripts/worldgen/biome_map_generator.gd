@@ -46,27 +46,13 @@ func setup(p_reg: RefCounted, p_seed: int, p_classifier: RefCounted) -> void:
 	_blend_noise.fractal_octaves = 3
 
 
-## Domain-warp offset (in tiles) for the biome lookup at a tile. A coherent blob component gives
-## organic patches; a per-tile jitter guarantees adjacent tiles sample DIFFERENT spots, so even a
-## perfectly clean mask line (e.g. the islands') breaks into interleaved patches of both biomes —
-## not just a wavy clean edge. Interiors are unaffected (all neighbours are the same biome).
-func _blend_offset(gtx: int, gty: int) -> Vector2i:
-	if _blend_noise == null:
-		return Vector2i.ZERO
-	var bx := _blend_noise.get_noise_2d(float(gtx), float(gty)) * BLEND_RADIUS
-	var by := _blend_noise.get_noise_2d(float(gtx) + 311.0, float(gty) + 57.0) * BLEND_RADIUS
-	bx += (WG.r01(world_seed, gtx, gty, 4441) - 0.5) * 2.0 * BLEND_JITTER
-	by += (WG.r01(world_seed, gtx, gty, 4451) - 0.5) * 2.0 * BLEND_JITTER
-	# Keep the SHORELINE crisp: this soft-edge offset is for blending LAND biomes into each
-	# other, but applied at the coast it dragged ocean/beach tiles across the true waterline —
-	# scattering deep-water "ponds" through the sand band. Fade it to 0 as a tile nears the
-	# coast (by the smooth coast_sink), so the sea->beach->land bands stay clean lines while
-	# inland biome borders still interleave softly.
-	if classifier != null and classifier.has_land_mask():
-		var inland := 1.0 - smoothstep(0.10, 0.32, classifier.coast_sink(float(gtx), float(gty)))
-		bx *= inland
-		by *= inland
-	return Vector2i(int(round(bx)), int(round(by)))
+## Biome-lookup sample offset. CRISP, CLEANLY-MAPPED biomes: the authored biome mask is sampled at
+## the EXACT tile (no domain-warp / jitter), so each biome is its own distinct hard-edged region
+## instead of the old interleaved noisy band. Borders still soften by ~1 tile via the terrain mesh's
+## shared corner colour (terrain_chunk_mesher._corner_color_compute). The old noisy-edge blend (a
+## blob warp + per-tile jitter, faded out at the coast) is intentionally removed.
+func _blend_offset(_gtx: int, _gty: int) -> Vector2i:
+	return Vector2i.ZERO
 
 
 func fill_chunk(chunk: RefCounted) -> void:

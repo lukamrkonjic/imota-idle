@@ -476,17 +476,13 @@ func _tile_info_compute(gtx: int, gty: int) -> Dictionary:
 	var top: float = float(elev) * ELEV_H
 	var slope: int = _tile_slope_steps(gtx, gty, elev) if (not water and elev > 0) else 0
 	var curve: int = _tile_curvature_steps(gtx, gty, elev) if (not water and elev > 0) else 0
-	var col: Color = SHORE if water else TerrainStyle.grade(tdef["colors"][0], tile_name, gtx, gty, elev, slope, curve)
-	if not water:
-		# Shift toward the (sub-)biome's tint so biomes read distinctly; lighter on raised ground
-		# so mountains keep their alpine look. The tint is blended across a small neighbourhood
-		# (see _blended_biome_tint) so biome edges fade over several tiles into a gradient instead
-		# of switching on a single tile line.
-		var tint: Color = _blended_biome_tint(gtx, gty)
-		col = TerrainStyle.biome_tinted(col, tile_name, tint, 0.10 if elev > 0 else 0.30)
-		# A Short Hike-style painterly patches: soft broad blobs of lighter/darker shades + a
-		# rare biome accent, so the ground isn't one flat colour.
-		col = TerrainStyle.terrain_patch(col, tile_name, biome_id, gtx, gty)
+	# ONE flat colour per biome (clean distinct regions). The EFFECTIVE biome (sub-biome if present)
+	# drives the colour, so sub-biomes read as their own region too. No biome-tint blend, no
+	# painterly patches, no per-tile noise — only sand/snow flats + an elevation rock/snow read
+	# (see TerrainStyle.flat_ground). Biome borders soften only over the shared corner (~1 tile).
+	var eff_idx: int = chunk.biome_at(lx, ly)
+	var biome_ground: Color = WorldGen.reg.biome_ground(eff_idx)
+	var col: Color = SHORE if water else TerrainStyle.flat_ground(tdef["colors"][0], tile_name, biome_ground, elev, slope, curve)
 	return {
 		"top": top,
 		"water": water,

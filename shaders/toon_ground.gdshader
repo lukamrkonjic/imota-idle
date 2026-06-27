@@ -66,28 +66,18 @@ void vertex() {
 }
 
 vec3 beach_color(vec2 wp) {
-	float macro = texture(sand_noise, wp * sand_macro_scale).r;
-	// Three flat sand levels (quantised, not a smooth gradient).
-	vec3 sand = sand_dry.rgb;
-	sand = mix(sand, sand_dry.rgb * 0.95, step(macro, 0.34));   // slightly darker dry patch
-	sand = mix(sand, sand_hi.rgb, step(0.72, macro));           // pale highlight patch
-	// Wet band near the water: darker, more saturated sand.
-	sand = mix(sand, sand_wet.rgb, clamp(v_wet, 0.0, 1.0));
-	// Sparse 1px speckle (low contrast).
-	float sp = texture(sand_noise, wp * sand_detail_scale + vec2(11.3, 7.1)).r;
-	sand *= 1.0 - step(0.87, sp) * sand_speckle;
-	sand += step(0.95, sp) * sand_speckle * 0.7;
-	return sand;
+	// ONE flat sand tone (clean distinct-region look): no macro patches, wet band or speckle —
+	// the beach is a single colour like every other biome.
+	return sand_dry.rgb;
 }
 
 void fragment() {
 	vec3 base = v_col;
 	if (v_beach > 0.001) {
 		vec3 sand = beach_color(v_world.xz);
-		// Dithered sand/grass boundary: a noise-jittered threshold on the beach factor so
-		// the edge breaks into flat patches instead of a clean tile line.
-		float edge_n = texture(sand_noise, v_world.xz * 0.45 + vec2(3.0, 9.0)).r;
-		float bfac = smoothstep(edge_n * 0.5 + 0.12, edge_n * 0.5 + 0.30, v_beach);
+		// Clean sand/grass boundary: a tight smoothstep on the beach factor (~1-tile crossfade),
+		// no noise jitter — a crisp coastline band, not a speckled edge.
+		float bfac = smoothstep(0.30, 0.50, v_beach);
 		base = mix(base, sand, bfac);
 	}
 

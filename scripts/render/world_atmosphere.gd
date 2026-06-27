@@ -215,12 +215,17 @@ func _apply_grade() -> void:
 	if _sun != null:
 		_sun.light_color = sun_color
 		_sun.light_energy = sun_energy
-	# Dusk: richer, warmer colour. A little extra saturation + contrast as the sun sets (not at dawn —
-	# dawn instead gets the misty haze). Rain/snow desaturate slightly so storms read cooler/flatter.
-	var dusk := DayNight.dusk()
-	# Gentle dusk richening — too much over-saturated the cool snow palette into vivid purple.
-	_env.adjustment_saturation = clampf(1.0 + dusk * 0.32 - (Weather.rain + Weather.snow) * 0.18, 0.7, 1.5)
-	_env.adjustment_contrast = 1.0 + dusk * 0.08
+	# Colour-grade post pass. We deliberately do NOT boost saturation/contrast at dusk anymore: this
+	# is a GLOBAL screen pass, so it also grades the (unshaded) terrain — and pumping saturation
+	# amplified the ground's subtle baked painterly value-variation into shadow-like dark-green
+	# blotches that "animated in" as the sun set (and shifted with weather, since weather moved the
+	# saturation too). They looked like cast cloud shadows on the ground, but nothing was casting
+	# them. Dusk warmth/depth now comes ONLY from the sun colour, fog and ambient (which the unshaded
+	# ground ignores), so the ground stays flat and even at every time of day while sprites/props/
+	# water still warm up at sunset. Weather may still gently DESATURATE (storms read cooler/flatter);
+	# that only ever LOWERS saturation, so it can never blotch the ground.
+	_env.adjustment_saturation = clampf(1.0 - (Weather.rain + Weather.snow) * 0.18, 0.7, 1.0)
+	_env.adjustment_contrast = 1.0
 	# TERRAIN MOOD: the ground is unshaded (see toon_ground.gdshader) — it ignores the sun colour/
 	# direction/shadows entirely. The ONLY time/weather influence on terrain is this single uniform
 	# multiplier, applied evenly so biome colours stay stable while the world still darkens at night.

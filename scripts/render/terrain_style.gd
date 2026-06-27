@@ -17,17 +17,24 @@ const SAND_TILES := ["sand", "sand_dune", "desert_sand", "desert_dune"]
 # Dead / corrupted / charred ground (hostile north). Kept OUT of the grass gradient so it stays
 # bleak — only broad light variation is applied, never a green/orange/rock tint.
 const HOSTILE_TILES := ["dead_grass", "scorched_earth", "obsidian", "blight_pool"]
+# BUILT surfaces that keep their own flat colour in the one-colour-per-biome look (they read as
+# constructed, not as the surrounding biome). Natural earth tiles (dirt/mud/gravel/clay) instead
+# take the biome's flat ground colour.
+const BUILT_TILES := ["cobble", "plaza", "plank_floor", "plank"]
+# Single flat tones for the cross-biome surfaces in the flat look (A Short Hike warm palette).
+const SAND_FLAT := Color(0.902, 0.812, 0.475)   # warm yellow beach / desert sand
+const SNOW_FLAT := Color(0.929, 0.953, 0.969)   # pale blue-white snow
 
 # Alpine colour ramp (A Short Hike-style): grass -> olive -> ochre dirt -> warm rock -> cool
 # high rock -> snow, as ONE continuous ramp so a mountain never reads as a flat single tone.
 const ALPINE_SUMMIT := 128.0                     # = ELEV_MAX_STEPS — height normaliser (grass→rock→snow span)
-const ALP_MEADOW := Color(0.42, 0.55, 0.31)      # grassy foothill green
-const ALP_OLIVE := Color(0.53, 0.55, 0.33)       # dry mid-slope olive
-const ALP_DIRT := Color(0.60, 0.47, 0.30)        # ochre worn earth / scree
-const ALP_ROCK := Color(0.60, 0.53, 0.47)        # warm taupe stone
-const ALP_ROCK_HI := Color(0.74, 0.73, 0.76)     # cool desaturated high rock
-const SNOW_LIT := Color(0.96, 0.97, 0.99)        # bright, near-white sunlit snow (barely cool)
-const SNOW_SHADE := Color(0.75, 0.79, 0.84)      # cool light-grey snow shadow — white, NOT periwinkle
+const ALP_MEADOW := Color(0.502, 0.565, 0.306)      # grassy foothill green
+const ALP_OLIVE := Color(0.541, 0.537, 0.322)       # dry mid-slope olive
+const ALP_DIRT := Color(0.663, 0.467, 0.271)        # ochre worn earth / scree
+const ALP_ROCK := Color(0.651, 0.616, 0.565)        # warm taupe stone
+const ALP_ROCK_HI := Color(0.710, 0.706, 0.722)     # cool desaturated high rock
+const SNOW_LIT := Color(0.957, 0.973, 0.984)        # bright, near-white sunlit snow (barely cool)
+const SNOW_SHADE := Color(0.780, 0.847, 0.918)      # cool blue-white snow shadow — never periwinkle
 
 
 static func is_path(tile: String) -> bool:
@@ -122,9 +129,42 @@ static func _biome_accent(biome_id: String) -> Color:
 		_: return Color(0, 0, 0, 0)
 
 
+## ONE flat colour per biome (the clean, distinct-region look — no noise, bands, patches or
+## biome-tint blending). `base` is the tile's raw palette colour (used only for BUILT surfaces);
+## `biome_ground` is the biome's curated flat colour (WorldRegistry.biome_ground). Lowland natural
+## ground = the biome colour; sand and snow are single flat tones; and raised/steep ground sheds to
+## bare stone (then a snow dusting at the very tops) BY ELEVATION ONLY, so mountains still read as
+## peaks. This is the sole source of within-biome variation. Used by the terrain mesher + bake.
+static func flat_ground(base: Color, tile: String, biome_ground: Color, elev: int = 0, slope: int = 0, _curve: int = 0) -> Color:
+	# Built surfaces (roads/boardwalks/plazas) keep their own flat colour.
+	if tile in BUILT_TILES:
+		return base
+	# Sand (beaches, dunes, desert) is one flat tone everywhere.
+	if tile in SAND_TILES:
+		return SAND_FLAT
+	# Snow is snow regardless of biome.
+	if is_snow(tile):
+		return SNOW_FLAT
+	# Everything else (grass, dirt/mud/clay earth, marsh, scree, ash, dead/charred ground) takes the
+	# biome's single flat colour. NO spatial noise / bands / patches.
+	var ground := biome_ground
+	if elev > 0:
+		# Elevation read: steep faces + high ground shed to bare stone; the very tops dust with snow.
+		# Flat lowland shelves keep the pure biome colour. Clean ramps, no noise.
+		var h := clampf(float(elev) / ALPINE_SUMMIT, 0.0, 1.0)
+		var steep := clampf(float(slope) / 5.0, 0.0, 1.0)
+		var rock := ALP_ROCK.lerp(ALP_ROCK_HI, smoothstep(0.40, 0.95, h))
+		var to_rock := smoothstep(0.30, 0.62, steep + maxf(h - 0.38, 0.0) * 0.7)
+		ground = ground.lerp(rock, to_rock)
+		var snow_cap := smoothstep(0.74, 0.96, h) * (1.0 - steep * 0.5)
+		ground = ground.lerp(SNOW_FLAT, snow_cap * 0.85)
+	return ground
+
+
 ## Warm + enrich a terrain tile colour with BROAD low-frequency painterly variation, alpine
 ## elevation layering, snow shedding on steep faces, path/trail tinting, and the forest-grass
 ## gradient. (col, tile, gtx, gty, elev, slope, curve) -> final Color.
+## NOTE: superseded for the 3D ground by flat_ground (one colour per biome); kept for the 2D map.
 static func grade(col: Color, tile: String, gtx: int, gty: int, elev: int = 0, slope: int = 0, curve: int = 0) -> Color:
 	var c := col
 	var fx := float(gtx)
